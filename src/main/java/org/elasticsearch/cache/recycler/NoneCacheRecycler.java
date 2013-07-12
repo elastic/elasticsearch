@@ -17,27 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.cache.recycler;
 
-import gnu.trove.map.hash.TByteIntHashMap;
-import gnu.trove.map.hash.TDoubleIntHashMap;
-import gnu.trove.map.hash.TFloatIntHashMap;
-import gnu.trove.map.hash.TIntIntHashMap;
-import gnu.trove.map.hash.TIntObjectHashMap;
-import gnu.trove.map.hash.TLongIntHashMap;
-import gnu.trove.map.hash.TLongLongHashMap;
-import gnu.trove.map.hash.TObjectFloatHashMap;
-import gnu.trove.map.hash.TObjectIntHashMap;
-import gnu.trove.map.hash.TShortIntHashMap;
+import gnu.trove.map.hash.*;
 import gnu.trove.set.hash.THashSet;
-
-import java.util.Arrays;
-
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 
-public class NoCacheCacheRecycler implements Recycler {
+import java.util.Arrays;
+
+public class NoneCacheRecycler implements CacheRecycler {
 
     @Override
     public void clear() {
@@ -151,7 +141,7 @@ public class NoCacheCacheRecycler implements Recycler {
     }
 
     @Override
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({"unchecked"})
     public <T> TObjectIntHashMap<T> popObjectIntMap() {
         return new TObjectIntHashMap();
     }
@@ -161,7 +151,7 @@ public class NoCacheCacheRecycler implements Recycler {
     }
 
     @Override
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({"unchecked"})
     public <T> TIntObjectHashMap<T> popIntObjectMap() {
         return new TIntObjectHashMap<T>();
     }
@@ -171,7 +161,7 @@ public class NoCacheCacheRecycler implements Recycler {
     }
 
     @Override
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({"unchecked"})
     public <T> TObjectFloatHashMap<T> popObjectFloatMap() {
         return new TObjectFloatHashMap();
     }

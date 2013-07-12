@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -107,6 +108,8 @@ public class SearchContext implements Releasable {
 
     private final ScriptService scriptService;
 
+    private final CacheRecycler cacheRecycler;
+
     private final IndexShard indexShard;
 
     private final IndexService indexService;
@@ -184,13 +187,15 @@ public class SearchContext implements Releasable {
 
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
+                         Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
+                         ScriptService scriptService, CacheRecycler cacheRecycler) {
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
+        this.cacheRecycler = cacheRecycler;
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
@@ -391,6 +396,10 @@ public class SearchContext implements Releasable {
 
     public ScriptService scriptService() {
         return scriptService;
+    }
+
+    public CacheRecycler cacheRecycler() {
+        return cacheRecycler;
     }
 
     public FilterCache filterCache() {

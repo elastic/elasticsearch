@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.aliases;
 
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -65,6 +66,7 @@ public class IndexAliasesServiceTests {
     public static IndexQueryParserService newIndexQueryParserService() {
         Injector injector = new ModulesBuilder().add(
                 new IndicesQueriesModule(),
+                new CacheRecyclerModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new CodecModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexNameModule(new Index("test")),

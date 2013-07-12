@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import gnu.trove.iterator.TLongLongIterator;
 import gnu.trove.map.hash.TLongLongHashMap;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -108,24 +108,30 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         }
     }
 
-    private ComparatorType comparatorType;
+    ComparatorType comparatorType;
     TLongLongHashMap counts;
-    boolean cachedCounts;
+    CacheRecycler cacheRecycler;
     CountEntry[] entries = null;
 
-    private InternalCountDateHistogramFacet() {
+    InternalCountDateHistogramFacet() {
     }
 
-    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, boolean cachedCounts) {
+    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, CacheRecycler cacheRecycler) {
         super(name);
         this.comparatorType = comparatorType;
         this.counts = counts;
-        this.cachedCounts = cachedCounts;
+        this.cacheRecycler = cacheRecycler;
+    }
+
+    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, CountEntry[] entries) {
+        super(name);
+        this.comparatorType = comparatorType;
+        this.entries = entries;
     }
 
     @Override
     public List<CountEntry> getEntries() {
-        return Arrays.asList(computeEntries());
+        return Arrays.asList(entries);
     }
 
     @Override
@@ -134,46 +140,58 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     }
 
     void releaseCache() {
-        if (cachedCounts) {
-            CacheRecycler.pushLongLongMap(counts);
-            cachedCounts = false;
+        if (cacheRecycler != null) {
+            cacheRecycler.pushLongLongMap(counts);
+            cacheRecycler = null;
             counts = null;
         }
     }
 
-    private CountEntry[] computeEntries() {
-        if (entries != null) {
-            return entries;
+    @Override
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
+        if (facets.size() == 1) {
+            InternalCountDateHistogramFacet histoFacet = (InternalCountDateHistogramFacet) facets.get(0);
+            if (histoFacet.entries == null) {
+                histoFacet.entries = new CountEntry[histoFacet.counts.size()];
+                int i = 0;
+                for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext(); ) {
+                    it.advance();
+                    histoFacet.entries[i++] = new CountEntry(it.key(), it.value());
+                }
+            }
+            Arrays.sort(histoFacet.entries, histoFacet.comparatorType.comparator());
+            histoFacet.releaseCache();
+            return facets.get(0);
         }
-        entries = new CountEntry[counts.size()];
+
+        TLongLongHashMap counts = context.cacheRecycler().popLongLongMap();
+        for (Facet facet : facets) {
+            InternalCountDateHistogramFacet histoFacet = (InternalCountDateHistogramFacet) facet;
+            if (histoFacet.entries != null) {
+                for (CountEntry entry : histoFacet.entries) {
+                    counts.adjustOrPutValue(entry.getTime(), entry.getCount(), entry.getCount());
+                }
+            } else {
+                for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext(); ) {
+                    it.advance();
+                    counts.adjustOrPutValue(it.key(), it.value(), it.value());
+                }
+            }
+            histoFacet.releaseCache();
+        }
+
+        CountEntry[] entries = new CountEntry[counts.size()];
         int i = 0;
         for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
             it.advance();
             entries[i++] = new CountEntry(it.key(), it.value());
         }
-        releaseCache();
+        context.cacheRecycler().pushLongLongMap(counts);
+
         Arrays.sort(entries, comparatorType.comparator());
-        return entries;
-    }
 
-    @Override
-    public Facet reduce(List<Facet> facets) {
-        if (facets.size() == 1) {
-            return facets.get(0);
-        }
-        TLongLongHashMap counts = CacheRecycler.popLongLongMap();
-
-        for (Facet facet : facets) {
-            InternalCountDateHistogramFacet histoFacet = (InternalCountDateHistogramFacet) facet;
-            for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext(); ) {
-                it.advance();
-                counts.adjustOrPutValue(it.key(), it.value(), it.value());
-            }
-            histoFacet.releaseCache();
-
-        }
-
-        return new InternalCountDateHistogramFacet(getName(), comparatorType, counts, true);
+        return new InternalCountDateHistogramFacet(getName(), comparatorType, entries);
     }
 
     static final class Fields {
@@ -188,7 +206,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         builder.startObject(getName());
         builder.field(Fields._TYPE, TYPE);
         builder.startArray(Fields.ENTRIES);
-        for (Entry entry : computeEntries()) {
+        for (Entry entry : entries) {
             builder.startObject();
             builder.field(Fields.TIME, entry.getTime());
             builder.field(Fields.COUNT, entry.getCount());
@@ -211,11 +229,9 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
-        counts = CacheRecycler.popLongLongMap();
-        cachedCounts = true;
+        entries = new CountEntry[size];
         for (int i = 0; i < size; i++) {
-            long key = in.readLong();
-            counts.put(key, in.readVLong());
+            entries[i] = new CountEntry(in.readLong(), in.readVLong());
         }
     }
 
@@ -223,11 +239,19 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeByte(comparatorType.id());
-        out.writeVInt(counts.size());
-        for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
-            it.advance();
-            out.writeLong(it.key());
-            out.writeVLong(it.value());
+        if (entries != null) {
+            out.writeVInt(entries.length);
+            for (CountEntry entry : entries) {
+                out.writeLong(entry.getTime());
+                out.writeVLong(entry.getCount());
+            }
+        } else {
+            out.writeVInt(counts.size());
+            for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
+                it.advance();
+                out.writeLong(it.key());
+                out.writeVLong(it.value());
+            }
         }
         releaseCache();
     }

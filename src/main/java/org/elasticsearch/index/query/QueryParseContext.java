@@ -26,6 +26,7 @@ import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -104,6 +105,10 @@ public class QueryParseContext {
 
     public AnalysisService analysisService() {
         return indexQueryParser.analysisService;
+    }
+
+    public CacheRecycler cacheRecycler() {
+        return indexQueryParser.cacheRecycler;
     }
 
     public ScriptService scriptService() {

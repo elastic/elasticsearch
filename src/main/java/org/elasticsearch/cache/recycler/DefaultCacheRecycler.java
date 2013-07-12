@@ -17,32 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.cache.recycler;
 
-import gnu.trove.map.hash.TByteIntHashMap;
-import gnu.trove.map.hash.TDoubleIntHashMap;
-import gnu.trove.map.hash.TFloatIntHashMap;
-import gnu.trove.map.hash.TIntIntHashMap;
-import gnu.trove.map.hash.TIntObjectHashMap;
-import gnu.trove.map.hash.TLongIntHashMap;
-import gnu.trove.map.hash.TLongLongHashMap;
-import gnu.trove.map.hash.TObjectFloatHashMap;
-import gnu.trove.map.hash.TObjectIntHashMap;
-import gnu.trove.map.hash.TShortIntHashMap;
+import gnu.trove.map.hash.*;
 import gnu.trove.set.hash.THashSet;
-
-import java.lang.ref.SoftReference;
-import java.util.Arrays;
-import java.util.Queue;
-
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
-public class DefaultCacheRecycler implements Recycler {
+import java.lang.ref.SoftReference;
+import java.util.Arrays;
+import java.util.Queue;
+
+public class DefaultCacheRecycler implements CacheRecycler {
  
-    
     @Override
     public void clear() {
         hashMap.clear();
@@ -86,7 +75,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<ExtTHashMap>> hashMap = new SoftWrapper<Queue<ExtTHashMap>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popHashMap()
+     * @see org.elasticsearch.common.CacheRecycler#popHashMap()
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -99,7 +88,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushHashMap(org.elasticsearch.common.trove.ExtTHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushHashMap(org.elasticsearch.common.trove.ExtTHashMap)
      */
     @Override
     public void pushHashMap(ExtTHashMap map) {
@@ -112,7 +101,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<THashSet>> hashSet = new SoftWrapper<Queue<THashSet>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popHashSet()
+     * @see org.elasticsearch.common.CacheRecycler#popHashSet()
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -125,7 +114,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushHashSet(gnu.trove.set.hash.THashSet)
+     * @see org.elasticsearch.common.CacheRecycler#pushHashSet(gnu.trove.set.hash.THashSet)
      */
     @Override
     public void pushHashSet(THashSet map) {
@@ -138,7 +127,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<ExtTDoubleObjectHashMap>> doubleObjectHashMap = new SoftWrapper<Queue<ExtTDoubleObjectHashMap>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popDoubleObjectMap()
+     * @see org.elasticsearch.common.CacheRecycler#popDoubleObjectMap()
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -151,7 +140,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushDoubleObjectMap(org.elasticsearch.common.trove.ExtTDoubleObjectHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushDoubleObjectMap(org.elasticsearch.common.trove.ExtTDoubleObjectHashMap)
      */
     @Override
     public void pushDoubleObjectMap(ExtTDoubleObjectHashMap map) {
@@ -164,7 +153,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<ExtTLongObjectHashMap>> longObjectHashMap = new SoftWrapper<Queue<ExtTLongObjectHashMap>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popLongObjectMap()
+     * @see org.elasticsearch.common.CacheRecycler#popLongObjectMap()
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -177,7 +166,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
     
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushLongObjectMap(org.elasticsearch.common.trove.ExtTLongObjectHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushLongObjectMap(org.elasticsearch.common.trove.ExtTLongObjectHashMap)
      */
     @Override
     public void pushLongObjectMap(ExtTLongObjectHashMap map) {
@@ -190,7 +179,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<TLongLongHashMap>> longLongHashMap = new SoftWrapper<Queue<TLongLongHashMap>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popLongLongMap()
+     * @see org.elasticsearch.common.CacheRecycler#popLongLongMap()
      */
     @Override
     public TLongLongHashMap popLongLongMap() {
@@ -202,7 +191,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushLongLongMap(gnu.trove.map.hash.TLongLongHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushLongLongMap(gnu.trove.map.hash.TLongLongHashMap)
      */
     @Override
     public void pushLongLongMap(TLongLongHashMap map) {
@@ -215,7 +204,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popIntIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popIntIntMap()
      */
     @Override
     public TIntIntHashMap popIntIntMap() {
@@ -227,7 +216,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushIntIntMap(gnu.trove.map.hash.TIntIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushIntIntMap(gnu.trove.map.hash.TIntIntHashMap)
      */
     @Override
     public void pushIntIntMap(TIntIntHashMap map) {
@@ -242,7 +231,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popFloatIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popFloatIntMap()
      */
     @Override
     public TFloatIntHashMap popFloatIntMap() {
@@ -254,7 +243,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushFloatIntMap(gnu.trove.map.hash.TFloatIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushFloatIntMap(gnu.trove.map.hash.TFloatIntHashMap)
      */
     @Override
     public void pushFloatIntMap(TFloatIntHashMap map) {
@@ -269,7 +258,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popDoubleIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popDoubleIntMap()
      */
     @Override
     public TDoubleIntHashMap popDoubleIntMap() {
@@ -281,7 +270,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushDoubleIntMap(gnu.trove.map.hash.TDoubleIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushDoubleIntMap(gnu.trove.map.hash.TDoubleIntHashMap)
      */
     @Override
     public void pushDoubleIntMap(TDoubleIntHashMap map) {
@@ -296,7 +285,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popByteIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popByteIntMap()
      */
     @Override
     public TByteIntHashMap popByteIntMap() {
@@ -308,7 +297,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushByteIntMap(gnu.trove.map.hash.TByteIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushByteIntMap(gnu.trove.map.hash.TByteIntHashMap)
      */
     @Override
     public void pushByteIntMap(TByteIntHashMap map) {
@@ -323,7 +312,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popShortIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popShortIntMap()
      */
     @Override
     public TShortIntHashMap popShortIntMap() {
@@ -335,7 +324,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushShortIntMap(gnu.trove.map.hash.TShortIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushShortIntMap(gnu.trove.map.hash.TShortIntHashMap)
      */
     @Override
     public void pushShortIntMap(TShortIntHashMap map) {
@@ -350,7 +339,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popLongIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popLongIntMap()
      */
     @Override
     public TLongIntHashMap popLongIntMap() {
@@ -366,7 +355,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushLongIntMap(gnu.trove.map.hash.TLongIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushLongIntMap(gnu.trove.map.hash.TLongIntHashMap)
      */
     @Override
     public void pushLongIntMap(TLongIntHashMap map) {
@@ -380,7 +369,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popObjectIntMap()
+     * @see org.elasticsearch.common.CacheRecycler#popObjectIntMap()
      */
     @Override
     @SuppressWarnings({"unchecked"})
@@ -393,7 +382,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushObjectIntMap(gnu.trove.map.hash.TObjectIntHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushObjectIntMap(gnu.trove.map.hash.TObjectIntHashMap)
      */
     @Override
     public <T> void pushObjectIntMap(TObjectIntHashMap<T> map) {
@@ -407,7 +396,7 @@ public class DefaultCacheRecycler implements Recycler {
 
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popIntObjectMap()
+     * @see org.elasticsearch.common.CacheRecycler#popIntObjectMap()
      */
     @Override
     @SuppressWarnings({"unchecked"})
@@ -420,7 +409,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushIntObjectMap(gnu.trove.map.hash.TIntObjectHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushIntObjectMap(gnu.trove.map.hash.TIntObjectHashMap)
      */
     @Override
     public <T> void pushIntObjectMap(TIntObjectHashMap<T> map) {
@@ -433,7 +422,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<TObjectFloatHashMap>> objectFloatHashMap = new SoftWrapper<Queue<TObjectFloatHashMap>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popObjectFloatMap()
+     * @see org.elasticsearch.common.CacheRecycler#popObjectFloatMap()
      */
     @Override
     @SuppressWarnings({"unchecked"})
@@ -446,7 +435,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushObjectFloatMap(gnu.trove.map.hash.TObjectFloatHashMap)
+     * @see org.elasticsearch.common.CacheRecycler#pushObjectFloatMap(gnu.trove.map.hash.TObjectFloatHashMap)
      */
     @Override
     public <T> void pushObjectFloatMap(TObjectFloatHashMap<T> map) {
@@ -459,7 +448,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<Object[]>> objectArray = new SoftWrapper<Queue<Object[]>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popObjectArray(int)
+     * @see org.elasticsearch.common.CacheRecycler#popObjectArray(int)
      */
     @Override
     public Object[] popObjectArray(int size) {
@@ -479,7 +468,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushObjectArray(java.lang.Object[])
+     * @see org.elasticsearch.common.CacheRecycler#pushObjectArray(java.lang.Object[])
      */
     @Override
     public void pushObjectArray(Object[] objects) {
@@ -491,7 +480,7 @@ public class DefaultCacheRecycler implements Recycler {
     private final SoftWrapper<Queue<int[]>> intArray = new SoftWrapper<Queue<int[]>>();
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popIntArray(int)
+     * @see org.elasticsearch.common.CacheRecycler#popIntArray(int)
      */
     @Override
     public int[] popIntArray(int size) {
@@ -499,7 +488,7 @@ public class DefaultCacheRecycler implements Recycler {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#popIntArray(int, int)
+     * @see org.elasticsearch.common.CacheRecycler#popIntArray(int, int)
      */
     @Override
     public int[] popIntArray(int size, int sentinal) {

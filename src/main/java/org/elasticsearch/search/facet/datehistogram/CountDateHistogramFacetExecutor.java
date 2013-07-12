@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import gnu.trove.map.hash.TLongLongHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
@@ -37,18 +37,20 @@ import java.io.IOException;
  */
 public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
+    private final CacheRecycler cacheRecycler;
     private final TimeZoneRounding tzRounding;
     private final IndexNumericFieldData indexFieldData;
     final DateHistogramFacet.ComparatorType comparatorType;
 
     final TLongLongHashMap counts;
 
-    public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType) {
+    public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.tzRounding = tzRounding;
+        this.cacheRecycler = cacheRecycler;
 
-        this.counts = CacheRecycler.popLongLongMap();
+        this.counts = cacheRecycler.popLongLongMap();
     }
 
     @Override
@@ -58,7 +60,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalCountDateHistogramFacet(facetName, comparatorType, counts, true);
+        return new InternalCountDateHistogramFacet(facetName, comparatorType, counts, cacheRecycler);
     }
 
     class Collector extends FacetExecutor.Collector {

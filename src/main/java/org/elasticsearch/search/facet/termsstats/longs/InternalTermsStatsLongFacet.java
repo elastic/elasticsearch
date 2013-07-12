@@ -21,7 +21,6 @@ package org.elasticsearch.search.facet.termsstats.longs;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -169,7 +168,8 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
@@ -182,7 +182,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTLongObjectHashMap<LongEntry> map = CacheRecycler.popLongObjectMap();
+        ExtTLongObjectHashMap<LongEntry> map = context.cacheRecycler().popLongObjectMap();
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;
@@ -209,7 +209,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             LongEntry[] entries1 = map.values(new LongEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushLongObjectMap(map);
+            context.cacheRecycler().pushLongObjectMap(map);
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.internalValues();
@@ -222,7 +222,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushLongObjectMap(map);
+            context.cacheRecycler().pushLongObjectMap(map);
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

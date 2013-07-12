@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -51,6 +51,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
     private final IndexFieldData.WithOrdinals indexFieldData;
 
+    final CacheRecycler cacheRecycler;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
     private final int minCount;
@@ -82,6 +83,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         } else {
             minCount = 0;
         }
+
+        this.cacheRecycler = context.cacheRecycler();
 
         this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
@@ -143,7 +146,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
             for (ReaderAggregator aggregator : aggregators) {
                 if (aggregator.counts.length > ordinalsCacheAbove) {
-                    CacheRecycler.pushIntArray(aggregator.counts);
+                    cacheRecycler.pushIntArray(aggregator.counts);
                 }
             }
 
@@ -186,7 +189,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
         for (ReaderAggregator aggregator : aggregators) {
             if (aggregator.counts.length > ordinalsCacheAbove) {
-                CacheRecycler.pushIntArray(aggregator.counts);
+                cacheRecycler.pushIntArray(aggregator.counts);
             }
         }
 
@@ -211,7 +214,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 }
             }
             values = indexFieldData.load(context).getBytesValues();
-            current = new ReaderAggregator(values, ordinalsCacheAbove);
+            current = new ReaderAggregator(values, ordinalsCacheAbove, cacheRecycler);
             ordinals = values.ordinals();
         }
 
@@ -220,7 +223,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             Iter iter = ordinals.getIter(doc);
             int ord = iter.next();
             current.onOrdinal(doc, ord);
-            while((ord = iter.next()) != 0) {
+            while ((ord = iter.next()) != 0) {
                 current.onOrdinal(doc, ord);
             }
         }
@@ -251,12 +254,12 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         int total;
         private final int maxOrd;
 
-        public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit) {
+        public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit, CacheRecycler cacheRecycler) {
             this.values = values;
             this.maxOrd = values.ordinals().getMaxOrd();
 
             if (maxOrd > ordinalsCacheLimit) {
-                this.counts = CacheRecycler.popIntArray(maxOrd);
+                this.counts = cacheRecycler.popIntArray(maxOrd);
             } else {
                 this.counts = new int[maxOrd];
             }

@@ -30,7 +30,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -123,11 +123,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
-        uidToScore = CacheRecycler.popObjectFloatMap();
+        uidToScore = searchContext.cacheRecycler().popObjectFloatMap();
         Collector collector;
         switch (scoreType) {
             case AVG:
-                uidToCount = CacheRecycler.popObjectIntMap();
+                uidToCount = searchContext.cacheRecycler().popObjectIntMap();
                 collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
                 break;
             default:
@@ -145,11 +145,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     @Override
     public void contextClear() {
         if (uidToScore != null) {
-            CacheRecycler.pushObjectFloatMap(uidToScore);
+            searchContext.cacheRecycler().pushObjectFloatMap(uidToScore);
         }
         uidToScore = null;
         if (uidToCount != null) {
-            CacheRecycler.pushObjectIntMap(uidToCount);
+            searchContext.cacheRecycler().pushObjectIntMap(uidToCount);
         }
         uidToCount = null;
     }

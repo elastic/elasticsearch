@@ -20,14 +20,13 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -36,7 +35,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
+import java.io.IOException;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
@@ -47,8 +46,8 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
 
     @Inject
     public TransportSearchQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                              TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
+                                              SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController);
     }
 
     @Override
@@ -57,9 +56,6 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
     }
 
     private class AsyncAction extends BaseAsyncAction<QueryFetchSearchResult> {
-
-        private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = searchCache.obtainQueryFetchResults();
-
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -76,20 +72,26 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
         }
 
         @Override
-        protected void processFirstPhaseResult(ShardRouting shard, QueryFetchSearchResult result) {
-            queryFetchResults.put(result.shardTarget(), result);
+        protected void moveToSecondPhase() throws Exception {
+            try {
+                innerFinishHim();
+            } catch (Throwable e) {
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to reduce search", failure);
+                }
+                listener.onFailure(failure);
+            }
         }
 
-        @Override
-        protected void moveToSecondPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
+        private void innerFinishHim() throws IOException {
+            sortedShardList = searchPhaseController.sortDocs(firstResults);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), queryFetchResults.values(), null);
+                scrollId = buildScrollId(request.searchType(), firstResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
-            searchCache.releaseQueryFetchResults(queryFetchResults);
         }
     }
 }

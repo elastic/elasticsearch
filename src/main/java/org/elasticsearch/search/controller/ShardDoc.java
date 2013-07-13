@@ -26,7 +26,7 @@ import org.elasticsearch.search.SearchShardTarget;
  */
 public interface ShardDoc {
 
-    SearchShardTarget shardTarget();
+    int shardRequestId();
 
     int docId();
 

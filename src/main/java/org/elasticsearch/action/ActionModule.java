@@ -231,7 +231,6 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class,
                 TransportIndexDeleteByQueryAction.class, TransportShardDeleteByQueryAction.class);
         registerAction(SearchAction.INSTANCE, TransportSearchAction.class,
-                TransportSearchCache.class,
                 TransportSearchDfsQueryThenFetchAction.class,
                 TransportSearchQueryThenFetchAction.class,
                 TransportSearchDfsQueryAndFetchAction.class,

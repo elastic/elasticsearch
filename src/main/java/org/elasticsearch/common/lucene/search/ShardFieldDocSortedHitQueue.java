@@ -126,7 +126,7 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
         // avoid random sort order that could lead to duplicates (bug #31241):
         if (c == 0) {
             // CHANGE: Add shard base tie breaking
-            c = docA.shardTarget().compareTo(docB.shardTarget());
+            c = docA.shardRequestId() - docB.shardRequestId();
             if (c == 0) {
                 return docA.doc > docB.doc;
             }

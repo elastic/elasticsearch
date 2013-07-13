@@ -20,23 +20,22 @@
 package org.elasticsearch.search.controller;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.search.SearchShardTarget;
 
 /**
  *
  */
 public class ShardScoreDoc extends ScoreDoc implements ShardDoc {
 
-    private final SearchShardTarget shardTarget;
+    private final int shardRequestId;
 
-    public ShardScoreDoc(SearchShardTarget shardTarget, int doc, float score) {
+    public ShardScoreDoc(int shardRequestId, int doc, float score) {
         super(doc, score);
-        this.shardTarget = shardTarget;
+        this.shardRequestId = shardRequestId;
     }
 
     @Override
-    public SearchShardTarget shardTarget() {
-        return this.shardTarget;
+    public int shardRequestId() {
+        return this.shardRequestId;
     }
 
     @Override

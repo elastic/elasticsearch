@@ -27,21 +27,21 @@ import org.elasticsearch.search.SearchShardTarget;
  */
 public class ShardFieldDoc extends FieldDoc implements ShardDoc {
 
-    private final SearchShardTarget shardTarget;
+    private final int shardRequestId;
 
-    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score) {
+    public ShardFieldDoc(int shardRequestId, int doc, float score) {
         super(doc, score);
-        this.shardTarget = shardTarget;
+        this.shardRequestId = shardRequestId;
     }
 
-    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score, Object[] fields) {
+    public ShardFieldDoc(int shardRequestId, int doc, float score, Object[] fields) {
         super(doc, score, fields);
-        this.shardTarget = shardTarget;
+        this.shardRequestId = shardRequestId;
     }
 
     @Override
-    public SearchShardTarget shardTarget() {
-        return this.shardTarget;
+    public int shardRequestId() {
+        return this.shardRequestId;
     }
 
     @Override

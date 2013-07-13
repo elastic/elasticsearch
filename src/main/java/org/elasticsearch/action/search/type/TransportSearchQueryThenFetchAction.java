@@ -23,10 +23,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -36,10 +36,8 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -49,8 +47,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
     @Inject
     public TransportSearchQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                               TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
+                                               SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController);
     }
 
     @Override
@@ -60,14 +58,13 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
     private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
 
-        private final Map<SearchShardTarget, QuerySearchResultProvider> queryResults = searchCache.obtainQueryResults();
-
-        private final Map<SearchShardTarget, FetchSearchResult> fetchResults = searchCache.obtainFetchResults();
-
-        private volatile Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad;
+        final AtomicArray<FetchSearchResult> fetchResults;
+        final AtomicArray<ExtTIntArrayList> docIdsToLoad;
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
+            fetchResults = new AtomicArray<FetchSearchResult>(firstResults.length());
+            docIdsToLoad = new AtomicArray<ExtTIntArrayList>(firstResults.length());
         }
 
         @Override
@@ -81,31 +78,26 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         }
 
         @Override
-        protected void processFirstPhaseResult(ShardRouting shard, QuerySearchResult result) {
-            queryResults.put(result.shardTarget(), result);
-        }
-
-        @Override
         protected void moveToSecondPhase() {
-            sortedShardList = searchPhaseController.sortDocs(queryResults.values());
-            final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
-            this.docIdsToLoad = docIdsToLoad;
+            sortedShardList = searchPhaseController.sortDocs(firstResults);
+            searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
-            if (docIdsToLoad.isEmpty()) {
+            if (docIdsToLoad.asList().isEmpty()) {
                 finishHim();
                 return;
             }
 
-            final AtomicInteger counter = new AtomicInteger(docIdsToLoad.size());
+            final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
 
             int localOperations = 0;
-            for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                DiscoveryNode node = nodes.get(entry.getKey().nodeId());
+            for (AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
+                QuerySearchResult queryResult = firstResults.get(entry.index);
+                DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
-                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(entry.getKey()).id(), entry.getValue());
-                    executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
+                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResult.id(), entry.value);
+                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
                 }
             }
 
@@ -114,30 +106,32 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
-                            for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                                DiscoveryNode node = nodes.get(entry.getKey().nodeId());
+                            for (AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
+                                QuerySearchResult queryResult = firstResults.get(entry.index);
+                                DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
-                                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(entry.getKey()).id(), entry.getValue());
-                                    executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
+                                    FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResult.id(), entry.value);
+                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
                                 }
                             }
                         }
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                        final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
+                    for (final AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
+                        final QuerySearchResult queryResult = firstResults.get(entry.index);
+                        final DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
-                            final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(entry.getKey()).id(), entry.getValue());
+                            final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResult.id(), entry.value);
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override
                                     public void run() {
-                                        executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
+                                        executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
                                     }
                                 });
                             } else {
-                                executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
+                                executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
                             }
                         }
                     }
@@ -145,12 +139,12 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             }
         }
 
-        void executeFetch(final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        void executeFetch(final int shardRequestId, final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override
                 public void onResult(FetchSearchResult result) {
                     result.shardTarget(shardTarget);
-                    fetchResults.put(result.shardTarget(), result);
+                    fetchResults.set(shardRequestId, result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
@@ -161,7 +155,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
-                    AsyncAction.this.addShardFailure(new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(shardRequestId, new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -180,17 +174,15 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                 }
                 listener.onFailure(failure);
             } finally {
-                releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
-                searchCache.releaseQueryResults(queryResults);
-                searchCache.releaseFetchResults(fetchResults);
+                releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
             }
         }
 
         void innerFinishHim() throws Exception {
-            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, fetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), queryResults.values(), null);
+                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }

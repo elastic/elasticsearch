@@ -23,8 +23,6 @@ import org.apache.lucene.util.PriorityQueue;
 
 /**
  * <p>Same as lucene {@link org.apache.lucene.search.HitQueue}.
- *
- *
  */
 public class ScoreDocQueue extends PriorityQueue<ShardScoreDoc> {
 
@@ -34,7 +32,7 @@ public class ScoreDocQueue extends PriorityQueue<ShardScoreDoc> {
 
     protected final boolean lessThan(ShardScoreDoc hitA, ShardScoreDoc hitB) {
         if (hitA.score == hitB.score) {
-            int c = hitA.shardTarget().compareTo(hitB.shardTarget());
+            int c = hitA.shardRequestId() - hitB.shardRequestId();
             if (c == 0) {
                 return hitA.doc > hitB.doc;
             }

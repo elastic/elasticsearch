@@ -17,7 +17,7 @@
           index:   test_1
           type:    test
           id:      1
-          parent:  5
+          parent:  中文
           body:    { foo: bar }
 
  - do:
@@ -25,12 +25,12 @@
           index:   test_1
           type:    test
           id:      1
-          parent:  5
+          parent:  中文
           fields:  [_parent, _routing]
 
  - match:   { _id:      "1"}
- - match:   { fields._parent: "5"}
- - match:   { fields._routing: "5"}
+ - match:   { fields._parent: 中文 }
+ - match:   { fields._routing: 中文}
 
  - do:
       catch: missing

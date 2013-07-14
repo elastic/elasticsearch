@@ -19,26 +19,26 @@
       index:
         index: test_1
         type:  test
-        id:    1
-        body:  { "foo": "bar" }
+        id:    中文
+        body:  { "foo": "Hello: 中文" }
 
   - do:
       get:
         index: test_1
         type:  test
-        id:    1
+        id:    中文
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
-  - match: { _id:      "1"      }
-  - match: { _source:  { foo: bar } }
+  - match: { _id:      中文      }
+  - match: { _source:  { foo: "Hello: 中文" } }
 
   - do:
       get:
         index: test_1
-        id:    1
+        id:    中文
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
-  - match: { _id:      "1"      }
-  - match: { _source:  { foo: bar } }
+  - match: { _id:      中文      }
+  - match: { _source:  { foo: "Hello: 中文" } }

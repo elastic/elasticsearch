@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -125,6 +126,9 @@ public class RestBulkAction extends BaseRestHandler {
                                 }
                                 builder.endArray();
                             }
+                        } else if (itemResponse.getResponse() instanceof DeleteResponse) {
+                            DeleteResponse deleteResponse = itemResponse.getResponse();
+                            builder.field(Fields.FOUND, !deleteResponse.isNotFound());
                         }
                         builder.endObject();
                         builder.endObject();
@@ -159,6 +163,7 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
     }
 
 }

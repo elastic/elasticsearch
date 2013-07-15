@@ -110,7 +110,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         try {
             context.parsedQuery(parseQuery(request, indexService));
             context.preProcess();
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().reader.docBase;
+            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
             Explanation explanation;
             if (context.rescore() != null) {
                 RescoreSearchContext ctx = context.rescore();

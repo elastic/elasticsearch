@@ -84,6 +84,11 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
             shardRequest.add(i, item.type(), item.id(), item.fields());
         }
 
+        if (shardRequests.size() == 0) {
+            // only failures..
+            listener.onResponse(new MultiGetResponse(responses));
+        }
+
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {

@@ -48,13 +48,16 @@ public class SingleThreadBulkStress {
     public static void main(String[] args) throws Exception {
         Random random = new Random();
 
+        int shardsCount = Integer.parseInt(System.getProperty("es.shards", "1"));
+        int replicaCount = Integer.parseInt(System.getProperty("es.replica", "1"));
+
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "1s")
                 .put("index.merge.async", true)
                 .put("index.translog.flush_threshold_ops", 5000)
                 .put("gateway.type", "none")
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, shardsCount)
+                .put(SETTING_NUMBER_OF_REPLICAS, replicaCount)
                 .build();
 
         Node[] nodes = new Node[1];

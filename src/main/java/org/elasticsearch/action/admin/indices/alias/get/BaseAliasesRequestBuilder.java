@@ -27,10 +27,10 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  */
-public abstract class BaseIndicesAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseIndicesAliasesRequestBuilder<Response, Builder>> extends MasterNodeOperationRequestBuilder<IndicesGetAliasesRequest, Response, Builder> {
+public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse, Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
 
-    public BaseIndicesAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
-        super((InternalIndicesAdminClient) client, new IndicesGetAliasesRequest(aliases));
+    public BaseAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
+        super((InternalIndicesAdminClient) client, new GetAliasesRequest(aliases));
     }
 
     @SuppressWarnings("unchecked")

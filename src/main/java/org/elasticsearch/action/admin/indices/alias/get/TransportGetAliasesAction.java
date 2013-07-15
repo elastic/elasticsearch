@@ -34,16 +34,16 @@ import java.util.Map;
 
 /**
  */
-public class TransportIndicesGetAliasesAction extends TransportMasterNodeOperationAction<IndicesGetAliasesRequest, IndicesGetAliasesResponse> {
+public class TransportGetAliasesAction extends TransportMasterNodeOperationAction<GetAliasesRequest, GetAliasesResponse> {
 
     @Inject
-    public TransportIndicesGetAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    public TransportGetAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings, transportService, clusterService, threadPool);
     }
 
     @Override
     protected String transportAction() {
-        return IndicesGetAliasesAction.NAME;
+        return GetAliasesAction.NAME;
     }
 
     @Override
@@ -52,17 +52,17 @@ public class TransportIndicesGetAliasesAction extends TransportMasterNodeOperati
     }
 
     @Override
-    protected IndicesGetAliasesRequest newRequest() {
-        return new IndicesGetAliasesRequest();
+    protected GetAliasesRequest newRequest() {
+        return new GetAliasesRequest();
     }
 
     @Override
-    protected IndicesGetAliasesResponse newResponse() {
-        return new IndicesGetAliasesResponse();
+    protected GetAliasesResponse newResponse() {
+        return new GetAliasesResponse();
     }
 
     @Override
-    protected IndicesGetAliasesResponse masterOperation(IndicesGetAliasesRequest request, ClusterState state) throws ElasticSearchException {
+    protected GetAliasesResponse masterOperation(GetAliasesRequest request, ClusterState state) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
 
@@ -71,7 +71,7 @@ public class TransportIndicesGetAliasesAction extends TransportMasterNodeOperati
         if (result.isEmpty()) {
             throw new AliasMissingException(request.aliases());
         }
-        return new IndicesGetAliasesResponse(result);
+        return new GetAliasesResponse(result);
     }
 
 }

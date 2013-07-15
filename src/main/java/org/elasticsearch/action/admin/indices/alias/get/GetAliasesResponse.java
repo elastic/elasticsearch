@@ -32,15 +32,15 @@ import java.util.Map;
 
 /**
  */
-public class IndicesGetAliasesResponse extends ActionResponse {
+public class GetAliasesResponse extends ActionResponse {
 
     private Map<String, List<AliasMetaData>> aliases = new HashMap<String, List<AliasMetaData>>();
 
-    public IndicesGetAliasesResponse(Map<String, List<AliasMetaData>> aliases) {
+    public GetAliasesResponse(Map<String, List<AliasMetaData>> aliases) {
         this.aliases = aliases;
     }
 
-    IndicesGetAliasesResponse() {
+    GetAliasesResponse() {
     }
 
 

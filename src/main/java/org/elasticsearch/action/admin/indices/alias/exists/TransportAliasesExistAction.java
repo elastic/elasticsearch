@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.alias.exists;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  */
-public class TransportAliasesExistAction extends TransportMasterNodeOperationAction<IndicesGetAliasesRequest, AliasesExistResponse> {
+public class TransportAliasesExistAction extends TransportMasterNodeOperationAction<GetAliasesRequest, AliasesExistResponse> {
 
     @Inject
     public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
@@ -48,8 +48,8 @@ public class TransportAliasesExistAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected IndicesGetAliasesRequest newRequest() {
-        return new IndicesGetAliasesRequest();
+    protected GetAliasesRequest newRequest() {
+        return new GetAliasesRequest();
     }
 
     @Override
@@ -58,7 +58,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected AliasesExistResponse masterOperation(IndicesGetAliasesRequest request, ClusterState state) throws ElasticSearchException {
+    protected AliasesExistResponse masterOperation(GetAliasesRequest request, ClusterState state) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
 

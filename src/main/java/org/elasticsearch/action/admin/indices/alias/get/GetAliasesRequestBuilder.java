@@ -24,14 +24,14 @@ import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class IndicesGetAliasesRequestBuilder extends BaseIndicesAliasesRequestBuilder<IndicesGetAliasesResponse, IndicesGetAliasesRequestBuilder> {
+public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 
-    public IndicesGetAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
+    public GetAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
         super(client, aliases);
     }
 
     @Override
-    protected void doExecute(ActionListener<IndicesGetAliasesResponse> listener) {
+    protected void doExecute(ActionListener<GetAliasesResponse> listener) {
         ((IndicesAdminClient) client).getAliases(request, listener);
     }
 

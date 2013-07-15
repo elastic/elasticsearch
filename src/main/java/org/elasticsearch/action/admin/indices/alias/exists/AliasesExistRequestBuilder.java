@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.indices.alias.exists;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.get.BaseIndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.BaseAliasesRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class AliasesExistRequestBuilder extends BaseIndicesAliasesRequestBuilder<AliasesExistResponse, AliasesExistRequestBuilder> {
+public class AliasesExistRequestBuilder extends BaseAliasesRequestBuilder<AliasesExistResponse, AliasesExistRequestBuilder> {
 
     public AliasesExistRequestBuilder(IndicesAdminClient client, String... aliases) {
         super(client, aliases);

@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -616,7 +616,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> getting alias1");
-        IndicesGetAliasesResponse getResponse = client().admin().indices().prepareGetAliases("alias1").execute().actionGet();
+        GetAliasesResponse getResponse = client().admin().indices().prepareGetAliases("alias1").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));

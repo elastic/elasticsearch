@@ -59,11 +59,11 @@ public class StringScriptDataComparator extends FieldComparator<BytesRef> {
 
     private final SearchScript script;
 
-    private BytesRef[] values;
+    private BytesRef[] values; // TODO maybe we can preallocate or use a sentinel to prevent the conditionals in compare
 
     private BytesRef bottom;
     
-    private BytesRef spare = new BytesRef();
+    private final BytesRef spare = new BytesRef();
     
     private int spareDoc = -1;
 
@@ -102,10 +102,10 @@ public class StringScriptDataComparator extends FieldComparator<BytesRef> {
 
     @Override
     public int compareBottom(int doc) {
-      
         if (bottom == null) {
             return -1;
         }
+        setSpare(doc);
         return bottom.compareTo(spare);
     }
 
@@ -120,7 +120,6 @@ public class StringScriptDataComparator extends FieldComparator<BytesRef> {
         if (spareDoc == doc) {
             return;
         }
-        
         script.setNextDocId(doc);
         spare.copyChars(script.run().toString());
         spareDoc = doc;

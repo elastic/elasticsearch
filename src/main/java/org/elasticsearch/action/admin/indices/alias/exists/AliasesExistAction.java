@@ -25,22 +25,22 @@ import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class IndicesExistsAliasesAction extends IndicesAction<IndicesGetAliasesRequest, IndicesExistsAliasesResponse, IndicesExistsAliasesRequestBuilder> {
+public class AliasesExistAction extends IndicesAction<IndicesGetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
 
-    public static final IndicesExistsAliasesAction INSTANCE = new IndicesExistsAliasesAction();
+    public static final AliasesExistAction INSTANCE = new AliasesExistAction();
     public static final String NAME = "indices/exists/aliases";
 
-    private IndicesExistsAliasesAction() {
+    private AliasesExistAction() {
         super(NAME);
     }
 
     @Override
-    public IndicesExistsAliasesRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new IndicesExistsAliasesRequestBuilder(client);
+    public AliasesExistRequestBuilder newRequestBuilder(IndicesAdminClient client) {
+        return new AliasesExistRequestBuilder(client);
     }
 
     @Override
-    public IndicesExistsAliasesResponse newResponse() {
-        return new IndicesExistsAliasesResponse();
+    public AliasesExistResponse newResponse() {
+        return new AliasesExistResponse();
     }
 }

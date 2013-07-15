@@ -1,0 +1,18 @@
+---
+"Test indices.exists":
+  - do:
+      indices.exists:
+        index: test_index
+
+  - is_false: ''
+
+  - do:
+        indices.create:
+          index: test_index
+
+  - do:
+      indices.exists:
+        index: test_index
+
+  - is_true: ''
+

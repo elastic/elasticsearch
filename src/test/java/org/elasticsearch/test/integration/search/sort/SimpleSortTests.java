@@ -19,32 +19,6 @@
 
 package org.elasticsearch.test.integration.search.sort;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.customScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-
-import org.elasticsearch.search.sort.ScriptSortBuilder;
-
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
-
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -55,11 +29,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.util.*;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 
 /**
@@ -441,7 +425,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
-            assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).intValue(), equalTo((int) i));
+            assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).intValue(), equalTo(i));
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
@@ -456,7 +440,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
-            assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).intValue(), equalTo((int) (9 - i)));
+            assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).intValue(), equalTo((9 - i)));
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
@@ -559,11 +543,11 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     }
     
     @Test 
-    public void testSortScript() throws IOException {
+    public void test2920() throws IOException {
        createIndexMapped("test", "test", "value", "string");
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "test", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("value", "" + i).endObject()).execute().actionGet();
         }
         refresh();

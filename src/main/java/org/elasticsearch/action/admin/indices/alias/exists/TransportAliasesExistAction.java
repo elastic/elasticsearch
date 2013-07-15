@@ -30,16 +30,16 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  */
-public class TransportIndicesExistsAliasesAction extends TransportMasterNodeOperationAction<IndicesGetAliasesRequest, IndicesExistsAliasesResponse> {
+public class TransportAliasesExistAction extends TransportMasterNodeOperationAction<IndicesGetAliasesRequest, AliasesExistResponse> {
 
     @Inject
-    public TransportIndicesExistsAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
         super(settings, transportService, clusterService, threadPool);
     }
 
     @Override
     protected String transportAction() {
-        return IndicesExistsAliasesAction.NAME;
+        return AliasesExistAction.NAME;
     }
 
     @Override
@@ -53,17 +53,17 @@ public class TransportIndicesExistsAliasesAction extends TransportMasterNodeOper
     }
 
     @Override
-    protected IndicesExistsAliasesResponse newResponse() {
-        return new IndicesExistsAliasesResponse();
+    protected AliasesExistResponse newResponse() {
+        return new AliasesExistResponse();
     }
 
     @Override
-    protected IndicesExistsAliasesResponse masterOperation(IndicesGetAliasesRequest request, ClusterState state) throws ElasticSearchException {
+    protected AliasesExistResponse masterOperation(IndicesGetAliasesRequest request, ClusterState state) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
 
         boolean result = state.metaData().hasAliases(request.aliases(), request.indices());
-        return new IndicesExistsAliasesResponse(result);
+        return new AliasesExistResponse(result);
     }
 
 }

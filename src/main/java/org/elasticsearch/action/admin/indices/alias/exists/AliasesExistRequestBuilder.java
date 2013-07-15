@@ -25,15 +25,15 @@ import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class IndicesExistsAliasesRequestBuilder extends BaseIndicesAliasesRequestBuilder<IndicesExistsAliasesResponse, IndicesExistsAliasesRequestBuilder> {
+public class AliasesExistRequestBuilder extends BaseIndicesAliasesRequestBuilder<AliasesExistResponse, AliasesExistRequestBuilder> {
 
-    public IndicesExistsAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
+    public AliasesExistRequestBuilder(IndicesAdminClient client, String... aliases) {
         super(client, aliases);
     }
 
     @Override
-    protected void doExecute(ActionListener<IndicesExistsAliasesResponse> listener) {
-        ((IndicesAdminClient) client).existsAliases(request, listener);
+    protected void doExecute(ActionListener<AliasesExistResponse> listener) {
+        ((IndicesAdminClient) client).aliasesExist(request, listener);
     }
 
 }

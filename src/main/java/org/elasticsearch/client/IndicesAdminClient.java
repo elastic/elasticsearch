@@ -24,8 +24,8 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
@@ -516,14 +516,14 @@ public interface IndicesAdminClient {
     /**
      * Allows to check to existence of aliases from indices.
      */
-    IndicesExistsAliasesRequestBuilder prepareExistsAliases(String... aliases);
+    AliasesExistRequestBuilder prepareAliasesExist(String... aliases);
 
     /**
      * Check to existence of index aliases.
      *
      * @param request The result future
      */
-    ActionFuture<IndicesExistsAliasesResponse> existsAliases(IndicesGetAliasesRequest request);
+    ActionFuture<AliasesExistResponse> aliasesExist(IndicesGetAliasesRequest request);
 
     /**
      * Check the existence of specified index aliases.
@@ -531,7 +531,7 @@ public interface IndicesAdminClient {
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
      */
-    void existsAliases(IndicesGetAliasesRequest request, ActionListener<IndicesExistsAliasesResponse> listener);
+    void aliasesExist(IndicesGetAliasesRequest request, ActionListener<AliasesExistResponse> listener);
 
     /**
      * Clear indices cache.

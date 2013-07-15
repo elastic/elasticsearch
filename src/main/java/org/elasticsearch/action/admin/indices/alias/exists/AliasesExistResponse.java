@@ -27,15 +27,15 @@ import java.io.IOException;
 
 /**
  */
-public class IndicesExistsAliasesResponse extends ActionResponse {
+public class AliasesExistResponse extends ActionResponse {
 
     private boolean exists;
 
-    public IndicesExistsAliasesResponse(boolean exists) {
+    public AliasesExistResponse(boolean exists) {
         this.exists = exists;
     }
 
-    IndicesExistsAliasesResponse() {
+    AliasesExistResponse() {
     }
 
     public boolean exists() {

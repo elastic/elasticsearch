@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,11 +112,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         // we do our best to return the shard failures, but its ok if its not fully concurrently safe
         // we simply try and return as much as possible
-        protected final void addShardFailure(final int shardRequestId, ShardSearchFailure failure) {
+        protected final void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
             if (shardFailures == null) {
                 shardFailures = new AtomicArray<ShardSearchFailure>(scrollId.getContext().length);
             }
-            shardFailures.set(shardRequestId, failure);
+            shardFailures.set(shardIndex, failure);
         }
 
         public void start() {
@@ -167,18 +167,18 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     Tuple<String, Long>[] context1 = scrollId.getContext();
                     for (int i = 0; i < context1.length; i++) {
                         final Tuple<String, Long> target = context1[i];
-                        final int shardRequestId = i;
+                        final int shardIndex = i;
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
                                 threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                                     @Override
                                     public void run() {
-                                        executePhase(shardRequestId, node, target.v2());
+                                        executePhase(shardIndex, node, target.v2());
                                     }
                                 });
                             } else {
-                                executePhase(shardRequestId, node, target.v2());
+                                executePhase(shardIndex, node, target.v2());
                             }
                         }
                     }
@@ -200,11 +200,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             }
         }
 
-        private void executePhase(final int shardRequestId, DiscoveryNode node, final long searchId) {
+        private void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
             searchService.sendExecuteFetch(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override
                 public void onResult(QueryFetchSearchResult result) {
-                    queryFetchResults.set(shardRequestId, result);
+                    queryFetchResults.set(shardIndex, result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
@@ -215,7 +215,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, searchId);
                     }
-                    addShardFailure(shardRequestId, new ShardSearchFailure(t));
+                    addShardFailure(shardIndex, new ShardSearchFailure(t));
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -233,7 +233,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() {
-            ShardDoc[] sortedShardList = searchPhaseController.sortDocs(queryFetchResults);
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

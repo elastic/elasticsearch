@@ -139,12 +139,12 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             }
         }
 
-        void executeFetch(final int shardRequestId, final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override
                 public void onResult(FetchSearchResult result) {
                     result.shardTarget(shardTarget);
-                    fetchResults.set(shardRequestId, result);
+                    fetchResults.set(shardIndex, result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
@@ -155,7 +155,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
-                    AsyncAction.this.addShardFailure(shardRequestId, new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(shardIndex, new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

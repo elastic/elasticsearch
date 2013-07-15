@@ -35,6 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -313,6 +315,37 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("str_value", SortOrder.ASC)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + i), (char) (97 + i)})));
+        }
+        size = 1 + random.nextInt(10);
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(size)
+                .addSort("str_value", SortOrder.DESC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
+            assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + (9 - i)), (char) (97 + (9 - i))})));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        
+        
+        // STRING script
+        size = 1 + random.nextInt(10);
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(size)
+                .addSort(new ScriptSortBuilder("doc['str_value'].value", "string"))
                 .execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
         assertThat(searchResponse.getHits().hits().length, equalTo(size));

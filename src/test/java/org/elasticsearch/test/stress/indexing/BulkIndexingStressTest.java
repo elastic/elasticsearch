@@ -20,7 +20,9 @@
 package org.elasticsearch.test.stress.indexing;
 
 import jsr166y.ThreadLocalRandom;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,6 +41,8 @@ public class BulkIndexingStressTest {
 
         final Settings nodeSettings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).build();
 
+//            ESLogger logger = Loggers.getLogger("org.elasticsearch");
+//            logger.setLevel("DEBUG");
         Node[] nodes = new Node[NUMBER_OF_NODES];
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = NodeBuilder.nodeBuilder().settings(nodeSettings).node();
@@ -51,7 +55,17 @@ public class BulkIndexingStressTest {
             for (int i = 0; i < BATCH; i++) {
                 bulkRequest.add(Requests.indexRequest("test" + ThreadLocalRandom.current().nextInt(NUMBER_OF_INDICES)).type("type").source("field", "value"));
             }
-            bulkRequest.execute().actionGet();
+            BulkResponse bulkResponse = bulkRequest.execute().actionGet();
+            if (bulkResponse.hasFailures()) {
+                for (BulkItemResponse item : bulkResponse) {
+                    if (item.isFailed()) {
+                        System.out.println("failed response:" + item.getFailureMessage());
+                    }
+                }
+
+                throw new RuntimeException("Failed responses");
+            }
+            ;
         }
     }
 }

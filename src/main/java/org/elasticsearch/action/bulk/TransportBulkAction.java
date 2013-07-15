@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -172,11 +173,12 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 updateRequest.index(clusterState.metaData().concreteIndex(updateRequest.index()));
             }
         }
-        final BulkItemResponse[] responses = new BulkItemResponse[bulkRequest.requests.size()];
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<BulkItemResponse>(bulkRequest.requests.size());
 
 
         // first, go over all the requests and create a ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = Maps.newHashMap();
+
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
@@ -228,7 +230,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         }
 
         if (requestsByShard.isEmpty()) {
-            listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
             return;
         }
 
@@ -242,10 +244,8 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
-                    synchronized (responses) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                            responses[bulkItemResponse.getItemId()] = bulkItemResponse;
-                        }
+                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -256,21 +256,19 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
-                    synchronized (responses) {
-                        for (BulkItemRequest request : requests) {
-                            if (request.request() instanceof IndexRequest) {
-                                IndexRequest indexRequest = (IndexRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
-                                        new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message));
-                            } else if (request.request() instanceof DeleteRequest) {
-                                DeleteRequest deleteRequest = (DeleteRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), "delete",
-                                        new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message));
-                            } else if (request.request() instanceof UpdateRequest) {
-                                UpdateRequest updateRequest = (UpdateRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), "update",
-                                        new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), message));
-                            }
+                    for (BulkItemRequest request : requests) {
+                        if (request.request() instanceof IndexRequest) {
+                            IndexRequest indexRequest = (IndexRequest) request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
+                                    new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message)));
+                        } else if (request.request() instanceof DeleteRequest) {
+                            DeleteRequest deleteRequest = (DeleteRequest) request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), "delete",
+                                    new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message)));
+                        } else if (request.request() instanceof UpdateRequest) {
+                            UpdateRequest updateRequest = (UpdateRequest) request.request();
+                            responses.set(request.id(), new BulkItemResponse(request.id(), "update",
+                                    new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), message)));
                         }
                     }
                     if (counter.decrementAndGet() == 0) {
@@ -279,7 +277,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses, System.currentTimeMillis() - startTime));
+                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
                 }
             });
         }

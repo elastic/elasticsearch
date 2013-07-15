@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -58,13 +59,13 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-        final MultiGetItemResponse[] responses = new MultiGetItemResponse[request.items.size()];
+        final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<MultiGetItemResponse>(request.items.size());
 
         Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<ShardId, MultiGetShardRequest>();
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
             if (!clusterState.metaData().hasConcreteIndex(item.index())) {
-                responses[i] = new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "[" + item.index() + "] missing"));
+                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "[" + item.index() + "] missing")));
                 continue;
             }
 
@@ -86,7 +87,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
 
         if (shardRequests.size() == 0) {
             // only failures..
-            listener.onResponse(new MultiGetResponse(responses));
+            listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
         }
 
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
@@ -95,10 +96,8 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
             shardAction.execute(shardRequest, new ActionListener<MultiGetShardResponse>() {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
-                    synchronized (responses) {
-                        for (int i = 0; i < response.locations.size(); i++) {
-                            responses[response.locations.get(i)] = new MultiGetItemResponse(response.responses.get(i), response.failures.get(i));
-                        }
+                    for (int i = 0; i < response.locations.size(); i++) {
+                        responses.set(response.locations.get(i), new MultiGetItemResponse(response.responses.get(i), response.failures.get(i)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -109,11 +108,9 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
-                    synchronized (responses) {
-                        for (int i = 0; i < shardRequest.locations.size(); i++) {
-                            responses[shardRequest.locations.get(i)] = new MultiGetItemResponse(null,
-                                    new MultiGetResponse.Failure(shardRequest.index(), shardRequest.types.get(i), shardRequest.ids.get(i), message));
-                        }
+                    for (int i = 0; i < shardRequest.locations.size(); i++) {
+                        responses.set(shardRequest.locations.get(i), new MultiGetItemResponse(null,
+                                new MultiGetResponse.Failure(shardRequest.index(), shardRequest.types.get(i), shardRequest.ids.get(i), message)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -121,7 +118,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new MultiGetResponse(responses));
+                    listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
                 }
             });
         }

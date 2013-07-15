@@ -41,7 +41,7 @@ public class SimpleMgetTests extends AbstractSharedClusterTest {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item("test", "test", "1"))
                 .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
-            .execute().actionGet();
+                .execute().actionGet();
         assertThat(mgetResponse.getResponses().length, is(2));
 
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
@@ -50,20 +50,30 @@ public class SimpleMgetTests extends AbstractSharedClusterTest {
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("[nonExistingIndex] missing"));
+
+
+        mgetResponse = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
+                .execute().actionGet();
+        assertThat(mgetResponse.getResponses().length, is(1));
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
+        assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
+        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("[nonExistingIndex] missing"));
+
     }
 
     @Test
-    public void testThatParentPerDocumentIsSupported()  throws Exception {
+    public void testThatParentPerDocumentIsSupported() throws Exception {
         createIndex("test");
         ensureYellow();
         client().admin().indices().preparePutMapping("test").setType("test").setSource(jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("test")
-                    .startObject("_parent")
-                        .field("type", "foo")
-                    .endObject()
+                .startObject("_parent")
+                .field("type", "foo")
+                .endObject()
                 .endObject().
-            endObject()
+                        endObject()
         ).execute().actionGet();
 
         client().prepareIndex("test", "test", "1").setParent("4").setRefresh(true)

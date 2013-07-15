@@ -67,7 +67,7 @@ public class SearchPhaseController extends AbstractComponent {
         }
     };
 
-    private static final ShardDoc[] EMPTY = new ShardDoc[0];
+    public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final CacheRecycler cacheRecycler;
     private final boolean optimizeSingleShard;
@@ -130,19 +130,19 @@ public class SearchPhaseController extends AbstractComponent {
         return Math.min(left, right) == -1 ? -1 : left + right;
     }
 
-    public ShardDoc[] sortDocs(AtomicArray<? extends QuerySearchResultProvider> results1) {
+    public ScoreDoc[] sortDocs(AtomicArray<? extends QuerySearchResultProvider> results1) {
         if (results1.asList().isEmpty()) {
-            return EMPTY;
+            return EMPTY_DOCS;
         }
 
         if (optimizeSingleShard) {
             boolean canOptimize = false;
             QuerySearchResult result = null;
-            int shardRequestId = -1;
+            int shardIndex = -1;
             if (results1.asList().size() == 1) {
                 canOptimize = true;
                 result = results1.asList().get(0).value.queryResult();
-                shardRequestId = results1.asList().get(0).index;
+                shardIndex = results1.asList().get(0).index;
             } else {
                 // lets see if we only got hits from a single shard, if so, we can optimize...
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results1.asList()) {
@@ -153,31 +153,33 @@ public class SearchPhaseController extends AbstractComponent {
                         }
                         canOptimize = true;
                         result = entry.value.queryResult();
-                        shardRequestId = entry.index;
+                        shardIndex = entry.index;
                     }
                 }
             }
             if (canOptimize) {
                 ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
                 if (scoreDocs.length < result.from()) {
-                    return EMPTY;
+                    return EMPTY_DOCS;
                 }
                 int resultDocsSize = result.size();
                 if ((scoreDocs.length - result.from()) < resultDocsSize) {
                     resultDocsSize = scoreDocs.length - result.from();
                 }
                 if (result.topDocs() instanceof TopFieldDocs) {
-                    ShardDoc[] docs = new ShardDoc[resultDocsSize];
+                    ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
                     for (int i = 0; i < resultDocsSize; i++) {
                         ScoreDoc scoreDoc = scoreDocs[result.from() + i];
-                        docs[i] = new ShardFieldDoc(shardRequestId, scoreDoc.doc, scoreDoc.score, ((FieldDoc) scoreDoc).fields);
+                        scoreDoc.shardIndex = shardIndex;
+                        docs[i] = scoreDoc;
                     }
                     return docs;
                 } else {
-                    ShardDoc[] docs = new ShardDoc[resultDocsSize];
+                    ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
                     for (int i = 0; i < resultDocsSize; i++) {
                         ScoreDoc scoreDoc = scoreDocs[result.from() + i];
-                        docs[i] = new ShardScoreDoc(shardRequestId, scoreDoc.doc, scoreDoc.score);
+                        scoreDoc.shardIndex = shardIndex;
+                        docs[i] = scoreDoc;
                     }
                     return docs;
                 }
@@ -231,8 +233,8 @@ public class SearchPhaseController extends AbstractComponent {
                 ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
                 totalNumDocs += scoreDocs.length;
                 for (ScoreDoc doc : scoreDocs) {
-                    ShardFieldDoc nodeFieldDoc = new ShardFieldDoc(entry.index, doc.doc, doc.score, ((FieldDoc) doc).fields);
-                    if (queue.insertWithOverflow(nodeFieldDoc) == nodeFieldDoc) {
+                    doc.shardIndex = entry.index;
+                    if (queue.insertWithOverflow(doc) == doc) {
                         // filled the queue, break
                         break;
                     }
@@ -245,8 +247,8 @@ public class SearchPhaseController extends AbstractComponent {
                 ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
                 totalNumDocs += scoreDocs.length;
                 for (ScoreDoc doc : scoreDocs) {
-                    ShardScoreDoc nodeScoreDoc = new ShardScoreDoc(entry.index, doc.doc, doc.score);
-                    if (queue.insertWithOverflow(nodeScoreDoc) == nodeScoreDoc) {
+                    doc.shardIndex = entry.index;
+                    if (queue.insertWithOverflow(doc) == doc) {
                         // filled the queue, break
                         break;
                     }
@@ -265,32 +267,32 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         if (resultDocsSize <= 0) {
-            return EMPTY;
+            return EMPTY_DOCS;
         }
 
         // we only pop the first, this handles "from" nicely since the "from" are down the queue
         // that we already fetched, so we are actually popping the "from" and up to "size"
-        ShardDoc[] shardDocs = new ShardDoc[resultDocsSize];
+        ScoreDoc[] shardDocs = new ScoreDoc[resultDocsSize];
         for (int i = resultDocsSize - 1; i >= 0; i--)      // put docs in array
-            shardDocs[i] = (ShardDoc) queue.pop();
+            shardDocs[i] = (ScoreDoc) queue.pop();
         return shardDocs;
     }
 
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public void fillDocIdsToLoad(AtomicArray<ExtTIntArrayList> docsIdsToLoad, ShardDoc[] shardDocs) {
-        for (ShardDoc shardDoc : shardDocs) {
-            ExtTIntArrayList list = docsIdsToLoad.get(shardDoc.shardRequestId());
+    public void fillDocIdsToLoad(AtomicArray<ExtTIntArrayList> docsIdsToLoad, ScoreDoc[] shardDocs) {
+        for (ScoreDoc shardDoc : shardDocs) {
+            ExtTIntArrayList list = docsIdsToLoad.get(shardDoc.shardIndex);
             if (list == null) {
                 list = new ExtTIntArrayList(); // can't be shared!, uses unsafe on it later on
-                docsIdsToLoad.set(shardDoc.shardRequestId(), list);
+                docsIdsToLoad.set(shardDoc.shardIndex, list);
             }
-            list.add(shardDoc.docId());
+            list.add(shardDoc.doc);
         }
     }
 
-    public InternalSearchResponse merge(ShardDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResults, AtomicArray<? extends FetchSearchResultProvider> fetchResults) {
+    public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResults, AtomicArray<? extends FetchSearchResultProvider> fetchResults) {
 
         boolean sorted = false;
         int sortScoreIndex = -1;
@@ -363,8 +365,8 @@ public class SearchPhaseController extends AbstractComponent {
         // merge hits
         List<InternalSearchHit> hits = new ArrayList<InternalSearchHit>();
         if (!fetchResults.asList().isEmpty()) {
-            for (ShardDoc shardDoc : sortedDocs) {
-                FetchSearchResultProvider fetchResultProvider = fetchResults.get(shardDoc.shardRequestId());
+            for (ScoreDoc shardDoc : sortedDocs) {
+                FetchSearchResultProvider fetchResultProvider = fetchResults.get(shardDoc.shardIndex);
                 if (fetchResultProvider == null) {
                     continue;
                 }
@@ -372,7 +374,7 @@ public class SearchPhaseController extends AbstractComponent {
                 int index = fetchResult.counterGetAndIncrement();
                 if (index < fetchResult.hits().internalHits().length) {
                     InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
-                    searchHit.score(shardDoc.score());
+                    searchHit.score(shardDoc.score);
                     searchHit.shard(fetchResult.shardTarget());
 
                     if (sorted) {

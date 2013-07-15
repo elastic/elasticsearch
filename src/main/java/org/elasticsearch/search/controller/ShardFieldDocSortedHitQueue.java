@@ -20,11 +20,11 @@
 package org.elasticsearch.search.controller;
 
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.search.controller.ShardFieldDoc;
 
 import java.io.IOException;
 
@@ -32,7 +32,7 @@ import java.io.IOException;
  *
  */
 // LUCENE TRACK, Had to copy over in order ot improve same order tie break to take shards into account
-public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
+public class ShardFieldDocSortedHitQueue extends PriorityQueue<FieldDoc> {
 
     volatile SortField[] fields = null;
 
@@ -93,7 +93,7 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
      */
     @SuppressWarnings("unchecked")
     @Override
-    protected final boolean lessThan(final ShardFieldDoc docA, final ShardFieldDoc docB) {
+    protected final boolean lessThan(final FieldDoc docA, final FieldDoc docB) {
         final int n = fields.length;
         int c = 0;
         for (int i = 0; i < n && c == 0; ++i) {
@@ -126,7 +126,7 @@ public class ShardFieldDocSortedHitQueue extends PriorityQueue<ShardFieldDoc> {
         // avoid random sort order that could lead to duplicates (bug #31241):
         if (c == 0) {
             // CHANGE: Add shard base tie breaking
-            c = docA.shardRequestId() - docB.shardRequestId();
+            c = docA.shardIndex - docB.shardIndex;
             if (c == 0) {
                 return docA.doc > docB.doc;
             }

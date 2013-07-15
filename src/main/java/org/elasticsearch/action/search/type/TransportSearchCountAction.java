@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -74,7 +73,7 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         @Override
         protected void moveToSecondPhase() throws Exception {
             // no need to sort, since we know we have no hits back
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty());
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty());
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), firstResults, null);
@@ -82,6 +81,4 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
-
-    private static ShardDoc[] EMPTY_DOCS = new ShardDoc[0];
 }

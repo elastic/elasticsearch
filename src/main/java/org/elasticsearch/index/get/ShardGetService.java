@@ -315,7 +315,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields);
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.reader.reader().document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.context.reader().document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
@@ -340,7 +340,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                     }
                     SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
-                    searchScript.setNextReader(docIdAndVersion.reader);
+                    searchScript.setNextReader(docIdAndVersion.context);
                     searchScript.setNextDocId(docIdAndVersion.docId);
 
                     try {
@@ -356,7 +356,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     if (x == null || !x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
                             searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                            searchLookup.setNextReader(docIdAndVersion.reader);
+                            searchLookup.setNextReader(docIdAndVersion.context);
                             searchLookup.setNextDocId(docIdAndVersion.docId);
                         }
                         value = searchLookup.source().extractValue(field);

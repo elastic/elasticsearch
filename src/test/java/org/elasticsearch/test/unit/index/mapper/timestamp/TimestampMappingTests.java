@@ -20,10 +20,12 @@
 package org.elasticsearch.test.unit.index.mapper.timestamp;
 
 import java.util.Locale;
+import java.util.Map;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -32,9 +34,7 @@ import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -131,5 +131,25 @@ public class TimestampMappingTests {
         builder.endObject();
 
         assertThat(builder.string(), is(String.format(Locale.ROOT, "{\"%s\":{}}", TimestampFieldMapper.NAME)));
+    }
+
+    @Test // issue 3174
+    public void testThatSerializationWorksCorrectlyForIndexField() throws Exception {
+        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true).field("store", "yes").field("index", "no").endObject()
+                .endObject().endObject().string();
+        DocumentMapper enabledMapper = MapperTests.newParser().parse(enabledMapping);
+
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        enabledMapper.timestampFieldMapper().toXContent(builder, null).endObject();
+        builder.close();
+        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        assertThat(serializedMap, hasKey("_timestamp"));
+        assertThat(serializedMap.get("_timestamp"), instanceOf(Map.class));
+        Map<String, Object> timestampConfiguration = (Map<String, Object>) serializedMap.get("_timestamp");
+        assertThat(timestampConfiguration, hasKey("store"));
+        assertThat(timestampConfiguration.get("store").toString(), is("true"));
+        assertThat(timestampConfiguration, hasKey("index"));
+        assertThat(timestampConfiguration.get("index").toString(), is("no"));
     }
 }

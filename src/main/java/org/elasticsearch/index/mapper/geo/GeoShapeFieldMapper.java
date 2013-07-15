@@ -213,6 +213,9 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     public void parse(ParseContext context) throws IOException {
         try {
             ShapeBuilder shape = ShapeBuilder.parse(context.parser());
+            if(shape == null) {
+                return;
+            }
             Field[] fields = defaultStrategy.createIndexableFields(shape.build());
             if (fields == null || fields.length == 0) {
                 return;

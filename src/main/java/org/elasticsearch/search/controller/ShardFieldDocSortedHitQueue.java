@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search;
+package org.elasticsearch.search.controller;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;

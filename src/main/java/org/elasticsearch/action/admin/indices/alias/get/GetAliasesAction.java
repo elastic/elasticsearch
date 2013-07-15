@@ -24,22 +24,22 @@ import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class IndicesGetAliasesAction extends IndicesAction<IndicesGetAliasesRequest, IndicesGetAliasesResponse, IndicesGetAliasesRequestBuilder> {
+public class GetAliasesAction extends IndicesAction<GetAliasesRequest, GetAliasesResponse, GetAliasesRequestBuilder> {
 
-    public static final IndicesGetAliasesAction INSTANCE = new IndicesGetAliasesAction();
+    public static final GetAliasesAction INSTANCE = new GetAliasesAction();
     public static final String NAME = "indices/get/aliases";
 
-    private IndicesGetAliasesAction() {
+    private GetAliasesAction() {
         super(NAME);
     }
 
     @Override
-    public IndicesGetAliasesRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new IndicesGetAliasesRequestBuilder(client);
+    public GetAliasesRequestBuilder newRequestBuilder(IndicesAdminClient client) {
+        return new GetAliasesRequestBuilder(client);
     }
 
     @Override
-    public IndicesGetAliasesResponse newResponse() {
-        return new IndicesGetAliasesResponse();
+    public GetAliasesResponse newResponse() {
+        return new GetAliasesResponse();
     }
 }

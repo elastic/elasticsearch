@@ -26,9 +26,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -498,7 +498,7 @@ public interface IndicesAdminClient {
      *
      * @param request The result future
      */
-    ActionFuture<IndicesGetAliasesResponse> getAliases(IndicesGetAliasesRequest request);
+    ActionFuture<GetAliasesResponse> getAliases(GetAliasesRequest request);
 
     /**
      * Get specific index aliases that exists in particular indices and / or by name.
@@ -506,12 +506,12 @@ public interface IndicesAdminClient {
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
      */
-    void getAliases(IndicesGetAliasesRequest request, ActionListener<IndicesGetAliasesResponse> listener);
+    void getAliases(GetAliasesRequest request, ActionListener<GetAliasesResponse> listener);
 
     /**
      * Get specific index aliases that exists in particular indices and / or by name.
      */
-    IndicesGetAliasesRequestBuilder prepareGetAliases(String... aliases);
+    GetAliasesRequestBuilder prepareGetAliases(String... aliases);
 
     /**
      * Allows to check to existence of aliases from indices.
@@ -523,7 +523,7 @@ public interface IndicesAdminClient {
      *
      * @param request The result future
      */
-    ActionFuture<AliasesExistResponse> aliasesExist(IndicesGetAliasesRequest request);
+    ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request);
 
     /**
      * Check the existence of specified index aliases.
@@ -531,7 +531,7 @@ public interface IndicesAdminClient {
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
      */
-    void aliasesExist(IndicesGetAliasesRequest request, ActionListener<AliasesExistResponse> listener);
+    void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener);
 
     /**
      * Clear indices cache.

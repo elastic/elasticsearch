@@ -44,8 +44,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.exists.TransportAliasesExistAction;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesAction;
-import org.elasticsearch.action.admin.indices.alias.get.TransportIndicesGetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.TransportGetAliasesAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
@@ -213,7 +213,7 @@ public class ActionModule extends AbstractModule {
         registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
         registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
         registerAction(GetWarmersAction.INSTANCE, TransportGetWarmersAction.class);
-        registerAction(IndicesGetAliasesAction.INSTANCE, TransportIndicesGetAliasesAction.class);
+        registerAction(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         registerAction(AliasesExistAction.INSTANCE, TransportAliasesExistAction.class);
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);

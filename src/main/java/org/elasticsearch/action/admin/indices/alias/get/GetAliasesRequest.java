@@ -31,35 +31,35 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class IndicesGetAliasesRequest extends MasterNodeOperationRequest<IndicesGetAliasesRequest> {
+public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequest> {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
 
     private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
 
-    public IndicesGetAliasesRequest(String[] aliases) {
+    public GetAliasesRequest(String[] aliases) {
         this.aliases = aliases;
     }
 
-    public IndicesGetAliasesRequest(String alias) {
+    public GetAliasesRequest(String alias) {
         this.aliases = new String[]{alias};
     }
 
-    public IndicesGetAliasesRequest() {
+    public GetAliasesRequest() {
     }
 
-    public IndicesGetAliasesRequest indices(String... indices) {
+    public GetAliasesRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
 
-    public IndicesGetAliasesRequest aliases(String... aliases) {
+    public GetAliasesRequest aliases(String... aliases) {
         this.aliases = aliases;
         return this;
     }
 
-    public IndicesGetAliasesRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+    public GetAliasesRequest ignoreIndices(IgnoreIndices ignoreIndices) {
         this.ignoreIndices = ignoreIndices;
         return this;
     }

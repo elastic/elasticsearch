@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -44,10 +44,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestIndicesGetAliasesAction extends BaseRestHandler {
+public class RestGetAliasesAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesGetAliasesAction(Settings settings, Client client, RestController controller) {
+    public RestGetAliasesAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
@@ -57,17 +57,17 @@ public class RestIndicesGetAliasesAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = RestActions.splitIndices(request.param("index"));
-        IndicesGetAliasesRequest getAliasesRequest = new IndicesGetAliasesRequest(aliases);
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
 
         if (request.hasParam("ignore_indices")) {
             getAliasesRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
 
-        client.admin().indices().getAliases(getAliasesRequest, new ActionListener<IndicesGetAliasesResponse>() {
+        client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
 
             @Override
-            public void onResponse(IndicesGetAliasesResponse response) {
+            public void onResponse(GetAliasesResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();

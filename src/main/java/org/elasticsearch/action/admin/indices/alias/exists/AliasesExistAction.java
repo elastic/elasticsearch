@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.indices.alias.exists;
 
 import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class AliasesExistAction extends IndicesAction<IndicesGetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
+public class AliasesExistAction extends IndicesAction<GetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
 
     public static final AliasesExistAction INSTANCE = new AliasesExistAction();
     public static final String NAME = "indices/exists/aliases";

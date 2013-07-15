@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.alias.head;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -50,7 +50,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = RestActions.splitIndices(request.param("index"));
-        IndicesGetAliasesRequest getAliasesRequest = new IndicesGetAliasesRequest(aliases);
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
 
         if (request.hasParam("ignore_indices")) {

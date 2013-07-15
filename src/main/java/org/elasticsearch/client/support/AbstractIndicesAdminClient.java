@@ -28,10 +28,10 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesAction;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
@@ -191,18 +191,18 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public ActionFuture<IndicesGetAliasesResponse> getAliases(IndicesGetAliasesRequest request) {
-        return execute(IndicesGetAliasesAction.INSTANCE, request);
+    public ActionFuture<GetAliasesResponse> getAliases(GetAliasesRequest request) {
+        return execute(GetAliasesAction.INSTANCE, request);
     }
 
     @Override
-    public void getAliases(IndicesGetAliasesRequest request, ActionListener<IndicesGetAliasesResponse> listener) {
-        execute(IndicesGetAliasesAction.INSTANCE, request, listener);
+    public void getAliases(GetAliasesRequest request, ActionListener<GetAliasesResponse> listener) {
+        execute(GetAliasesAction.INSTANCE, request, listener);
     }
 
     @Override
-    public IndicesGetAliasesRequestBuilder prepareGetAliases(String... aliases) {
-        return new IndicesGetAliasesRequestBuilder(this, aliases);
+    public GetAliasesRequestBuilder prepareGetAliases(String... aliases) {
+        return new GetAliasesRequestBuilder(this, aliases);
     }
 
     @Override
@@ -211,12 +211,12 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public void aliasesExist(IndicesGetAliasesRequest request, ActionListener<AliasesExistResponse> listener) {
+    public void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener) {
         execute(AliasesExistAction.INSTANCE, request, listener);
     }
 
     @Override
-    public ActionFuture<AliasesExistResponse> aliasesExist(IndicesGetAliasesRequest request) {
+    public ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request) {
         return execute(AliasesExistAction.INSTANCE, request);
     }
 

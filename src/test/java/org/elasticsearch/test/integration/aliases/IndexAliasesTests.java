@@ -22,12 +22,10 @@ package org.elasticsearch.test.integration.aliases;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -39,20 +37,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.AliasMissingException;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -632,7 +625,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        IndicesExistsAliasesResponse existsResponse = client().admin().indices().prepareExistsAliases("alias1").execute().actionGet();
+        AliasesExistResponse existsResponse = client().admin().indices().prepareAliasesExist("alias1").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting all aliases that start with alias*");
@@ -650,7 +643,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareExistsAliases("alias*").execute().actionGet();
+        existsResponse = client().admin().indices().prepareAliasesExist("alias*").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
 
@@ -683,7 +676,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareExistsAliases("bar", "bac")
+        existsResponse = client().admin().indices().prepareAliasesExist("bar", "bac")
                 .addIndices("bazbar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -704,7 +697,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareExistsAliases("*b*")
+        existsResponse = client().admin().indices().prepareAliasesExist("*b*")
                 .addIndices("baz*").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -730,7 +723,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
-        existsResponse = client().admin().indices().prepareExistsAliases("b*")
+        existsResponse = client().admin().indices().prepareAliasesExist("b*")
                 .addIndices("*bar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -743,7 +736,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareExistsAliases("f*")
+        existsResponse = client().admin().indices().prepareAliasesExist("f*")
                 .addIndices("*bar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -758,7 +751,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareExistsAliases("foo")
+        existsResponse = client().admin().indices().prepareAliasesExist("foo")
                 .addIndices("*bac").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -771,7 +764,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareExistsAliases("foo")
+        existsResponse = client().admin().indices().prepareAliasesExist("foo")
                 .addIndices("foobar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -782,7 +775,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(4));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
-        existsResponse = client().admin().indices().prepareExistsAliases("*")
+        existsResponse = client().admin().indices().prepareAliasesExist("*")
                 .addIndices("*bac").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -797,7 +790,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         } catch (AliasMissingException e) {
             assertThat(e.getMessage(), equalTo("alias [foo] missing"));
         }
-        existsResponse = client().admin().indices().prepareExistsAliases("foo")
+        existsResponse = client().admin().indices().prepareAliasesExist("foo")
                 .addIndices("foobar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(false));
     }

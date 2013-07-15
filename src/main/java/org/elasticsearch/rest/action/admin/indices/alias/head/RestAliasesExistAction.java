@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.alias.head;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
@@ -37,10 +37,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestIndicesHeadAliasesAction extends BaseRestHandler {
+public class RestAliasesExistAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesHeadAliasesAction(Settings settings, Client client, RestController controller) {
+    public RestAliasesExistAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
@@ -57,10 +57,10 @@ public class RestIndicesHeadAliasesAction extends BaseRestHandler {
             getAliasesRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
 
-        client.admin().indices().existsAliases(getAliasesRequest, new ActionListener<IndicesExistsAliasesResponse>() {
+        client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
 
             @Override
-            public void onResponse(IndicesExistsAliasesResponse response) {
+            public void onResponse(AliasesExistResponse response) {
                 try {
                     if (response.isExists()) {
                         channel.sendResponse(new StringRestResponse(OK));

@@ -226,7 +226,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         }
         if (enabledState.enabled) {
             if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-                builder.field("index", fieldType.indexed());
+                builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
             }
             if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
                 builder.field("store", fieldType.stored());

@@ -137,12 +137,12 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        void executeQuery(final int shardRequestId, final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
+        void executeQuery(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
             searchService.sendExecuteQuery(node, querySearchRequest, new SearchServiceListener<QuerySearchResult>() {
                 @Override
                 public void onResult(QuerySearchResult result) {
                     result.shardTarget(dfsResult.shardTarget());
-                    queryResults.set(shardRequestId, result);
+                    queryResults.set(shardIndex, result);
                     if (counter.decrementAndGet() == 0) {
                         executeFetchPhase();
                     }
@@ -153,7 +153,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
                     }
-                    AsyncAction.this.addShardFailure(shardRequestId, new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(shardIndex, new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         executeFetchPhase();
@@ -230,12 +230,12 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        void executeFetch(final int shardRequestId, final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override
                 public void onResult(FetchSearchResult result) {
                     result.shardTarget(shardTarget);
-                    fetchResults.set(shardRequestId, result);
+                    fetchResults.set(shardIndex, result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
@@ -246,7 +246,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
-                    AsyncAction.this.addShardFailure(shardRequestId, new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(shardIndex, new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

@@ -34,10 +34,13 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -60,12 +63,12 @@ public class RestNodesAction extends BaseRestHandler {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true);
+                nodesInfoRequest.clear().jvm(true).os(true).process(true);
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
                     @Override
                     public void onResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true);
+                        nodesStatsRequest.clear().jvm(true).fs(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
                             @Override
                             public void onResponse(NodesStatsResponse nodesStatsResponse) {
@@ -109,14 +112,17 @@ public class RestNodesAction extends BaseRestHandler {
     }
 
     private Table buildTable(ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
+        String masterId = state.getState().nodes().masterNodeId();
+
         Table table = new Table();
         table.startHeaders();
         table.addCell("id");
+        table.addCell("pid");
         table.addCell("ip");
         table.addCell("port");
 
-        // Considering supporting params like jvm, os, http to turn various columns on/off
         table.addCell("jdk");
+        table.addCell("diskfree", "text-align:right;");
         table.addCell("heapmax", "text-align:right;");
         table.addCell("memmax", "text-align:right;");
 
@@ -127,16 +133,26 @@ public class RestNodesAction extends BaseRestHandler {
         table.endHeaders();
 
         for (DiscoveryNode node : state.getState().nodes()) {
-            String masterId = state.getState().nodes().masterNodeId();
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            long availableDisk = -1;
+
+            if (!(stats.getFs() == null)) {
+                availableDisk = 0;
+                Iterator<FsStats.Info> it = stats.getFs().iterator();
+                while (it.hasNext()) {
+                    availableDisk += it.next().getAvailable().bytes();
+                }
+            }
 
             table.startRow();
 
             table.addCell(node.id());
+            table.addCell(info.getProcess().id());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
             table.addCell(info.getJvm().version());
+            table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
             table.addCell(info.getJvm().mem().heapMax());
             table.addCell(info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
             table.addCell(stats.getJvm().uptime());

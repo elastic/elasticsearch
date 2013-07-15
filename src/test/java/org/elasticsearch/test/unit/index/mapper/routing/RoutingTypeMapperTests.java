@@ -19,15 +19,19 @@
 
 package org.elasticsearch.test.unit.index.mapper.routing;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
+import java.util.Map;
+
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -48,5 +52,40 @@ public class RoutingTypeMapperTests {
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
+    }
+
+    @Test
+    public void testSetValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_routing")
+                    .field("store", "no")
+                    .field("index", "no")
+                    .field("path", "route")
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.routingFieldMapper().fieldType().indexed(), equalTo(false));
+        assertThat(docMapper.routingFieldMapper().path(), equalTo("route"));
+    }
+
+    @Test
+    public void testThatSerializationWorksCorrectlyForIndexField() throws Exception {
+        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_routing").field("store", "no").field("index", "no").endObject()
+                .endObject().endObject().string();
+        DocumentMapper enabledMapper = MapperTests.newParser().parse(enabledMapping);
+
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        enabledMapper.routingFieldMapper().toXContent(builder, null).endObject();
+        builder.close();
+        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        assertThat(serializedMap, hasKey("_routing"));
+        assertThat(serializedMap.get("_routing"), instanceOf(Map.class));
+        Map<String, Object> routingConfiguration = (Map<String, Object>) serializedMap.get("_routing");
+        assertThat(routingConfiguration, hasKey("store"));
+        assertThat(routingConfiguration.get("store").toString(), is("false"));
+        assertThat(routingConfiguration, hasKey("index"));
+        assertThat(routingConfiguration.get("index").toString(), is("no"));
     }
 }

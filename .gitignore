@@ -22,3 +22,5 @@ target/
 ## netbeans ignores
 nb-configuration.xml
 nbactions.xml
+
+/dependency-reduced-pom.xml

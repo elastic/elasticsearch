@@ -97,8 +97,8 @@ public class RestShardsAction extends BaseRestHandler {
                 .addCell("shard", "default:true;")
                 .addCell("p/r", "default:true;")
                 .addCell("state", "default:true;")
-                .addCell("docs", "default:true;")
-                .addCell("store", "default:true;")
+                .addCell("docs", "text-align:right;")
+                .addCell("store", "text-align:right;")
                 .addCell("ip", "default:true;")
                 .addCell("node", "default:true;")
                 .endHeaders();
@@ -115,8 +115,19 @@ public class RestShardsAction extends BaseRestHandler {
             table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
             table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
             if (shard.assignedToNode()) {
-                table.addCell(((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getAddress().getHostAddress());
-                table.addCell(state.getState().nodes().get(shard.currentNodeId()).name());
+                String ip = ((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getAddress().getHostAddress();
+                StringBuilder name = new StringBuilder();
+                name.append(state.getState().nodes().get(shard.currentNodeId()).name());
+                if (shard.relocating()) {
+                    String reloIp = ((InetSocketTransportAddress) state.getState().nodes().get(shard.relocatingNodeId()).address()).address().getAddress().getHostAddress();
+                    String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).name();
+                    name.append(" -> ");
+                    name.append(reloIp);
+                    name.append(" ");
+                    name.append(reloNme);
+                }
+                table.addCell(ip);
+                table.addCell(name);
             } else {
                 table.addCell(null);
                 table.addCell(null);

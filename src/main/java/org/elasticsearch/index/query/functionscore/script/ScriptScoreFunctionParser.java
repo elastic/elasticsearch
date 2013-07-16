@@ -18,6 +18,7 @@
  */
 
 
+
 package org.elasticsearch.index.query.functionscore.script;
 
 import org.elasticsearch.common.inject.Inject;

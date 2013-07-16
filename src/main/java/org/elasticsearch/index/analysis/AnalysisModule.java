@@ -485,6 +485,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("elision", ElisionTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("keep", KeepWordFilterFactory.class);
 
+            tokenFiltersBindings.processTokenFilter("pattern_capture", PatternCaptureGroupTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("pattern_replace", PatternReplaceTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("dictionary_decompounder", DictionaryCompoundWordTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("hyphenation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);

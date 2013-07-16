@@ -33,6 +33,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.regex.Regex;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -56,10 +59,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
@@ -72,7 +73,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public static final String DEFAULT_MAPPING = "_default_";
 
     private final AnalysisService analysisService;
-    private final PostingsFormatService postingsFormatService;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -80,6 +80,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
+    private volatile String percolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -99,12 +100,13 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
+    private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<DocumentTypeListener>();
+
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService,
                          PostingsFormatService postingsFormatService, SimilarityLookupService similarityLookupService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.postingsFormatService = postingsFormatService;
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, similarityLookupService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
@@ -149,7 +151,40 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
 
-        logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);
+        String percolatorMappingLocation = componentSettings.get("percolator_mapping_location");
+        URL percolatorMappingUrl = null;
+        if (percolatorMappingLocation != null) {
+            try {
+                percolatorMappingUrl = environment.resolveConfig(percolatorMappingLocation);
+            } catch (FailedToResolveConfigException e) {
+                // not there, default to the built in one
+                try {
+                    percolatorMappingUrl = new File(percolatorMappingLocation).toURI().toURL();
+                } catch (MalformedURLException e1) {
+                    throw new FailedToResolveConfigException("Failed to resolve percolator mapping location [" + defaultMappingLocation + "]");
+                }
+            }
+        }
+        if (percolatorMappingUrl != null) {
+            try {
+                percolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
+            } catch (IOException e) {
+                throw new MapperException("Failed to load default percolator mapping source from [" + percolatorMappingUrl + "]", e);
+            }
+        } else {
+            percolatorMappingSource = "{\n" +
+                    "    \"_percolator\":{\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"query\" : {\n" +
+                    "                \"type\" : \"object\",\n" +
+                    "                \"enabled\" : false\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
+        }
+
+        logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}], default percolator mapping: location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource, percolatorMappingLocation, percolatorMappingUrl, percolatorMappingSource);
     }
 
     public void close() {
@@ -175,6 +210,14 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.documentParser;
     }
 
+    public void addTypeListener(DocumentTypeListener listener) {
+        typeListeners.add(listener);
+    }
+
+    public void removeTypeListener(DocumentTypeListener listener) {
+        typeListeners.remove(listener);
+    }
+
     public DocumentMapper merge(String type, String mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
@@ -198,7 +241,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
-            if (mapper.type().charAt(0) == '_') {
+            if (mapper.type().charAt(0) == '_' && !PercolatorService.Constants.TYPE_NAME.equals(mapper.type())) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
             }
             if (mapper.type().contains("#")) {
@@ -236,6 +279,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 mapper.addObjectMapperListener(objectMapperListener, false);
 
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+                for (DocumentTypeListener typeListener : typeListeners) {
+                    typeListener.created(mapper.type());
+                }
                 return mapper;
             }
         }
@@ -309,6 +355,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             docMapper.close();
             mappers = newMapBuilder(mappers).remove(type).map();
             removeObjectAndFieldMappers(docMapper);
+            for (DocumentTypeListener typeListener : typeListeners) {
+                typeListener.removed(type);
+            }
         }
     }
 
@@ -377,6 +426,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
+        String defaultMappingSource;
+        if (PercolatorService.Constants.TYPE_NAME.equals(mappingType)) {
+            defaultMappingSource = percolatorMappingSource;
+        } else {
+            defaultMappingSource = this.defaultMappingSource;
+        }
         return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
@@ -416,9 +471,27 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     @Nullable
     public Filter searchFilter(String... types) {
+        boolean filterPercolateType = hasMapping(PercolatorService.Constants.TYPE_NAME);
+        if (types != null && filterPercolateType) {
+            for (String type : types) {
+                if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
+                    filterPercolateType = false;
+                    break;
+                }
+            }
+        }
+        Filter excludePercolatorType = null;
+        if (filterPercolateType) {
+            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.Constants.TYPE_NAME).typeFilter());
+        }
+
         if (types == null || types.length == 0) {
-            if (hasNested) {
+            if (hasNested && filterPercolateType) {
+                return new AndFilter(ImmutableList.of(excludePercolatorType, NonNestedDocsFilter.INSTANCE));
+            } else if (hasNested) {
                 return NonNestedDocsFilter.INSTANCE;
+            } else if (filterPercolateType) {
+                return excludePercolatorType;
             } else {
                 return null;
             }
@@ -445,13 +518,20 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 break;
             }
         }
+
         if (useTermsFilter) {
             BytesRef[] typesBytes = new BytesRef[types.length];
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            return new TermsFilter(TypeFieldMapper.NAME, typesBytes);
+            TermsFilter termsFilter = new TermsFilter(TypeFieldMapper.NAME, typesBytes);
+            if (filterPercolateType) {
+                return new AndFilter(ImmutableList.of(excludePercolatorType, termsFilter));
+            } else {
+                return termsFilter;
+            }
         } else {
+            // Current bool filter requires that at least one should clause matches, even with a must clause.
             XBooleanFilter bool = new XBooleanFilter();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
@@ -461,6 +541,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     bool.add(new FilterClause(docMapper.typeFilter(), BooleanClause.Occur.SHOULD));
                 }
             }
+            if (filterPercolateType) {
+                bool.add(excludePercolatorType, BooleanClause.Occur.MUST);
+            }
+
             return bool;
         }
     }

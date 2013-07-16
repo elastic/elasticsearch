@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -333,19 +332,6 @@ public class UpdateTests extends AbstractSharedClusterTest {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(false));
         }
-
-        // check percolation
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        logger.info("--> register a query");
-        client().prepareIndex("_percolator", "test", "1")
-                .setSource(jsonBuilder().startObject()
-                        .field("query", termQuery("field", 2))
-                        .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
-        ensureGreen();
-        updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setPercolate("*").execute().actionGet();
-        assertThat(updateResponse.getMatches().size(), equalTo(1));
 
         // check TTL is kept after an update without TTL
         client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();

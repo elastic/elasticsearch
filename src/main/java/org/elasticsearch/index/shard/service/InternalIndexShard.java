@@ -34,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -57,6 +56,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -106,6 +106,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardFilterCache shardFilterCache;
     private final ShardIdCache shardIdCache;
     private final ShardFieldData shardFieldData;
+    private final PercolatorQueriesRegistry shardPercolator;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -129,7 +130,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Inject
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                              ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData) {
+                              ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData,
+                              PercolatorQueriesRegistry shardPercolator) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -149,6 +151,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.shardFilterCache = shardFilterCache;
         this.shardIdCache = shardIdCache;
         this.shardFieldData = shardFieldData;
+        this.shardPercolator = shardPercolator;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval()));
@@ -480,6 +483,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public FieldDataStats fieldDataStats(String... fields) {
         return shardFieldData.stats(fields);
+    }
+
+    @Override
+    public PercolatorQueriesRegistry percolateRegistry() {
+        return shardPercolator;
     }
 
     @Override

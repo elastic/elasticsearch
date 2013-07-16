@@ -311,8 +311,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                             version = parser.longValue();
                         } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                             versionType = VersionType.fromString(parser.text());
-                        } else if ("percolate".equals(currentFieldName) || "_percolate".equals(currentFieldName)) {
-                            percolate = parser.textOrNull();
                         } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
                             retryOnConflict = parser.intValue();
                         }
@@ -332,24 +330,20 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
-                                    .percolate(percolate), payload);
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                     .create("create".equals(opType))
-                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
-                                    .percolate(percolate), payload);
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                 .create(true)
-                                .source(data.slice(from, nextMarker - from), contentUnsafe)
-                                .percolate(percolate), payload);
+                                .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
                     } else if ("update".equals(action)) {
                         internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
-                                .source(data.slice(from, nextMarker - from))
-                                .percolate(percolate), payload);
+                                .source(data.slice(from, nextMarker - from)), payload);
                     }
                     // move pointers
                     from = nextMarker + 1;

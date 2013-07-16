@@ -1,5 +1,3 @@
-package org.apache.lucene.index.memory;
-
 /*
  * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,19 +17,24 @@ package org.apache.lucene.index.memory;
  * under the License.
  */
 
+package org.elasticsearch.index.mapper;
+
 /**
- * This class overwrites {@link MemoryIndex} to make the reuse constructor 
- * visible. 
  */
-public final class ReusableMemoryIndex extends MemoryIndex {
-    private final long maxReuseBytes;
-    public ReusableMemoryIndex(boolean storeOffsets, long maxReusedBytes) {
-        super(storeOffsets, maxReusedBytes);
-        this.maxReuseBytes = maxReusedBytes;
-    }
-    
-    public long getMaxReuseBytes() {
-        return maxReuseBytes;
-    }
+public interface DocumentTypeListener {
+
+    /**
+     * Invoked when a new document type has been created.
+     *
+     * @param type The document type that has been created
+     */
+    void created(String type);
+
+    /**
+     * Invoked when an existing document type has been removed.
+     *
+     * @param type The document type that has been removed
+     */
+    void removed(String type);
 
 }

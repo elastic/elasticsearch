@@ -19,13 +19,14 @@
 package org.elasticsearch.index.analysis;
 
 
+import org.apache.lucene.analysis.pattern.PatternCaptureGroupTokenFilter;
+
+import org.apache.lucene.analysis.TokenFilter;
+
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.pattern.XPatternCaptureGroupTokenFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -37,10 +38,6 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
     private Pattern[] patterns;
     private boolean preserveOriginal;
 
-    static {
-        // LUCENE MONITOR: this should be in Lucene 4.4 copied from Revision: 1471347.
-        assert Lucene.VERSION == Version.LUCENE_43 : "Elasticsearch has upgraded to Lucene Version: [" + Lucene.VERSION + "] this class should be removed";
-    }
 
 
     @Inject
@@ -57,7 +54,7 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
     }
 
     @Override
-    public XPatternCaptureGroupTokenFilter create(TokenStream tokenStream) {
-        return new XPatternCaptureGroupTokenFilter(tokenStream, preserveOriginal, patterns);
+    public TokenFilter create(TokenStream tokenStream) {
+        return new PatternCaptureGroupTokenFilter(tokenStream, preserveOriginal, patterns);
     }
 }

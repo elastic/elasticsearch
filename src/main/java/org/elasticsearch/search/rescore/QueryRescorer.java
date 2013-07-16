@@ -17,28 +17,21 @@ package org.elasticsearch.search.rescore;
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Set;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ComplexExplanation;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.SorterTemplate;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Set;
 
 final class QueryRescorer implements Rescorer {
     
@@ -163,10 +156,10 @@ final class QueryRescorer implements Rescorer {
     private TopDocs merge(TopDocs primary, TopDocs secondary, QueryRescoreContext context) {
         DocIdSorter sorter = new DocIdSorter();
         sorter.array = primary.scoreDocs;
-        sorter.mergeSort(0, sorter.array.length-1);
+        sorter.sort(0, sorter.array.length);
         ScoreDoc[] primaryDocs = sorter.array;
         sorter.array = secondary.scoreDocs;
-        sorter.mergeSort(0, sorter.array.length-1);
+        sorter.sort(0, sorter.array.length);
         ScoreDoc[] secondaryDocs = sorter.array;
         int j = 0;
         float primaryWeight = context.queryWeight();
@@ -180,12 +173,12 @@ final class QueryRescorer implements Rescorer {
         }
         ScoreSorter scoreSorter = new ScoreSorter();
         scoreSorter.array = primaryDocs;
-        scoreSorter.mergeSort(0, primaryDocs.length-1);
+        scoreSorter.sort(0, primaryDocs.length);
         primary.setMaxScore(primaryDocs[0].score);
         return primary;
     }
     
-    private static final class DocIdSorter extends SorterTemplate {
+    private static final class DocIdSorter extends IntroSorter {
         private ScoreDoc[] array;
         private ScoreDoc pivot;
         @Override
@@ -222,7 +215,7 @@ final class QueryRescorer implements Rescorer {
         return -1;
     }
     
-    private static final class ScoreSorter extends SorterTemplate {
+    private static final class ScoreSorter extends IntroSorter {
         private ScoreDoc[] array;
         private ScoreDoc pivot;
         @Override

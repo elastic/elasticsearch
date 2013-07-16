@@ -19,8 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.lucene.util.IntroSorter;
+
+import org.apache.lucene.util.IntroSorter;
+
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.SorterTemplate;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -404,7 +407,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                  */
                                 weights[lowIdx] = sorter.weight(Operation.BALANCE, modelNodes[lowIdx]);
                                 weights[highIdx] = sorter.weight(Operation.BALANCE, modelNodes[highIdx]);
-                                sorter.quickSort(0, weights.length - 1);
+                                sorter.sort(0, weights.length);
                                 lowIdx = 0;
                                 highIdx = weights.length - 1;
                                 changed = true;
@@ -451,7 +454,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 sorter.reset(operation, indices[i]);
                 deltas[i] = sorter.delta();
             }
-            new SorterTemplate() {
+            new IntroSorter() {
                 float pivotWeight;
 
                 @Override
@@ -478,7 +481,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 protected int comparePivot(int j) {
                     return Float.compare(deltas[j], pivotWeight);
                 }
-            }.quickSort(0, deltas.length - 1);
+            }.sort(0, deltas.length);
 
             return indices;
         }
@@ -956,7 +959,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
     }
 
-    static final class NodeSorter extends SorterTemplate {
+    static final class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;
         /* the nodes weights with respect to the current weight function / index */
@@ -982,7 +985,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             for (int i = 0; i < weights.length; i++) {
                 weights[i] = weight(operation, modelNodes[i]);
             }
-            quickSort(0, modelNodes.length - 1);
+            sort(0, modelNodes.length);
         }
 
         public float weight(Operation operation, ModelNode node) {

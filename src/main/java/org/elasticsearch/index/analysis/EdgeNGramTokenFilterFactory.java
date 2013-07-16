@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.*;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter.Side;
@@ -47,24 +49,24 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
-        this.side = EdgeNGramTokenFilter.Side.getSide(settings.get("side", EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
+        this.side = EdgeNGramTokenFilter.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
+        final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3
         if (version.onOrAfter(Version.LUCENE_43)) {
             TokenStream result = tokenStream;
             // side=BACK is not supported anymore but applying ReverseStringFilter up-front and after the token filter has the same effect
             if (side == Side.BACK) {
                 result = new ReverseStringFilter(version, result);
             }
-            result = new XEdgeNGramTokenFilter(version, result, minGram, maxGram);
+            result = new EdgeNGramTokenFilter(version, result, minGram, maxGram);
             if (side == Side.BACK) {
                 result = new ReverseStringFilter(version, result);
             }
             return result;
-        } else {
-            return new EdgeNGramTokenFilter(tokenStream, side, minGram, maxGram);
         }
+        return new EdgeNGramTokenFilter(version, tokenStream, side, minGram, maxGram);
     }
 }

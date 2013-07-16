@@ -25,7 +25,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.XPagedGrowableWriter;
+import org.apache.lucene.util.packed.PagedGrowableWriter;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
@@ -117,13 +117,13 @@ public final class OrdinalsBuilder implements Closeable {
         }
 
         // Current position
-        private XPagedGrowableWriter positions;
+        private PagedGrowableWriter positions;
         // First level (0) of ordinals and pointers to the next level
         private final GrowableWriter firstOrdinals;
-        private XPagedGrowableWriter firstNextLevelSlices;
+        private PagedGrowableWriter firstNextLevelSlices;
         // Ordinals and pointers for other levels, starting at 1
-        private final XPagedGrowableWriter[] ordinals;
-        private final XPagedGrowableWriter[] nextLevelSlices;
+        private final PagedGrowableWriter[] ordinals;
+        private final PagedGrowableWriter[] nextLevelSlices;
         private final int[] sizes;
 
         private final int startBitsPerValue;
@@ -132,11 +132,11 @@ public final class OrdinalsBuilder implements Closeable {
         OrdinalsStore(int maxDoc, int startBitsPerValue, float acceptableOverheadRatio) {
             this.startBitsPerValue = startBitsPerValue;
             this.acceptableOverheadRatio = acceptableOverheadRatio;
-            positions = new XPagedGrowableWriter(maxDoc, PAGE_SIZE, startBitsPerValue, acceptableOverheadRatio);
+            positions = new PagedGrowableWriter(maxDoc, PAGE_SIZE, startBitsPerValue, acceptableOverheadRatio);
             firstOrdinals = new GrowableWriter(startBitsPerValue, maxDoc, acceptableOverheadRatio);
             // over allocate in order to never worry about the array sizes, 24 entries would allow to store several millions of ordinals per doc...
-            ordinals = new XPagedGrowableWriter[24];
-            nextLevelSlices = new XPagedGrowableWriter[24];
+            ordinals = new PagedGrowableWriter[24];
+            nextLevelSlices = new PagedGrowableWriter[24];
             sizes = new int[24];
             Arrays.fill(sizes, 1); // reserve the 1st slice on every level
         }
@@ -146,7 +146,7 @@ public final class OrdinalsBuilder implements Closeable {
             final long newSlice = sizes[level]++;
             // Lazily allocate ordinals
             if (ordinals[level] == null) {
-                ordinals[level] = new XPagedGrowableWriter(8L * numSlots(level), PAGE_SIZE, startBitsPerValue, acceptableOverheadRatio);
+                ordinals[level] = new PagedGrowableWriter(8L * numSlots(level), PAGE_SIZE, startBitsPerValue, acceptableOverheadRatio);
             } else {
                 ordinals[level] = ordinals[level].grow(sizes[level] * numSlots(level));
                 if (nextLevelSlices[level] != null) {
@@ -167,7 +167,7 @@ public final class OrdinalsBuilder implements Closeable {
                 } else {
                     final long newSlice = newSlice(1);
                     if (firstNextLevelSlices == null) {
-                        firstNextLevelSlices = new XPagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
+                        firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
                     }
                     firstNextLevelSlices.set(docID, newSlice);
                     final long offset = startOffset(1, newSlice);
@@ -183,7 +183,7 @@ public final class OrdinalsBuilder implements Closeable {
                     // reached the end of the slice, allocate a new one on the next level
                     final long newSlice = newSlice(level + 1);
                     if (nextLevelSlices[level] == null) {
-                        nextLevelSlices[level] = new XPagedGrowableWriter(sizes[level], PAGE_SIZE, 1, acceptableOverheadRatio);
+                        nextLevelSlices[level] = new PagedGrowableWriter(sizes[level], PAGE_SIZE, 1, acceptableOverheadRatio);
                     }
                     nextLevelSlices[level].set(sliceID(level, offset), newSlice);
                     ++level;

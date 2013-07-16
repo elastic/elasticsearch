@@ -142,7 +142,7 @@ public class PlainHighlighter implements Highlighter {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
         if (field.scoreOrdered()) {
-            CollectionUtil.quickSort(fragsList, new Comparator<TextFragment>() {
+            CollectionUtil.introSort(fragsList, new Comparator<TextFragment>() {
                 public int compare(TextFragment o1, TextFragment o2) {
                     return Math.round(o2.getScore() - o1.getScore());
                 }

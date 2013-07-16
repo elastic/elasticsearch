@@ -187,20 +187,26 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results = QUERY_RESULT_ORDERING.sortedCopy(results1.asList());
-        QuerySearchResultProvider queryResultProvider = results.get(0).value;
+        QuerySearchResultProvider firstResult = results.get(0).value;
 
         int totalNumDocs = 0;
 
-        int queueSize = queryResultProvider.queryResult().from() + queryResultProvider.queryResult().size();
-        if (queryResultProvider.includeFetch()) {
+        int queueSize = firstResult.queryResult().from() + firstResult.queryResult().size();
+        if (firstResult.includeFetch()) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
             // this is also important since we shortcut and fetch only docs from "from" and up to "size"
             queueSize *= results.size();
         }
+
+        // we don't use TopDocs#merge here because with TopDocs#merge, when pagination, we need to ask for "from + size" topN
+        // hits, which ends up creating a "from + size" ScoreDoc[], while in our implementation, we can actually get away with
+        // just create "size" ScoreDoc (the reverse order in the queue). would be nice to improve TopDocs#merge to allow for
+        // it in which case we won't need this logic...
+
         PriorityQueue queue;
-        if (queryResultProvider.queryResult().topDocs() instanceof TopFieldDocs) {
+        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
             // sorting, first if the type is a String, chance CUSTOM to STRING so we handle nulls properly (since our CUSTOM String sorting might return null)
-            TopFieldDocs fieldDocs = (TopFieldDocs) queryResultProvider.queryResult().topDocs();
+            TopFieldDocs fieldDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
             for (int i = 0; i < fieldDocs.fields.length; i++) {
                 boolean allValuesAreNull = true;
                 boolean resolvedField = false;
@@ -257,13 +263,13 @@ public class SearchPhaseController extends AbstractComponent {
 
         }
 
-        int resultDocsSize = queryResultProvider.queryResult().size();
-        if (queryResultProvider.includeFetch()) {
+        int resultDocsSize = firstResult.queryResult().size();
+        if (firstResult.includeFetch()) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
             resultDocsSize *= results.size();
         }
         if (totalNumDocs < queueSize) {
-            resultDocsSize = totalNumDocs - queryResultProvider.queryResult().from();
+            resultDocsSize = totalNumDocs - firstResult.queryResult().from();
         }
 
         if (resultDocsSize <= 0) {

@@ -20,8 +20,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.ElasticSearchGenerationException;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -105,10 +105,8 @@ public class AtomicArray<E> {
      * <tt>null</tt>. All in similar fashion to {@link ArrayList#toArray}
      */
     public E[] toArray(E[] a) {
-        if (a.length < array.length()) {
-            a = (E[]) Array.newInstance(a.getClass().getComponentType(), array.length());
-        } else if (a.length > array.length()) {
-            a[array.length()] = null;
+        if (a.length != array.length()) {
+            throw new ElasticSearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
         }
         for (int i = 0; i < array.length(); i++) {
             a[i] = array.get(i);

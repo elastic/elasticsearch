@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 
@@ -218,6 +219,18 @@ public abstract class StreamInput extends InputStream {
         // use StringAndBytes so we can cache the string if its ever converted to it
         int length = readInt();
         return new StringAndBytesText(readBytesReference(length));
+    }
+
+    public Text[] readTextArray() throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+            return StringText.EMPTY_ARRAY;
+        }
+        Text[] ret = new Text[size];
+        for (int i = 0; i < size; i++) {
+            ret[i] = readText();
+        }
+        return ret;
     }
 
     public Text readSharedText() throws IOException {

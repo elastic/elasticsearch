@@ -62,6 +62,8 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.index.percolator.PercolatorModule;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.search.shape.ShapeModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -162,6 +164,7 @@ public final class InternalNode implements Node {
         modules.add(new NodeClientModule());
         modules.add(new BulkUdpModule());
         modules.add(new ShapeModule());
+        modules.add(new PercolatorModule());
 
         injector = modules.createInjector();
 
@@ -314,6 +317,8 @@ public final class InternalNode implements Node {
         injector.getInstance(RestController.class).close();
         stopWatch.stop().start("transport");
         injector.getInstance(TransportService.class).close();
+        stopWatch.stop().start("percolator_service");
+        injector.getInstance(PercolatorService.class).close();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.benchmark.percolator;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.StopWatch;
@@ -34,20 +36,21 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  *
  */
-public class SinglePercolatorStressBenchmark {
+public class PercolatorStressBenchmark {
 
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put("gateway.type", "none")
-                .put(SETTING_NUMBER_OF_SHARDS, 2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 4)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
         Node[] nodes = new Node[2];
@@ -55,34 +58,68 @@ public class SinglePercolatorStressBenchmark {
             nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
         }
 
-        Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+        Node clientNode = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+        Client client = clientNode.client();
 
-        Client client1 = client.client();
-
-        client1.admin().indices().create(createIndexRequest("test")).actionGet();
-        Thread.sleep(1000);
+        client.admin().indices().create(createIndexRequest("test")).actionGet();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth("test")
+                .setWaitForGreenStatus()
+                .execute().actionGet();
+        if (healthResponse.isTimedOut()) {
+            System.err.println("Quiting, because cluster health requested timed out...");
+            return;
+        } else if (healthResponse.getStatus() != ClusterHealthStatus.GREEN) {
+            System.err.println("Quiting, because cluster state isn't green...");
+            return;
+        }
 
         int COUNT = 200000;
-        int QUERIES = 10;
+        int QUERIES = 100;
+        int TERM_QUERIES = QUERIES / 2;
+        int RANGE_QUERIES = QUERIES - TERM_QUERIES;
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("numeric1", 1).endObject()).execute().actionGet();
+
         // register queries
-        for (int i = 0; i < QUERIES; i++) {
-            client1.prepareIndex("_percolator", "test", Integer.toString(i))
+        int i = 0;
+        for (; i < TERM_QUERIES; i++) {
+            client.prepareIndex("test", "_percolator", Integer.toString(i))
                     .setSource(jsonBuilder().startObject()
                             .field("query", termQuery("name", "value"))
                             .endObject())
-                    .setRefresh(true)
                     .execute().actionGet();
+        }
+
+        int[] numbers = new int[RANGE_QUERIES];
+        for (; i < QUERIES; i++) {
+            client.prepareIndex("test", "_percolator", Integer.toString(i))
+                    .setSource(jsonBuilder().startObject()
+                            .field("query", rangeQuery("numeric1").from(i).to(i))
+                            .endObject())
+                    .execute().actionGet();
+            numbers[i - TERM_QUERIES] = i;
         }
 
         StopWatch stopWatch = new StopWatch().start();
         System.out.println("Percolating [" + COUNT + "] ...");
-        int i = 1;
-        for (; i <= COUNT; i++) {
-            PercolateResponse percolate = client1.preparePercolate("test", "type1").setSource(source(Integer.toString(i), "value"))
+        for (i = 1; i <= COUNT; i++) {
+            XContentBuilder source;
+            int expectedMatches;
+            if (i % 2 == 0) {
+                source = source(Integer.toString(i), "value");
+                expectedMatches = TERM_QUERIES;
+            } else {
+                int number = numbers[i % RANGE_QUERIES];
+                source = source(Integer.toString(i), number);
+                expectedMatches = 1;
+            }
+            PercolateResponse percolate = client.preparePercolate("test", "type1")
+                    .setSource(source)
                     .execute().actionGet();
-            if (percolate.getMatches().size() != QUERIES) {
+            if (percolate.getMatches().length != expectedMatches) {
                 System.err.println("No matching number of queries");
             }
+
             if ((i % 10000) == 0) {
                 System.out.println("Percolated " + i + " took " + stopWatch.stop().lastTaskTime());
                 stopWatch.start();
@@ -90,28 +127,32 @@ public class SinglePercolatorStressBenchmark {
         }
         System.out.println("Percolation took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
 
-        client.close();
-
+        clientNode.close();
         for (Node node : nodes) {
             node.close();
         }
     }
 
     private static XContentBuilder source(String id, String nameValue) throws IOException {
-        long time = System.currentTimeMillis();
         return jsonBuilder().startObject().startObject("doc")
                 .field("id", id)
-                .field("numeric1", time)
-                .field("numeric2", time)
-                .field("numeric3", time)
-                .field("numeric4", time)
-                .field("numeric5", time)
-                .field("numeric6", time)
-                .field("numeric7", time)
-                .field("numeric8", time)
-                .field("numeric9", time)
-                .field("numeric10", time)
                 .field("name", nameValue)
+                .endObject().endObject();
+    }
+
+    private static XContentBuilder source(String id, int number) throws IOException {
+        return jsonBuilder().startObject().startObject("doc")
+                .field("id", id)
+                .field("numeric1", number)
+                .field("numeric2", number)
+                .field("numeric3", number)
+                .field("numeric4", number)
+                .field("numeric5", number)
+                .field("numeric6", number)
+                .field("numeric7", number)
+                .field("numeric8", number)
+                .field("numeric9", number)
+                .field("numeric10", number)
                 .endObject().endObject();
     }
 }

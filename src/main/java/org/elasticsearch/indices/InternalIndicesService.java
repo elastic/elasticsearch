@@ -56,8 +56,6 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorModule;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -373,7 +371,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
         modules.add(new IndexModule(indexSettings));
-        modules.add(new PercolatorModule());
 
         Injector indexInjector;
         try {
@@ -422,7 +419,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         ((InternalIndexService) indexService).close(reason, executor);
 
-        indexInjector.getInstance(PercolatorService.class).close();
+        //TODO: close percolate queries registry
+//        indexInjector.getInstance(PercolatorService.class).close();
         indexInjector.getInstance(IndexCache.class).close();
         indexInjector.getInstance(IndexFieldDataService.class).clear();
         indexInjector.getInstance(AnalysisService.class).close();

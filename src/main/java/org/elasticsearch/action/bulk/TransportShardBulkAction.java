@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -55,8 +54,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -232,9 +229,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 BytesReference indexSourceAsBytes = indexRequest.source();
                                 // add the response
                                 IndexResponse indexResponse = result.response();
-                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getIndex(), indexResponse.getType(),
-                                        indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
-                                updateResponse.setMatches(indexResponse.getMatches());
+                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getIndex(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
                                 if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                                     Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
                                     updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
@@ -402,11 +397,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
         }
 
-        // if we are going to percolate, then we need to keep this op for the postPrimary operation
-        if (!Strings.hasLength(indexRequest.percolate())) {
-            op = null;
-        }
-
         IndexResponse indexResponse = new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version, created);
         return new WriteResult(indexResponse, preVersion, mappingsToUpdate, op);
     }
@@ -508,39 +498,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 return new UpdateResult(translate, updateResponse);
             default:
                 throw new ElasticSearchIllegalStateException("Illegal update operation " + translate.operation());
-        }
-    }
-
-    @Override
-    protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse, BulkShardRequest> response) {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        Engine.IndexingOperation[] ops = (Engine.IndexingOperation[]) response.payload();
-        if (ops == null) {
-            return;
-        }
-        for (int i = 0; i < ops.length; i++) {
-            BulkItemRequest itemRequest = request.items()[i];
-            BulkItemResponse itemResponse = response.response().getResponses()[i];
-            if (itemResponse.isFailed()) {
-                // failure, continue
-                continue;
-            }
-            Engine.IndexingOperation op = ops[i];
-            if (op == null) {
-                continue; // failed / no matches requested
-            }
-            if (itemRequest.request() instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) itemRequest.request();
-                if (!Strings.hasLength(indexRequest.percolate())) {
-                    continue;
-                }
-                try {
-                    PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
-                    ((IndexResponse) itemResponse.getResponse()).setMatches(percolate.matches());
-                } catch (Exception e) {
-                    logger.warn("failed to percolate [{}]", e, itemRequest.request());
-                }
-            }
         }
     }
 

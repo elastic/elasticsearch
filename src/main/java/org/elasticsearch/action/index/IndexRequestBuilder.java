@@ -295,16 +295,6 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
     }
 
     /**
-     * Causes the index request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public IndexRequestBuilder setPercolate(String percolate) {
-        request.percolate(percolate);
-        return this;
-    }
-
-    /**
      * Sets the timestamp either as millis since the epoch, or, in the configured date format.
      */
     public IndexRequestBuilder setTimestamp(String timestamp) {

@@ -19,55 +19,78 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
 /**
  *
  */
-public class PercolateResponse extends ActionResponse implements Iterable<String> {
+public class PercolateResponse extends BroadcastOperationResponse implements Iterable<Text> {
 
-    private List<String> matches;
+    private long tookInMillis;
+    private Text[] matches;
 
-    PercolateResponse() {
-
-    }
-
-    public PercolateResponse(List<String> matches) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, Text[] matches, long tookInMillis) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
+        this.tookInMillis = tookInMillis;
         this.matches = matches;
     }
 
-    public List<String> getMatches() {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
+        this.tookInMillis = tookInMillis;
+    }
+
+    PercolateResponse() {
+    }
+
+    public PercolateResponse(Text[] matches) {
+        this.matches = matches;
+    }
+
+    /**
+     * How long the percolate took.
+     */
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * How long the percolate took in milliseconds.
+     */
+    public long getTookInMillis() {
+        return tookInMillis;
+    }
+
+    public Text[] getMatches() {
         return this.matches;
     }
 
     @Override
-    public Iterator<String> iterator() {
-        return matches.iterator();
+    public Iterator<Text> iterator() {
+        return Arrays.asList(matches).iterator();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        int size = in.readVInt();
-        matches = new ArrayList<String>(size);
-        for (int i = 0; i < size; i++) {
-            matches.add(in.readString());
-        }
+        tookInMillis = in.readVLong();
+        matches = in.readTextArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(matches.size());
-        for (String match : matches) {
-            out.writeString(match);
-        }
+        out.writeVLong(tookInMillis);
+        out.writeTextArray(matches);
     }
 }

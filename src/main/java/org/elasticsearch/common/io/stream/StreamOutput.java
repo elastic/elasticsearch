@@ -204,6 +204,13 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeTextArray(Text[] array) throws IOException {
+        writeVInt(array.length);
+        for (Text t : array) {
+            writeText(t);
+        }
+    }
+
     public void writeSharedText(Text text) throws IOException {
         writeText(text);
     }

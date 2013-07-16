@@ -1,13 +1,15 @@
+package org.apache.lucene.index.memory;
+
 /*
- * Licensed to Elastic Search and Shay Banon under one
+ * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +19,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.percolator;
-
-import org.elasticsearch.index.Index;
-
 /**
- *
+ * This class overwrites {@link MemoryIndex} to make the reuse constructor visible.
  */
-public class PercolateIndexUnavailable extends PercolatorException {
+public final class ExtendedMemoryIndex extends MemoryIndex {
 
-    public PercolateIndexUnavailable(Index index) {
-        super(index, "percolator index not allocated on this node");
+    public ExtendedMemoryIndex(boolean storeOffsets, long maxReusedBytes) {
+        super(storeOffsets, maxReusedBytes);
     }
+
 }

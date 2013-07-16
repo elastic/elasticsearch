@@ -22,19 +22,15 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -116,23 +112,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                 @Override
                 public void onResponse(MetaDataDeleteIndexService.Response response) {
                     responseRef.set(new DeleteIndexResponse(response.acknowledged()));
-                    // YACK, but here we go: If this index is also percolated, make sure to delete all percolated queries from the _percolator index
-                    IndexMetaData percolatorMetaData = state.metaData().index(PercolatorService.INDEX_NAME);
-                    if (percolatorMetaData != null && percolatorMetaData.mappings().containsKey(index)) {
-                        deleteMappingAction.execute(new DeleteMappingRequest(PercolatorService.INDEX_NAME).type(index), new ActionListener<DeleteMappingResponse>() {
-                            @Override
-                            public void onResponse(DeleteMappingResponse deleteMappingResponse) {
-                                latch.countDown();
-                            }
-
-                            @Override
-                            public void onFailure(Throwable e) {
-                                latch.countDown();
-                            }
-                        });
-                    } else {
-                        latch.countDown();
-                    }
+                    latch.countDown();
                 }
 
                 @Override

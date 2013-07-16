@@ -24,7 +24,6 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
@@ -117,16 +116,7 @@ public class RestBulkAction extends BaseRestHandler {
                         } else {
                             builder.field(Fields.OK, true);
                         }
-                        if (itemResponse.getResponse() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.getResponse();
-                            if (indexResponse.getMatches() != null) {
-                                builder.startArray(Fields.MATCHES);
-                                for (String match : indexResponse.getMatches()) {
-                                    builder.value(match);
-                                }
-                                builder.endArray();
-                            }
-                        } else if (itemResponse.getResponse() instanceof DeleteResponse) {
+                        if (itemResponse.getResponse() instanceof DeleteResponse) {
                             DeleteResponse deleteResponse = itemResponse.getResponse();
                             builder.field(Fields.FOUND, !deleteResponse.isNotFound());
                         }
@@ -162,7 +152,6 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
         static final XContentBuilderString FOUND = new XContentBuilderString("found");
     }
 

@@ -54,7 +54,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -157,20 +156,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
 
-                    // if its a _percolator index, don't index the query object
-                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
-                        mappings.put(MapperService.DEFAULT_MAPPING, parseMapping("{\n" +
-                                "    \"_default_\":{\n" +
-                                "        \"properties\" : {\n" +
-                                "            \"query\" : {\n" +
-                                "                \"type\" : \"object\",\n" +
-                                "                \"enabled\" : false\n" +
-                                "            }\n" +
-                                "        }\n" +
-                                "    }\n" +
-                                "}"));
-                    }
-
                     for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
@@ -226,29 +211,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // now, put the request settings, so they override templates
                     indexSettingsBuilder.put(request.settings);
 
-                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
-                        // if its percolator, always 1 shard
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, 1);
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                            if (request.index.equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                            }
+                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                        if (request.index.equals(riverIndexName)) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                        } else {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                         }
                     }
-                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
-                        // if its percolator, always set number of replicas to 0, and expand to 0-all
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, 0);
-                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                            if (request.index.equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            }
+                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                        if (request.index.equals(riverIndexName)) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                        } else {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         }
                     }
 
@@ -504,7 +478,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (request.index.contains("#")) {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain '#");
         }
-        if (!request.index.equals(riverIndexName) && !request.index.equals(PercolatorService.INDEX_NAME) && request.index.charAt(0) == '_') {
+        if (!request.index.equals(riverIndexName) && request.index.charAt(0) == '_') {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'");
         }
         if (!request.index.toLowerCase(Locale.ROOT).equals(request.index)) {

@@ -20,33 +20,51 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.percolator.PercolateException;
 import org.elasticsearch.index.percolator.PercolatorService;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
  */
-public class TransportPercolateAction extends TransportSingleCustomOperationAction<PercolateRequest, PercolateResponse> {
+public class TransportPercolateAction extends TransportBroadcastOperationAction<PercolateRequest, PercolateResponse, PercolateShardRequest, PercolateShardResponse> {
 
-    private final IndicesService indicesService;
+    private final PercolatorService percolatorService;
 
     @Inject
-    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                    IndicesService indicesService) {
+    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                    TransportService transportService, PercolatorService percolatorService) {
         super(settings, threadPool, clusterService, transportService);
-        this.indicesService = indicesService;
+        this.percolatorService = percolatorService;
+    }
+
+    @Override
+    protected void doExecute(PercolateRequest request, ActionListener<PercolateResponse> listener) {
+        request.startTime = System.currentTimeMillis();
+        super.doExecute(request, listener);
     }
 
     @Override
@@ -60,11 +78,6 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected PercolateResponse newResponse() {
-        return new PercolateResponse();
-    }
-
-    @Override
     protected String transportAction() {
         return PercolateAction.NAME;
     }
@@ -75,22 +88,87 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request) {
-        request.index(state.metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
-        return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
+    protected PercolateResponse newResponse(PercolateRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        int successfulShards = 0;
+        int failedShards = 0;
+
+        List<Text[]> shardResults = null;
+        List<ShardOperationFailedException> shardFailures = null;
+
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
+                failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                PercolateShardResponse percolateShardResponse = (PercolateShardResponse) shardResponse;
+                if (shardResults == null) {
+                    shardResults = newArrayList();
+                }
+                shardResults.add(percolateShardResponse.matches());
+                successfulShards++;
+            }
+        }
+
+        long tookInMillis = System.currentTimeMillis() - request.startTime;
+        if (shardResults == null) {
+            return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis);
+        }
+
+        int size = 0;
+        for (Text[] shardResult : shardResults) {
+            size += shardResult.length;
+        }
+        Text[] finalMatches = new Text[size];
+        int offset = 0;
+        for (Text[] shardResult : shardResults) {
+            System.arraycopy(shardResult, 0, finalMatches, offset, shardResult.length);
+            offset += shardResult.length;
+        }
+        assert size == offset;
+        return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches, tookInMillis);
     }
 
     @Override
-    protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        PercolatorService percolatorService = indexService.percolateService();
-
-        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.type(), request.source()));
-        return new PercolateResponse(percolate.matches());
+    protected PercolateShardRequest newShardRequest() {
+        return new PercolateShardRequest();
     }
+
+    @Override
+    protected PercolateShardRequest newShardRequest(ShardRouting shard, PercolateRequest request) {
+        return new PercolateShardRequest(shard.index(), shard.id(), request);
+    }
+
+    @Override
+    protected PercolateShardResponse newShardResponse() {
+        return new PercolateShardResponse();
+    }
+
+    @Override
+    protected GroupShardsIterator shards(ClusterState clusterState, PercolateRequest request, String[] concreteIndices) {
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+    }
+
+    @Override
+    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
+        try {
+            return percolatorService.percolate(request);
+        } catch (Throwable t) {
+            logger.trace("[{}][{}] failed to percolate", t, request.index(), request.shardId());
+            ShardId shardId = new ShardId(request.index(), request.shardId());
+            throw new PercolateException(shardId, "failed to percolate", t);
+        }
+    }
+
 }

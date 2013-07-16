@@ -352,19 +352,28 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public String[] getAsArray(String settingPrefix) throws SettingsException {
-        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY);
+        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY, true);
     }
 
     @Override
     public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
+        return getAsArray(settingPrefix, defaultArray, true);
+    }
+
+    @Override
+    public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = Lists.newArrayList();
 
         if (get(settingPrefix) != null) {
-            String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
-            if (strings.length > 0) {
-                for (String string : strings) {
-                    result.add(string.trim());
+            if (commaDelimited) {
+                String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
+                if (strings.length > 0) {
+                    for (String string : strings) {
+                        result.add(string.trim());
+                    }
                 }
+            } else {
+                result.add(get(settingPrefix).trim());
             }
         }
 

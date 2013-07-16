@@ -1,0 +1,46 @@
+{
+   "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "analysis": {
+         "filter": {
+            "single": {
+               "type": "pattern_capture",
+               "patterns": "((...)...)"
+            },
+            "multi": {
+               "type": "pattern_capture",
+               "patterns": [
+                  "(\\d+)",
+                  "([a-z]+)"
+               ]
+            },
+            "preserve": {
+               "type": "pattern_capture",
+               "preserve_original": false,
+               "patterns": "((...)...)"
+            }
+         },
+         "analyzer": {
+            "single": {
+               "tokenizer": "keyword",
+               "filter": [
+                  "single"
+               ]
+            },
+            "multi": {
+               "tokenizer": "keyword",
+               "filter": [
+                  "multi"
+               ]
+            },
+            "preserve": {
+               "tokenizer": "keyword",
+               "filter": [
+                  "preserve"
+               ]
+            }
+         }
+      }
+   }
+}

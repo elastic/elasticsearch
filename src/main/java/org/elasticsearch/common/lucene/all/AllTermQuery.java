@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lucene.all;
 
+import org.apache.lucene.search.similarities.Similarity.SimScorer;
+
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsAndPositionsEnum;
@@ -27,7 +29,6 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.similarities.Similarity.SloppySimScorer;
 import org.apache.lucene.search.spans.SpanScorer;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.spans.SpanWeight;
@@ -74,7 +75,7 @@ public class AllTermQuery extends SpanTermQuery {
             if (this.stats == null) {
                 return null;
             }
-            SloppySimScorer sloppySimScorer = similarity.sloppySimScorer(stats, context);
+            SimScorer sloppySimScorer = similarity.simScorer(stats, context);
             return new AllTermSpanScorer((TermSpans) query.getSpans(context, acceptDocs, termContexts), this, sloppySimScorer);
         }
 
@@ -83,7 +84,7 @@ public class AllTermQuery extends SpanTermQuery {
             protected float payloadScore;
             protected int payloadsSeen;
 
-            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SloppySimScorer docScorer) throws IOException {
+            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SimScorer docScorer) throws IOException {
                 super(spans, weight, docScorer);
                 positions = spans.getPostings();
             }
@@ -158,7 +159,7 @@ public class AllTermQuery extends SpanTermQuery {
               int newDoc = scorer.advance(doc);
               if (newDoc == doc) {
                 float freq = scorer.freq();
-                SloppySimScorer docScorer = similarity.sloppySimScorer(stats, context);
+                SimScorer docScorer = similarity.simScorer(stats, context);
                 ComplexExplanation inner = new ComplexExplanation();
                 inner.setDescription("weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:");
                 Explanation scoreExplanation = docScorer.explain(doc, new Explanation(freq, "phraseFreq=" + freq));

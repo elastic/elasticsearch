@@ -499,7 +499,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        CollectionUtil.quickSort(templates, new Comparator<IndexTemplateMetaData>() {
+        CollectionUtil.timSort(templates, new Comparator<IndexTemplateMetaData>() {
             @Override
             public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
                 return o2.order() - o1.order();

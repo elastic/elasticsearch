@@ -57,7 +57,7 @@ public final class FragmentBuilderHelper {
              * the FastVectorHighlighter. Yet, this is really a lucene problem and should be fixed in lucene rather
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
-            CollectionUtil.quickSort(subInfos, new Comparator<SubInfo>() {
+            CollectionUtil.introSort(subInfos, new Comparator<SubInfo>() {
                 @Override
                 public int compare(SubInfo o1, SubInfo o2) {
                     int startOffset = o1.getTermsOffsets().get(0).getStartOffset();

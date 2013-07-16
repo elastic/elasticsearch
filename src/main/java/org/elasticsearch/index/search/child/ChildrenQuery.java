@@ -30,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TermFilter;
@@ -217,7 +218,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
-            if (parentsSet == null || parentsSet == DocIdSet.EMPTY_DOCIDSET || remaining == 0) {
+            if (DocIdSets.isEmpty(parentsSet) || remaining == 0) {
                 return null;
             }
 

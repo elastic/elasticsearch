@@ -83,7 +83,6 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
-        mergePolicy.setUseCompoundFile(compoundFormat);
         mergePolicy.setNoCFSRatio(noCFSRatio);
 
         policies.add(mergePolicy);
@@ -140,14 +139,11 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
             }
             
             final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(LogByteSizeMergePolicyProvider.this.noCFSRatio)));
-            final boolean compoundFormat = noCFSRatio != 0.0;
             if (noCFSRatio != LogByteSizeMergePolicyProvider.this.noCFSRatio) {
                 logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(LogByteSizeMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
-                LogByteSizeMergePolicyProvider.this.compoundFormat = compoundFormat;
                 LogByteSizeMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomLogByteSizeMergePolicy policy : policies) {
                     policy.setNoCFSRatio(noCFSRatio);
-                    policy.setUseCompoundFile(compoundFormat);
                 }
             }
 

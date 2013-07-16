@@ -131,7 +131,7 @@ public class HotThreads {
             // sort by delta CPU time on thread.
             List<MyThreadInfo> hotties = new ArrayList<MyThreadInfo>(threadInfos.values());
             // skip that for now
-            CollectionUtil.quickSort(hotties, new Comparator<MyThreadInfo>() {
+            CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
                 public int compare(MyThreadInfo o1, MyThreadInfo o2) {
                     if ("cpu".equals(type)) {
                         return (int) (o2.cpuTime - o1.cpuTime);

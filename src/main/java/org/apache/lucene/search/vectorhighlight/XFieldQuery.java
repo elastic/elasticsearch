@@ -20,7 +20,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.vectorhighlight.XFieldTermStack.TermInfo;
-import org.apache.lucene.util.SorterTemplate;
+import org.apache.lucene.util.InPlaceMergeSorter;
 
 import java.io.IOException;
 import java.util.*;
@@ -364,34 +364,24 @@ public class XFieldQuery {
         PhraseQuery pq = (PhraseQuery)query;
         final Term[] terms = pq.getTerms();
         final int[] positions = pq.getPositions();
-        new SorterTemplate() {
+        new InPlaceMergeSorter() {
+            
+            @Override
+            protected void swap(int i, int j) {
+              Term tmpTerm = terms[i];
+              terms[i] = terms[j];
+              terms[j] = tmpTerm;
 
-          @Override
-          protected void swap(int i, int j) {
-            Term tmpTerm = terms[i];
-            terms[i] = terms[j];
-            terms[j] = tmpTerm;
+              int tmpPos = positions[i];
+              positions[i] = positions[j];
+              positions[j] = tmpPos;
+            }
 
-            int tmpPos = positions[i];
-            positions[i] = positions[j];
-            positions[j] = tmpPos;
-          }
-
-          @Override
-          protected int compare(int i, int j) {
-            return positions[i] - positions[j];
-          }
-
-          @Override
-          protected void setPivot(int i) {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          protected int comparePivot(int j) {
-            throw new UnsupportedOperationException();
-          }
-        }.mergeSort(0, terms.length - 1);
+            @Override
+            protected int compare(int i, int j) {
+              return positions[i] - positions[j];
+            }
+        }.sort(0, terms.length);
 
         addToMap(pq, terms, positions, 0, subMap, pq.getSlop());
       }

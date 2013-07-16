@@ -40,7 +40,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
     private final ImmutableList<CommitPoint> commitPoints;
 
     public CommitPoints(List<CommitPoint> commitPoints) {
-        CollectionUtil.quickSort(commitPoints, new Comparator<CommitPoint>() {
+        CollectionUtil.introSort(commitPoints, new Comparator<CommitPoint>() {
             @Override
             public int compare(CommitPoint o1, CommitPoint o2) {
                 return (o2.version() < o1.version() ? -1 : (o2.version() == o1.version() ? 0 : 1));

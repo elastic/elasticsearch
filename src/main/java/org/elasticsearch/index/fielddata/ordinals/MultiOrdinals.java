@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.Version;
-
-import org.elasticsearch.common.lucene.Lucene;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.AppendingLongBuffer;
@@ -34,11 +30,8 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 /** {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields. */
 public class MultiOrdinals implements Ordinals {
 
-    // hard-coded in Lucene 4.3 but will be exposed in Lucene 4.4
-    static {
-        assert Lucene.VERSION == Version.LUCENE_43;
-    }
     private static final int OFFSETS_PAGE_SIZE = 1024;
+    private static final int OFFSET_INIT_PAGE_COUNT = 16;
 
     /** Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%. */
     public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds) {
@@ -62,7 +55,7 @@ public class MultiOrdinals implements Ordinals {
         multiValued = builder.getNumMultiValuesDocs() > 0;
         numOrds = builder.getNumOrds();
         endOffsets = new MonotonicAppendingLongBuffer();
-        ords = new AppendingLongBuffer();
+        ords = new AppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE);
         long lastEndOffset = 0;
         for (int i = 0; i < builder.maxDoc(); ++i) {
             final LongsRef docOrds = builder.docOrds(i);

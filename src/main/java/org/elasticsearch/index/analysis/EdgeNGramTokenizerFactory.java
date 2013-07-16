@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
+
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.apache.lucene.analysis.ngram.XEdgeNGramTokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -45,7 +46,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int maxGram;
 
-    private final EdgeNGramTokenizer.Side side;
+    private final Lucene43EdgeNGramTokenizer.Side side;
 
     private final CharMatcher matcher;
 
@@ -54,22 +55,23 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-        this.side = EdgeNGramTokenizer.Side.getSide(settings.get("side", EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
+        this.side = Lucene43EdgeNGramTokenizer.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
     }
 
     @Override
     public Tokenizer create(Reader reader) {
-        if (version.onOrAfter(Version.LUCENE_43)) {
-            if (side == EdgeNGramTokenizer.Side.BACK) {
+        final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3
+        if (version.onOrAfter(Version.LUCENE_44)) {
+            if (side == Lucene43EdgeNGramTokenizer.Side.BACK) {
                 throw new ElasticSearchIllegalArgumentException("side=BACK is not supported anymore. Please fix your analysis chain or use"
                         + " an older compatibility version (<=4.2) but beware that it might cause highlighting bugs.");
             }
             // LUCENE MONITOR: this token filter is a copy from lucene trunk and should go away once we upgrade to lucene 4.4
             if (matcher == null) {
-                return new XEdgeNGramTokenizer(version, reader, minGram, maxGram);
+                return new EdgeNGramTokenizer(version, reader, minGram, maxGram);
             } else {
-                return new XEdgeNGramTokenizer(version, reader, minGram, maxGram) {
+                return new EdgeNGramTokenizer(version, reader, minGram, maxGram) {
                     @Override
                     protected boolean isTokenChar(int chr) {
                         return matcher.isTokenChar(chr);
@@ -77,7 +79,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
                 };
             }
         } else {
-            return new EdgeNGramTokenizer(reader, side, minGram, maxGram);
+            return new Lucene43EdgeNGramTokenizer(version, reader, side, minGram, maxGram);
         }
     }
 }

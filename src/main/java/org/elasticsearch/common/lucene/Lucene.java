@@ -35,14 +35,13 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 
 /**
  *
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_43;
+    public static final Version VERSION = Version.LUCENE_44;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -56,6 +55,9 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.4".equals(version)) {
+            return VERSION.LUCENE_44;
         }
         if ("4.3".equals(version)) {
             return Version.LUCENE_43;

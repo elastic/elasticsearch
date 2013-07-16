@@ -5,13 +5,13 @@
                 "my_keep_filter":{
                     "type":"keep",
                     "keep_words" : ["Hello", "worlD"],
-                    "enable_position_increments" : true,
                     "keep_words_case" : true
                 },
                 "my_case_sensitive_keep_filter":{
                     "type":"keep",
                     "keep_words" : ["Hello", "worlD"],
-                    "enable_position_increments" : false
+                    "enable_position_increments" : false,
+                    "version" : "4.2"
                 }
             }
         }

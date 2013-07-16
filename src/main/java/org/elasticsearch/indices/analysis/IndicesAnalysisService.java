@@ -82,7 +82,6 @@ import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -91,7 +90,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.analysis.*;
 
-import java.io.IOException;
 import java.io.Reader;
 import java.util.Map;
 
@@ -268,7 +266,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                return new NGramTokenizer(reader);
+                return new NGramTokenizer(Lucene.ANALYZER_VERSION, reader);
             }
         }));
 
@@ -280,7 +278,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                return new NGramTokenizer(reader);
+                return new NGramTokenizer(Lucene.ANALYZER_VERSION, reader);
             }
         }));
 
@@ -292,7 +290,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                return new EdgeNGramTokenizer(reader, EdgeNGramTokenizer.DEFAULT_SIDE, EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+                return new EdgeNGramTokenizer(Lucene.ANALYZER_VERSION, reader, EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
             }
         }));
 
@@ -304,7 +302,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                return new EdgeNGramTokenizer(reader, EdgeNGramTokenizer.DEFAULT_SIDE, EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+                return new EdgeNGramTokenizer(Lucene.ANALYZER_VERSION, reader, EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
             }
         }));
 
@@ -357,7 +355,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new TrimFilter(tokenStream, false);
+                return new TrimFilter(Lucene.ANALYZER_VERSION, tokenStream);
             }
         }));
 
@@ -393,7 +391,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new LengthFilter(true, tokenStream, 0, Integer.MAX_VALUE);
+                return new LengthFilter(Lucene.ANALYZER_VERSION, tokenStream, 0, Integer.MAX_VALUE);
             }
         }));
 
@@ -477,7 +475,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new NGramTokenFilter(tokenStream);
+                return new NGramTokenFilter(Lucene.ANALYZER_VERSION, tokenStream);
             }
         }));
 
@@ -489,7 +487,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new NGramTokenFilter(tokenStream);
+                return new NGramTokenFilter(Lucene.ANALYZER_VERSION, tokenStream);
             }
         }));
 
@@ -501,7 +499,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_SIDE, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
+                return new EdgeNGramTokenFilter(Lucene.ANALYZER_VERSION, tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
             }
         }));
 
@@ -513,7 +511,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_SIDE, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
+                return new EdgeNGramTokenFilter(Lucene.ANALYZER_VERSION, tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
             }
         }));
 

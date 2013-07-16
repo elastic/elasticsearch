@@ -59,8 +59,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeScheduler newMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
-        concurrentMergeScheduler.setMaxMergeCount(maxMergeCount);
-        concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
+        concurrentMergeScheduler.setMaxMergesAndThreads(maxMergeCount, maxThreadCount);
         schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;
     }

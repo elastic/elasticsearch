@@ -19,10 +19,11 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.apache.lucene.analysis.ngram.XNGramTokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
@@ -98,20 +99,21 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create(Reader reader) {
-        if (this.version.onOrAfter(Version.LUCENE_43)) {
-            // LUCENE MONITOR: this token filter is a copy from lucene trunk and should go away once we upgrade to lucene 4.4
+        final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3
+        if (version.onOrAfter(Version.LUCENE_44)) {
             if (matcher == null) {
-                return new XNGramTokenizer(version, reader, minGram, maxGram);
+                return new NGramTokenizer(version, reader, minGram, maxGram);
             } else {
-                return new XNGramTokenizer(version, reader, minGram, maxGram) {
+                return new NGramTokenizer(version, reader, minGram, maxGram) {
                     @Override
                     protected boolean isTokenChar(int chr) {
                         return matcher.isTokenChar(chr);
                     }
                 };
             }
+        } else {
+            return new Lucene43NGramTokenizer(reader, minGram, maxGram);
         }
-        return new NGramTokenizer(reader, minGram, maxGram);
     }
 
 }

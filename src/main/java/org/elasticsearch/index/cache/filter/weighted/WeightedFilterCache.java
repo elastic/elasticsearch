@@ -186,7 +186,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             // note, we don't wrap the return value with a BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs) because
             // we rely on our custom XFilteredQuery to do the wrapping if needed, so we don't have the wrap each
             // filter on its own
-            return cacheValue == DocIdSet.EMPTY_DOCIDSET ? null : cacheValue;
+            return DocIdSets.isEmpty(cacheValue) ? null : cacheValue;
         }
 
         public String toString() {

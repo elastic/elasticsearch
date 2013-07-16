@@ -45,7 +45,7 @@ public class DocIdSets {
      * Is it an empty {@link DocIdSet}?
      */
     public static boolean isEmpty(@Nullable DocIdSet set) {
-        return set == null || set == DocIdSet.EMPTY_DOCIDSET;
+        return set == null || set == EMPTY_DOCIDSET;
     }
 
     /**
@@ -70,19 +70,19 @@ public class DocIdSets {
      * <p/>
      * Note, we don't use {@link org.apache.lucene.search.DocIdSet#isCacheable()} because execution
      * might be expensive even if its cacheable (i.e. not going back to the reader to execute). We effectively
-     * always either return {@link DocIdSet#EMPTY_DOCIDSET} or {@link FixedBitSet}.
+     * always either return an empty {@link DocIdSet} or {@link FixedBitSet} but never <code>null</code>.
      */
     public static DocIdSet toCacheable(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
-        if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
-            return DocIdSet.EMPTY_DOCIDSET;
+        if (set == null || set == EMPTY_DOCIDSET) {
+            return EMPTY_DOCIDSET;
         }
         DocIdSetIterator it = set.iterator();
         if (it == null) {
-            return DocIdSet.EMPTY_DOCIDSET;
+            return EMPTY_DOCIDSET;
         }
         int doc = it.nextDoc();
         if (doc == DocIdSetIterator.NO_MORE_DOCS) {
-            return DocIdSet.EMPTY_DOCIDSET;
+            return EMPTY_DOCIDSET;
         }
         if (set instanceof FixedBitSet) {
             return set;
@@ -94,6 +94,26 @@ public class DocIdSets {
         } while (doc != DocIdSetIterator.NO_MORE_DOCS);
         return fixedBitSet;
     }
+    
+    /** An empty {@code DocIdSet} instance */
+    protected static final DocIdSet EMPTY_DOCIDSET = new DocIdSet() {
+      
+      @Override
+      public DocIdSetIterator iterator() {
+        return DocIdSetIterator.empty();
+      }
+      
+      @Override
+      public boolean isCacheable() {
+        return true;
+      }
+      
+      // we explicitly provide no random access, as this filter is 100% sparse and iterator exits faster
+      @Override
+      public Bits bits() {
+        return null;
+      }
+    };
 
     /**
      * Gets a set to bits.

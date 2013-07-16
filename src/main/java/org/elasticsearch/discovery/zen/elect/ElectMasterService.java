@@ -110,7 +110,7 @@ public class ElectMasterService extends AbstractComponent {
                 it.remove();
             }
         }
-        CollectionUtil.quickSort(possibleNodes, nodeComparator);
+        CollectionUtil.introSort(possibleNodes, nodeComparator);
         return possibleNodes;
     }
 

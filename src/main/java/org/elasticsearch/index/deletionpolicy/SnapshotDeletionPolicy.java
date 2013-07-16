@@ -66,7 +66,10 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
      * Called by Lucene. Same as {@link #onCommit(java.util.List)}.
      */
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        onCommit(commits);
+        if (!commits.isEmpty()) { // this might be empty if we create a new index. 
+            // the behavior has changed in Lucene 4.4 that calls onInit even with an empty commits list.
+            onCommit(commits);
+        }
     }
 
     /**
@@ -74,6 +77,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
      * and delegates to the wrapped deletion policy.
      */
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        assert !commits.isEmpty() : "Commits must not be empty";
         synchronized (mutex) {
             List<SnapshotIndexCommit> snapshotCommits = wrapCommits(commits);
             primary.onCommit(snapshotCommits);
@@ -94,7 +98,8 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
             }
             this.commits = newCommits;
             // the last commit that is not deleted
-            this.lastCommit = newCommits.get(newCommits.size() - 1);
+            this.lastCommit = newCommits.get(newCommits.size() - 1);     
+           
         }
     }
 

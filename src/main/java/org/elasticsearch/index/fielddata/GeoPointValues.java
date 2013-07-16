@@ -24,30 +24,45 @@ import org.elasticsearch.common.geo.GeoPoint;
 
 /**
  */
-public interface GeoPointValues {
+public abstract class GeoPointValues {
 
-    static final GeoPointValues EMPTY = new Empty();
+    public static final GeoPointValues EMPTY = new Empty();
+    
+    private final boolean multiValued;
 
     /**
      * Is one of the documents in this field data values is multi valued?
      */
-    boolean isMultiValued();
+    public final boolean isMultiValued() {
+        return multiValued;
+    }
 
     /**
      * Is there a value for this doc?
      */
-    boolean hasValue(int docId);
+    public abstract boolean hasValue(int docId);
 
-    GeoPoint getValue(int docId);
+    public abstract GeoPoint getValue(int docId);
 
-    GeoPoint getValueSafe(int docId);
+    public abstract GeoPoint getValueSafe(int docId);
 
-    Iter getIter(int docId);
+    public abstract Iter getIter(int docId);
 
-    Iter getIterSafe(int docId);
+    public abstract Iter getIterSafe(int docId);
+    
+    protected GeoPointValues(boolean multiValued) {
+        this.multiValued = multiValued;
+    }
+
+    public GeoPoint getValueMissing(int docId, GeoPoint defaultGeoPoint) {
+        if (hasValue(docId)) {
+            return getValue(docId);
+        } 
+        return defaultGeoPoint;
+    }
 
 
-    static interface Iter {
+    public static interface Iter {
 
         boolean hasNext();
 
@@ -93,34 +108,28 @@ public interface GeoPointValues {
         }
     }
 
-    static class Empty implements GeoPointValues {
-        @Override
-        public boolean isMultiValued() {
-            return false;
+    static class Empty extends GeoPointValues {
+        protected Empty() {
+            super(false);
         }
 
-        @Override
         public boolean hasValue(int docId) {
             return false;
         }
 
-        @Override
         public GeoPoint getValueSafe(int docId) {
             return getValue(docId);
         }
 
-        @Override
         public Iter getIterSafe(int docId) {
             return getIter(docId);
         }
 
 
-        @Override
         public GeoPoint getValue(int docId) {
             return null;
         }
 
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
         }

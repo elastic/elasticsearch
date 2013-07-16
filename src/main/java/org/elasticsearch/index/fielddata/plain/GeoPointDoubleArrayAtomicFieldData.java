@@ -94,7 +94,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         }
     }
 
-    public static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {
+    static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {
 
         private final BigDoubleArrayList lon, lat;
         private final Ordinals ordinals;
@@ -126,10 +126,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         @Override
         public GeoPointValues getGeoPointValues() {
-            return new GeoPointValues(lon, lat, ordinals.ordinals());
+            return new GeoPointValuesWithOrdinals(lon, lat, ordinals.ordinals());
         }
 
-        static class GeoPointValues implements org.elasticsearch.index.fielddata.GeoPointValues {
+        public static class GeoPointValuesWithOrdinals extends GeoPointValues {
 
             private final BigDoubleArrayList lon, lat;
             private final Ordinals.Docs ordinals;
@@ -138,17 +138,13 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final ValuesIter valuesIter;
             private final SafeValuesIter safeValuesIter;
 
-            GeoPointValues(BigDoubleArrayList lon, BigDoubleArrayList lat, Ordinals.Docs ordinals) {
+            GeoPointValuesWithOrdinals(BigDoubleArrayList lon, BigDoubleArrayList lat, Ordinals.Docs ordinals) {
+                super(ordinals.isMultiValued());
                 this.lon = lon;
                 this.lat = lat;
                 this.ordinals = ordinals;
                 this.valuesIter = new ValuesIter(lon, lat);
                 this.safeValuesIter = new SafeValuesIter(lon, lat);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return ordinals.isMultiValued();
             }
 
             @Override
@@ -204,12 +200,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
                     return this;
                 }
 
-                @Override
                 public boolean hasNext() {
                     return ord != 0;
                 }
 
-                @Override
                 public GeoPoint next() {
                     scratch.reset(lat.get(ord), lon.get(ord));
                     ord = ordsIter.next();
@@ -285,11 +279,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         @Override
         public GeoPointValues getGeoPointValues() {
-            return new GeoPointValues(lon, lat, set);
+            return new GeoPointValuesSingleFixedSet(lon, lat, set);
         }
 
 
-        static class GeoPointValues implements org.elasticsearch.index.fielddata.GeoPointValues {
+        static class GeoPointValuesSingleFixedSet extends GeoPointValues {
 
             private final BigDoubleArrayList lon;
             private final BigDoubleArrayList lat;
@@ -298,15 +292,12 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final GeoPoint scratch = new GeoPoint();
             private final Iter.Single iter = new Iter.Single();
 
-            GeoPointValues(BigDoubleArrayList lon, BigDoubleArrayList lat, FixedBitSet set) {
+
+            GeoPointValuesSingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, FixedBitSet set) {
+                super(false);
                 this.lon = lon;
                 this.lat = lat;
                 this.set = set;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
             }
 
             @Override
@@ -386,10 +377,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         @Override
         public GeoPointValues getGeoPointValues() {
-            return new GeoPointValues(lon, lat);
+            return new GeoPointValuesSingle(lon, lat);
         }
 
-        static class GeoPointValues implements org.elasticsearch.index.fielddata.GeoPointValues {
+        static class GeoPointValuesSingle extends GeoPointValues {
 
             private final BigDoubleArrayList lon;
             private final BigDoubleArrayList lat;
@@ -397,14 +388,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final GeoPoint scratch = new GeoPoint();
             private final Iter.Single iter = new Iter.Single();
 
-            GeoPointValues(BigDoubleArrayList lon, BigDoubleArrayList lat) {
+
+            GeoPointValuesSingle(BigDoubleArrayList lon, BigDoubleArrayList lat) {
+                super(false);
                 this.lon = lon;
                 this.lat = lat;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
             }
 
             @Override

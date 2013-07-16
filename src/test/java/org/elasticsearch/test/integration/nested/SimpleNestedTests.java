@@ -453,9 +453,6 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
         assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
 
-        // TODO: needed?
-        refresh();
-
         // test scope ones (post based)
         searchResponse = client().prepareSearch("test")
                 .setQuery(

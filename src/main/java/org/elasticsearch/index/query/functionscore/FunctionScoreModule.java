@@ -21,7 +21,10 @@ package org.elasticsearch.index.query.functionscore;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.factor.FactorParser;
+import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
 
 import java.util.List;
@@ -36,6 +39,9 @@ public class FunctionScoreModule extends AbstractModule {
     public FunctionScoreModule() {
         registerParser(FactorParser.class);
         registerParser(ScriptScoreFunctionParser.class);
+        registerParser(GaussDecayFunctionParser.class);
+        registerParser(LinearDecayFunctionParser.class);
+        registerParser(ExponentialDecayFunctionParser.class);
     }
 
     public void registerParser(Class<? extends ScoreFunctionParser> parser) {

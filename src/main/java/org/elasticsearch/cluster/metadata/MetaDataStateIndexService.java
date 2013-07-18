@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
@@ -87,6 +90,13 @@ public class MetaDataStateIndexService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(index));
                     }
+                    IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
+                    for (IndexShardRoutingTable shard : indexRoutingTable) {
+                        if (!shard.primaryAllocatedPostApi()) {
+                            throw new IndexPrimaryShardNotAllocatedException(new Index(index));
+                        }
+                    }
+
                     if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
                         indicesToClose.add(index);
                     }

@@ -20,7 +20,9 @@
 package org.elasticsearch.test.integration.indices.settings;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
@@ -62,6 +64,10 @@ public class UpdateSettingsTests extends AbstractSharedClusterTest {
         assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("-1"));
 
         // now close the index, change the non dynamic setting, and see that it applies
+
+        // Wait for the index to turn green before attempting to close it
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         client().admin().indices().prepareClose("test").execute().actionGet();
 

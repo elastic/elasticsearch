@@ -20,9 +20,10 @@
 package org.elasticsearch.test.integration.indices.state;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -31,10 +32,10 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
-
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,50 +62,70 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         logger.info("--> creating test index");
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
-        logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        waitForGreen();
+        assertOpen(5, 10);
 
-        ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(5));
-        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        closeIndex();
+        assertClosed();
 
-        logger.info("--> indexing a simple document");
-        client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        openIndex();
+        waitForGreen();
+        assertOpen(5, 10);
+    }
 
-        logger.info("--> closing test index...");
-        client("node1").admin().indices().prepareClose("test").execute().actionGet();
+    /**
+     * Verify that attempts to close an index right after it is created are rejected.
+     * Also verifies that the index can later be closed and properly reopened.
+     * Since this test relies on things taking time, it might fail spuriously.  Sorry.
+     */
+    @Test
+    public void testFastCloseAfterCreateDoesNotClose() {
+        logger.info("--> starting two nodes....");
+        startNode("node1");
+        startNode("node2");
 
-        stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        int shards = 2;
+        while (true) {
+            logger.info("--> creating test index with {} shards", shards);
+            client("node1").admin().indices().prepareCreate("test").setSettings(
+                    "index.number_of_shards", shards, "index.number_of_replicas", 1).execute().actionGet();
 
-        logger.info("--> testing indices status api...");
-        IndicesStatusResponse indicesStatusResponse = client("node1").admin().indices().prepareStatus().execute().actionGet();
+            logger.info("--> triggering a fast close");
+            boolean caughtFastClose = true;
+            try {
+                closeIndex();
+                caughtFastClose = false;
+            } catch(IndexPrimaryShardNotAllocatedException e) {
+                //expected
+            }
+            logger.info("--> making sure the fast close occured in the expected state: cluster status = red");
+            if (getStatus() != ClusterHealthStatus.RED) {
+                caughtFastClose = false;
+            }
 
-        logger.info("--> trying to index into a closed index ...");
-        try {
-            client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
-            assert false;
-        } catch (ClusterBlockException e) {
-            // all is well
+            if (caughtFastClose) {
+                logger.info("--> caught a fast close with {} shards", shards);
+                break;
+            } else {
+                logger.info("--> didn't get a fast close with {} shards so trying more", shards);
+                assertThat("We run out of attempts to catch a fast close.", shards <= 1024);
+                waitForGreen();
+                client("node1").admin().indices().prepareDelete("test").execute();
+                ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(0).execute().actionGet();
+                assertThat(health.isTimedOut(), equalTo(false));
+                shards *= 2;
+            }
         }
 
-        logger.info("--> opening index...");
-        client("node1").admin().indices().prepareOpen("test").execute().actionGet();
+        waitForGreen();
+        assertOpen(shards, shards * 2);
 
-        logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        closeIndex();
+        assertClosed();
 
-        stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(5));
-        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
-
-        logger.info("--> indexing a simple document");
-        client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        openIndex();
+        waitForGreen();
+        assertOpen(shards, shards * 2);
     }
 
     @Test
@@ -132,4 +153,49 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         assertThat(response.isAcknowledged(), equalTo(true));
     }
 
+    private void waitForGreen() {
+        logger.info("--> waiting for green status");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setTimeout("30s").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+    }
+
+    private ClusterHealthStatus getStatus() {
+        logger.info("--> should still be red");
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().execute().actionGet();
+        return health.getStatus();
+    }
+
+    private void openIndex() {
+        logger.info("--> opening index...");
+        client("node1").admin().indices().prepareOpen("test").execute().actionGet();
+    }
+
+    private void assertOpen(int expectedPrimaryShards, int expectedTotalShards) {
+        ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(expectedPrimaryShards));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(expectedTotalShards));
+        logger.info("--> indexing a simple document");
+        client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+    }
+
+    private void closeIndex() {
+        logger.info("--> closing test index...");
+        CloseIndexResponse closeResponse = client("node1").admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeResponse.isAcknowledged(), equalTo(true));
+    }
+
+    private void assertClosed() {
+        ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+
+        logger.info("--> trying to index into a closed index ...");
+        try {
+            client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+            assert false;
+        } catch (ClusterBlockException e) {
+            // all is well
+        }
+    }
 }

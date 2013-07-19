@@ -44,11 +44,7 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
             throw new ElasticSearchIllegalArgumentException("pattern is missing for [" + name + "] char filter of type 'pattern_replace'");
         }
         pattern = Pattern.compile(settings.get("pattern"));
-
-        replacement = settings.get("replacement");
-        if (!Strings.hasLength(replacement)) {
-            throw new ElasticSearchIllegalArgumentException("replacement is missing for [" + name + "] char filter of type 'pattern_replace'");
-        }
+        replacement = settings.get("replacement", ""); // when not set or set to "", use "".
     }
 
     public Pattern getPattern() {

@@ -29,10 +29,10 @@ import java.io.IOException;
  */
 public class HandlesStreamInput extends AdapterStreamInput {
 
-    private final TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
-    private final TIntObjectHashMap<String> identityHandles = new TIntObjectHashMap<String>();
+    private TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
+    private TIntObjectHashMap<String> identityHandles = new TIntObjectHashMap<String>();
 
-    private final TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
+    private TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
 
     HandlesStreamInput() {
         super();
@@ -86,21 +86,29 @@ public class HandlesStreamInput extends AdapterStreamInput {
     @Override
     public void reset() throws IOException {
         super.reset();
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        cleanHandles();
     }
 
     public void reset(StreamInput in) {
         super.reset(in);
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        cleanHandles();
     }
 
     public void cleanHandles() {
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        if (handles.capacity() > 10000) {
+            handles = new TIntObjectHashMap<String>();
+        } else {
+            handles.clear();
+        }
+        if (identityHandles.capacity() > 10000) {
+            identityHandles = new TIntObjectHashMap<String>();
+        } else {
+            identityHandles.clear();
+        }
+        if (handlesText.capacity() > 10000) {
+            handlesText = new TIntObjectHashMap<Text>();
+        } else {
+            handlesText.clear();
+        }
     }
 }

@@ -36,10 +36,9 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     // a threshold above which strings will use identity check
     private final int identityThreshold;
 
-    private final TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-    private final HandleTable identityHandles = new HandleTable(10, (float) 3.00);
-
-    private final TObjectIntHashMap<Text> handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+    private TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+    private HandleTable identityHandles = new HandleTable(10, (float) 3.00);
+    private TObjectIntHashMap<Text> handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
     public HandlesStreamOutput(StreamOutput out) {
         this(out, DEFAULT_IDENTITY_THRESHOLD);
@@ -106,18 +105,28 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
 
     @Override
     public void reset() throws IOException {
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        clear();
         if (out != null) {
             out.reset();
         }
     }
 
     public void clear() {
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        if (handles.capacity() > 10000) {
+            handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        } else {
+            handles.clear();
+        }
+        if (identityHandles.capacity() > 10000) {
+            identityHandles = new HandleTable(10, (float) 3.00);
+        } else {
+            identityHandles.clear();
+        }
+        if (handlesText.capacity() > 10000) {
+            handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        } else {
+            handlesText.clear();
+        }
     }
 
     /**
@@ -149,6 +158,10 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
             objs = new Object[initialCapacity];
             threshold = (int) (initialCapacity * loadFactor);
             clear();
+        }
+
+        public int capacity() {
+            return spine.length;
         }
 
         /**

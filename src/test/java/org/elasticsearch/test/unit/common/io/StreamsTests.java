@@ -19,27 +19,18 @@
 
 package org.elasticsearch.test.unit.common.io;
 
-import static org.elasticsearch.common.io.Streams.copy;
-import static org.elasticsearch.common.io.Streams.copyToByteArray;
-import static org.elasticsearch.common.io.Streams.copyToString;
+import com.google.common.base.Charsets;
+import org.testng.annotations.Test;
+
+import java.io.*;
+import java.util.Arrays;
+
+import static org.elasticsearch.common.io.Streams.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.util.Arrays;
-
-import org.testng.annotations.Test;
-
-import com.google.common.base.Charsets;
-
 /**
  * Unit tests for {@link org.elasticsearch.common.io.Streams}.
- *
- *
  */
 public class StreamsTests {
 

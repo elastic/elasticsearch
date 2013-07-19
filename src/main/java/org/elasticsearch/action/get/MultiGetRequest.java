@@ -118,14 +118,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            if (in.readBoolean()) {
-                type = in.readString();
-            }
+            index = in.readSharedString();
+            type = in.readOptionalSharedString();
             id = in.readString();
-            if (in.readBoolean()) {
-                routing = in.readString();
-            }
+            routing = in.readOptionalString();
             int size = in.readVInt();
             if (size > 0) {
                 fields = new String[size];
@@ -137,20 +133,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(index);
-            if (type == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(type);
-            }
+            out.writeSharedString(index);
+            out.writeOptionalSharedString(type);
             out.writeString(id);
-            if (routing == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeString(routing);
-            }
+            out.writeOptionalString(routing);
             if (fields == null) {
                 out.writeVInt(0);
             } else {

@@ -245,6 +245,14 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    @Nullable
+    public String readOptionalSharedString() throws IOException {
+        if (readBoolean()) {
+            return readSharedString();
+        }
+        return null;
+    }
+
     public String readString() throws IOException {
         int charCount = readVInt();
         char[] chars = CachedStreamInput.getCharArray(charCount);
@@ -272,6 +280,10 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return new String(chars, 0, charCount);
+    }
+
+    public String readSharedString() throws IOException {
+        return readString();
     }
 
 
@@ -384,14 +396,14 @@ public abstract class StreamInput extends InputStream {
                 int size9 = readVInt();
                 Map map9 = new LinkedHashMap(size9);
                 for (int i = 0; i < size9; i++) {
-                    map9.put(readString(), readGenericValue());
+                    map9.put(readSharedString(), readGenericValue());
                 }
                 return map9;
             case 10:
                 int size10 = readVInt();
                 Map map10 = new HashMap(size10);
                 for (int i = 0; i < size10; i++) {
-                    map10.put(readString(), readGenericValue());
+                    map10.put(readSharedString(), readGenericValue());
                 }
                 return map10;
             case 11:

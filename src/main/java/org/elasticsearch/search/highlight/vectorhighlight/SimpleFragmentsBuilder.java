@@ -21,14 +21,14 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
+import org.apache.lucene.search.vectorhighlight.XFieldFragList.WeightedFragInfo;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 /**
  * Direct Subclass of Lucene's org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder 
  * that corrects offsets for broken analysis chains. 
  */
-public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder {
+public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighlight.XSimpleFragmentsBuilder {
     protected final FieldMapper<?> mapper;
 
     public SimpleFragmentsBuilder(FieldMapper<?> mapper,

@@ -36,7 +36,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 

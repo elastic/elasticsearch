@@ -20,7 +20,7 @@ package org.elasticsearch.test.unit.common.util;
 
 import org.elasticsearch.common.util.SlicedDoubleList;
 import org.elasticsearch.common.util.SlicedLongList;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

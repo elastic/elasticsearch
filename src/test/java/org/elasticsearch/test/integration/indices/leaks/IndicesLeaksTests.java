@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.indices.leaks;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -29,29 +30,28 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-@Test
 public class IndicesLeaksTests extends AbstractNodesTests {
 
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     @Test
+    @BadApple
     public void testIndexShardLifecycleLeak() throws Exception {
         Node node = startNode("node1");
 

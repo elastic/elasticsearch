@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.rest.util;
 
 import org.elasticsearch.rest.support.RestUtils;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Map;
 
@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class RestUtilsTests {
 
     @Test

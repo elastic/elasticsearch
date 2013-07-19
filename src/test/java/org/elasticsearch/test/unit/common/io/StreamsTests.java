@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.common.io;
 
 import com.google.common.base.Charsets;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.*;
 import java.util.Arrays;

@@ -51,8 +51,8 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import com.google.common.base.Charsets;
 

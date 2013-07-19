@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
@@ -40,7 +40,6 @@ import static org.elasticsearch.test.unit.cluster.routing.allocation.RoutingAllo
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Test
 public class ShardVersioningTests {
 
     private final ESLogger logger = Loggers.getLogger(ShardVersioningTests.class);

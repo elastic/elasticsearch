@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.unit;
 
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.Version.V_0_20_0;
 import static org.elasticsearch.Version.V_0_90_0;

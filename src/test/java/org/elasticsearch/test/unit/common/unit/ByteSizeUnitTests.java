@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.unit.common.unit;
 
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.*;
 import static org.hamcrest.MatcherAssert.assertThat;

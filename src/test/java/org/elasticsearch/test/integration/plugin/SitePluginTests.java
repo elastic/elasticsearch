@@ -25,15 +25,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.rest.helper.HttpClient;
 import org.elasticsearch.test.integration.rest.helper.HttpClientResponse;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.File;
+import java.net.URISyntaxException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,20 +42,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class SitePluginTests extends AbstractNodesTests {
 
 
-    @BeforeClass
-    public void setupPluginDirectory() throws Exception {
+    @Before
+    public void startNodes() throws URISyntaxException {
         File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/test/integration/plugin").toURI());
-        putDefaultSettings(settingsBuilder()
+        startNode("test", settingsBuilder()
                 .put("path.plugins", pluginDir.getAbsolutePath())
                 .build());
     }
 
-    @BeforeMethod
-    public void startNodes() {
-        startNode("test");
-    }
-
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }

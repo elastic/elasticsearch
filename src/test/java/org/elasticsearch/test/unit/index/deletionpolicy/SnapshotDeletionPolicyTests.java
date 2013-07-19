@@ -33,9 +33,9 @@ import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommits;
 import org.elasticsearch.index.shard.ShardId;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.apache.lucene.index.DirectoryReader.listCommits;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -55,7 +55,7 @@ public class SnapshotDeletionPolicyTests {
     private SnapshotDeletionPolicy deletionPolicy;
     private IndexWriter indexWriter;
 
-    @BeforeClass
+    @Before
     public void setUp() throws Exception {
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
@@ -65,7 +65,7 @@ public class SnapshotDeletionPolicyTests {
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
     }
 
-    @AfterClass
+    @After
     public void tearDown() throws Exception {
         indexWriter.close();
         dir.close();

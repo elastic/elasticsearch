@@ -37,17 +37,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -62,7 +62,6 @@ import static org.elasticsearch.index.query.FilterBuilders.geoBoundingBoxFilter;
 import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -70,17 +69,20 @@ import static org.hamcrest.Matchers.*;
  */
 public class GeoFilterTests extends AbstractSharedClusterTest {
 
-    private boolean intersectSupport;
-    private boolean disjointSupport;
-    private boolean withinSupport;
+    private static boolean intersectSupport;
+    private static boolean disjointSupport;
+    private static boolean withinSupport;
 
-    @BeforeTest
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-
+    @BeforeClass
+    public static void createNodes() throws Exception {
         intersectSupport = testRelationSupport(SpatialOperation.Intersects);
         disjointSupport = testRelationSupport(SpatialOperation.IsDisjointTo);
         withinSupport = testRelationSupport(SpatialOperation.IsWithin);
+    }
+    
+    @Override
+    protected int numberOfNodes() {
+        return 2;
     }
 
     private static byte[] unZipData(String path) throws IOException {
@@ -586,7 +588,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
     }
 
     protected static String randomhash(int length) {
-        return randomhash(new Random(), length);
+        return randomhash(getRandom(), length);
     }
 
     protected static String randomhash(Random random) {
@@ -594,7 +596,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
     }
 
     protected static String randomhash() {
-        return randomhash(new Random());
+        return randomhash(getRandom());
     }
 
     protected static String randomhash(Random random, int length) {

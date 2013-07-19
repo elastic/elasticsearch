@@ -22,7 +22,7 @@ package org.elasticsearch.test.unit.index.store.memory;
 import org.apache.lucene.store.*;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 

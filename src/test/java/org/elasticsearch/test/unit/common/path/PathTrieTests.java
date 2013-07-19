@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.common.path;
 
 import org.elasticsearch.common.path.PathTrie;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Map;
 

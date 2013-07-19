@@ -42,7 +42,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import com.google.common.base.Charsets;
 

@@ -22,7 +22,7 @@ package org.elasticsearch.test.integration.similarity;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;

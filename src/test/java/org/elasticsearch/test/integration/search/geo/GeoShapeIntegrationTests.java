@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -26,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +37,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
@@ -148,7 +148,8 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
     }
 
     // TODO this test causes hangs, blocking on the action get when fetching the shape for some reason
-    @Test(enabled = false)
+    @Test
+    @AwaitsFix(bugUrl = "this test causes hangs, blocking on the action get when fetching the shape for some reason")
     public void testIndexedShapeReference() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")

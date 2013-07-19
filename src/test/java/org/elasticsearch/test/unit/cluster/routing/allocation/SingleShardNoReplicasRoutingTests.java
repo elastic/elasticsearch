@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.List;
 import java.util.Set;

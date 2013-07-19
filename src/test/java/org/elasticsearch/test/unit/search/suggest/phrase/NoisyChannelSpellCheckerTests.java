@@ -17,17 +17,7 @@ package org.elasticsearch.test.unit.search.suggest.phrase;
  * specific language governing permissions and limitations
  * under the License.
  */
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringReader;
-import java.util.HashMap;
-import java.util.Map;
-
+import com.google.common.base.Charsets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
@@ -50,25 +40,19 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.search.suggest.phrase.CandidateGenerator;
-import org.elasticsearch.search.suggest.phrase.Correction;
-import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
-import org.elasticsearch.search.suggest.phrase.LaplaceScorer;
-import org.elasticsearch.search.suggest.phrase.LinearInterpoatingScorer;
-import org.elasticsearch.search.suggest.phrase.MultiCandidateGeneratorWrapper;
-import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker;
-import org.elasticsearch.search.suggest.phrase.StupidBackoffScorer;
-import org.elasticsearch.search.suggest.phrase.WordScorer;
-import org.testng.annotations.Test;
+import org.elasticsearch.search.suggest.phrase.*;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.junit.Test;
 
-import com.google.common.base.Charsets;
-public class NoisyChannelSpellCheckerTests {
+import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
 
     @Test
     public void testMarvelHeros() throws IOException {
-        
-      
         RAMDirectory dir = new RAMDirectory();
         Map<String, Analyzer> mapping = new HashMap<String, Analyzer>();
         mapping.put("body_ngram", new Analyzer() {

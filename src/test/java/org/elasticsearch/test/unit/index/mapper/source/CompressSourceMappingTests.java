@@ -24,8 +24,8 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +41,7 @@ public class CompressSourceMappingTests {
                 .startObject("_source").field("compress", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -57,7 +57,7 @@ public class CompressSourceMappingTests {
                 .startObject("_source").field("compress", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -74,7 +74,7 @@ public class CompressSourceMappingTests {
                 .startObject("_source").field("compress_threshold", "200b").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")

@@ -23,9 +23,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.unit.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-@Test
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
 
     @Override

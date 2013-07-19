@@ -37,7 +37,7 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;

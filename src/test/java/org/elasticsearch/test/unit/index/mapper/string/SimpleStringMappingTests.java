@@ -23,15 +23,14 @@ import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@Test
 public class SimpleStringMappingTests {
 
     @Test
@@ -40,7 +39,7 @@ public class SimpleStringMappingTests {
                 .startObject("properties").startObject("field").field("type", "string").field("ignore_above", 5).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -73,7 +72,7 @@ public class SimpleStringMappingTests {
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -95,7 +94,7 @@ public class SimpleStringMappingTests {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -116,7 +115,7 @@ public class SimpleStringMappingTests {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", false).field("index_options", "freqs").endObject().endObject()
                 .endObject().endObject().string();
 
-        defaultMapper = MapperTests.newParser().parse(mapping);
+        defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -163,7 +162,7 @@ public class SimpleStringMappingTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

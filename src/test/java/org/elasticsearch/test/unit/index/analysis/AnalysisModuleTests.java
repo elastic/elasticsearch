@@ -45,7 +45,7 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.unit.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.hamcrest.MatcherAssert;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import com.google.common.base.Charsets;
 

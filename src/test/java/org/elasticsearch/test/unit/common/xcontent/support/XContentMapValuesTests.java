@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,7 +39,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-@Test
 public class XContentMapValuesTests {
 
     @Test

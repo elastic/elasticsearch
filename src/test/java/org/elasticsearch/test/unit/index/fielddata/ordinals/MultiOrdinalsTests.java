@@ -24,17 +24,17 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.MultiOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class MultiOrdinalsTests {
+public class MultiOrdinalsTests extends ElasticsearchTestCase {
 
     protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
         return this.creationMultiOrdinals(builder, ImmutableSettings.builder());
@@ -48,7 +48,7 @@ public class MultiOrdinalsTests {
 
     @Test
     public void testRandomValues() throws IOException {
-        Random random = new Random(100);
+        Random random = getRandom();
         int numDocs = 100 + random.nextInt(1000);
         int numOrdinals = 1 + random.nextInt(200);
         int numValues = 100 + random.nextInt(100000);

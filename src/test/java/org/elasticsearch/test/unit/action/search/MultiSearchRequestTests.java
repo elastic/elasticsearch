@@ -22,7 +22,7 @@ package org.elasticsearch.test.unit.action.search;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.io.Streams;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-@Test
 public class MultiSearchRequestTests {
 
     @Test

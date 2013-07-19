@@ -28,8 +28,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import java.util.Map;
 
@@ -47,14 +47,14 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
-        documentMapper = MapperTests.newParser().parse(mapping);
+        documentMapper = MapperTestUtils.newParser().parse(mapping);
         doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
@@ -68,14 +68,14 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("format", "json").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
-        documentMapper = MapperTests.newParser().parse(mapping);
+        documentMapper = MapperTestUtils.newParser().parse(mapping);
         doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
@@ -89,7 +89,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("format", "json").field("compress", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
@@ -98,7 +98,7 @@ public class DefaultSourceMappingTests {
         byte[] uncompressed = CompressorFactory.uncompressIfNeeded(doc.source()).toBytes();
         assertThat(XContentFactory.xContentType(uncompressed), equalTo(XContentType.JSON));
 
-        documentMapper = MapperTests.newParser().parse(mapping);
+        documentMapper = MapperTestUtils.newParser().parse(mapping);
         doc = documentMapper.parse("type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
                 .endObject().bytes());
@@ -114,7 +114,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("includes", new String[]{"path1*"}).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .startObject("path1").field("field1", "value1").endObject()
@@ -133,12 +133,12 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTests.newParser().parse("my_type", null, defaultMapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse("my_type", null, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
 
         try {
-            mapper = MapperTests.newParser().parse(null, null, defaultMapping);
+            mapper = MapperTestUtils.newParser().parse(null, null, defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             assert false;
@@ -157,7 +157,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTests.newParser().parse("my_type", mapping, defaultMapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse("my_type", mapping, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
@@ -168,7 +168,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = MapperTests.newMapperService();
+        MapperService mapperService = MapperTestUtils.newMapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, defaultMapping, true);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type");
@@ -182,7 +182,7 @@ public class DefaultSourceMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = MapperTests.newMapperService();
+        MapperService mapperService = MapperTestUtils.newMapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, defaultMapping, true);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

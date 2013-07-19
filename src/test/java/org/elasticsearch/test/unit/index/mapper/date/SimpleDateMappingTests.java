@@ -49,12 +49,11 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-@Test
 public class SimpleDateMappingTests {
 
     @Test
@@ -141,13 +140,13 @@ public class SimpleDateMappingTests {
     
     private DocumentMapper mapper(String mapping) throws IOException {
         // we serialize and deserialize the mapping to make sure serialization works just fine
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
         defaultMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String rebuildMapping = builder.string();
-        return MapperTests.newParser().parse(rebuildMapping);
+        return MapperTestUtils.newParser().parse(rebuildMapping);
     }
     
     private void assertNumericTokensEqual(ParsedDocument doc, DocumentMapper defaultMapper, String fieldA, String fieldB) throws IOException {
@@ -277,7 +276,7 @@ public class SimpleDateMappingTests {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = MapperTests.newParser(indexSettings).parse(mapping);
+        defaultMapper = MapperTestUtils.newParser(indexSettings).parse(mapping);
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")

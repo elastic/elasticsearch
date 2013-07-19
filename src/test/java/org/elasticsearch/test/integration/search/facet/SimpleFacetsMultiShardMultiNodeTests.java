@@ -19,13 +19,11 @@
 
 package org.elasticsearch.test.integration.search.facet;
 
-import org.testng.annotations.Test;
 
 /**
  * Tests for several shards case since some facets do optimizations in this case. Make sure
  * behavior remains the same.
  */
-@Test
 public class SimpleFacetsMultiShardMultiNodeTests extends SimpleFacetsTests {
 
     @Override

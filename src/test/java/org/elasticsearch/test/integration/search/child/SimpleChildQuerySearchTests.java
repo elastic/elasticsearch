@@ -32,7 +32,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;

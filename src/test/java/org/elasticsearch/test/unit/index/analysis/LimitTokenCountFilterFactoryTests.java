@@ -19,19 +19,22 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import java.io.IOException;
-import java.io.StringReader;
-
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-public class LimitTokenCountFilterFactoryTests {
+import java.io.IOException;
+import java.io.StringReader;
+
+@ThreadLeakScope(Scope.NONE)
+public class LimitTokenCountFilterFactoryTests extends BaseTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {
@@ -41,15 +44,15 @@ public class LimitTokenCountFilterFactoryTests {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_default");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_CURRENT, new StringReader(source));
-            AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_CURRENT, new StringReader(source));
-            AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
     }
 
@@ -63,8 +66,8 @@ public class LimitTokenCountFilterFactoryTests {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the", "quick", "brown" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_CURRENT, new StringReader(source));
-            AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.limit_1.type", "limit")
@@ -74,8 +77,8 @@ public class LimitTokenCountFilterFactoryTests {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the", "quick", "brown" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_CURRENT, new StringReader(source));
-            AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
 
         {
@@ -86,8 +89,8 @@ public class LimitTokenCountFilterFactoryTests {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the", "quick", "brown", "fox" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_CURRENT, new StringReader(source));
-            AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
     }
 

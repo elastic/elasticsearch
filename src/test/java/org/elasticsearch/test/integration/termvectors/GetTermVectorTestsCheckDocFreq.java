@@ -19,14 +19,6 @@
 
 package org.elasticsearch.test.integration.termvectors;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.Random;
-
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.Terms;
@@ -44,16 +36,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Random;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetTermVectorTestsCheckDocFreq extends AbstractSharedClusterTest {
 
     @Test
     public void streamRequest() throws IOException {
 
-        long seed = System.currentTimeMillis();
-        Random random = new Random(seed);
-
+        Random random = getRandom();
         for (int i = 0; i < 10; i++) {
             TermVectorRequest request = new TermVectorRequest("index", "type", "id");
             request.offsets(random.nextBoolean());

@@ -23,22 +23,21 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class BoostMappingTests {
 
     @Test
     public void testDefaultMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("_boost", 2.0f)
@@ -58,7 +57,7 @@ public class BoostMappingTests {
                 .startObject("_boost").field("name", "custom_boost").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "a")

@@ -33,8 +33,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import java.util.HashMap;
 
@@ -42,14 +42,13 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 
-@Test
 public class SimpleBlocksTests extends AbstractNodesTests {
-
-    @AfterMethod
+    
+    @After
     public void closeNodes() {
         closeAllNodes();
     }
-
+    
     @Test
     public void verifyIndexAndClusterReadOnly() throws Exception {
         Node node1 = startNode("node1");

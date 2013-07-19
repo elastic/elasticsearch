@@ -23,19 +23,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 /**
  */
-@Test
 public class SimpleObjectMappingTests {
 
+    @Test
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
         try {
             defaultMapper.parse("type", "1", new BytesArray(" {\n" +
                     "      \"object\": {\n" +

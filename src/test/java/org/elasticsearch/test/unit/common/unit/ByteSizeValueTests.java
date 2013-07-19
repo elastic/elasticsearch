@@ -22,7 +22,7 @@ package org.elasticsearch.test.unit.common.unit;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.hamcrest.MatcherAssert;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

@@ -22,7 +22,7 @@ package org.elasticsearch.test.unit.common.util.concurrent;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadBarrier;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
-@Test
 public class EsExecutorsTests {
 
     @Test

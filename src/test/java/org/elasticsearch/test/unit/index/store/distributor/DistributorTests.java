@@ -23,7 +23,7 @@ import org.apache.lucene.store.*;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;

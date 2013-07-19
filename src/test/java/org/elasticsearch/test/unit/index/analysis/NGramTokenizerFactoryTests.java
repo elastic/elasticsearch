@@ -19,21 +19,23 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static org.testng.Assert.fail;
-
-public class NGramTokenizerFactoryTests {
+@ThreadLeakScope(Scope.NONE)
+public class NGramTokenizerFactoryTests extends BaseTokenStreamTestCase {
 
     @Test
     public void testParseTokenChars() {
@@ -63,10 +65,10 @@ public class NGramTokenizerFactoryTests {
         final String name = "ngr";
         final Settings indexSettings = ImmutableSettings.EMPTY;
         Settings settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
-        AnalysisTestsHelper.assertSimpleTSOutput(new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("Åbc déf g\uD801\uDC00f ")),
+        assertTokenStreamContents(new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("Åbc déf g\uD801\uDC00f ")),
                 new String[] {"Åb", "Åbc", "bc", "dé", "déf", "éf", "g\uD801\uDC00", "g\uD801\uDC00f", "\uD801\uDC00f"});
         settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
-        AnalysisTestsHelper.assertSimpleTSOutput(new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(" a!$ 9")),
+        assertTokenStreamContents(new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(" a!$ 9")),
             new String[] {" a", " a!", "a!", "a!$", "!$", "!$ ", "$ ", "$ 9", " 9"});
     }
 
@@ -77,10 +79,10 @@ public class NGramTokenizerFactoryTests {
         final String name = "ngr";
         final Settings indexSettings = ImmutableSettings.EMPTY;
         Settings settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
-        AnalysisTestsHelper.assertSimpleTSOutput(new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("Åbc déf g\uD801\uDC00f ")),
+        assertTokenStreamContents(new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("Åbc déf g\uD801\uDC00f ")),
                 new String[] {"Åb", "Åbc", "dé", "déf", "g\uD801\uDC00", "g\uD801\uDC00f"});
         settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
-        AnalysisTestsHelper.assertSimpleTSOutput(new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(" a!$ 9")),
+        assertTokenStreamContents(new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(" a!$ 9")),
                 new String[] {" a", " a!"});
     }
 

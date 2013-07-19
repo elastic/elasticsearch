@@ -24,8 +24,8 @@ import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +46,7 @@ public class AnalyzerMapperTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -61,7 +61,7 @@ public class AnalyzerMapperTests {
 
         // check that it serializes and de-serializes correctly
 
-        DocumentMapper reparsedMapper = MapperTests.newParser().parse(documentMapper.mappingSource().string());
+        DocumentMapper reparsedMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -87,7 +87,7 @@ public class AnalyzerMapperTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -102,7 +102,7 @@ public class AnalyzerMapperTests {
 
         // check that it serializes and de-serializes correctly
 
-        DocumentMapper reparsedMapper = MapperTests.newParser().parse(documentMapper.mappingSource().string());
+        DocumentMapper reparsedMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -127,7 +127,7 @@ public class AnalyzerMapperTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -142,7 +142,7 @@ public class AnalyzerMapperTests {
 
         // check that it serializes and de-serializes correctly
 
-        DocumentMapper reparsedMapper = MapperTests.newParser().parse(documentMapper.mappingSource().string());
+        DocumentMapper reparsedMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")

@@ -24,7 +24,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Arrays;
 

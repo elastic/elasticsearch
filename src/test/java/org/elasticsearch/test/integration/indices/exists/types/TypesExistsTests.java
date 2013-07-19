@@ -25,12 +25,12 @@ import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.testng.Assert.fail;
+import static org.junit.Assert.fail;
 
 public class TypesExistsTests extends AbstractSharedClusterTest {
 

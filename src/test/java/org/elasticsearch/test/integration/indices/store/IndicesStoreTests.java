@@ -21,21 +21,19 @@ package org.elasticsearch.test.integration.indices.store;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.File;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -43,41 +41,38 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndicesStoreTests extends AbstractNodesTests {
 
-    protected Client client1;
 
-    @BeforeClass
-    public void startNodes() {
+    @Override
+    protected Settings getClassDefaultSettings() {
         // The default (none) gateway cleans the shards on closing
-        putDefaultSettings(settingsBuilder().put("gateway.type", "local"));
+        return settingsBuilder().put("gateway.type", "local").build();
+    }
+
+    @Override
+    protected void beforeClass() {
         startNode("server1");
         startNode("server2");
-        client1 = getClient1();
     }
 
-    @AfterClass
-    public void closeNodes() {
-        client1.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient1() {
+    @Override
+    public Client client() {
         return client("server1");
     }
 
     @Test
     public void shardsCleanup() throws Exception {
         try {
-            client1.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception ex) {
             // Ignore
         }
 
         logger.info("--> creating index [test] with one shard and on replica");
-        client1.admin().indices().create(createIndexRequest("test")
+        client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
@@ -98,7 +93,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 

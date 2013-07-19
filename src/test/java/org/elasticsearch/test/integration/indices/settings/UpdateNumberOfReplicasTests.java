@@ -24,13 +24,12 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -109,9 +108,7 @@ public class UpdateNumberOfReplicasTests extends AbstractSharedClusterTest {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(5));
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.getShardFailures().toString(), countResponse.getFailedShards(), equalTo(0));
-            assertThat(countResponse.getCount(), equalTo(10l));
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet(), 10);
         }
     }
 

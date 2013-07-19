@@ -34,7 +34,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
@@ -42,7 +42,6 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 
@@ -247,9 +246,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     }
 
     private void testSimpleSorts(int numberOfShards) throws Exception {
-        final long seed = System.currentTimeMillis();
-        logger.info("testSimpleSorts SEED:[{}]", seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         prepareCreate("test")
                 .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")

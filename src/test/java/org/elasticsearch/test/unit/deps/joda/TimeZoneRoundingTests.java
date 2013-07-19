@@ -25,14 +25,13 @@ import org.joda.time.Chronology;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 import org.joda.time.format.ISODateTimeFormat;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class TimeZoneRoundingTests {
 
     @Test

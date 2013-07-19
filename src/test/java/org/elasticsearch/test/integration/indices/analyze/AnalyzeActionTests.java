@@ -19,11 +19,6 @@
 
 package org.elasticsearch.test.integration.indices.analyze;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.IOException;
-
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
@@ -31,8 +26,12 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
+
+import java.io.IOException;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  *

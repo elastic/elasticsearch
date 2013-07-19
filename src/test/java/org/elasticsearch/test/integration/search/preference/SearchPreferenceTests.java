@@ -19,23 +19,19 @@
 
 package org.elasticsearch.test.integration.search.preference;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-@Test
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
+
 public class SearchPreferenceTests extends AbstractSharedClusterTest {
 
     @Test // see #2896

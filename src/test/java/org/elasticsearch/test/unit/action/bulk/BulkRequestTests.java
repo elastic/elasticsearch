@@ -25,7 +25,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import com.google.common.base.Charsets;
 

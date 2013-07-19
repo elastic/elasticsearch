@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.unit.common.settings.bar.BarTest;
 import org.elasticsearch.test.unit.common.settings.foo.FooTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -81,7 +81,7 @@ public class ImmutableSettingsTests {
         assertThat(settings.toDelimitedString(';'), equalTo("key1=value1;key2=value2;"));
     }
 
-    @Test(expectedExceptions = NoClassSettingsException.class)
+    @Test(expected = NoClassSettingsException.class)
     public void testThatAllClassNotFoundExceptionsAreCaught() {
         // this should be nGram in order to really work, but for sure not not throw a NoClassDefFoundError
         Settings settings = settingsBuilder().put("type", "ngram").build();

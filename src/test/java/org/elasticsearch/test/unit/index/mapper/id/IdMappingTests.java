@@ -27,22 +27,21 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@Test
 public class IdMappingTests {
 
     @Test
     public void simpleIdTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -76,7 +75,7 @@ public class IdMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_id").field("index", "not_analyzed").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -101,7 +100,7 @@ public class IdMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_id").field("path", "my_path").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         // serialize the id mapping
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();

@@ -25,8 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -40,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class ScriptFilterSearchTests extends AbstractSharedClusterTest {
     private final static Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

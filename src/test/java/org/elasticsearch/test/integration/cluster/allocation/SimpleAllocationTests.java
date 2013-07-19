@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 public class SimpleAllocationTests extends AbstractSharedClusterTest {
     

@@ -19,13 +19,23 @@
 
 package org.elasticsearch.test.integration.percolator;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.Random;
@@ -33,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
@@ -43,7 +54,32 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @Test
-public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
+public class ConcurrentPercolatorTests extends AbstractNodesTests {
+
+    private Client client;
+
+    @BeforeClass
+    public void startNodes() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("cluster.name", "percolator-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "_" + System.currentTimeMillis())
+                .put("gateway.type", "none").build();
+        logger.info("--> starting 3 nodes");
+        startNode("node1", settings);
+        startNode("node2", settings);
+        startNode("node3", settingsBuilder().put(settings).put("node.client", true));
+        client = client("node3");
+    }
+
+    @AfterClass
+    public void cleanAndCloseNodes() throws Exception {
+        closeAllNodes();
+    }
+
+    @BeforeMethod
+    public void beforeTest() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        ensureGreen();
+    }
 
     @Test
     public void testSimpleConcurrentPerculator() throws Exception {
@@ -340,6 +376,13 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
                     } catch (Throwable t) {
                         run.set(false);
                         assertionFailure.set(true);
+
+                        // If percolate is locked, then make sure isn't unlocked, otherwise we hang forever
+                        CountDownLatch percolateLatch = latches[0];
+                        latches[0] = null;
+                        if (percolateLatch != null) {
+                            percolateLatch.countDown();
+                        }
                         logger.error("Error in indexing thread...", t);
                     }
                 }
@@ -354,8 +397,8 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
         start.countDown();
         for (int counter = 0; counter < numberPercolateOperation; counter++) {
             Thread.sleep(100);
-            latches[0] = new CountDownLatch(numIndexThreads);
-            latches[1] = new CountDownLatch(1);
+            latches[0] = new CountDownLatch(numIndexThreads); // Locks percolating until all indexing threads have been blocked
+            latches[1] = new CountDownLatch(1); // Locks indexing threads until percolate is done.
             freeze.set(true);
             latches[0].await();
 
@@ -373,6 +416,17 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
             thread.join();
         }
         assertThat(assertionFailure.get(), equalTo(false));
+    }
+
+    private Client client() {
+        return client;
+    }
+
+    private void ensureGreen() {
+        ClusterHealthResponse actionGet = client.admin().cluster()
+                .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+        assertThat(actionGet.isTimedOut(), equalTo(false));
+        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
 }

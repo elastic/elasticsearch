@@ -108,7 +108,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {
-                types.add(in.readString());
+                types.add(in.readSharedString());
             } else {
                 types.add(null);
             }
@@ -145,7 +145,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeString(types.get(i));
+                out.writeSharedString(types.get(i));
             }
             out.writeString(ids.get(i));
             if (fields.get(i) == null) {

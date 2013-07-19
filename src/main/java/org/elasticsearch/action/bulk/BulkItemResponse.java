@@ -32,8 +32,6 @@ import java.io.IOException;
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
- *
- *
  */
 public class BulkItemResponse implements Streamable {
 
@@ -148,8 +146,7 @@ public class BulkItemResponse implements Streamable {
             return ((IndexResponse) response).getType();
         } else if (response instanceof DeleteResponse) {
             return ((DeleteResponse) response).getType();
-        }
-        else if (response instanceof UpdateResponse) {
+        } else if (response instanceof UpdateResponse) {
             return ((UpdateResponse) response).getType();
         }
         return null;
@@ -230,7 +227,7 @@ public class BulkItemResponse implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        opType = in.readString();
+        opType = in.readSharedString();
 
         byte type = in.readByte();
         if (type == 0) {
@@ -245,14 +242,15 @@ public class BulkItemResponse implements Streamable {
         }
 
         if (in.readBoolean()) {
-            failure = new Failure(in.readString(), in.readString(), in.readString(), in.readString());
+            failure = new Failure(in.readSharedString(), in.readSharedString(), in.readString(), in.readString());
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        out.writeString(opType);
+        out.writeSharedString(opType);
+
         if (response == null) {
             out.writeByte((byte) 2);
         } else {
@@ -269,8 +267,8 @@ public class BulkItemResponse implements Streamable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(failure.getIndex());
-            out.writeString(failure.getType());
+            out.writeSharedString(failure.getIndex());
+            out.writeSharedString(failure.getType());
             out.writeString(failure.getId());
             out.writeString(failure.getMessage());
         }

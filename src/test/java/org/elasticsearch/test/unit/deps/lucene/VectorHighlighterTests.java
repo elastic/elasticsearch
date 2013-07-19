@@ -29,7 +29,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
-import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
+import org.apache.lucene.search.vectorhighlight.XFastVectorHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -60,7 +60,7 @@ public class VectorHighlighterTests {
 
         assertThat(topDocs.totalHits, equalTo(1));
 
-        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+        XFastVectorHighlighter highlighter = new XFastVectorHighlighter();
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
@@ -83,7 +83,7 @@ public class VectorHighlighterTests {
 
         assertThat(topDocs.totalHits, equalTo(1));
 
-        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+        XFastVectorHighlighter highlighter = new XFastVectorHighlighter();
 
         PrefixQuery prefixQuery = new PrefixQuery(new Term("content", "ba"));
         assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT.getClass().getName()));
@@ -125,7 +125,7 @@ public class VectorHighlighterTests {
 
         assertThat(topDocs.totalHits, equalTo(1));
 
-        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+        XFastVectorHighlighter highlighter = new XFastVectorHighlighter();
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, nullValue());
@@ -147,7 +147,7 @@ public class VectorHighlighterTests {
 
         assertThat(topDocs.totalHits, equalTo(1));
 
-        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+        XFastVectorHighlighter highlighter = new XFastVectorHighlighter();
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, nullValue());

@@ -4,7 +4,7 @@ import gnu.trove.set.hash.TCharHashSet;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 
 /**
- * A copy of Lucene {@link org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner}.
+ * A copy of Lucene {@link org.apache.lucene.search.vectorhighlight.XSimpleBoundaryScanner}.
  * <p/>
  * Uses specialized char set to lookup boundary, and fixes a problem with start offset in the
  * beginning of the text: https://issues.apache.org/jira/browse/LUCENE-3697 (which has a problem

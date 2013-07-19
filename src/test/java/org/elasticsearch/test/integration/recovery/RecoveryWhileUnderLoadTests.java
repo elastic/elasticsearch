@@ -19,20 +19,20 @@
 
 package org.elasticsearch.test.integration.recovery;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -43,6 +43,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 
     @Test
+    @Slow
     public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
         logger.info("--> creating test index ...");
         prepareCreate("test", 1);
@@ -130,6 +131,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         prepareCreate("test", 1);
@@ -214,6 +216,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void recoverWhileUnderLoadWithNodeShutdown() throws Exception {
         logger.info("--> creating test index ...");
         prepareCreate("test", 2);

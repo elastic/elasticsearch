@@ -22,9 +22,11 @@ package org.elasticsearch.test.unit.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.junit.Ignore;
 
 import java.util.Map;
 
+@Ignore("Not a test")
 public class RoutingAllocationTests {
 
     public static DiscoveryNode newNode(String nodeId) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.gateway.fs;
 
+import com.carrotsearch.randomizedtesting.annotations.Nightly;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -30,25 +32,28 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests {
+public class IndexGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod
+    @After
     public void closeNodes() throws Exception {
         node("server1").stop();
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
@@ -56,17 +61,20 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         closeAllNodes();
     }
 
-    @BeforeMethod
+    @Before
     public void buildNode1() throws Exception {
         buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
         closeAllNodes();
     }
+    
 
+    
     @Test
+    @Slow
     public void testSnapshotOperations() throws Exception {
-        startNode("server1");
+        startNode("server1", getClassDefaultSettings());
 
         // get the environment, so we can clear the work dir when needed
         Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
@@ -223,20 +231,20 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
     }
 
     @Test
+    @Nightly
     public void testLoadWithFullRecovery() {
         testLoad(true);
     }
 
     @Test
+    @Nightly
     public void testLoadWithReuseRecovery() {
         testLoad(false);
     }
 
-    protected boolean isPersistentStorage() {
-        return true;
-    }
-
     private void testLoad(boolean fullRecovery) {
+        logger.info("Running with fullRecover [{}]", fullRecovery);
+
         startNode("server1");
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
@@ -323,5 +331,62 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
     private String source(String id, String nameValue) {
         return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+    }
+    
+    @Test
+    @Slow
+    public void testRandom() {
+        testLoad(getRandom().nextBoolean());
+    }
+    
+    private String storeType;
+    
+    protected Settings getClassDefaultSettings() {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("cluster.routing.schedule", "100ms");
+        builder.put("gateway.type", "fs");
+        if (between(0, 5) == 0) {
+            builder.put("gateway.fs.buffer_size", between(1, 100) + "kb");    
+        } 
+        if (between(0, 5) == 0) {
+            builder.put("gateway.fs.chunk_size", between(1, 100) + "kb");
+        }
+        
+        builder.put("index.number_of_replicas", "1");
+        builder.put("index.number_of_shards", rarely() ? Integer.toString(between(2, 6)) : "1");
+        storeType = rarely() ? "ram" : "fs";
+        builder.put("index.store", storeType);
+        return builder.build();
+    }
+    
+    
+    protected boolean isPersistentStorage() {
+        return "fs".equals(storeType);
+    }
+    
+    
+    @Test
+    @Slow
+    public void testIndexActions() throws Exception {
+        startNode("server1");
+
+        logger.info("Running Cluster Health (waiting for node to startup properly)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+
+        closeNode("server1");
+
+        startNode("server1");
+        Thread.sleep(500);
+        try {
+            client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+            assert false : "index should exists";
+        } catch (IndexAlreadyExistsException e) {
+            // all is well
+        }
     }
 }

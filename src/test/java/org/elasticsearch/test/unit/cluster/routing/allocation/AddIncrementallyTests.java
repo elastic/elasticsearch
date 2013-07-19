@@ -26,7 +26,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 public class AddIncrementallyTests {
     private final ESLogger logger = Loggers.getLogger(AddIncrementallyTests.class);

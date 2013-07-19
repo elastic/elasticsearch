@@ -19,30 +19,22 @@
 
 package org.elasticsearch.test.integration.indices.stats;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.Random;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import java.io.IOException;
+import java.util.EnumSet;
+import java.util.Random;
+
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -50,42 +42,34 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleIndexStatsTests extends AbstractNodesTests {
 
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @Override
+    protected void beforeClass() {
         startNode("node1");
         startNode("node2");
-        client = getClient();
     }
 
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
+    @Override
+    public Client client() {
         return client("node2");
     }
 
     @Test
     public void simpleStats() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
-        client.admin().indices().prepareCreate("test1").execute().actionGet();
-        client.admin().indices().prepareCreate("test2").execute().actionGet();
+        client().admin().indices().prepareCreate("test1").execute().actionGet();
+        client().admin().indices().prepareCreate("test2").execute().actionGet();
 
-        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        client.prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client.prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client.prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        IndicesStatsResponse stats = client.admin().indices().prepareStats().execute().actionGet();
+        IndicesStatsResponse stats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
         assertThat(stats.getTotal().getDocs().getCount(), equalTo(6l));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
@@ -113,7 +97,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0l));
 
         // check flags
-        stats = client.admin().indices().prepareStats()
+        stats = client().admin().indices().prepareStats()
                 .setDocs(false)
                 .setStore(false)
                 .setIndexing(false)
@@ -130,7 +114,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.getTotal().getRefresh(), notNullValue());
 
         // check types
-        stats = client.admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
+        stats = client().admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1l));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1l));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2"), nullValue());
@@ -139,25 +123,25 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
 
         assertThat(stats.getTotal().getGet().getCount(), equalTo(0l));
         // check get
-        GetResponse getResponse = client.prepareGet("test1", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test1", "type1", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
-        stats = client.admin().indices().prepareStats().execute().actionGet();
+        stats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getTotal().getGet().getCount(), equalTo(1l));
         assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
         assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0l));
 
         // missing get
-        getResponse = client.prepareGet("test1", "type1", "2").execute().actionGet();
+        getResponse = client().prepareGet("test1", "type1", "2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
-        stats = client.admin().indices().prepareStats().execute().actionGet();
+        stats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getTotal().getGet().getCount(), equalTo(2l));
         assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
         assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(1l));
         
         // clear all
-        stats = client.admin().indices().prepareStats()
+        stats = client().admin().indices().prepareStats()
                 .setDocs(false)
                 .setStore(false)
                 .setIndexing(false)
@@ -176,15 +160,15 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
     
     @Test
     public void testMergeStats() {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
-        client.admin().indices().prepareCreate("test1").execute().actionGet();
+        client().admin().indices().prepareCreate("test1").execute().actionGet();
 
-        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
         
         // clear all
-        IndicesStatsResponse stats = client.admin().indices().prepareStats()
+        IndicesStatsResponse stats = client().admin().indices().prepareStats()
                 .setDocs(false)
                 .setStore(false)
                 .setIndexing(false)
@@ -201,12 +185,12 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.getTotal().getSearch(), nullValue());
         
         for (int i = 0; i < 20; i++) {
-            client.prepareIndex("test1", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-            client.prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-            client.admin().indices().prepareFlush().execute().actionGet();
+            client().prepareIndex("test1", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().admin().indices().prepareFlush().execute().actionGet();
         }
-        client.admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
-        stats = client.admin().indices().prepareStats()
+        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        stats = client().admin().indices().prepareStats()
                 .setMerge(true)
                 .execute().actionGet();
 
@@ -216,20 +200,20 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
     
     @Test
     public void testAllFlags() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
-        client.admin().indices().prepareCreate("test1").execute().actionGet();
-        client.admin().indices().prepareCreate("test2").execute().actionGet();
+        client().admin().indices().prepareCreate("test1").execute().actionGet();
+        client().admin().indices().prepareCreate("test2").execute().actionGet();
 
-        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        client.prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client.prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client.prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
-        IndicesStatsRequestBuilder builder = client.admin().indices().prepareStats();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         Flag[] values = CommonStatsFlags.Flag.values();
         for (Flag flag : values) {
             set(flag, builder, false);
@@ -249,9 +233,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(true));
             assertThat(isSet(flag, stats.getTotal()), equalTo(true));
         }
-        long seed = System.currentTimeMillis();
-        System.out.println("seed: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
         for (Flag flag : values) {
             if (random.nextBoolean()) {
@@ -294,9 +276,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
             flags.set(flag, true);    
         }
         assertThat(flags.anySet(), equalTo(true));
-        long seed = System.currentTimeMillis();
-        System.out.println("seed: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         flags.set(values[random.nextInt(values.length)], false);
         assertThat(flags.anySet(), equalTo(true));
         

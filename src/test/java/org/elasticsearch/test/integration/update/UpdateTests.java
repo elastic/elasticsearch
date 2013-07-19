@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,9 +36,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.testng.AssertJUnit.fail;
 
 public class UpdateTests extends AbstractSharedClusterTest {
 
@@ -169,7 +167,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
     }
 
-    @Test(expectedExceptions = DocumentMissingException.class)
+    @Test(expected = DocumentMissingException.class)
     // See: https://github.com/elasticsearch/elasticsearch/issues/3265
     public void testNotUpsertDoc() throws Exception {
         createIndex();

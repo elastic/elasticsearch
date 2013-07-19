@@ -19,12 +19,6 @@
 
 package org.elasticsearch.test.unit.index.percolator;
 
-import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,10 +49,15 @@ import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -68,15 +67,14 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@Test
 public class PercolatorExecutorTests {
 
-    private Injector injector;
+    private static Injector injector;
 
-    private PercolatorExecutor percolatorExecutor;
+    private static PercolatorExecutor percolatorExecutor;
 
-    @BeforeTest
-    public void buildPercolatorService() {
+    @BeforeClass
+    public static void buildPercolatorService() {
         Settings settings = ImmutableSettings.settingsBuilder()
                 //.put("index.cache.filter.type", "none")
                 .build();
@@ -109,7 +107,7 @@ public class PercolatorExecutorTests {
     }
 
     @AfterClass
-    public void close() {
+    public static void close() {
         injector.getInstance(ThreadPool.class).shutdownNow();
     }
 

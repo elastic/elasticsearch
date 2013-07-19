@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
@@ -33,7 +33,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -68,9 +67,9 @@ import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -82,22 +81,21 @@ import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.RegexpFlag.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static  org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 /**
  *
  */
-@Test
 public class SimpleIndexQueryParserTests {
 
-    private Injector injector;
+    private static Injector injector;
 
-    private IndexQueryParserService queryParser;
+    private static IndexQueryParserService queryParser;
 
     @BeforeClass
-    public void setupQueryParser() throws IOException {
+    public static void setupQueryParser() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "none")
                 .build();
@@ -128,11 +126,11 @@ public class SimpleIndexQueryParserTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/mapping.json");
         injector.getInstance(MapperService.class).merge("person", mapping, true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/query/data.json")));
-        this.queryParser = injector.getInstance(IndexQueryParserService.class);
+        queryParser = injector.getInstance(IndexQueryParserService.class);
     }
 
     @AfterClass
-    public void close() {
+    public static void close() {
         injector.getInstance(ThreadPool.class).shutdownNow();
     }
 

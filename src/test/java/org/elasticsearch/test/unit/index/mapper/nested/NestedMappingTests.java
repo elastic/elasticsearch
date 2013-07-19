@@ -24,14 +24,13 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@Test
 public class NestedMappingTests {
 
     @Test
@@ -40,7 +39,7 @@ public class NestedMappingTests {
                 .startObject("nested1").field("type", "nested").endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -67,7 +66,7 @@ public class NestedMappingTests {
                 .startObject("nested1").field("type", "nested").endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -117,7 +116,7 @@ public class NestedMappingTests {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -169,7 +168,7 @@ public class NestedMappingTests {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -221,7 +220,7 @@ public class NestedMappingTests {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -273,7 +272,7 @@ public class NestedMappingTests {
                 .endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");

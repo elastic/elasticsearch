@@ -21,12 +21,10 @@ package org.elasticsearch.test.unit.index.fielddata;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.testng.annotations.Test;
 
 /**
  */
-@Test
-public class PagedBytesStringFieldDataTests extends StringFieldDataTests {
+public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {

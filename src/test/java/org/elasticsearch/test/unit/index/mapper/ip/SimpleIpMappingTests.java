@@ -19,9 +19,12 @@
 
 package org.elasticsearch.test.unit.index.mapper.ip;
 
+import org.junit.Ignore;
+
 /**
  *
  */
+@Ignore("No tests?")
 public class SimpleIpMappingTests {
 
     // No Longer enabled...

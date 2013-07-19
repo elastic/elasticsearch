@@ -18,13 +18,46 @@
  */
 package org.elasticsearch.test.integration;
 
+import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.util.LuceneJUnit3MethodProvider;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-
-public class ElasticsearchTestCase {
+import org.elasticsearch.junit.listerners.ReproduceInfoPrinter;
+import org.junit.runner.RunWith;
+@TestMethodProviders({
+    LuceneJUnit3MethodProvider.class,
+    JUnit4MethodProvider.class
+  })
+@Listeners({
+    ReproduceInfoPrinter.class
+})
+@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchTestCase.ElasticSearchThreadFilter.class})
+@ThreadLeakScope(Scope.NONE)
+@RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
+public class ElasticsearchTestCase extends RandomizedTest {
+    
+    public static final Version TEST_VERSION_CURRENT = LuceneTestCase.TEST_VERSION_CURRENT;
     
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     public static final boolean NIGHLY = Boolean.parseBoolean(System.getProperty("es.tests.nighly", "false")); // disabled by default
+    
+    public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
+    
+    public static final String SYSPROP_BADAPPLES = "tests.badapples";
+    
+    public static class ElasticSearchThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+          
+          return true;
+        }
+      }
     
 }

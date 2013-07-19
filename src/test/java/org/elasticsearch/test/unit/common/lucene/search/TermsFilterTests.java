@@ -32,7 +32,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.TermFilter;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-@Test
 public class TermsFilterTests {
 
     @Test

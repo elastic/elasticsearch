@@ -21,7 +21,7 @@ package org.elasticsearch.test.unit.common.unit;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.PeriodType;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 

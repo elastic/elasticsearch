@@ -25,8 +25,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
@@ -48,7 +48,7 @@ public class FieldLevelBoostTests {
                 .startObject("short_field").field("type", "short").field("omit_norms", false).endObject()
                 .string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference json = XContentFactory.jsonBuilder().startObject().field("_id", "1")
                 .startObject("str_field").field("boost", 2.0).field("value", "some name").endObject()
                 .startObject("int_field").field("boost", 3.0).field("value", 10).endObject()
@@ -99,7 +99,7 @@ public class FieldLevelBoostTests {
                 .startObject("short_field").field("type", "short").field("omit_norms", false).endObject()
                 .string();
 
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         try {
             docMapper.parse(XContentFactory.jsonBuilder().startObject()
                     .field("_id", "1").startObject("str_field").field("foo", "bar")

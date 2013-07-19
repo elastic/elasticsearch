@@ -32,8 +32,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 public class GeoShapeFieldMapperTests {
 
@@ -45,7 +45,7 @@ public class GeoShapeFieldMapperTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -68,7 +68,7 @@ public class GeoShapeFieldMapperTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -91,7 +91,7 @@ public class GeoShapeFieldMapperTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -116,7 +116,7 @@ public class GeoShapeFieldMapperTests {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -140,7 +140,7 @@ public class GeoShapeFieldMapperTests {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -164,7 +164,7 @@ public class GeoShapeFieldMapperTests {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -187,7 +187,7 @@ public class GeoShapeFieldMapperTests {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -211,7 +211,7 @@ public class GeoShapeFieldMapperTests {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -233,7 +233,7 @@ public class GeoShapeFieldMapperTests {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 

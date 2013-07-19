@@ -19,8 +19,7 @@
 
 package org.elasticsearch.test.integration.gateway.local;
 
-import org.elasticsearch.action.count.CountResponse;
-
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -38,16 +38,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -55,7 +54,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
@@ -67,12 +66,24 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
+    @Override
+    protected Settings getClassDefaultSettings() {
+        return settingsBuilder().put("gateway.type", "local").build();
+    }
+
     @Test
+    @Slow
     public void testX() throws Exception {
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
         cleanAndCloseNodes();
 
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node1 = startNode("node1", settingsBuilder().put("index.number_of_shards", 1).build());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
+                .endObject().endObject().string();
+        node1.client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+
         node1.client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
                 .field("_id", "10990239")
                 .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
@@ -93,7 +104,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertHitCount(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
 
         closeNode("node1");
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        node1 = startNode("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -102,31 +113,33 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
-        CountResponse count = node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet();
-        assertNoFailures(count);
-        assertHitCount(count, 2);
+        assertHitCount(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
 
         closeNode("node1");
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
-
+        node1 = startNode("node1");
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = node1.client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
-        count = node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet();
-        assertNoFailures(count);
-        assertHitCount(count, 2);
+        assertHitCount(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
     }
 
     @Test
+    @Slow
     public void testSingleNodeNoFlush() throws Exception {
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
         cleanAndCloseNodes();
 
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node1 = startNode("node1", settingsBuilder().put("index.number_of_shards", 1).build());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
+                .endObject().endObject().string();
+        node1.client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+
         for (int i = 0; i < 100; i++) {
             node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("_id", "1").field("field", "value1").startArray("num").value(14).value(179).endArray().endObject()).execute().actionGet();
             node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("_id", "2").field("field", "value2").startArray("num").value(14).endArray().endObject()).execute().actionGet();
@@ -141,7 +154,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         }
 
         closeNode("node1");
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        node1 = startNode("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -157,7 +170,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         }
 
         closeNode("node1");
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        node1 = startNode("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -175,11 +188,12 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
 
     @Test
+    @Slow
     public void testSingleNodeWithFlush() throws Exception {
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
         cleanAndCloseNodes();
 
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node1 = startNode("node1", settingsBuilder().put("index.number_of_shards", 1).build());
         node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareFlush().execute().actionGet();
         node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
@@ -188,7 +202,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
 
         closeNode("node1");
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        node1 = startNode("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -201,7 +215,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         }
 
         closeNode("node1");
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        node1 = startNode("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -215,14 +229,15 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testTwoNodeFirstNodeCleared() throws Exception {
         // clean two nodes
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
+        buildNode("node2");
         cleanAndCloseNodes();
 
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
-        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node1 = startNode("node1", settingsBuilder().put("index.number_of_shards", 1).build());
+        Node node2 = startNode("node2", settingsBuilder().put("index.number_of_shards", 1).build());
 
         node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareFlush().execute().actionGet();
@@ -244,11 +259,11 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         closeNode("node2");
 
         logger.info("--> cleaning node1 gateway");
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
         cleanAndCloseNodes();
 
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
-        node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
+        node1 = startNode("node1", settingsBuilder().put("gateway.recover_after_nodes", 2).build());
+        node2 = startNode("node2", settingsBuilder().put("gateway.recover_after_nodes", 2).build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
@@ -262,14 +277,15 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
+        buildNode("node2");
         cleanAndCloseNodes();
 
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("gateway.recover_after_nodes", 2).build());
-        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).put("gateway.recover_after_nodes", 2).build());
+        Node node1 = startNode("node1", settingsBuilder().put("index.number_of_shards", 1).put("gateway.recover_after_nodes", 2).build());
+        Node node2 = startNode("node2", settingsBuilder().put("index.number_of_shards", 1).put("gateway.recover_after_nodes", 2).build());
 
         node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareFlush().execute().actionGet();
@@ -316,8 +332,8 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> starting two nodes back, verifying we got the latest version");
 
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
-        node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
+        node1 = startNode("node1", settingsBuilder().put("gateway.recover_after_nodes", 2).build());
+        node2 = startNode("node2", settingsBuilder().put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
@@ -337,18 +353,19 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testReusePeerRecovery() throws Exception {
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node3", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node4", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node1");
+        buildNode("node2");
+        buildNode("node3");
+        buildNode("node4");
         cleanAndCloseNodes();
 
 
         ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
-                .put("gateway.type", "local")
+                
                 .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
 
         startNode("node1", settings);
@@ -421,17 +438,18 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data1").build());
-        buildNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
+        buildNode("node1", settingsBuilder().put("path.data", "data/data1").build());
+        buildNode("node2", settingsBuilder().put("path.data", "data/data2").build());
         cleanAndCloseNodes();
 
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data1").build());
+        startNode("node1", settingsBuilder().put("path.data", "data/data1").build());
 
         client("node1").prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
+        startNode("node2", settingsBuilder().put("path.data", "data/data2").build());
 
         ClusterHealthResponse health = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
@@ -439,7 +457,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         closeNode("node1");
         closeNode("node2");
 
-        startNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
+        startNode("node2", settingsBuilder().put("path.data", "data/data2").build());
 
         health = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));

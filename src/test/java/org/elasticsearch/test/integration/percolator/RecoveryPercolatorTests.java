@@ -21,27 +21,27 @@ package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Test
 public class RecoveryPercolatorTests extends AbstractNodesTests {
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
@@ -54,15 +54,22 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         }
         closeAllNodes();
     }
+    
+    
+
+    @Override
+    protected Settings getClassDefaultSettings() {
+        return settingsBuilder().put("gateway.type", "local").build();
+    }
 
     @Test
     public void testRestartNodePercolator1() throws Exception {
         logger.info("--> cleaning nodes");
-        buildNode("node1", settingsBuilder().put("gateway.type", "local"));
+        buildNode("node1");
         cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local"));
+        startNode("node1");
 
         Client client = client("node1");
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -85,7 +92,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         client.close();
         closeNode("node1");
 
-        startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        startNode("node1");
         client = client("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -104,14 +111,15 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     @Test
     public void testRestartNodePercolator2() throws Exception {
         logger.info("--> cleaning nodes");
-        buildNode("node1", settingsBuilder().put("gateway.type", "local"));
+        buildNode("node1");
         cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local"));
+        startNode("node1");
 
         Client client = client("node1");
-        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+        .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         logger.info("--> register a query");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -129,11 +137,10 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches().size(), equalTo(1));
-
         client.close();
         closeNode("node1");
 
-        startNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        startNode("node1");
         client = client("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -144,13 +151,13 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
         assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        client.admin().indices().prepareDelete("test").execute().actionGet();
+        DeleteIndexResponse actionGet = client.admin().indices().prepareDelete("test").execute().actionGet();
+        assertThat(actionGet.isAcknowledged(), equalTo(true));
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-
         assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")

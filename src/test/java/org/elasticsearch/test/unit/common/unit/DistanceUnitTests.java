@@ -20,19 +20,19 @@
 package org.elasticsearch.test.unit.common.unit;
 
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-@Test
 public class DistanceUnitTests {
 
     @Test
-    void testSimpleDistanceUnit() {
+    public void testSimpleDistanceUnit() {
         assertThat(DistanceUnit.MILES.toKilometers(10), closeTo(16.09344, 0.001));
         assertThat(DistanceUnit.MILES.toMiles(10), closeTo(10, 0.001));
         assertThat(DistanceUnit.KILOMETERS.toMiles(10), closeTo(6.21371192, 0.001));
@@ -43,7 +43,7 @@ public class DistanceUnitTests {
     }
     
     @Test
-    void testDistanceUnitParsing() {
+    public void testDistanceUnitParsing() {
         assertThat(DistanceUnit.Distance.parseDistance("50km", null).unit, equalTo(DistanceUnit.KILOMETERS));
         assertThat(DistanceUnit.Distance.parseDistance("500m", null).unit, equalTo(DistanceUnit.METERS));
         assertThat(DistanceUnit.Distance.parseDistance("51mi", null).unit, equalTo(DistanceUnit.MILES));

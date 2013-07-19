@@ -19,21 +19,23 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ShingleTokenFilterFactoryTests {
+@ThreadLeakScope(Scope.NONE)
+public class ShingleTokenFilterFactoryTests extends BaseTokenStreamTestCase{
 
     private static final String RESOURCE = "org/elasticsearch/test/unit/index/analysis/shingle_analysis.json";
 
@@ -43,8 +45,8 @@ public class ShingleTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle");
         String source = "the quick brown fox";
         String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -54,8 +56,8 @@ public class ShingleTokenFilterFactoryTests {
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
         String[] expected = new String[]{"the_quick_brown", "quick_brown_fox"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -65,8 +67,8 @@ public class ShingleTokenFilterFactoryTests {
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
         String[] expected = new String[]{"the", "quick"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
 }

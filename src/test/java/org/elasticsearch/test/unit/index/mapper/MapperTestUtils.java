@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.unit.index.mapper;
 
-import com.google.common.collect.Maps;
-import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -40,13 +38,10 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  *
  */
-public class MapperTests {
+public class MapperTestUtils {
 
     public static DocumentMapperParser newParser() {
         return new DocumentMapperParser(new Index("test"), newAnalysisService(), new PostingsFormatService(new Index("test")),

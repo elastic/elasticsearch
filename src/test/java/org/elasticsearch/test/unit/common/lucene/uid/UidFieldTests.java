@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.hamcrest.MatcherAssert;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

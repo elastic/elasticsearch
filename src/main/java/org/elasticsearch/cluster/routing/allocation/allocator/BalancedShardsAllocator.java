@@ -19,11 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.apache.lucene.util.IntroSorter;
-
-import org.apache.lucene.util.IntroSorter;
-
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -455,6 +452,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 deltas[i] = sorter.delta();
             }
             new IntroSorter() {
+                
                 float pivotWeight;
 
                 @Override

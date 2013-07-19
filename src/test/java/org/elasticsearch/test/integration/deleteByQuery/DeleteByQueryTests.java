@@ -19,11 +19,6 @@
 
 package org.elasticsearch.test.integration.deleteByQuery;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.testng.Assert.fail;
-
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -31,13 +26,17 @@ import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DeleteByQueryTests extends AbstractSharedClusterTest {
     
 
-    @BeforeMethod
+    @Before
     public void createNodes() throws Exception {
         cluster().ensureAtLeastNumNodes(2);
     }
@@ -90,7 +89,7 @@ public class DeleteByQueryTests extends AbstractSharedClusterTest {
 
         try {
             DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
-            fail("Exception should have been thrown.");
+            Assert.fail("Exception should have been thrown.");
         } catch (IndexMissingException e) {
         }
 

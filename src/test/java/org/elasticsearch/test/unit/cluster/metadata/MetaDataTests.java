@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.IndexMissingException;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -69,7 +69,7 @@ public class MetaDataTests {
         return IndexMetaData.builder(index).settings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }
     
-    @Test(expectedExceptions = IndexMissingException.class)
+    @Test(expected = IndexMissingException.class)
     public void concreteIndicesIgnoreIndicesOneMissingIndex() {
     	 MetaData.Builder mdBuilder = MetaData.builder()
                  .put(indexBuilder("testXXX"))
@@ -87,7 +87,7 @@ public class MetaDataTests {
         assertThat(newHashSet(md.concreteIndices(new String[]{"testXXX","testZZZ"}, IgnoreIndices.MISSING, true)), equalTo(newHashSet("testXXX")));
     }
 
-    @Test(expectedExceptions = IndexMissingException.class)
+    @Test(expected = IndexMissingException.class)
     public void concreteIndicesIgnoreIndicesAllMissing() {
     	 MetaData.Builder mdBuilder = MetaData.builder()
                  .put(indexBuilder("testXXX"))

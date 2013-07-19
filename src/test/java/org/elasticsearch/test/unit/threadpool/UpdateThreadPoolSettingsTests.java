@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.concurrent.*;
 
@@ -282,7 +282,7 @@ public class UpdateThreadPoolSettingsTests {
         threadPool.shutdown();
     }
 
-    @Test(timeOut = 10000)
+    @Test(timeout = 10000)
     public void testShutdownDownNowDoesntBlock() throws Exception {
         ThreadPool threadPool = new ThreadPool(ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build(), null);
 

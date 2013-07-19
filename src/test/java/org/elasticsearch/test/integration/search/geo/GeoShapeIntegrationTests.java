@@ -20,13 +20,14 @@
 package org.elasticsearch.test.integration.search.geo;
 
 import com.spatial4j.core.shape.Shape;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,6 @@ import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -131,7 +131,8 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
     }
 
     // TODO for some reason it get stuck on the get when fetching the source document
-    @Test(enabled = false)
+    @Test()
+    @AwaitsFix(bugUrl = "for some reason it get stuck on the get when fetching the source document")
     public void testIndexedShapeReference() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")

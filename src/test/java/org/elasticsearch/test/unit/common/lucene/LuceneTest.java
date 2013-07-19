@@ -24,7 +24,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 /**
  * 

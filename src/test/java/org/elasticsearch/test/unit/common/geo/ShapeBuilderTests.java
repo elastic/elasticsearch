@@ -8,10 +8,9 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.geo.ShapeBuilder;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-import static org.testng.Assert.assertEquals;
-
+import static org.junit.Assert.assertEquals;
 /**
  * Tests for {@link ShapeBuilder}
  */
@@ -20,17 +19,17 @@ public class ShapeBuilderTests {
     @Test
     public void testNewPoint() {
         Point point = ShapeBuilder.newPoint(-100, 45);
-        assertEquals(-100D, point.getX());
-        assertEquals(45D, point.getY());
+        assertEquals(-100D, point.getX(), 0.0d);
+        assertEquals(45D, point.getY(), 0.0d);
     }
 
     @Test
     public void testNewRectangle() {
         Rectangle rectangle = ShapeBuilder.newRectangle().topLeft(-45, 30).bottomRight(45, -30).build();
-        assertEquals(-45D, rectangle.getMinX());
-        assertEquals(-30D, rectangle.getMinY());
-        assertEquals(45D, rectangle.getMaxX());
-        assertEquals(30D, rectangle.getMaxY());
+        assertEquals(-45D, rectangle.getMinX(), 0.0d);
+        assertEquals(-30D, rectangle.getMinY(), 0.0d);
+        assertEquals(45D, rectangle.getMaxX(), 0.0d);
+        assertEquals(30D, rectangle.getMaxY(), 0.0d);
     }
 
     @Test

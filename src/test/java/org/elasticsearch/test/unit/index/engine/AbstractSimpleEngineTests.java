@@ -54,9 +54,9 @@ import org.elasticsearch.test.unit.index.deletionpolicy.SnapshotIndexCommitExist
 import org.elasticsearch.test.unit.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -87,7 +87,7 @@ public abstract class AbstractSimpleEngineTests {
     protected Engine engine;
     protected Engine replicaEngine;
 
-    @BeforeMethod
+    @Before
     public void setUp() throws Exception {
         threadPool = new ThreadPool();
         store = createStore();
@@ -100,7 +100,7 @@ public abstract class AbstractSimpleEngineTests {
         replicaEngine.start();
     }
 
-    @AfterMethod
+    @After
     public void tearDown() throws Exception {
         replicaEngine.close();
         storeReplica.close();

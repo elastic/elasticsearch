@@ -31,14 +31,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -46,10 +44,10 @@ import static org.hamcrest.Matchers.hasItem;
  *
  */
 public class SimplePercolatorTests extends AbstractSharedClusterTest {
-    
-    @BeforeClass
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
+
+    @Override
+    protected int numberOfNodes() {
+        return 2;
     }
     
     @Test

@@ -23,19 +23,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Test
 public class DiscoveryTests extends AbstractNodesTests {
-
-    @AfterClass
-    public void closeNodes() {
-        closeAllNodes();
-    }
 
     @Test
     public void testUnicastDiscovery() {

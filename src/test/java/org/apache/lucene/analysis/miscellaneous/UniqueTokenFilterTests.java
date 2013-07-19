@@ -19,11 +19,13 @@
 
 package org.apache.lucene.analysis.miscellaneous;
 
-import org.apache.lucene.analysis.*;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.lucene.Lucene;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -34,7 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class UniqueTokenFilterTests {
 
     @Test

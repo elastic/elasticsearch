@@ -25,11 +25,10 @@ import org.elasticsearch.test.unit.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
-@Test
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override

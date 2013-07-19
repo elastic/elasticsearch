@@ -24,7 +24,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;

@@ -11,6 +11,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.junit.Ignore;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -19,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
  * <p/>
  * See: https://github.com/elasticsearch/elasticsearch/issues/1686.
  */
+@Ignore("Stress Test")
 public class ConcurrentSearchSerializationTests {
 
     public static void main(String[] args) throws Exception {

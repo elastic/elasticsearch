@@ -33,7 +33,7 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class MulticastZenPingTests {
 
     @Test

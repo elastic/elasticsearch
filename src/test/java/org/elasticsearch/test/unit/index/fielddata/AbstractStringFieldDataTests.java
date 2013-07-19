@@ -32,15 +32,14 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@Test
-public abstract class StringFieldDataTests extends AbstractFieldDataTests {
+public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTests {
 
     protected String one() {
         return "1";

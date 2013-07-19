@@ -19,6 +19,9 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -33,14 +36,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.StringReader;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.unit.index.analysis.AnalysisTestsHelper.assertSimpleTSOutput;
 
-public class StopAnalyzerTests {
+@ThreadLeakScope(Scope.NONE)
+public class StopAnalyzerTests extends BaseTokenStreamTestCase {
 
     @Test
     public void testDefaultsCompoundAnalysis() throws Exception {
@@ -57,11 +60,11 @@ public class StopAnalyzerTests {
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("analyzer1");
 
-        assertSimpleTSOutput(analyzer1.tokenStream("test", new StringReader("to be or not to be")), new String[0]);
+        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("to be or not to be")), new String[0]);
 
         NamedAnalyzer analyzer2 = analysisService.analyzer("analyzer2");
 
-        assertSimpleTSOutput(analyzer2.tokenStream("test", new StringReader("to be or not to be")), new String[0]);
+        assertTokenStreamContents(analyzer2.tokenStream("test", new StringReader("to be or not to be")), new String[0]);
     }
 
 }

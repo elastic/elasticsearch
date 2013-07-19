@@ -32,13 +32,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
-
-import java.util.List;
+import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class GetActionTests extends AbstractSharedClusterTest {
@@ -68,7 +65,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
         response = client().prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
-
+        
         logger.info("--> realtime get 1 (no type)");
         response = client().prepareGet("test", null, "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));

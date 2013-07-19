@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.cluster.settings;
 
 import org.elasticsearch.cluster.settings.Validator;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;

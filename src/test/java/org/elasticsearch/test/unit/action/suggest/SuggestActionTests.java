@@ -19,11 +19,6 @@
 
 package org.elasticsearch.test.unit.action.suggest;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.Arrays;
-
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -32,11 +27,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.test.integration.search.suggest.SuggestSearchTests;
-import org.testng.annotations.Test;
+
+import java.util.Arrays;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class SuggestActionTests extends SuggestSearchTests {
 
     protected Suggest searchSuggest(Client client, String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {

@@ -22,7 +22,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 import org.elasticsearch.common.util.SlicedDoubleList;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 /**
  * Tests for {@link SlicedDoubleList}

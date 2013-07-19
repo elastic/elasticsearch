@@ -8,18 +8,18 @@ import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.testng.Assert.assertEquals;
 
 /**
  * Tests for {@link GeoJSONShapeSerializer}
  */
-public class GeoJSONShapeSerializerTests {
+public class GeoJSONShapeSerializerTests extends ElasticsearchTestCase {
 
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 

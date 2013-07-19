@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.broadcast;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -29,10 +30,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
-
-import com.beust.jcommander.Strings;
-import com.google.common.base.Charsets;
+import org.junit.Test;
 
 import java.io.IOException;
 

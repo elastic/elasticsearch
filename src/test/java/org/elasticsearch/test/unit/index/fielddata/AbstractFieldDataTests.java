@@ -28,14 +28,12 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
-/**
- */
-@Test
-public abstract class AbstractFieldDataTests {
+// we might wanna cut this over to LuceneTestCase
+public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     protected IndexFieldDataService ifdService;
     protected IndexWriter writer;
@@ -47,7 +45,7 @@ public abstract class AbstractFieldDataTests {
         return ifdService.getForField(new FieldMapper.Names(fieldName), getFieldDataType());
     }
 
-    @BeforeMethod
+    @Before
     public void setup() throws Exception {
         ifdService = new IndexFieldDataService(new Index("test"));
         // LogByteSizeMP to preserve doc ID order
@@ -63,7 +61,7 @@ public abstract class AbstractFieldDataTests {
         return readerContext;
     }
 
-    @AfterMethod
+    @After
     public void tearDown() throws Exception {
         if (readerContext != null) {
             readerContext.reader().close();

@@ -25,15 +25,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.*;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Date;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.testng.AssertJUnit.fail;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.fail;
 
 /**
  *

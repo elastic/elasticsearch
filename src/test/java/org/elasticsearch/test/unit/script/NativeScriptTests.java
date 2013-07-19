@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.script.*;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Map;
 

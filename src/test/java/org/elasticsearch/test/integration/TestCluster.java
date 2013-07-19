@@ -49,8 +49,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 public class TestCluster {
@@ -71,16 +71,21 @@ public class TestCluster {
 
     private final Settings defaultSettings;
 
-    private ClientFactory clientFactory = new RandomClientFactory();
     
     private NodeAndClient clientNode;
 
-    public TestCluster() {
-        this("simple-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "_" + System.currentTimeMillis(), ImmutableSettings.settingsBuilder().build());
+    private Random random;
+    private ClientFactory clientFactory;
+
+
+    public TestCluster(Random random) {
+        
+        this(random, "shared-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "CHILD_VM=[" + ElasticsearchTestCase.CHILD_VM_ID + "]"+ "_" + System.currentTimeMillis(), ImmutableSettings.settingsBuilder().build());
     }
 
-    private TestCluster(String clusterName, Settings defaultSettings) {
-
+    private TestCluster(Random random, String clusterName, Settings defaultSettings) {
+        this.random = new Random(random.nextLong());
+        clientFactory = new RandomClientFactory(random);
         this.clusterName = clusterName;
         if (defaultSettings.get("gateway.type") == null) {
             // default to non gateway
@@ -273,7 +278,11 @@ public class TestCluster {
     }
 
     public static class RandomClientFactory extends ClientFactory {
-        private final Random random = new Random(0);
+        private final Random random;
+        
+        public RandomClientFactory(Random random) {
+            this.random = random;
+        }
 
         @Override
         public Client client(Node node, String clusterName) {
@@ -288,8 +297,9 @@ public class TestCluster {
         }
     }
 
-    void reset() {
-        this.clientFactory = new RandomClientFactory();
+    void reset(Random random) {
+        this.random = new Random(random.nextLong());
+        this.clientFactory = new RandomClientFactory(this.random);
     }
 
     public ClusterService clusterService() {

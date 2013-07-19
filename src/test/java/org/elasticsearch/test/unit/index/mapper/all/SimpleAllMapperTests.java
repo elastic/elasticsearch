@@ -29,9 +29,9 @@ import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -41,13 +41,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class SimpleAllMapperTests {
 
     @Test
     public void testSimpleAllMappers() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -63,7 +62,7 @@ public class SimpleAllMapperTests {
     @Test
     public void testAllMappersNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/noboost-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -79,7 +78,7 @@ public class SimpleAllMapperTests {
     @Test
     public void testAllMappersTermQuery() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/mapping_omit_positions_on_all.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -97,11 +96,10 @@ public class SimpleAllMapperTests {
     @Test
     public void testSimpleAllMappersWithReparse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         String builtMapping = docMapper.mappingSource().string();
-//        System.out.println(builtMapping);
         // reparse it
-        DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
+        DocumentMapper builtDocMapper = MapperTestUtils.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
@@ -116,7 +114,7 @@ public class SimpleAllMapperTests {
     @Test
     public void testSimpleAllMappersWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/store-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -132,11 +130,10 @@ public class SimpleAllMapperTests {
     @Test
     public void testSimpleAllMappersWithReparseWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/store-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         String builtMapping = docMapper.mappingSource().string();
-        System.out.println(builtMapping);
         // reparse it
-        DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
+        DocumentMapper builtDocMapper = MapperTestUtils.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/all/test1.json");
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 

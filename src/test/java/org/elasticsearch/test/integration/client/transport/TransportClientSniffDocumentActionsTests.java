@@ -21,7 +21,7 @@ package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.test.integration.TestCluster;
 import org.elasticsearch.test.integration.document.DocumentActionsTests;
-import org.testng.annotations.BeforeClass;
+import org.junit.BeforeClass;
 
 /**
  *

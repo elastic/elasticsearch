@@ -18,43 +18,23 @@
  */
 package org.elasticsearch.test.unit.index.fielddata;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Random;
-
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DoubleField;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FloatField;
-import org.apache.lucene.document.IntField;
-import org.apache.lucene.document.LongField;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.*;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.English;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.BytesValues.Iter;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.testng.annotations.Test;
+import org.junit.Test;
+
+import java.util.*;
+import java.util.Map.Entry;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DuellFieldDataTest extends AbstractFieldDataTests {
 
@@ -71,9 +51,7 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
 
     @Test
     public void testDuellAllTypesSingleValue() throws Exception {
-        long seed = System.currentTimeMillis();
-        System.out.println("SEED[testDuellAllTypesSingleValue]: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
             int v = (random.nextBoolean() ? -1 * random.nextInt(Byte.MAX_VALUE) : random.nextInt(Byte.MAX_VALUE));
@@ -134,9 +112,7 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
     
     @Test
     public void testDuellIntegers() throws Exception {
-        long seed = System.currentTimeMillis();
-        System.out.println("SEED[testDuellIntegers]: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
             Document d = new Document();
@@ -190,9 +166,7 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
     
     @Test
     public void testDuellDoubles() throws Exception {
-        long seed = System.currentTimeMillis();
-        System.out.println("SEED[testDuellIntegers]: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
             Document d = new Document();
@@ -245,9 +219,7 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
     
     @Test
     public void testDuellStrings() throws Exception {
-        long seed = System.currentTimeMillis();
-        System.out.println("SEED[testDuellStrings]: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
             Document d = new Document();

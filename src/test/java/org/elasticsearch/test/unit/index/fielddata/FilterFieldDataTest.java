@@ -18,26 +18,21 @@
  */
 package org.elasticsearch.test.unit.index.fielddata;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.Random;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.WithOrdinals;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.testng.annotations.Test;
+import org.junit.Test;
+
+import java.util.Random;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class FilterFieldDataTest extends AbstractFieldDataTests {
 
@@ -49,9 +44,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
 
     @Test
     public void testFilterByFrequency() throws Exception {
-        long seed = System.currentTimeMillis();
-        System.out.println("seed[testFilterByFrequency]: " + seed);
-        Random random = new Random(seed);
+        Random random = getRandom();
         for (int i = 0; i < 1000; i++) {
             Document d = new Document();
             d.add(new StringField("id", "" + i, Field.Store.NO));

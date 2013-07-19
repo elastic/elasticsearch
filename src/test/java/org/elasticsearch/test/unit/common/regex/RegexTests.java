@@ -18,15 +18,15 @@
  */
 package org.elasticsearch.test.unit.common.regex;
 
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.junit.Test;
+
 import java.util.Random;
 import java.util.regex.Pattern;
 
-import org.elasticsearch.common.regex.Regex;
-import org.testng.annotations.Test;
-
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-public class RegexTests {
+public class RegexTests extends ElasticsearchTestCase {
 
     @Test
     public void testFlags() {
@@ -34,8 +34,7 @@ public class RegexTests {
                 "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS" };
         int[] flags = new int[] { Pattern.CASE_INSENSITIVE, Pattern.MULTILINE, Pattern.DOTALL, Pattern.UNICODE_CASE, Pattern.CANON_EQ,
                 Pattern.UNIX_LINES, Pattern.LITERAL, Pattern.COMMENTS, Regex.UNICODE_CHARACTER_CLASS };
-        long seed = System.currentTimeMillis();
-        Random random = new Random(seed);
+        Random random = getRandom();
         int num = 10 + random.nextInt(100);
         for (int i = 0; i < num; i++) {
             int numFlags = random.nextInt(flags.length+1);

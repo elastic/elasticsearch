@@ -44,8 +44,8 @@ import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -56,22 +56,13 @@ import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.testng.AssertJUnit.assertTrue;
-import static org.testng.AssertJUnit.fail;
 
 /**
  *
  */
-@Test
 public class IndexAliasesTests extends AbstractSharedClusterTest {
 
-    @BeforeClass
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-    }
-    
     @Test
     public void testAliases() throws Exception {
         // delete all indices
@@ -788,7 +779,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
 
         try {
             client().admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
-            fail("Exception should have been thrown");
+            Assert.fail("Exception should have been thrown");
         } catch (AliasMissingException e) {
             assertThat(e.getMessage(), equalTo("alias [foo] missing"));
         }
@@ -797,28 +788,28 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         assertThat(existsResponse.exists(), equalTo(false));
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasNullIndex() {
 
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1"))
                 .execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasEmptyIndex() {
 
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1"))
                 .execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasNullAlias() {
 
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null))
                 .execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasEmptyAlias() {
 
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", ""))
@@ -849,25 +840,25 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         }
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasNullIndex() {
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1"))
                 .execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasEmptyIndex() {
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1"))
                 .execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasNullAlias() {
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null))
                 .execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasEmptyAlias() {
         client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", ""))
                 .execute().actionGet();

@@ -35,8 +35,8 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.nodesinfo.plugin.dummy1.TestPlugin;
 import org.elasticsearch.test.integration.nodesinfo.plugin.dummy2.TestNoVersionPlugin;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import java.io.File;
 import java.net.URISyntaxException;
@@ -62,7 +62,7 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         static final String SITE_PLUGIN_NO_DESCRIPTION = "No description found for dummy.";
     }
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }

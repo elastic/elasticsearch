@@ -29,7 +29,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
@@ -37,7 +37,6 @@ import com.spatial4j.core.distance.DistanceUtils;
 /**
  *
  */
-@Test
 public class GeoUtilsTests {
 
     /**

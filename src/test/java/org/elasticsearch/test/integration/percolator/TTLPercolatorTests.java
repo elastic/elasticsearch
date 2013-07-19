@@ -9,8 +9,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -86,7 +86,7 @@ public class TTLPercolatorTests extends AbstractNodesTests {
         assertThat(percolateResponse.getMatches(), emptyArray());
     }
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         closeAllNodes();
     }

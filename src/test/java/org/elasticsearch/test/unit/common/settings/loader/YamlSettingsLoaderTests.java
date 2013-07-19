@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.common.settings.loader;
 
 import org.elasticsearch.common.settings.Settings;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;

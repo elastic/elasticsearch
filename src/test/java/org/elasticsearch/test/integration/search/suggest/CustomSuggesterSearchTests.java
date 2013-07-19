@@ -28,9 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.List;
 import java.util.Locale;
@@ -48,8 +46,8 @@ public class CustomSuggesterSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @Override
+    protected void beforeClass() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomSuggesterPlugin.class.getName());
         startNode("server1", settings);
         client = client("server1");
@@ -60,12 +58,6 @@ public class CustomSuggesterSearchTests extends AbstractNodesTests {
                 .endObject())
                 .setRefresh(true).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
     }
 
     @Test

@@ -25,9 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,8 +36,8 @@ public class SimpleTTLTests extends AbstractNodesTests {
     static private final long purgeInterval = 200;
     private Client client;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @Override
+    protected void beforeClass() {
         Settings settings = settingsBuilder()
                 .put("indices.ttl.interval", purgeInterval)
                 .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
@@ -49,12 +47,6 @@ public class SimpleTTLTests extends AbstractNodesTests {
         startNode("node1", settings);
         startNode("node2", settings);
         client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
     }
 
     protected Client getClient() {

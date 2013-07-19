@@ -23,7 +23,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,11 +33,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertTrue;
 
 /**
  *
@@ -87,7 +84,7 @@ public class IndexActionTests extends AbstractSharedClusterTest {
         final AtomicIntegerArray createdCounts = new AtomicIntegerArray(docCount);
         ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
         List<Callable<Void>> tasks = new ArrayList<Callable<Void>>(taskCount);
-        final Random random = new Random();
+        final Random random = getRandom();
         for (int i=0;i< taskCount; i++ ) {
             tasks.add(new Callable<Void>() {
                 @Override

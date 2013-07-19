@@ -26,35 +26,27 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CloseIndexDisableCloseAllTests extends AbstractNodesTests {
 
-    @BeforeClass
-    public void createNodes() {
+    @Override
+    protected void beforeClass() {
         ImmutableSettings.Builder settings = ImmutableSettings.builder().put("action.disable_close_all_indices", true);
         startNode("server1", settings);
         startNode("server2", settings);
     }
 
-    @AfterClass
-    public void closeNodes() {
-        closeAllNodes();
-    }
-
-    @AfterMethod
+    @After
     public void wipeAllIndices() {
         wipeIndices(client("server1"), "_all");
     }
 
-    @Test(expectedExceptions = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseAllExplicitly() {
         Client client = client("server1");
         createIndices(client, "test1", "test2", "test3");
@@ -63,7 +55,7 @@ public class CloseIndexDisableCloseAllTests extends AbstractNodesTests {
         client.admin().indices().prepareClose("_all").execute().actionGet();
     }
 
-    @Test(expectedExceptions = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseAllWildcard() {
         Client client = client("server2");
         createIndices(client, "test1", "test2", "test3");
@@ -72,7 +64,7 @@ public class CloseIndexDisableCloseAllTests extends AbstractNodesTests {
         client.admin().indices().prepareClose("*").execute().actionGet();
     }
 
-    @Test(expectedExceptions = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseAllWildcard2() {
         Client client = client("server2");
         createIndices(client, "test1", "test2", "test3");
@@ -92,7 +84,7 @@ public class CloseIndexDisableCloseAllTests extends AbstractNodesTests {
         assertIndexIsClosed("test2", "test3");
     }
 
-    @Test(expectedExceptions = ElasticSearchIllegalArgumentException.class)
+    @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseWildcardMatchingAll() {
         Client client = client("server2");
         createIndices(client, "test1", "test2", "test3");

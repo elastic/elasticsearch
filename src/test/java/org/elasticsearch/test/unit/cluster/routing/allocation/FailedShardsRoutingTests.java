@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@Test
 public class FailedShardsRoutingTests {
 
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);

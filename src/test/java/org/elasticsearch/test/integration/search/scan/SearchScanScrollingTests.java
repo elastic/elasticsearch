@@ -19,12 +19,7 @@
 
 package org.elasticsearch.test.integration.search.scan;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.Set;
-
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
@@ -32,158 +27,20 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
 
-import com.google.common.collect.Sets;
+import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchScanScrollingTests extends AbstractSharedClusterTest {
-    // TODO RANDOMIZE
-    @Test
-    public void shard1docs100size3() throws Exception {
-        testScroll(1, 100, 3);
-    }
-
-    @Test
-    public void shard1docs100size7() throws Exception {
-        testScroll(1, 100, 7);
-    }
-
-    @Test
-    public void shard1docs100size13() throws Exception {
-        testScroll(1, 100, 13);
-    }
-
-    @Test
-    public void shard1docs100size24() throws Exception {
-        testScroll(1, 100, 24);
-    }
-
-    @Test
-    public void shard1docs100size45() throws Exception {
-        testScroll(1, 100, 45);
-    }
-
-    @Test
-    public void shard1docs100size63() throws Exception {
-        testScroll(1, 100, 63);
-    }
-
-    @Test
-    public void shard1docs100size89() throws Exception {
-        testScroll(1, 100, 89);
-    }
-
-    @Test
-    public void shard1docs100size99() throws Exception {
-        testScroll(1, 100, 99);
-    }
-
-    @Test
-    public void shard1docs100size100() throws Exception {
-        testScroll(1, 100, 100);
-    }
-
-    @Test
-    public void shard1docs100size101() throws Exception {
-        testScroll(1, 100, 101);
-    }
-
-    @Test
-    public void shard1docs100size120() throws Exception {
-        testScroll(1, 100, 120);
-    }
-
-    @Test
-    public void shard3docs100size3() throws Exception {
-        testScroll(3, 100, 3);
-    }
-
-    @Test
-    public void shard3docs100size7() throws Exception {
-        testScroll(3, 100, 7);
-    }
-
-    @Test
-    public void shard3docs100size13() throws Exception {
-        testScroll(3, 100, 13);
-    }
-
-    @Test
-    public void shard3docs100size24() throws Exception {
-        testScroll(3, 100, 24);
-    }
-
-    @Test
-    public void shard3docs100size45() throws Exception {
-        testScroll(3, 100, 45);
-    }
-
-    @Test
-    public void shard3docs100size63() throws Exception {
-        testScroll(3, 100, 63);
-    }
-
-    @Test
-    public void shard3docs100size89() throws Exception {
-        testScroll(3, 100, 89);
-    }
-
-    @Test
-    public void shard3docs100size120() throws Exception {
-        testScroll(3, 100, 120);
-    }
-
-    @Test
-    public void shard3docs100size3Unbalanced() throws Exception {
-        testScroll(3, 100, 3, true);
-    }
-
-    @Test
-    public void shard3docs100size7Unbalanced() throws Exception {
-        testScroll(3, 100, 7, true);
-    }
-
-    @Test
-    public void shard3docs100size13Unbalanced() throws Exception {
-        testScroll(3, 100, 13, true);
-    }
-
-    @Test
-    public void shard3docs100size24Unbalanced() throws Exception {
-        testScroll(3, 100, 24, true);
-    }
-
-    @Test
-    public void shard3docs100size45Unbalanced() throws Exception {
-        testScroll(3, 100, 45, true);
-    }
-
-    @Test
-    public void shard3docs100size63Unbalanced() throws Exception {
-        testScroll(3, 100, 63, true);
-    }
-
-    @Test
-    public void shard3docs100size89Unbalanced() throws Exception {
-        testScroll(3, 100, 89, true);
-    }
-
-    @Test
-    public void shard3docs100size120Unbalanced() throws Exception {
-        testScroll(3, 100, 120);
-    }
-
-    private void testScroll(int numberOfShards, long numberOfDocs, int size) throws Exception {
-        testScroll(numberOfShards, numberOfDocs, size, false);
+    
+    public void testRandomized() throws Exception {
+        testScroll(between(1, 4), atLeast(100), between(1, 300), getRandom().nextBoolean());
     }
 
     private void testScroll(int numberOfShards, long numberOfDocs, int size, boolean unbalanced) throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        wipeIndex("test");
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 

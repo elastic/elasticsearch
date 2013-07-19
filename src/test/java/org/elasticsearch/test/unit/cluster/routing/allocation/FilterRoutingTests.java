@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.List;
 
@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class FilterRoutingTests {
 
     private final ESLogger logger = Loggers.getLogger(FilterRoutingTests.class);

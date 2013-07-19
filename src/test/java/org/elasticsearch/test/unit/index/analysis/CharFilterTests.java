@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.test.unit.index.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -32,16 +35,16 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.StringReader;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.unit.index.analysis.AnalysisTestsHelper.assertSimpleTSOutput;
 
 /**
  */
-public class CharFilterTests {
+@ThreadLeakScope(Scope.NONE)
+public class CharFilterTests extends BaseTokenStreamTestCase{
 
     @Test
     public void testMappingCharFilter() throws Exception {
@@ -62,11 +65,11 @@ public class CharFilterTests {
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
-
-        assertSimpleTSOutput(analyzer1.tokenStream("test", new StringReader("jeff quit phish")), new String[]{"jeff", "qit", "fish"});
+        
+        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("jeff quit phish")), new String[]{"jeff", "qit", "fish"});
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
-        assertSimpleTSOutput(analyzer1.tokenStream("test", new StringReader("jeff quit phish")), new String[]{"jeff", "qit", "fish"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("jeff quit phish")), new String[]{"jeff", "qit", "fish"});
     }
 
     @Test
@@ -87,9 +90,9 @@ public class CharFilterTests {
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
 
-        assertSimpleTSOutput(analyzer1.tokenStream("test", new StringReader("<b>hello</b>!")), new String[]{"hello"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("<b>hello</b>!")), new String[]{"hello"});
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
-        assertSimpleTSOutput(analyzer1.tokenStream("test", new StringReader("<b>hello</b>!")), new String[]{"hello"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("<b>hello</b>!")), new String[]{"hello"});
     }
 }

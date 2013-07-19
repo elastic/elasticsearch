@@ -30,8 +30,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -43,7 +43,7 @@ public class TimestampMappingTests {
     @Test
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -59,7 +59,7 @@ public class TimestampMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", "yes").field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -75,7 +75,7 @@ public class TimestampMappingTests {
     @Test
     public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
@@ -92,7 +92,7 @@ public class TimestampMappingTests {
                 .field("path", "timestamp").field("format", "year")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(false));
@@ -105,12 +105,12 @@ public class TimestampMappingTests {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = MapperTests.newParser().parse(enabledMapping);
+        DocumentMapper enabledMapper = MapperTestUtils.newParser().parse(enabledMapping);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = MapperTests.newParser().parse(disabledMapping);
+        DocumentMapper disabledMapper = MapperTestUtils.newParser().parse(disabledMapping);
 
         enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
 
@@ -124,7 +124,7 @@ public class TimestampMappingTests {
                 .startObject("_timestamp").field("enabled", false).field("store", inversedStoreSetting).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
 
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.timestampFieldMapper().toXContent(builder, null);
@@ -138,7 +138,7 @@ public class TimestampMappingTests {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true).field("store", "yes").field("index", "no").endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = MapperTests.newParser().parse(enabledMapping);
+        DocumentMapper enabledMapper = MapperTestUtils.newParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         enabledMapper.timestampFieldMapper().toXContent(builder, null).endObject();

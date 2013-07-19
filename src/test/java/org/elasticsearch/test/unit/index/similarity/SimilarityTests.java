@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.*;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 

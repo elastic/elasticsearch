@@ -35,6 +35,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
@@ -44,6 +45,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 /**
  *
  */
+@Ignore("Stress Test")
 public class Search1StressTest {
 
     private final ESLogger logger = Loggers.getLogger(getClass());

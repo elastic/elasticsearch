@@ -2,7 +2,7 @@ package org.elasticsearch.test.unit.common.joda;
 
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
@@ -11,7 +11,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class DateMathParserTests {
 
     @Test

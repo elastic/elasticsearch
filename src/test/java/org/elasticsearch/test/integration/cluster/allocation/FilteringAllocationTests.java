@@ -30,8 +30,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,7 +43,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(FilteringAllocationTests.class);
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         closeAllNodes();
     }

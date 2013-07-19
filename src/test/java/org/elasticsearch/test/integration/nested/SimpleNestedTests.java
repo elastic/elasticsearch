@@ -39,7 +39,8 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -49,9 +50,7 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.testng.AssertJUnit.fail;
 
-@Test
 public class SimpleNestedTests extends AbstractSharedClusterTest {
 
     @Test
@@ -753,7 +752,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                     .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value", "string")
                             .setNestedPath("nested1").sortMode("sum").order(SortOrder.ASC))
                     .execute().actionGet();
-            fail("SearchPhaseExecutionException should have been thrown");
+            Assert.fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("type [string] doesn't support mode [SUM]"));
         }

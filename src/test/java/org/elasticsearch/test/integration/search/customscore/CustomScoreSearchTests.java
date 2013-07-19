@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,12 +41,11 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.testng.Assert.assertNotNull;
+import static org.junit.Assert.assertNotNull;
 
 /**
  *
  */
-@Test
 public class CustomScoreSearchTests extends AbstractSharedClusterTest {
 
     @Test

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -33,14 +36,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.StringReader;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.unit.index.analysis.AnalysisTestsHelper.assertSimpleTSOutput;
 
-public class PatternCaptureTokenFilterTests {
+@ThreadLeakScope(Scope.NONE)
+public class PatternCaptureTokenFilterTests extends BaseTokenStreamTestCase{
 
     @Test
     public void testPatternCaptureTokenFilter() throws Exception {
@@ -57,15 +60,15 @@ public class PatternCaptureTokenFilterTests {
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("single");
 
-        assertSimpleTSOutput(analyzer1.tokenStream("test", new StringReader("foobarbaz")), new String[]{"foobarbaz","foobar","foo"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("foobarbaz")), new String[]{"foobarbaz","foobar","foo"});
 
         NamedAnalyzer analyzer2 = analysisService.analyzer("multi");
 
-        assertSimpleTSOutput(analyzer2.tokenStream("test", new StringReader("abc123def")), new String[]{"abc123def","abc","123","def"});
+        assertTokenStreamContents(analyzer2.tokenStream("test", new StringReader("abc123def")), new String[]{"abc123def","abc","123","def"});
 
         NamedAnalyzer analyzer3 = analysisService.analyzer("preserve");
 
-        assertSimpleTSOutput(analyzer3.tokenStream("test", new StringReader("foobarbaz")), new String[]{"foobar","foo"});
+        assertTokenStreamContents(analyzer3.tokenStream("test", new StringReader("foobarbaz")), new String[]{"foobar","foo"});
 
     }
 

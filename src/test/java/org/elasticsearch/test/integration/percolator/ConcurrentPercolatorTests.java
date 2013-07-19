@@ -33,10 +33,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -48,19 +46,16 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@Test
 public class ConcurrentPercolatorTests extends AbstractNodesTests {
 
-    private Client client;
 
-    @BeforeClass
-    public void startNodes() throws Exception {
+    @Override
+    public void beforeClass() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", "percolator-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "_" + System.currentTimeMillis())
                 .put("gateway.type", "none").build();
@@ -68,17 +63,13 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
         startNode("node1", settings);
         startNode("node2", settings);
         startNode("node3", settingsBuilder().put(settings).put("node.client", true));
-        client = client("node3");
     }
 
-    @AfterClass
-    public void cleanAndCloseNodes() throws Exception {
-        closeAllNodes();
-    }
 
-    @BeforeMethod
+    @Before
     public void beforeTest() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        setUp();
+        client().admin().indices().prepareDelete().execute().actionGet();
         ensureGreen();
     }
 
@@ -199,11 +190,11 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
 
         Thread[] indexThreads = new Thread[numIndexThreads];
         for (int i = 0; i < numIndexThreads; i++) {
+            final Random rand = new Random(getRandom().nextLong());
             Runnable r = new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        Random r = new Random();
                         XContentBuilder onlyField1 = XContentFactory.jsonBuilder().startObject()
                                 .field("query", termQuery("field1", "value")).endObject();
                         XContentBuilder onlyField2 = XContentFactory.jsonBuilder().startObject()
@@ -214,7 +205,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                         start.await();
                         while (runningPercolateThreads.get() > 0) {
                             Thread.sleep(100);
-                            int x = r.nextInt(3);
+                            int x = rand.nextInt(3);
                             String id = Integer.toString(idGen.incrementAndGet());
                             IndexResponse response;
                             switch (x) {
@@ -268,7 +259,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                                 .field("field1", "value")
                                 .field("field2", "value")
                                 .endObject().endObject();
-                        Random random = new Random();
+                        Random random = getRandom();
                         start.await();
                         for (int counter = 0; counter < numPercolatorOperationsPerThread; counter++) {
                             int x = random.nextInt(3);
@@ -347,13 +338,12 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                 @Override
                 public void run() {
                     try {
-                        Random r = new Random();
                         XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
                                 .field("query", termQuery("field1", "value")).endObject();
                         while (run.get()) {
                             semaphore.acquire();
                             try {
-                                if ((indexOperations.get() - deleteOperations.get()) > 0 && r.nextInt(100) < 19) {
+                                if ((indexOperations.get() - deleteOperations.get()) > 0 && getRandom().nextInt(100) < 19) {
                                     String id = Integer.toString(deleteOperations.incrementAndGet());
                                     DeleteResponse response = client().prepareDelete("index", "_percolator", id)
                                             .execute().actionGet();
@@ -411,12 +401,13 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
         assertThat(assertionFailure.get(), equalTo(false));
     }
 
-    private Client client() {
-        return client;
+    @Override
+    public Client client() {
+        return client("node3");
     }
 
     private void ensureGreen() {
-        ClusterHealthResponse actionGet = client.admin().cluster()
+        ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));

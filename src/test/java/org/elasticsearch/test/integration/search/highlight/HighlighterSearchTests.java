@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.highlight;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,8 +37,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,21 +50,19 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.testng.Assert.fail;
 
 /**
  *
  */
 public class HighlighterSearchTests extends AbstractSharedClusterTest {
     
-    @BeforeClass
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(4);
+    @Override
+    protected int numberOfNodes() {
+        return 4; // why 4?
     }
-    
+
     @Test
     public void testNgramHighlightingWithBrokenPositions() throws ElasticSearchException, IOException {
         prepareCreate("test")
@@ -709,11 +707,12 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void testFastVectorHighlighterManyDocs() throws Exception {
         client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        int COUNT = 100;
+        int COUNT = between(20, 100);
         logger.info("--> indexing docs");
         for (int i = 0; i < COUNT; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i).execute().actionGet();

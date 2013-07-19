@@ -31,6 +31,9 @@
 
     <properties>
         <lucene.version>4.4.0</lucene.version>
+        <tests.jvms>auto</tests.jvms>
+        <tests.shuffle>true</tests.shuffle>
+        <tests.failfast>true</tests.failfast>
     </properties>
 
     <repositories>
@@ -42,7 +45,18 @@
     </repositories>
 
     <dependencies>
-
+            <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <version>1.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <version>${lucene.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
@@ -254,30 +268,6 @@
             <optional>true</optional>
         </dependency>
         -->
-
-        <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <version>6.8</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.hamcrest</groupId>
-                    <artifactId>hamcrest-core</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>junit</groupId>
-                    <artifactId>junit</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-all</artifactId>
-            <version>1.3</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -326,27 +316,84 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>com.carrotsearch.randomizedtesting</groupId>
+                <artifactId>junit4-maven-plugin</artifactId>
+                <version>2.0.10</version>
+                <executions>
+                    <execution>
+                        <id>tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>junit4</goal>
+                        </goals>
+                        <configuration>
+                            <heartbeat>20</heartbeat>
+                            <jvmOutputAction>pipe,warn</jvmOutputAction>
+                            <leaveTemporary>true</leaveTemporary>
+                            <listeners>
+                                <report-ant-xml mavenExtensions="true" dir="${project.build.directory}/surefire-reports" />
+                                <report-text 
+                                    showThrowable="true" 
+                                    showStackTraces="true" 
+                                    showOutput="onerror" 
+                                    showStatusOk="false" 
+                                    showStatusError="true" 
+                                    showStatusFailure="true" 
+                                    showStatusIgnored="true" 
+                                    showSuiteSummary="true"
+                                    timestamps="false" />
+                                 <report-execution-times file="${basedir}/.local-execution-hints.log"/>
+                            </listeners>
+                            <assertions>
+                                <enable />
+                            </assertions>
+                            <parallelism>${tests.jvms}</parallelism>
+                            <balancers>
+                                <execution-times>
+                                    <fileset dir="${basedir}" includes=".local-execution-hints.log" />
+                                </execution-times>
+                            </balancers>
+                            <includes>
+                                <include>**/*Tests.class</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/Abstract*.class</exclude>
+                            </excludes>
+                            <jvmArgs>
+                                <param>-Xmx512m</param>
+                                <param>-Des.logger.prefix=</param>
+                            </jvmArgs>
+                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
+                            <sysouts>${tests.verbose}</sysouts>
+                            <seed>${tests.seed}</seed>
+                            <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <systemProperties>
+                                <!-- RandomizedTesting library system properties -->
+                                <tests.iters>${tests.iters}</tests.iters>
+                                <tests.class>${tests.class}</tests.class>
+                                <tests.method>${tests.method}</tests.method>
+                                <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.badapples>${tests.badapples}</tests.badapples>
+                                <tests.weekly>${tests.weekly}</tests.weekly>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
+                                <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
+                                <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}</es.action.wait_on_mapping_change>
+                                <java.awt.headless>true</java.awt.headless>
+                            </systemProperties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- we skip surefire to work with randomized testing above -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.12.3</version>
+                 <version>2.15</version>
                 <configuration>
-                    <includes>
-                        <include>**/*Tests.java</include>
-                    </includes>
-                    <properties>
-                        <property>
-                            <name>listener</name>
-                            <value>org.elasticsearch.test.TestNGLoggingListener</value>
-                        </property>
-                    </properties>
-                    <argLine>-Xmx512m -Des.logger.prefix=</argLine>
-                    <systemPropertyVariables>
-                        <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
-                        <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
-                        <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
-                        </es.action.wait_on_mapping_change>
-                        <java.awt.headless>true</java.awt.headless>
-                    </systemPropertyVariables>
+                   <skipTests>true</skipTests>
                 </configuration>
             </plugin>
             <plugin>

@@ -35,8 +35,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -44,16 +44,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.testng.Assert.assertTrue;
 
 /**
  *
  */
 public class ClusterServiceTests extends AbstractZenNodesTests {
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }
@@ -143,16 +141,12 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
             }
         });
         invoked1.await();
-
+        final CountDownLatch invoked2 = new CountDownLatch(8);
         for (int i = 2; i <= 10; i++) {
             clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    try {
-                        block1.await();
-                    } catch (InterruptedException e) {
-                        assert false;
-                    }
+                    invoked2.countDown();
                     return currentState;
                 }
 
@@ -180,6 +174,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         }
         assertTrue(controlSources.isEmpty());
         block1.countDown();
+        invoked2.await();
 
         pendingClusterTasks = clusterService.pendingTasks();
         assertThat(pendingClusterTasks, empty());
@@ -187,11 +182,11 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         assertThat(response.pendingTasks(), empty());
 
         final CountDownLatch block2 = new CountDownLatch(1);
-        final CountDownLatch invoked2 = new CountDownLatch(1);
+        final CountDownLatch invoked3 = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                invoked2.countDown();
+                invoked3.countDown();
                 try {
                     block2.await();
                 } catch (InterruptedException e) {
@@ -202,21 +197,16 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
 
             @Override
             public void onFailure(String source, Throwable t) {
-                invoked2.countDown();
+                invoked3.countDown();
                 assert false;
             }
         });
-        invoked2.await();
+        invoked3.await();
 
         for (int i = 2; i <= 5; i++) {
             clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    try {
-                        block2.await();
-                    } catch (InterruptedException e) {
-                        assert false;
-                    }
                     return currentState;
                 }
 
@@ -276,8 +266,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         assertThat(clusterService2.state().nodes().localNodeMaster(), is(false));
         assertThat(testService2.master(), is(false));
 
-        node1.close();
-
+        closeNode("node1");
         clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 

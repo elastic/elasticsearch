@@ -27,7 +27,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.gateway.CommitPoint;
 import org.elasticsearch.index.gateway.CommitPoints;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.ArrayList;
 

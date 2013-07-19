@@ -27,7 +27,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.*;
+import org.junit.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.*;
 public class SimpleDistributorTests extends AbstractNodesTests {
     protected Environment environment;
 
-    @BeforeMethod
+    @Before
     public void getTestEnvironment() {
         environment = ((InternalNode) startNode("node0")).injector().getInstance(Environment.class);
         closeNode("node0");
     }
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }

@@ -24,8 +24,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +39,7 @@ public class ParentMappingTests {
     public void parentNotMapped() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
                 .startObject()
@@ -58,7 +58,7 @@ public class ParentMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "p_type").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
                 .startObject()
@@ -76,7 +76,7 @@ public class ParentMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "p_type").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
                 .startObject()
@@ -92,7 +92,7 @@ public class ParentMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "p_type").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
                 .startObject()

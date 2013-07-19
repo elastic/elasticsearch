@@ -19,19 +19,22 @@
 package org.elasticsearch.test.unit.index.analysis;
 
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
-public class WordDelimiterTokenFilterFactoryTests {
+@ThreadLeakScope(Scope.NONE)
+public class WordDelimiterTokenFilterFactoryTests extends BaseTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {
@@ -41,8 +44,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi", "fi", "4000", "j", "2", "se", "O", "Neil"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+                    assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -55,8 +58,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"PowerShot", "500", "42", "wifi", "wifi", "4000", "j", "2", "se", "ONeil"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+                    assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -69,8 +72,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"Power", "Shot", "50042", "wi", "fi", "wi", "fi", "4000", "j", "2", "se", "O", "Neil"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+                    assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -84,8 +87,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"PowerShot", "50042", "wifi", "wifi4000", "j2se", "ONeil"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -97,8 +100,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot";
         String[] expected = new String[]{"PowerShot"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -110,8 +113,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"PowerShot", "Power", "Shot", "500-42", "500", "42", "wi-fi", "wi", "fi", "wi-fi-4000", "wi", "fi", "4000", "j2se", "j", "2", "se", "O'Neil's", "O", "Neil"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -123,8 +126,8 @@ public class WordDelimiterTokenFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi", "fi", "4000", "j", "2", "se", "O", "Neil", "s"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
 }

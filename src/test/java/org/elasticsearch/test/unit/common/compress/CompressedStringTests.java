@@ -22,7 +22,7 @@ package org.elasticsearch.test.unit.common.compress;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 

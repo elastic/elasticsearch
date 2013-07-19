@@ -21,8 +21,8 @@ package org.elasticsearch.test.unit.index.mapper.overridetype;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,11 +38,11 @@ public class OverrideTypeMappingTests {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTests.newParser().parse("my_type", mapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse("my_type", mapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
 
-        mapper = MapperTests.newParser().parse(mapping);
+        mapper = MapperTestUtils.newParser().parse(mapping);
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }

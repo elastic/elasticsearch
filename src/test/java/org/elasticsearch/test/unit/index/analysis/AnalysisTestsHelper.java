@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,9 +33,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.testng.Assert;
-
-import java.io.IOException;
 
 public class AnalysisTestsHelper {
 
@@ -63,33 +57,5 @@ public class AnalysisTestsHelper {
                 new IndexNameModule(index), analysisModule).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
-    }
-
-    public static void assertSimpleTSOutput(TokenStream stream, String[] expected) throws IOException {
-        stream.reset();
-        CharTermAttribute termAttr = stream.getAttribute(CharTermAttribute.class);
-        Assert.assertNotNull(termAttr);
-        int i = 0;
-        while (stream.incrementToken()) {
-            Assert.assertTrue(i < expected.length, "got extra term: " + termAttr.toString());
-            Assert.assertEquals(termAttr.toString(), expected[i], "expected different term at index " + i);
-            i++;
-        }
-        Assert.assertEquals(i, expected.length, "not all tokens produced");
-    }
-    
-    public static void assertSimpleTSOutput(TokenStream stream, String[] expected, int[] posInc) throws IOException {
-        stream.reset();
-        CharTermAttribute termAttr = stream.getAttribute(CharTermAttribute.class);
-        PositionIncrementAttribute posIncAttr = stream.getAttribute(PositionIncrementAttribute.class);
-        Assert.assertNotNull(termAttr);
-        int i = 0;
-        while (stream.incrementToken()) {
-            Assert.assertTrue(i < expected.length, "got extra term: " + termAttr.toString());
-            Assert.assertEquals(termAttr.toString(), expected[i], "expected different term at index " + i);
-            Assert.assertEquals(posIncAttr.getPositionIncrement(), posInc[i]);
-            i++;
-        }
-        Assert.assertEquals(i, expected.length, "not all tokens produced");
     }
 }

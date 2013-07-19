@@ -20,8 +20,8 @@
 package org.elasticsearch.test.unit.index.mapper.path;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ public class PathMapperTests {
     @Test
     public void testPathMapping() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/path/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat(docMapper.mappers().indexName("first1"), notNullValue());
         assertThat(docMapper.mappers().indexName("name1.first1"), nullValue());

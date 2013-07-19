@@ -21,7 +21,7 @@ package org.elasticsearch.test.unit.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.mapper.Uid;
-import org.testng.annotations.Test;
+import org.junit.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 

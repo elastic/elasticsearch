@@ -14,9 +14,7 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -29,14 +27,15 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 public class SimpleThreadPoolTests extends AbstractNodesTests {
+    
     private Client client1;
 
     private Client client2;
 
     private ThreadPool threadPool;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @Override
+    protected void beforeClass() {
         startNode("node1", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
         startNode("node2", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
         client1 = client("node1");
@@ -44,14 +43,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         threadPool = ((InternalNode) node("node1")).injector().getInstance(ThreadPool.class);
     }
 
-    @AfterClass
-    public void closeNodes() {
-        client1.close();
-        client2.close();
-        closeAllNodes();
-    }
-
-    @Test(timeOut = 20000)
+    @Test(timeout = 20000)
     public void testUpdatingThreadPoolSettings() throws Exception {
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(5L));

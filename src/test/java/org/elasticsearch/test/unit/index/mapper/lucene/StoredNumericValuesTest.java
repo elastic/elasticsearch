@@ -13,8 +13,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import java.util.*;
 
@@ -24,7 +24,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class StoredNumericValuesTest {
 
     @Test
@@ -42,7 +41,7 @@ public class StoredNumericValuesTest {
                     .endObject()
                 .endObject()
                 .string();
-        DocumentMapper mapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

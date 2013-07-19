@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration.search.scan;
 
 import com.google.common.collect.Sets;
-
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
@@ -28,19 +28,19 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchScanTests extends AbstractSharedClusterTest {
 
     @Test
+    @Slow 
+    // TODO Randomize and reduce execution time
     public void testNarrowingQuery() throws Exception {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();

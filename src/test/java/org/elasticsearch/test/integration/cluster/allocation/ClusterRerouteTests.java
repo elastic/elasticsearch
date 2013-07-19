@@ -36,8 +36,8 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import java.io.File;
 
@@ -47,12 +47,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
 public class ClusterRerouteTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
@@ -200,4 +199,5 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
 
     }
+
 }

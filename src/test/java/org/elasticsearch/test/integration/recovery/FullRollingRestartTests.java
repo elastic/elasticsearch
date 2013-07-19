@@ -19,14 +19,14 @@
 
 package org.elasticsearch.test.integration.recovery;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -34,12 +34,13 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class FullRollingRestartTests extends AbstractNodesTests {
 
-    @AfterMethod
+    @After
     public void shutdownNodes() {
         closeAllNodes();
     }
 
     @Test
+    @Slow
     public void testFullRollingRestart() throws Exception {
         startNode("node1");
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();

@@ -34,24 +34,21 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.testng.Assert.assertTrue;
 
 /**
  *
  */
 public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
-    @BeforeClass
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
+    @Override
+    protected int numberOfNodes() {
+        return 2;
     }
 
     @Test
@@ -559,7 +556,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
             assertThat(response.getMatches(), arrayWithSize(1));
             assertThat(convertFromTextArray(response.getMatches()), arrayContaining("1"));
         } while (++counter <= 1000);
-        assertTrue(moreThanOneMs, "Something is off, we should have spent at least 1ms on percolating...");
+        assertTrue("Something is off, we should have spent at least 1ms on percolating...", moreThanOneMs);
 
         long percolateSumTime = 0;
         nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();

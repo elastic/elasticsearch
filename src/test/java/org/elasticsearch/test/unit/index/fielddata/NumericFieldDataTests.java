@@ -19,32 +19,22 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.apache.lucene.search.*;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.testng.annotations.Test;
+import org.junit.Ignore;
+import org.junit.Test;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Test
-public abstract class NumericFieldDataTests extends StringFieldDataTests {
+@Ignore("abstract")
+public abstract class NumericFieldDataTests extends AbstractStringFieldDataTests {
 
     protected abstract FieldDataType getFieldDataType();
 

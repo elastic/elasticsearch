@@ -19,6 +19,7 @@
 package org.elasticsearch.index.percolator;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 
 /**
  *
@@ -28,5 +29,6 @@ public class PercolatorShardModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(PercolatorQueriesRegistry.class).asEagerSingleton();
+        bind(ShardPercolateService.class).asEagerSingleton();
     }
 }

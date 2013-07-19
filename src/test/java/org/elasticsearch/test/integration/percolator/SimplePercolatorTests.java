@@ -19,6 +19,9 @@
 
 package org.elasticsearch.test.integration.percolator;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -489,6 +492,62 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches()), arrayContaining("kuku"));
+    }
+
+    @Test
+    public void testPercolateStatistics() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> register a query");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> First percolate request");
+        PercolateResponse response = client().preparePercolate("test", "type")
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContaining("1"));
+
+        IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
+        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(5l)); // We have 5 partitions
+        assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
+
+        NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        long percolateCount = 0;
+        long percolateSumTime = 0;
+        for (NodeStats nodeStats : nodesResponse) {
+            percolateCount += nodeStats.getIndices().getPercolate().getCount();
+            percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
+        }
+        assertThat(percolateCount, equalTo(5l)); // We have 5 partitions
+        assertThat(percolateSumTime, greaterThan(0l));
+
+        logger.info("--> Second percolate request");
+        response = client().preparePercolate("test", "type")
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContaining("1"));
+
+        indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
+        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
+        assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
+
+        nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        percolateCount = 0;
+        percolateSumTime = 0;
+        for (NodeStats nodeStats : nodesResponse) {
+            percolateCount += nodeStats.getIndices().getPercolate().getCount();
+            percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
+        }
+        assertThat(percolateCount, equalTo(10l));
+        assertThat(percolateSumTime, greaterThan(0l));
     }
 
     public static String[] convertFromTextArray(Text[] texts) {

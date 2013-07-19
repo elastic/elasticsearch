@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -86,78 +87,85 @@ public class PercolatorService extends AbstractComponent {
         IndexService percolateIndexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
 
-        ConcurrentMap<Text, Query> percolateQueries = indexShard.percolateRegistry().percolateQueries();
-        if (percolateQueries.isEmpty()) {
-            return new PercolateShardResponse(StringText.EMPTY_ARRAY, request.index(), request.shardId());
-        }
-
-        Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.documentSource());
-        ParsedDocument parsedDocument = parseResult.v1();
-        Query query = parseResult.v2();
-
-        // first, parse the source doc into a MemoryIndex
-        final MemoryIndex memoryIndex = cache.get();
+        ShardPercolateService shardPercolateService = indexShard.shardPercolateService();
+        shardPercolateService.prePercolate();
+        long startTime = System.nanoTime();
         try {
-            // TODO: This means percolation does not support nested docs...
-            for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-                if (!field.fieldType().indexed()) {
-                    continue;
-                }
-                // no need to index the UID field
-                if (field.name().equals(UidFieldMapper.NAME)) {
-                    continue;
-                }
-                TokenStream tokenStream;
-                try {
-                    tokenStream = field.tokenStream(parsedDocument.analyzer());
-                    if (tokenStream != null) {
-                        memoryIndex.addField(field.name(), tokenStream, field.boost());
-                    }
-                } catch (IOException e) {
-                    throw new ElasticSearchException("Failed to create token stream", e);
-                }
+            ConcurrentMap<Text, Query> percolateQueries = indexShard.percolateRegistry().percolateQueries();
+            if (percolateQueries.isEmpty()) {
+                return new PercolateShardResponse(StringText.EMPTY_ARRAY, request.index(), request.shardId());
             }
 
-            final IndexSearcher searcher = memoryIndex.createSearcher();
-            List<Text> matches = new ArrayList<Text>();
+            Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.documentSource());
+            ParsedDocument parsedDocument = parseResult.v1();
+            Query query = parseResult.v2();
 
-            IndexFieldDataService fieldDataService = percolateIndexService.fieldData();
-            IndexCache indexCache = percolateIndexService.cache();
+            // first, parse the source doc into a MemoryIndex
+            final MemoryIndex memoryIndex = cache.get();
             try {
-                if (query == null) {
-                    Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-                    for (Map.Entry<Text, Query> entry : percolateQueries.entrySet()) {
-                        collector.reset();
-                        try {
-                            searcher.search(entry.getValue(), collector);
-                        } catch (IOException e) {
-                            logger.warn("[" + entry.getKey() + "] failed to execute query", e);
-                        }
-
-                        if (collector.exists()) {
-                            matches.add(entry.getKey());
-                        }
+                // TODO: This means percolation does not support nested docs...
+                for (IndexableField field : parsedDocument.rootDoc().getFields()) {
+                    if (!field.fieldType().indexed()) {
+                        continue;
                     }
-                } else {
-                    Engine.Searcher percolatorSearcher = indexShard.searcher();
+                    // no need to index the UID field
+                    if (field.name().equals(UidFieldMapper.NAME)) {
+                        continue;
+                    }
+                    TokenStream tokenStream;
                     try {
-                        percolatorSearcher.searcher().search(
-                                query, new QueryCollector(logger, percolateQueries, searcher, fieldDataService, matches)
-                        );
+                        tokenStream = field.tokenStream(parsedDocument.analyzer());
+                        if (tokenStream != null) {
+                            memoryIndex.addField(field.name(), tokenStream, field.boost());
+                        }
                     } catch (IOException e) {
-                        logger.warn("failed to execute", e);
-                    } finally {
-                        percolatorSearcher.release();
+                        throw new ElasticSearchException("Failed to create token stream", e);
                     }
                 }
+
+                final IndexSearcher searcher = memoryIndex.createSearcher();
+                List<Text> matches = new ArrayList<Text>();
+
+                IndexFieldDataService fieldDataService = percolateIndexService.fieldData();
+                IndexCache indexCache = percolateIndexService.cache();
+                try {
+                    if (query == null) {
+                        Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+                        for (Map.Entry<Text, Query> entry : percolateQueries.entrySet()) {
+                            collector.reset();
+                            try {
+                                searcher.search(entry.getValue(), collector);
+                            } catch (IOException e) {
+                                logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                            }
+
+                            if (collector.exists()) {
+                                matches.add(entry.getKey());
+                            }
+                        }
+                    } else {
+                        Engine.Searcher percolatorSearcher = indexShard.searcher();
+                        try {
+                            percolatorSearcher.searcher().search(
+                                    query, new QueryCollector(logger, percolateQueries, searcher, fieldDataService, matches)
+                            );
+                        } catch (IOException e) {
+                            logger.warn("failed to execute", e);
+                        } finally {
+                            percolatorSearcher.release();
+                        }
+                    }
+                } finally {
+                    // explicitly clear the reader, since we can only register on callback on SegmentReader
+                    indexCache.clear(searcher.getIndexReader());
+                    fieldDataService.clear(searcher.getIndexReader());
+                }
+                return new PercolateShardResponse(matches.toArray(new Text[matches.size()]), request.index(), request.shardId());
             } finally {
-                // explicitly clear the reader, since we can only register on callback on SegmentReader
-                indexCache.clear(searcher.getIndexReader());
-                fieldDataService.clear(searcher.getIndexReader());
+                memoryIndex.reset();
             }
-            return new PercolateShardResponse(matches.toArray(new Text[matches.size()]), request.index(), request.shardId());
         } finally {
-            memoryIndex.reset();
+            shardPercolateService.postPercolate(System.nanoTime() - startTime);
         }
     }
 

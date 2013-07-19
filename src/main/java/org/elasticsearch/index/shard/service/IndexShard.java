@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -96,6 +97,8 @@ public interface IndexShard extends IndexShardComponent {
     FieldDataStats fieldDataStats(String... fields);
 
     PercolatorQueriesRegistry percolateRegistry();
+
+    ShardPercolateService shardPercolateService();
 
     IndexShardState state();
 

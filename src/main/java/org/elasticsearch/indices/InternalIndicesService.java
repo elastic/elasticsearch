@@ -56,6 +56,7 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -246,6 +247,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 case FilterCache:
                     stats.filterCache = new FilterCacheStats();
                     break;
+                case Percolate:
+                    stats.percolate = new PercolateStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -291,6 +295,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                             break;
                         case Warmer:
                             stats.warmer.add(indexShard.warmerStats());
+                            break;
+                        case Percolate:
+                            stats.percolate.add(indexShard.shardPercolateService().stats());
                             break;
                         default:
                             throw new IllegalStateException("Unknown Flag: " + flag);

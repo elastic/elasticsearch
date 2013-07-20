@@ -32,11 +32,68 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
+import java.lang.Math;
 
 final class QueryRescorer implements Rescorer {
-    
+
+    private static enum ScoreMode {
+        Avg {
+            @Override
+            public float combine(float primary, float secondary) {
+                return (primary + secondary) / 2;
+            }
+            @Override
+            public String toString() {
+                return "avg";
+            }
+        },
+        Max {
+            @Override
+            public float combine(float primary, float secondary) {
+                return Math.max(primary, secondary);
+            }
+            @Override
+            public String toString() {
+                return "max";
+            }
+        },
+        Min {
+            @Override
+            public float combine(float primary, float secondary) {
+                return Math.min(primary, secondary);
+            }
+            @Override
+            public String toString() {
+                return "min";
+            }
+        },
+        Total {
+            @Override
+            public float combine(float primary, float secondary) {
+                return primary + secondary;
+            }
+            @Override
+            public String toString() {
+                return "sum";
+            }
+        },
+        Multiply {
+            @Override
+            public float combine(float primary, float secondary) {
+                return primary * secondary;
+            }
+            @Override
+            public String toString() {
+                return "product";
+            }
+        };
+
+        public abstract float combine(float primary, float secondary);
+    }
+
     public static final Rescorer INSTANCE = new QueryRescorer();
     public static final String NAME = "query";
+
     @Override
     public String name() {
         return NAME;
@@ -72,20 +129,21 @@ final class QueryRescorer implements Rescorer {
                 "product of:");
         prim.addDetail(primaryExplain);
         prim.addDetail(new Explanation(primaryWeight, "primaryWeight"));
-        if (rescoreExplain != null) {
-            ComplexExplanation sumExpl = new ComplexExplanation();
-            sumExpl.setDescription("sum of:");
-            sumExpl.addDetail(prim);
-            sumExpl.setMatch(prim.isMatch());
+        if (rescoreExplain != null && rescoreExplain.isMatch()) {
             float secondaryWeight = rescore.rescoreQueryWeight();
             ComplexExplanation sec = new ComplexExplanation(rescoreExplain.isMatch(),
                     rescoreExplain.getValue() * secondaryWeight,
                     "product of:");
             sec.addDetail(rescoreExplain);
             sec.addDetail(new Explanation(secondaryWeight, "secondaryWeight"));
-            sumExpl.addDetail(sec);
-            sumExpl.setValue(prim.getValue() + sec.getValue());
-            return sumExpl;
+            ScoreMode scoreMode = rescore.scoreMode();
+            ComplexExplanation calcExpl = new ComplexExplanation();
+            calcExpl.setDescription(scoreMode + " of:");
+            calcExpl.addDetail(prim);
+            calcExpl.setMatch(prim.isMatch());
+            calcExpl.addDetail(sec);
+            calcExpl.setValue(scoreMode.combine(prim.getValue(), sec.getValue()));
+            return calcExpl;
         } else {
             return prim;
         }
@@ -108,6 +166,21 @@ final class QueryRescorer implements Rescorer {
                     rescoreContext.setQueryWeight(parser.floatValue());
                 } else if("rescore_query_weight".equals(fieldName)) {
                     rescoreContext.setRescoreQueryWeight(parser.floatValue());
+                } else if ("score_mode".equals(fieldName)) {
+                    String sScoreMode = parser.text();
+                    if ("avg".equals(sScoreMode)) {
+                        rescoreContext.setScoreMode(ScoreMode.Avg);
+                    } else if ("max".equals(sScoreMode)) {
+                        rescoreContext.setScoreMode(ScoreMode.Max);
+                    } else if ("min".equals(sScoreMode)) {
+                        rescoreContext.setScoreMode(ScoreMode.Min);
+                    } else if ("total".equals(sScoreMode)) {
+                        rescoreContext.setScoreMode(ScoreMode.Total);
+                    } else if ("multiply".equals(sScoreMode)) {
+                        rescoreContext.setScoreMode(ScoreMode.Multiply);
+                    } else {
+                        throw new ElasticSearchIllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
+                    }
                 } else {
                     throw new ElasticSearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
                 }
@@ -120,11 +193,13 @@ final class QueryRescorer implements Rescorer {
         
         public QueryRescoreContext(QueryRescorer rescorer) {
             super(NAME, 10, rescorer);
+            this.scoreMode = ScoreMode.Total;
         }
 
         private ParsedQuery parsedQuery;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
+        private ScoreMode scoreMode;
 
         public void setParsedQuery(ParsedQuery parsedQuery) {
             this.parsedQuery = parsedQuery;
@@ -142,12 +217,20 @@ final class QueryRescorer implements Rescorer {
             return rescoreQueryWeight;
         }
 
+        public ScoreMode scoreMode() {
+            return scoreMode;
+        }
+
         public void setRescoreQueryWeight(float rescoreQueryWeight) {
             this.rescoreQueryWeight = rescoreQueryWeight;
         }
 
         public void setQueryWeight(float queryWeight) {
             this.queryWeight = queryWeight;
+        }
+
+        public void setScoreMode(ScoreMode scoreMode) {
+            this.scoreMode = scoreMode;
         }
         
     }
@@ -164,9 +247,10 @@ final class QueryRescorer implements Rescorer {
         int j = 0;
         float primaryWeight = context.queryWeight();
         float secondaryWeight = context.rescoreQueryWeight();
-        for (int i = 0; i < primaryDocs.length && j < secondaryDocs.length; i++) {
-            if (primaryDocs[i].doc == secondaryDocs[j].doc) {
-                primaryDocs[i].score = (primaryDocs[i].score * primaryWeight) + (secondaryDocs[j++].score * secondaryWeight);
+        ScoreMode scoreMode = context.scoreMode();
+        for (int i = 0; i < primaryDocs.length; i++) {
+            if (j < secondaryDocs.length && primaryDocs[i].doc == secondaryDocs[j].doc) {
+                primaryDocs[i].score = scoreMode.combine(primaryDocs[i].score * primaryWeight, secondaryDocs[j++].score * secondaryWeight);
             } else {
                 primaryDocs[i].score *= primaryWeight;
             }

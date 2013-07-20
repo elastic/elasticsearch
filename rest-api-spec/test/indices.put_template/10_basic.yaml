@@ -1,0 +1,29 @@
+---
+"Basic tests for templates":
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          template: test-*
+          settings: 
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - is_true: ok
+
+  - do:
+      indices.get_template:
+        name: test
+
+  - match: {test.template: "test-*"}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+
+  - do:
+      indices.delete_template:
+        name: test
+
+  - do:
+      indices.get_template:
+        name: test
+
+  - match: {'': {}}

@@ -77,6 +77,10 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                 Map<String, IndexService> indices = Maps.newHashMap();
                 try {
                     for (AliasAction aliasAction : request.actions) {
+                        if (!Strings.hasText(aliasAction.alias()) || !Strings.hasText(aliasAction.index())) {
+                            listener.onFailure(new ElasticSearchIllegalArgumentException("Index name and alias name are required"));
+                            return currentState;
+                        }
                         if (!currentState.metaData().hasIndex(aliasAction.index())) {
                             listener.onFailure(new IndexMissingException(new Index(aliasAction.index())));
                             return currentState;

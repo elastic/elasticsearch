@@ -117,12 +117,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                                     }
                                 }
                             }
-                            if (index == null) {
-                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [index] to be set");
-                            }
-                            if (alias == null) {
-                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [alias] to be set");
-                            }
+
                             if (type == AliasAction.Type.ADD) {
                                 AliasAction aliasAction = newAddAliasAction(index, alias).filter(filter);
                                 if (routingSet) {

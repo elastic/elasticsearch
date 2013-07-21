@@ -255,7 +255,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setRefresh(true)
                 .execute().actionGet();
     }
-    
+
     @Test
     // see #2814
     public void percolateCustomAnalyzer() throws Exception {
@@ -264,17 +264,17 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         builder.putArray("index.analysis.analyzer.lwhitespacecomma.filter", "lowercase");
         builder.put("index.analysis.tokenizer.whitespacecomma.type", "pattern");
         builder.put("index.analysis.tokenizer.whitespacecomma.pattern", "(,|\\s+)");
-        
+
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("doc")
-        .startObject("properties")
-            .startObject("filingcategory").field("type", "string").field("analyzer", "lwhitespacecomma").endObject()
-        .endObject()
-        .endObject().endObject();
+                .startObject("properties")
+                .startObject("filingcategory").field("type", "string").field("analyzer", "lwhitespacecomma").endObject()
+                .endObject()
+                .endObject().endObject();
 
         client().admin().indices().prepareCreate("test")
-            .addMapping("doc", mapping)
-            .setSettings(builder.put("index.number_of_shards", 1))
-            .execute().actionGet();
+                .addMapping("doc", mapping)
+                .setSettings(builder.put("index.number_of_shards", 1))
+                .execute().actionGet();
         ensureGreen();
 
         logger.info("--> register a query");
@@ -292,7 +292,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
-      
+
     }
 
     @Test
@@ -514,7 +514,8 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(5l)); // We have 5 partitions
-        assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
+        // it might be too fast to be counted in milliseconds...
+        //assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
@@ -525,7 +526,8 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
             percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
         }
         assertThat(percolateCount, equalTo(5l)); // We have 5 partitions
-        assertThat(percolateSumTime, greaterThan(0l));
+        // it might be too fast to be counted in milliseconds...
+        //assertThat(percolateSumTime, greaterThan(0l));
 
         logger.info("--> Second percolate request");
         response = client().preparePercolate("test", "type")
@@ -536,7 +538,8 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
-        assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
+        // it might be too fast to be counted in milliseconds...
+        //assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
 
         nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
@@ -547,7 +550,8 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
             percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
         }
         assertThat(percolateCount, equalTo(10l));
-        assertThat(percolateSumTime, greaterThan(0l));
+        // it might be too fast to be counted in milliseconds...
+        //assertThat(percolateSumTime, greaterThan(0l));
     }
 
     public static String[] convertFromTextArray(Text[] texts) {

@@ -21,6 +21,9 @@ If one of the levels (eg `tokens`) does not exist, it should return an undefined
 If no field name is given (ie the empty string) then return the current
 $val -- used for testing the whole response body.
 
+Use \. to specify paths that actually contain '.' in the key name, for example
+in the `indices.get_settings` API.
+
 Skipping tests:
 ---------------
 If tests should be skipped on particular versions of Elasticsearch, the

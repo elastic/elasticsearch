@@ -196,7 +196,7 @@ public class ShardStateAction extends AbstractComponent {
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
                 rerouteRequired.set(true);
-                clusterService.submitStateUpdateTask("reroute post shard-started (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("reroute post shard-started (" + shardRouting + "), reason [" + reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         if (rerouteRequired.compareAndSet(true, false)) {

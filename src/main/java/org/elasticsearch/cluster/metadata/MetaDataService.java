@@ -35,7 +35,7 @@ public class MetaDataService extends AbstractComponent {
     @Inject
     public MetaDataService(Settings settings) {
         super(settings);
-        indexMdLocks = new Semaphore[1];
+        indexMdLocks = new Semaphore[500];
         for (int i = 0; i < indexMdLocks.length; i++) {
             indexMdLocks[i] = new Semaphore(1);
         }

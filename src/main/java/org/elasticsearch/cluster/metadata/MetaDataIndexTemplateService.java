@@ -65,8 +65,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
@@ -78,8 +78,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     }
                 }
                 if (templateNames.isEmpty()) {
-                    listener.onFailure(new IndexTemplateMissingException(request.name));
-                    return currentState;
+                    throw new IndexTemplateMissingException(request.name);
                 }
                 MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData());
                 for (String templateName : templateNames) {
@@ -89,7 +88,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new RemoveResponse(true));
             }
         });
@@ -148,15 +147,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {
-                    listener.onFailure(new IndexTemplateAlreadyExistsException(request.name));
-                    return currentState;
+                    throw new IndexTemplateAlreadyExistsException(request.name);
                 }
                 MetaData.Builder builder = MetaData.builder().metaData(currentState.metaData())
                         .put(template);
@@ -165,7 +163,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new PutResponse(true, template));
             }
         });

@@ -33,9 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  * Delete index action.
  */
@@ -55,7 +52,8 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // no need to use a thread pool, we go async right away
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -95,38 +93,18 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected CloseIndexResponse masterOperation(CloseIndexRequest request, ClusterState state) throws ElasticSearchException {
-        final AtomicReference<CloseIndexResponse> responseRef = new AtomicReference<CloseIndexResponse>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
+    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
         stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.indices()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataStateIndexService.Listener() {
             @Override
             public void onResponse(MetaDataStateIndexService.Response response) {
-                responseRef.set(new CloseIndexResponse(response.acknowledged()));
-                latch.countDown();
+                listener.onResponse(new CloseIndexResponse(response.acknowledged()));
             }
 
             @Override
             public void onFailure(Throwable t) {
-                failureRef.set(t);
-                latch.countDown();
+                logger.debug("failed to close indices [{}]", t, request.indices());
+                listener.onFailure(t);
             }
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return responseRef.get();
     }
 }

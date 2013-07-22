@@ -79,8 +79,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
@@ -90,20 +90,16 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                 try {
                     for (AliasAction aliasAction : request.actions) {
                         if (!Strings.hasText(aliasAction.alias()) || !Strings.hasText(aliasAction.index())) {
-                            listener.onFailure(new ElasticSearchIllegalArgumentException("Index name and alias name are required"));
-                            return currentState;
+                            throw new ElasticSearchIllegalArgumentException("Index name and alias name are required");
                         }
                         if (!currentState.metaData().hasIndex(aliasAction.index())) {
-                            listener.onFailure(new IndexMissingException(new Index(aliasAction.index())));
-                            return currentState;
+                            throw new IndexMissingException(new Index(aliasAction.index()));
                         }
                         if (currentState.metaData().hasIndex(aliasAction.alias())) {
-                            listener.onFailure(new InvalidAliasNameException(new Index(aliasAction.index()), aliasAction.alias(), "an index exists with the same name as the alias"));
-                            return currentState;
+                            throw new InvalidAliasNameException(new Index(aliasAction.index()), aliasAction.alias(), "an index exists with the same name as the alias");
                         }
                         if (aliasAction.indexRouting() != null && aliasAction.indexRouting().indexOf(',') != -1) {
-                            listener.onFailure(new ElasticSearchIllegalArgumentException("alias [" + aliasAction.alias() + "] has several routing values associated with it"));
-                            return currentState;
+                            throw new ElasticSearchIllegalArgumentException("alias [" + aliasAction.alias() + "] has several routing values associated with it");
                         }
                     }
 
@@ -145,8 +141,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                         parser.close();
                                     }
                                 } catch (Throwable e) {
-                                    listener.onFailure(new ElasticSearchIllegalArgumentException("failed to parse filter for [" + aliasAction.alias() + "]", e));
-                                    return currentState;
+                                    throw new ElasticSearchIllegalArgumentException("failed to parse filter for [" + aliasAction.alias() + "]", e);
                                 }
                             }
                             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(
@@ -178,7 +173,6 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         // even though changes happened, they resulted in 0 actual changes to metadata
                         // i.e. remove and add the same alias to the same index
                         if (updatedState.metaData().aliases().equals(currentState.metaData().aliases())) {
-                            listener.onResponse(new Response(true));
                             return currentState;
                         }
                         // wait for responses from other nodes if needed
@@ -190,12 +184,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         return updatedState;
                     } else {
                         // Nothing to do
-                        listener.onResponse(new Response(true));
                         return currentState;
                     }
-                } catch (Throwable t) {
-                    listener.onFailure(t);
-                    return currentState;
                 } finally {
                     for (String index : indicesToClose) {
                         indicesService.removeIndex(index, "created for alias processing");
@@ -204,7 +194,11 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (oldState == newState) {
+                    // we didn't do anything, callback
+                    listener.onResponse(new Response(true));
+                }
             }
         });
     }

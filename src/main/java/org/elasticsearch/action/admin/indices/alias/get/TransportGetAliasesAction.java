@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,7 +49,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // very lightweight operation all in memory no need to fork to a thread pool
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -62,16 +64,15 @@ public class TransportGetAliasesAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected GetAliasesResponse masterOperation(GetAliasesRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
 
-        @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type
         Map<String, List<AliasMetaData>> result = (Map) state.metaData().findAliases(request.aliases(), request.indices());
         if (result.isEmpty()) {
             throw new AliasMissingException(request.aliases());
         }
-        return new GetAliasesResponse(result);
+        listener.onResponse(new GetAliasesResponse(result));
     }
 
 }

@@ -77,6 +77,11 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
                 }
                 return currentState;
             }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                assert false;
+            }
         });
 
         final CountDownLatch timedOut = new CountDownLatch(1);
@@ -88,7 +93,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
+            public void onFailure(String source, Throwable t) {
                 timedOut.countDown();
             }
 
@@ -99,7 +104,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             }
         });
 

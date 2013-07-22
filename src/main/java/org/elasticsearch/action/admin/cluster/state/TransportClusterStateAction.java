@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,7 +52,8 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        // very lightweight operation in memory, no need to fork to a thread
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -75,7 +77,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected ClusterStateResponse masterOperation(ClusterStateRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) throws ElasticSearchException {
         ClusterState currentState = clusterService.state();
         ClusterState.Builder builder = newClusterStateBuilder();
         if (!request.filterNodes()) {
@@ -117,6 +119,6 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
 
             builder.metaData(mdBuilder);
         }
-        return new ClusterStateResponse(clusterName, builder.build());
+        listener.onResponse(new ClusterStateResponse(clusterName, builder.build()));
     }
 }

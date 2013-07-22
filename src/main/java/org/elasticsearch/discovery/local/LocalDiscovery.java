@@ -72,7 +72,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
-    // use CHM here and not ConcurrentMaps#new since we want to be able to agentify this using TC later on...
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
     private static final AtomicLong nodeIdGenerator = new AtomicLong();
@@ -137,7 +136,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
 
                     @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -150,6 +154,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         // make sure we have the local node id set, we might need it as a result of the new metadata
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
                         return ClusterState.builder().state(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
                     }
                 });
 
@@ -167,7 +176,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
 
                     @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -222,6 +236,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         ClusterState updatedState = newClusterStateBuilder().state(currentState).nodes(newNodes).build();
                         RoutingAllocation.Result routingResult = master.allocationService.reroute(newClusterStateBuilder().state(updatedState).build());
                         return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
                     }
                 });
             }
@@ -288,7 +307,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
 
                         @Override
-                        public void clusterStateProcessed(ClusterState clusterState) {
+                        public void onFailure(String source, Throwable t) {
+                            logger.error("unexpected failure during [{}]", t, source);
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             sendInitialStateEventIfNeeded();
                         }
                     });

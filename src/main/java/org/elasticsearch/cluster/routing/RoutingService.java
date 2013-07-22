@@ -149,6 +149,11 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                     }
                     return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
                 }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                }
             });
             routingTableDirty = false;
         } catch (Exception e) {

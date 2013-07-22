@@ -281,8 +281,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState clusterState) {
-                    logger.info("recovered [{}] indices into cluster_state", clusterState.metaData().indices().size());
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
                     latch.countDown();
                 }
             });

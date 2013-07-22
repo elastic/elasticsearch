@@ -20,9 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -66,7 +67,18 @@ public class MetaDataStateIndexService extends AbstractComponent {
         }
 
         final String indicesAsString = Arrays.toString(request.indices);
-        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToClose = new ArrayList<String>();
@@ -123,7 +135,17 @@ public class MetaDataStateIndexService extends AbstractComponent {
         }
 
         final String indicesAsString = Arrays.toString(request.indices);
-        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToOpen = new ArrayList<String>();
@@ -186,6 +208,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
         final String[] indices;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public Request(String[] indices) {
             this.indices = indices;
@@ -193,6 +216,11 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
         public Request timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public Request masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
             return this;
         }
     }

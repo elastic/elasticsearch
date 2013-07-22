@@ -19,9 +19,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -81,7 +82,18 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         }
 
         final DeleteIndexListener listener = new DeleteIndexListener(mdLock, request, userListener);
-        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
@@ -133,6 +145,10 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     listener.onFailure(e);
                     return currentState;
                 }
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
             }
         });
     }
@@ -191,6 +207,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         final String index;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public Request(String index) {
             this.index = index;
@@ -198,6 +215,11 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         public Request timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public Request masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
             return this;
         }
     }

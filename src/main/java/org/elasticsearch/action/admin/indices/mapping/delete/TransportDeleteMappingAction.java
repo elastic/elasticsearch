@@ -114,7 +114,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                         refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
                                     @Override
                                     public void onResponse(MetaDataMappingService.Response response) {
                                         latch.countDown();
@@ -130,7 +130,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
                             @Override
                             public void onFailure(Throwable e) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
                                     @Override
                                     public void onResponse(MetaDataMappingService.Response response) {
                                         latch.countDown();

@@ -90,7 +90,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         final AtomicReference<PutMappingResponse> responseRef = new AtomicReference<PutMappingResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()), new MetaDataMappingService.Listener() {
+        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
             @Override
             public void onResponse(MetaDataMappingService.Response response) {
                 responseRef.set(new PutMappingResponse(response.acknowledged()));

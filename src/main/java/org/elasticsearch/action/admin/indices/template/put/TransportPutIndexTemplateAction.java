@@ -89,7 +89,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
                 .settings(request.settings())
                 .mappings(request.mappings())
                 .customs(request.customs())
-                .create(request.create()),
+                .create(request.create())
+                .masterTimeout(request.masterNodeTimeout()),
 
                 new MetaDataIndexTemplateService.PutListener() {
                     @Override

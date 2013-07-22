@@ -110,6 +110,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, index, alias);
         indicesAliasesRequest.addAliasAction(aliasAction);
+        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
 
         if (routing != null) {
             aliasAction.routing(routing);

@@ -23,9 +23,10 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -55,7 +57,18 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = Sets.newHashSet();
@@ -127,7 +140,18 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         final IndexTemplateMetaData template = templateBuilder.build();
 
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {
@@ -197,6 +221,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Map<String, String> mappings = Maps.newHashMap();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+
         public PutRequest(String cause, String name) {
             this.cause = cause;
             this.name = name;
@@ -236,6 +262,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             mappings.put(mappingType, mappingSource);
             return this;
         }
+
+        public PutRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
+        }
     }
 
     public static class PutResponse {
@@ -258,9 +289,15 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
     public static class RemoveRequest {
         final String name;
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;
+        }
+
+        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
         }
     }
 

@@ -27,9 +27,10 @@ import com.google.common.io.Closeables;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -134,7 +135,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 boolean indexCreated = false;
@@ -502,7 +514,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public static class Request {
 
         final String cause;
-
         final String index;
 
         State state = State.OPEN;
@@ -515,6 +526,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
 
         TimeValue timeout = TimeValue.timeValueSeconds(5);
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         Set<ClusterBlock> blocks = Sets.newHashSet();
 
@@ -564,6 +576,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public Request masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
             return this;
         }
     }

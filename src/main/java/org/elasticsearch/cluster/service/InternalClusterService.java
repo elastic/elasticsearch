@@ -225,7 +225,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     threadPool.generic().execute(new Runnable() {
                         @Override
                         public void run() {
-                            timeoutUpdateTask.onTimeout(task.source);
+                            timeoutUpdateTask.onTimeout(timeoutUpdateTask.timeout(), task.source);
                         }
                     });
                 }

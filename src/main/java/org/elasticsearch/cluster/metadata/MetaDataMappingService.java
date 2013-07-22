@@ -22,10 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Priority;
@@ -224,7 +222,17 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void removeMapping(final RemoveRequest request, final Listener listener) {
         final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
-        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
@@ -274,7 +282,17 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void putMapping(final PutRequest request, final Listener listener) {
         final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
-        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToClose = Lists.newArrayList();
@@ -434,12 +452,17 @@ public class MetaDataMappingService extends AbstractComponent {
     public static class RemoveRequest {
 
         final String[] indices;
-
         final String mappingType;
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String[] indices, String mappingType) {
             this.indices = indices;
             this.mappingType = mappingType;
+        }
+
+        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
         }
     }
 
@@ -454,6 +477,7 @@ public class MetaDataMappingService extends AbstractComponent {
         boolean ignoreConflicts = false;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public PutRequest(String[] indices, String mappingType, String mappingSource) {
             this.indices = indices;
@@ -468,6 +492,11 @@ public class MetaDataMappingService extends AbstractComponent {
 
         public PutRequest timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public PutRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
             return this;
         }
     }

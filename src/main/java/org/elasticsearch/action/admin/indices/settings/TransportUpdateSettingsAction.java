@@ -71,7 +71,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        updateSettingsService.updateSettings(request.settings(), request.indices(), new MetaDataUpdateSettingsService.Listener() {
+        updateSettingsService.updateSettings(request.settings(), request.indices(), request.masterNodeTimeout(), new MetaDataUpdateSettingsService.Listener() {
             @Override
             public void onSuccess() {
                 latch.countDown();

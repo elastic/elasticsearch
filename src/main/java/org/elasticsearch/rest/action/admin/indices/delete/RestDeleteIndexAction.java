@@ -53,6 +53,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(splitIndices(request.param("index")));
         deleteIndexRequest.listenerThreaded(false);
         deleteIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override
             public void onResponse(DeleteIndexResponse response) {

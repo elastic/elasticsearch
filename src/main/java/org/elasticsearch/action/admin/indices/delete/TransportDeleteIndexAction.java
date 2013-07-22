@@ -123,7 +123,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(request.indices().length);
         for (final String index : request.indices()) {
-            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()), new MetaDataDeleteIndexService.Listener() {
+            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
                 @Override
                 public void onResponse(MetaDataDeleteIndexService.Response response) {
                     responseRef.set(new DeleteIndexResponse(response.acknowledged()));

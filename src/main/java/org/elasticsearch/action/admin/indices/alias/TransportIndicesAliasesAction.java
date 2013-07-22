@@ -85,7 +85,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
         final AtomicReference<IndicesAliasesResponse> responseRef = new AtomicReference<IndicesAliasesResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        indexAliasesService.indicesAliases(new MetaDataIndexAliasesService.Request(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]), request.timeout()), new MetaDataIndexAliasesService.Listener() {
+        indexAliasesService.indicesAliases(new MetaDataIndexAliasesService.Request(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]), request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexAliasesService.Listener() {
             @Override
             public void onResponse(MetaDataIndexAliasesService.Response response) {
                 responseRef.set(new IndicesAliasesResponse(response.acknowledged()));

@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.Locale;
@@ -102,7 +103,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     if (numberOfReplicas >= min && numberOfReplicas <= max) {
                         final int fNumberOfReplicas = numberOfReplicas;
                         Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
-                        updateSettings(settings, new String[]{indexMetaData.index()}, new Listener() {
+                        updateSettings(settings, new String[]{indexMetaData.index()}, TimeValue.timeValueMinutes(10), new Listener() {
                             @Override
                             public void onSuccess() {
                                 logger.info("[{}] auto expanded replicas to [{}]", indexMetaData.index(), fNumberOfReplicas);
@@ -121,7 +122,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
     }
 
-    public void updateSettings(final Settings pSettings, final String[] indices, final Listener listener) {
+    public void updateSettings(final Settings pSettings, final String[] indices, final TimeValue masterTimeout, final Listener listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
         for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
             if (entry.getKey().equals("index")) {
@@ -168,7 +169,17 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
-        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+            @Override
+            public TimeValue timeout() {
+                return masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
@@ -189,7 +200,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
                     if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
-                        listener.onFailure(new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, 
+                        listener.onFailure(new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT,
                                 "Can't update non dynamic settings[%s] for open indices[%s]",
                                 removedSettings,
                                 openIndices

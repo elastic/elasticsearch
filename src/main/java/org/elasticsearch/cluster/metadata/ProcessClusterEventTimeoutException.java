@@ -17,25 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 
 /**
- * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
- * a timeout.
  */
-public interface TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
+public class ProcessClusterEventTimeoutException extends ElasticSearchException {
 
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onTimeout(TimeValue, String)}.
-     */
-    TimeValue timeout();
+    public ProcessClusterEventTimeoutException(TimeValue timeValue, String source) {
+        super("failed to process cluster event (" + source + ") within " + timeValue);
+    }
 
-    /**
-     * Called when the cluster sate update task wasn't processed by the provided
-     * {@link #timeout()}.
-     */
-    void onTimeout(TimeValue timeout, String source);
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
+    }
 }

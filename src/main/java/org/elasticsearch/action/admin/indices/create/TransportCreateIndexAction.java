@@ -86,7 +86,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
         createIndexService.createIndex(new MetaDataCreateIndexService.Request(cause, request.index()).settings(request.settings())
                 .mappings(request.mappings())
                 .customs(request.customs())
-                .timeout(request.timeout()),
+                .timeout(request.timeout())
+                .masterTimeout(request.masterNodeTimeout()),
                 new MetaDataCreateIndexService.Listener() {
                     @Override
                     public void onResponse(MetaDataCreateIndexService.Response response) {

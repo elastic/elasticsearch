@@ -61,6 +61,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.source(request.content().toUtf8());
         putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
+        putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
             @Override
             public void onResponse(PutMappingResponse response) {

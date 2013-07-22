@@ -22,9 +22,10 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -70,7 +71,18 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     }
 
     public void indicesAliases(final Request request, final Listener listener) {
-        clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            }
+
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 List<String> indicesToClose = Lists.newArrayList();
@@ -182,7 +194,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         return currentState;
                     }
                 } catch (Throwable t) {
-                    listener.onResponse(new Response(true));
+                    listener.onFailure(t);
                     return currentState;
                 } finally {
                     for (String index : indicesToClose) {
@@ -209,10 +221,16 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
         final AliasAction[] actions;
 
         final TimeValue timeout;
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public Request(AliasAction[] actions, TimeValue timeout) {
             this.actions = actions;
             this.timeout = timeout;
+        }
+
+        public Request masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
         }
     }
 

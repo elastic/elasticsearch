@@ -40,6 +40,7 @@ import org.testng.annotations.Test;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -336,14 +337,11 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
         final int numberPercolateOperation = 100;
 
         final AtomicBoolean assertionFailure = new AtomicBoolean(false);
-        final CountDownLatch start = new CountDownLatch(1);
         final AtomicInteger indexOperations = new AtomicInteger();
         final AtomicInteger deleteOperations = new AtomicInteger();
-
         final AtomicBoolean run = new AtomicBoolean(true);
-        final AtomicBoolean freeze = new AtomicBoolean(false);
-        final CountDownLatch[] latches = new CountDownLatch[2];
         Thread[] indexThreads = new Thread[numIndexThreads];
+        final Semaphore semaphore = new Semaphore(numIndexThreads, true);
         for (int i = 0; i < indexThreads.length; i++) {
             Runnable r = new Runnable() {
                 @Override
@@ -352,37 +350,32 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                         Random r = new Random();
                         XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
                                 .field("query", termQuery("field1", "value")).endObject();
-                        start.await();
                         while (run.get()) {
-                            if (freeze.get()) {
-                                latches[0].countDown();
-                                latches[1].await();
-                            }
-
-                            if ((indexOperations.get() - deleteOperations.get()) > 0 && r.nextInt(100) < 19) {
-                                String id = Integer.toString(deleteOperations.incrementAndGet());
-                                DeleteResponse response = client().prepareDelete("index", "_percolator", id)
-                                        .execute().actionGet();
-                                assertThat(response.getId(), equalTo(id));
-                                assertThat(response.isNotFound(), equalTo(false));
-                            } else {
-                                String id = Integer.toString(indexOperations.incrementAndGet());
-                                IndexResponse response = client().prepareIndex("index", "_percolator", id)
-                                        .setSource(doc)
-                                        .execute().actionGet();
-                                assertThat(response.getId(), equalTo(id));
+                            semaphore.acquire();
+                            try {
+                                if ((indexOperations.get() - deleteOperations.get()) > 0 && r.nextInt(100) < 19) {
+                                    String id = Integer.toString(deleteOperations.incrementAndGet());
+                                    DeleteResponse response = client().prepareDelete("index", "_percolator", id)
+                                            .execute().actionGet();
+                                    assertThat(response.getId(), equalTo(id));
+                                    assertThat(response.isNotFound(), equalTo(false));
+                                } else {
+                                    String id = Integer.toString(indexOperations.incrementAndGet());
+                                    IndexResponse response = client().prepareIndex("index", "_percolator", id)
+                                            .setSource(doc)
+                                            .execute().actionGet();
+                                    assertThat(response.getId(), equalTo(id));
+                                }
+                            } finally {
+                                semaphore.release();
                             }
                         }
+                    } catch (InterruptedException iex) {
+                        logger.error("indexing thread was interrupted...", iex);
+                        run.set(false);
                     } catch (Throwable t) {
                         run.set(false);
                         assertionFailure.set(true);
-
-                        // If percolate is locked, then make sure isn't unlocked, otherwise we hang forever
-                        CountDownLatch percolateLatch = latches[0];
-                        latches[0] = null;
-                        if (percolateLatch != null) {
-                            percolateLatch.countDown();
-                        }
                         logger.error("Error in indexing thread...", t);
                     }
                 }
@@ -394,22 +387,22 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
         XContentBuilder percolateDoc = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value")
                 .endObject().endObject();
-        start.countDown();
         for (int counter = 0; counter < numberPercolateOperation; counter++) {
-            Thread.sleep(100);
-            latches[0] = new CountDownLatch(numIndexThreads); // Locks percolating until all indexing threads have been blocked
-            latches[1] = new CountDownLatch(1); // Locks indexing threads until percolate is done.
-            freeze.set(true);
-            latches[0].await();
-
-            int atLeastExpected = indexOperations.get() - deleteOperations.get();
-            PercolateResponse response = client().preparePercolate("index", "type")
-                    .setSource(percolateDoc).execute().actionGet();
-            assertThat(response.getShardFailures(), emptyArray());
-            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
-            assertThat(response.getMatches().length, equalTo(atLeastExpected));
-            freeze.set(false);
-            latches[1].countDown();
+            Thread.sleep(5);
+            semaphore.acquire(numIndexThreads);
+            try {
+                if (!run.get()) {
+                    break;
+                }
+                int atLeastExpected = indexOperations.get() - deleteOperations.get();
+                PercolateResponse response = client().preparePercolate("index", "type")
+                        .setSource(percolateDoc).execute().actionGet();
+                assertThat(response.getShardFailures(), emptyArray());
+                assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+                assertThat(response.getMatches().length, equalTo(atLeastExpected));
+            } finally {
+                semaphore.release(numIndexThreads);
+            }
         }
         run.set(false);
         for (Thread thread : indexThreads) {

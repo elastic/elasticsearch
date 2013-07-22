@@ -535,8 +535,8 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
 
-        nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         percolateCount = 0;
+        nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
         }
@@ -562,6 +562,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertTrue(moreThanOneMs, "Something is off, we should have spent at least 1ms on percolating...");
 
         long percolateSumTime = 0;
+        nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
             percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();

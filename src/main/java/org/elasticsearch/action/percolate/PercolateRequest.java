@@ -170,17 +170,21 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        startTime = in.readVLong();
         documentType = in.readString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
         documentUnsafe = false;
         documentSource = in.readBytesReference();
+        startTime = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVLong(startTime);
         out.writeString(documentType);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
         out.writeBytesReference(documentSource);
+        out.writeVLong(startTime);
     }
 }

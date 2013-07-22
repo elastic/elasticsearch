@@ -72,26 +72,25 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     public void indicesAliases(final Request request, final Listener listener) {
         clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
-
-                for (AliasAction aliasAction : request.actions) {
-                    if (!currentState.metaData().hasIndex(aliasAction.index())) {
-                        listener.onFailure(new IndexMissingException(new Index(aliasAction.index())));
-                        return currentState;
-                    }
-                    if (currentState.metaData().hasIndex(aliasAction.alias())) {
-                        listener.onFailure(new InvalidAliasNameException(new Index(aliasAction.index()), aliasAction.alias(), "an index exists with the same name as the alias"));
-                        return currentState;
-                    }
-                    if (aliasAction.indexRouting() != null && aliasAction.indexRouting().indexOf(',') != -1) {
-                        listener.onFailure(new ElasticSearchIllegalArgumentException("alias [" + aliasAction.alias() + "] has several routing values associated with it"));
-                        return currentState;
-                    }
-                }
-
+            public ClusterState execute(final ClusterState currentState) {
                 List<String> indicesToClose = Lists.newArrayList();
                 Map<String, IndexService> indices = Maps.newHashMap();
                 try {
+                    for (AliasAction aliasAction : request.actions) {
+                        if (!currentState.metaData().hasIndex(aliasAction.index())) {
+                            listener.onFailure(new IndexMissingException(new Index(aliasAction.index())));
+                            return currentState;
+                        }
+                        if (currentState.metaData().hasIndex(aliasAction.alias())) {
+                            listener.onFailure(new InvalidAliasNameException(new Index(aliasAction.index()), aliasAction.alias(), "an index exists with the same name as the alias"));
+                            return currentState;
+                        }
+                        if (aliasAction.indexRouting() != null && aliasAction.indexRouting().indexOf(',') != -1) {
+                            listener.onFailure(new ElasticSearchIllegalArgumentException("alias [" + aliasAction.alias() + "] has several routing values associated with it"));
+                            return currentState;
+                        }
+                    }
+
                     boolean changed = false;
                     MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                     for (AliasAction aliasAction : request.actions) {
@@ -178,6 +177,9 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         listener.onResponse(new Response(true));
                         return currentState;
                     }
+                } catch (Throwable t) {
+                    listener.onResponse(new Response(true));
+                    return currentState;
                 } finally {
                     for (String index : indicesToClose) {
                         indicesService.removeIndex(index, "created for alias processing");

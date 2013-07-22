@@ -79,7 +79,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
         final AtomicReference<OpenIndexResponse> responseRef = new AtomicReference<OpenIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataStateIndexService.Listener() {
             @Override
             public void onResponse(MetaDataStateIndexService.Response response) {
                 responseRef.set(new OpenIndexResponse(response.acknowledged()));

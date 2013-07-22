@@ -31,13 +31,16 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
+import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
+import static org.elasticsearch.action.percolate.PercolateSourceBuilder.getBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.Matchers.*;
 
@@ -79,28 +82,28 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         logger.info("--> Percolate doc with field1=b");
         PercolateResponse response = client().preparePercolate("test", "type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "b").endObject().endObject())
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "4"));
 
         logger.info("--> Percolate doc with field1=c");
         response = client().preparePercolate("test", "type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "c").endObject().endObject())
+                .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
 
         logger.info("--> Percolate doc with field1=b c");
         response = client().preparePercolate("test", "type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "b c").endObject().endObject())
+                .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(4));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         logger.info("--> Percolate doc with field1=d");
         response = client().preparePercolate("test", "type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "d").endObject().endObject())
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches()), arrayContaining("4"));
@@ -565,6 +568,186 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
             percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
         }
         assertThat(percolateSumTime, greaterThan(0l));
+    }
+
+    @Test
+    public void testPercolatingExistingDocs() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> Adding docs");
+        client().prepareIndex("test", "type", "1").setSource("field1", "b").execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource("field1", "c").execute().actionGet();
+        client().prepareIndex("test", "type", "3").setSource("field1", "b c").execute().actionGet();
+        client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "3")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(matchQuery("field1", "b"))
+                        .must(matchQuery("field1", "c"))
+                ).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "4")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Percolate existing doc with id 1");
+        PercolateResponse response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "1"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "4"));
+
+        logger.info("--> Percolate existing doc with id 2");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "2"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
+
+        logger.info("--> Percolate existing doc with id 3");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "3"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(4));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "2", "3", "4"));
+
+        logger.info("--> Percolate existing doc with id 4");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "4"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContaining("4"));
+
+        logger.info("--> Search normals docs, percolate queries must not be included");
+        SearchResponse searchResponse = client().prepareSearch("test").execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(4L));
+        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type"));
+        assertThat(searchResponse.getHits().getAt(1).type(), equalTo("type"));
+        assertThat(searchResponse.getHits().getAt(2).type(), equalTo("type"));
+        assertThat(searchResponse.getHits().getAt(3).type(), equalTo("type"));
+    }
+
+    @Test
+    public void testPercolatingExistingDocs_routing() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> Adding docs");
+        client().prepareIndex("test", "type", "1").setSource("field1", "b").setRouting("4").execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource("field1", "c").setRouting("3").execute().actionGet();
+        client().prepareIndex("test", "type", "3").setSource("field1", "b c").setRouting("2").execute().actionGet();
+        client().prepareIndex("test", "type", "4").setSource("field1", "d").setRouting("1").execute().actionGet();
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "3")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(matchQuery("field1", "b"))
+                        .must(matchQuery("field1", "c"))
+                ).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "4")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Percolate existing doc with id 1");
+        PercolateResponse response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "1").setRouting("4"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "4"));
+
+        logger.info("--> Percolate existing doc with id 2");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "2").setRouting("3"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
+
+        logger.info("--> Percolate existing doc with id 3");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "3").setRouting("2"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(4));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "2", "3", "4"));
+
+        logger.info("--> Percolate existing doc with id 4");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "4").setRouting("1"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContaining("4"));
+    }
+
+    @Test
+    public void testPercolatingExistingDocs_versionCheck() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> Adding docs");
+        client().prepareIndex("test", "type", "1").setSource("field1", "b").execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource("field1", "c").execute().actionGet();
+        client().prepareIndex("test", "type", "3").setSource("field1", "b c").execute().actionGet();
+        client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "3")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(matchQuery("field1", "b"))
+                        .must(matchQuery("field1", "c"))
+                ).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "4")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Percolate existing doc with id 2 and version 1");
+        PercolateResponse response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "2").setVersion(1l))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
+
+        logger.info("--> Percolate existing doc with id 2 and version 2");
+        try {
+            response = client().preparePercolate("test", "type")
+                    .setPercolateGet(getBuilder("test", "type", "2").setVersion(2l))
+                    .execute().actionGet();
+            fail("Error should have been throwed");
+        } catch (VersionConflictEngineException e) {
+        }
+
+        logger.info("--> Index doc with id for the second time");
+        client().prepareIndex("test", "type", "2").setSource("field1", "c").execute().actionGet();
+
+        logger.info("--> Percolate existing doc with id 2 and version 2");
+        response = client().preparePercolate("test", "type")
+                .setPercolateGet(getBuilder("test", "type", "2").setVersion(2l))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
     }
 
     public static String[] convertFromTextArray(Text[] texts) {

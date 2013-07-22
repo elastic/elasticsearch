@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.cluster;
 
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +32,9 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
+import java.util.HashMap;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -84,7 +86,9 @@ public class NoMasterNodeTests extends AbstractNodesTests {
         }
 
         try {
-            node.client().preparePercolate("test", "type1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).execute().actionGet();
+            PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
+            percolateSource.percolateDocument().setDoc(new HashMap());
+            node.client().preparePercolate("test", "type1").setSource(percolateSource).execute().actionGet();
             assert false;
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,23 +49,27 @@ public class RestPercolateAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate", new RestPercolatingExistingDocumentAction());
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-        PercolateRequest percolateRequest = new PercolateRequest(request.param("index"), request.param("type"));
-        percolateRequest.routing(request.param("routing"));
-        percolateRequest.preference(request.param("preference"));
-        percolateRequest.listenerThreaded(false);
-        percolateRequest.documentSource(request.content(), request.contentUnsafe());
+    public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
+        PercolateRequest percolateRequest = new PercolateRequest(restRequest.param("index"), restRequest.param("type"));
+        percolateRequest.routing(restRequest.param("routing"));
+        percolateRequest.preference(restRequest.param("preference"));
+        percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
 
+        executePercolateRequest(percolateRequest, restRequest, restChannel);
+    }
+
+    void executePercolateRequest(PercolateRequest percolateRequest, final RestRequest restRequest, final RestChannel restChannel) {
         // we just send a response, no need to fork
         percolateRequest.listenerThreaded(false);
         client.percolate(percolateRequest, new ActionListener<PercolateResponse>() {
             @Override
             public void onResponse(PercolateResponse response) {
                 try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(restRequest);
                     builder.startObject();
 
                     builder.field(Fields.TOOK, response.getTookInMillis());
@@ -94,7 +99,7 @@ public class RestPercolateAction extends BaseRestHandler {
 
                     builder.endObject();
 
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    restChannel.sendResponse(new XContentRestResponse(restRequest, OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -103,12 +108,35 @@ public class RestPercolateAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    restChannel.sendResponse(new XContentThrowableRestResponse(restRequest, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }
             }
         });
+    }
+
+    class RestPercolatingExistingDocumentAction implements RestHandler {
+
+        @Override
+        public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
+            String index = restRequest.param("index");
+            String type = restRequest.param("type");
+            PercolateRequest percolateRequest = new PercolateRequest(index, type);
+            percolateRequest.routing(restRequest.param("routing"));
+            percolateRequest.preference(restRequest.param("preference"));
+
+            PercolateSourceBuilder builder = new PercolateSourceBuilder();
+            builder.percolateGet().setIndex(restRequest.param("get_index", index))
+                    .setType(restRequest.param("get_type", type))
+                    .setId(restRequest.param("id"))
+                    .setRouting(restRequest.param("get_routing"))
+                    .setPreference(restRequest.param("get_preference"));
+            percolateRequest.source(builder);
+
+            executePercolateRequest(percolateRequest, restRequest, restChannel);
+        }
+
     }
 
     static final class Fields {

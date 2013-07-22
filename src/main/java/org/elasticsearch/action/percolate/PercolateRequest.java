@@ -22,7 +22,7 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.common.Required;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,12 +41,16 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> {
 
+    public static final XContentType contentType = Requests.CONTENT_TYPE;
+
     private String documentType;
     private String routing;
     private String preference;
 
-    private BytesReference documentSource;
-    private boolean documentUnsafe;
+    private BytesReference source;
+    private boolean unsafe;
+
+    private BytesReference fetchedDoc;
 
     // Used internally in order to compute tookInMillis, TransportBroadcastOperationAction itself doesn't allow
     // to hold it temporarily in an easy way
@@ -58,6 +62,15 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     public PercolateRequest(String index, String documentType) {
         super(new String[]{index});
         this.documentType = documentType;
+    }
+
+    public PercolateRequest(PercolateRequest request, BytesReference fetchedDoc) {
+        super(request.indices());
+        this.documentType = request.documentType();
+        this.routing = request.routing();
+        this.preference = request.preference();
+        this.source = request.source;
+        this.fetchedDoc = fetchedDoc;
     }
 
     public String documentType() {
@@ -91,65 +104,68 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
      */
     @Override
     public void beforeLocalFork() {
-        if (documentUnsafe) {
-            documentSource = documentSource.copyBytesArray();
-            documentUnsafe = false;
+        if (unsafe) {
+            source = source.copyBytesArray();
+            unsafe = false;
         }
     }
 
-    public BytesReference documentSource() {
-        return documentSource;
+    public BytesReference source() {
+        return source;
     }
 
-    @Required
-    public PercolateRequest documentSource(Map document) throws ElasticSearchGenerationException {
-        return documentSource(document, XContentType.SMILE);
+    public PercolateRequest source(Map document) throws ElasticSearchGenerationException {
+        return source(document, contentType);
     }
 
-    @Required
-    public PercolateRequest documentSource(Map document, XContentType contentType) throws ElasticSearchGenerationException {
+    public PercolateRequest source(Map document, XContentType contentType) throws ElasticSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(document);
-            return documentSource(builder);
+            return source(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + document + "]", e);
         }
     }
 
-    @Required
-    public PercolateRequest documentSource(String document) {
-        this.documentSource = new BytesArray(document);
-        this.documentUnsafe = false;
+    public PercolateRequest source(String document) {
+        this.source = new BytesArray(document);
+        this.unsafe = false;
         return this;
     }
 
-    @Required
-    public PercolateRequest documentSource(XContentBuilder documentBuilder) {
-        documentSource = documentBuilder.bytes();
-        documentUnsafe = false;
+    public PercolateRequest source(XContentBuilder documentBuilder) {
+        source = documentBuilder.bytes();
+        unsafe = false;
         return this;
     }
 
-    public PercolateRequest documentSource(byte[] document) {
-        return documentSource(document, 0, document.length);
+    public PercolateRequest source(byte[] document) {
+        return source(document, 0, document.length);
     }
 
-    @Required
-    public PercolateRequest documentSource(byte[] source, int offset, int length) {
-        return documentSource(source, offset, length, false);
+    public PercolateRequest source(byte[] source, int offset, int length) {
+        return source(source, offset, length, false);
     }
 
-    @Required
-    public PercolateRequest documentSource(byte[] source, int offset, int length, boolean unsafe) {
-        return documentSource(new BytesArray(source, offset, length), unsafe);
+    public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
+        return source(new BytesArray(source, offset, length), unsafe);
     }
 
-    @Required
-    public PercolateRequest documentSource(BytesReference source, boolean unsafe) {
-        this.documentSource = source;
-        this.documentUnsafe = unsafe;
+    public PercolateRequest source(BytesReference source, boolean unsafe) {
+        this.source = source;
+        this.unsafe = unsafe;
         return this;
+    }
+
+    public PercolateRequest source(PercolateSourceBuilder sourceBuilder) {
+        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.unsafe = false;
+        return this;
+    }
+
+    BytesReference fetchedDoc() {
+        return fetchedDoc;
     }
 
     @Override
@@ -161,8 +177,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         if (documentType == null) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (documentSource == null) {
-            validationException = addValidationError("documentSource is missing", validationException);
+        if (source == null) {
+            validationException = addValidationError("source is missing", validationException);
         }
         return validationException;
     }
@@ -173,8 +189,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         documentType = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        documentUnsafe = false;
-        documentSource = in.readBytesReference();
+        unsafe = false;
+        source = in.readBytesReference();
         startTime = in.readVLong();
     }
 
@@ -184,7 +200,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         out.writeString(documentType);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeBytesReference(documentSource);
+        out.writeBytesReference(source);
         out.writeVLong(startTime);
     }
 }

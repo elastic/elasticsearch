@@ -15,6 +15,10 @@
         "timeout": {
           "type" : "time",
           "description" : "Request timeout"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
         }
       }
     },

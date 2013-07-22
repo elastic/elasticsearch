@@ -42,6 +42,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.testng.Assert.assertTrue;
 
 /**
  *
@@ -514,20 +515,14 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(5l)); // We have 5 partitions
-        // it might be too fast to be counted in milliseconds...
-        //assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         long percolateCount = 0;
-        long percolateSumTime = 0;
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
-            percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
         }
         assertThat(percolateCount, equalTo(5l)); // We have 5 partitions
-        // it might be too fast to be counted in milliseconds...
-        //assertThat(percolateSumTime, greaterThan(0l));
 
         logger.info("--> Second percolate request");
         response = client().preparePercolate("test", "type")
@@ -538,20 +533,40 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
-        // it might be too fast to be counted in milliseconds...
-        //assertThat(indicesResponse.getTotal().getPercolate().getTimeInMillis(), greaterThan(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
 
         nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         percolateCount = 0;
-        percolateSumTime = 0;
+        for (NodeStats nodeStats : nodesResponse) {
+            percolateCount += nodeStats.getIndices().getPercolate().getCount();
+        }
+        assertThat(percolateCount, equalTo(10l));
+
+        // We might be faster than 1 ms, so run upto 1000 times until have spend 1ms or more on percolating
+        boolean moreThanOneMs = false;
+        int counter = 3; // We already ran two times.
+        do {
+            indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
+            if (indicesResponse.getTotal().getPercolate().getTimeInMillis() > 0) {
+                moreThanOneMs = true;
+                break;
+            }
+
+            logger.info("--> {}th percolate request", counter);
+            response = client().preparePercolate("test", "type")
+                    .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
+                    .execute().actionGet();
+            assertThat(response.getMatches(), arrayWithSize(1));
+            assertThat(convertFromTextArray(response.getMatches()), arrayContaining("1"));
+        } while (++counter <= 1000);
+        assertTrue(moreThanOneMs, "Something is off, we should have spent at least 1ms on percolating...");
+
+        long percolateSumTime = 0;
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
             percolateSumTime += nodeStats.getIndices().getPercolate().getTimeInMillis();
         }
-        assertThat(percolateCount, equalTo(10l));
-        // it might be too fast to be counted in milliseconds...
-        //assertThat(percolateSumTime, greaterThan(0l));
+        assertThat(percolateSumTime, greaterThan(0l));
     }
 
     public static String[] convertFromTextArray(Text[] texts) {

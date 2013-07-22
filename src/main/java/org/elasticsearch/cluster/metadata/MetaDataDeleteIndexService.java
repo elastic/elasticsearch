@@ -38,6 +38,8 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -73,9 +75,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     public void deleteIndex(final Request request, final Listener userListener) {
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
-        MetaDataService.MdLock mdLock = metaDataService.indexMetaDataLock(request.index);
+        Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
         try {
-            mdLock.lock();
+            if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
+                userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
+                return;
+            }
         } catch (InterruptedException e) {
             userListener.onFailure(e);
             return;
@@ -156,16 +161,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     class DeleteIndexListener implements Listener {
 
         private final AtomicBoolean notified = new AtomicBoolean();
-
-        private final MetaDataService.MdLock mdLock;
-
+        private final Semaphore mdLock;
         private final Request request;
-
         private final Listener listener;
-
         volatile ScheduledFuture future;
 
-        private DeleteIndexListener(MetaDataService.MdLock mdLock, Request request, Listener listener) {
+        private DeleteIndexListener(Semaphore mdLock, Request request, Listener listener) {
             this.mdLock = mdLock;
             this.request = request;
             this.listener = listener;
@@ -174,7 +175,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         @Override
         public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.unlock();
+                mdLock.release();
                 if (future != null) {
                     future.cancel(false);
                 }
@@ -185,7 +186,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         @Override
         public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.unlock();
+                mdLock.release();
                 if (future != null) {
                     future.cancel(false);
                 }

@@ -65,6 +65,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
 
         createIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
 
         client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override

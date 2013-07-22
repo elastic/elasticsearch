@@ -99,7 +99,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
         final AtomicReference<CloseIndexResponse> responseRef = new AtomicReference<CloseIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.indices()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.indices()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataStateIndexService.Listener() {
             @Override
             public void onResponse(MetaDataStateIndexService.Response response) {
                 responseRef.set(new CloseIndexResponse(response.acknowledged()));

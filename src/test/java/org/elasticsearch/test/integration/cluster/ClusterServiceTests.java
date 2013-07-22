@@ -88,7 +88,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
             }
 
             @Override
-            public void onTimeout(String source) {
+            public void onTimeout(TimeValue timeout, String source) {
                 timedOut.countDown();
             }
 
@@ -96,6 +96,10 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
             public ClusterState execute(ClusterState currentState) {
                 executeCalled.set(true);
                 return currentState;
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState clusterState) {
             }
         });
 

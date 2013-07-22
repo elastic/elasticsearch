@@ -23,12 +23,14 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -76,7 +78,19 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
         final AtomicReference<ClusterState> clusterStateResponse = new AtomicReference<ClusterState>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterNodeTimeout();
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout, String source) {
+                failureRef.set(new ProcessClusterEventTimeoutException(timeout, source));
+                latch.countDown();
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
@@ -87,7 +101,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
                         return currentState;
                     }
                     return newState;
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.debug("failed to reroute", e);
                     failureRef.set(e);
                     latch.countDown();

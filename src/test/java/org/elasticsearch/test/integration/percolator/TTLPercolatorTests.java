@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.*;
 public class TTLPercolatorTests extends AbstractNodesTests {
 
     @Test
-    public void testThatPercolatingWithTimeToLiveWorks() throws Exception {
+    public void testPercolatingWithTimeToLive() throws Exception {
         long purgeInterval = 200;
         Settings settings = settingsBuilder()
                 .put("gateway.type", "none")
@@ -69,10 +69,12 @@ public class TTLPercolatorTests extends AbstractNodesTests {
         ).execute().actionGet();
         assertThat(convertFromTextArray(percolateResponse.getMatches()), arrayContaining("kuku"));
 
-        long now1 = System.currentTimeMillis();
-        if ((now1 - now) <= (ttl + purgeInterval)) {
-            logger.info("Waiting for ttl purger...");
-            Thread.sleep((ttl + purgeInterval) - (now1 - now));
+        long timeSpent = System.currentTimeMillis() - now;
+        long waitTime = ttl + purgeInterval + 200;
+        if (timeSpent <= waitTime) {
+            long timeToWait = waitTime - timeSpent;
+            logger.info("Waiting {} ms for ttl purging...", timeToWait);
+            Thread.sleep(timeToWait);
         }
         percolateResponse = client.preparePercolate("test", "type1").setSource(jsonBuilder()
                 .startObject()

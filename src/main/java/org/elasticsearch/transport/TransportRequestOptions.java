@@ -36,7 +36,8 @@ public class TransportRequestOptions {
     public static enum Type {
         LOW,
         MED,
-        HIGH;
+        HIGH,
+        PING;
 
         public static Type fromString(String type) {
             if ("low".equalsIgnoreCase(type)) {
@@ -45,6 +46,8 @@ public class TransportRequestOptions {
                 return MED;
             } else if ("high".equalsIgnoreCase(type)) {
                 return HIGH;
+            } else if ("ping".equalsIgnoreCase(type)) {
+                return PING;
             } else {
                 throw new ElasticSearchIllegalArgumentException("failed to match transport type for [" + type + "]");
             }
@@ -77,7 +80,16 @@ public class TransportRequestOptions {
     }
 
     /**
-     * A request that requires very low latency. Usually reserved for ping requests with very small payload.
+     * A request that requires very low latency.
+     */
+    public TransportRequestOptions withPingType() {
+        this.type = Type.PING;
+        return this;
+    }
+
+
+    /**
+     * A channel reserved for high prio requests.
      */
     public TransportRequestOptions withHighType() {
         this.type = Type.HIGH;

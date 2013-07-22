@@ -21,14 +21,14 @@ package org.elasticsearch.test.integration.cluster;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +38,9 @@ import org.testng.annotations.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -46,7 +49,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class LocalNodeMasterListenerTests extends AbstractZenNodesTests {
+public class ClusterServiceTests extends AbstractZenNodesTests {
 
     @AfterMethod
     public void closeNodes() {
@@ -54,8 +57,56 @@ public class LocalNodeMasterListenerTests extends AbstractZenNodesTests {
     }
 
     @Test
-    public void testListenerCallbacks() throws Exception {
+    public void testTimeoutUpdateTask() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.zen.minimum_master_nodes", 1)
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
+                .build();
 
+        InternalNode node1 = (InternalNode) startNode("node1", settings);
+        ClusterService clusterService1 = node1.injector().getInstance(ClusterService.class);
+        final CountDownLatch block = new CountDownLatch(1);
+        clusterService1.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                try {
+                    block.await();
+                } catch (InterruptedException e) {
+                    assert false;
+                }
+                return currentState;
+            }
+        });
+
+        final CountDownLatch timedOut = new CountDownLatch(1);
+        final AtomicBoolean executeCalled = new AtomicBoolean();
+        clusterService1.submitStateUpdateTask("test2", new TimeoutClusterStateUpdateTask() {
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueMillis(2);
+            }
+
+            @Override
+            public void onTimeout(String source) {
+                timedOut.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                executeCalled.set(true);
+                return currentState;
+            }
+        });
+
+        assertThat(timedOut.await(500, TimeUnit.MILLISECONDS), equalTo(true));
+        block.countDown();
+        Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
+        assertThat(executeCalled.get(), equalTo(false));
+    }
+
+    @Test
+    public void testListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put("discovery.zen.ping_timeout", "200ms")

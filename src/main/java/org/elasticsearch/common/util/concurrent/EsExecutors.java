@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class EsExecutors {
 
-    public static EsThreadPoolExecutor newSinglePrioritizingThreadExecutor(ThreadFactory threadFactory) {
+    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizingThreadExecutor(ThreadFactory threadFactory) {
         return new PrioritizedEsThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory);
     }
 

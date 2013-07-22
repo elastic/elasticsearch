@@ -27,6 +27,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;
 
@@ -34,6 +36,8 @@ import java.util.Map;
  *
  */
 public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+
+    private PercolateSourceBuilder sourceBuilder;
 
     public PercolateRequestBuilder(Client client, String index, String type) {
         super((InternalClient) client, new PercolateRequest(index, type));
@@ -85,97 +89,88 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         return this;
     }
 
-    /**
-     * Index the Map as a JSON.
-     *
-     * @param source The map to index
-     */
+    public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
+        sourceBuilder = source;
+        return this;
+    }
+
     public PercolateRequestBuilder setSource(Map<String, Object> source) {
-        request.documentSource(source);
+        request.source(source);
         return this;
     }
 
-    /**
-     * Index the Map as the provided content type.
-     *
-     * @param source The map to index
-     */
     public PercolateRequestBuilder setSource(Map<String, Object> source, XContentType contentType) {
-        request.documentSource(source, contentType);
+        request.source(source, contentType);
         return this;
     }
 
-    /**
-     * Sets the document source to index.
-     * <p/>
-     * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #setSource(byte[])}.
-     */
     public PercolateRequestBuilder setSource(String source) {
-        request.documentSource(source);
+        request.source(source);
         return this;
     }
 
-    /**
-     * Sets the content source to index.
-     */
     public PercolateRequestBuilder setSource(XContentBuilder sourceBuilder) {
-        request.documentSource(sourceBuilder);
+        request.source(sourceBuilder);
         return this;
     }
 
-    /**
-     * Sets the document to index in bytes form.
-     */
     public PercolateRequestBuilder setSource(BytesReference source) {
-        request.documentSource(source, false);
+        request.source(source, false);
         return this;
     }
 
-    /**
-     * Sets the document to index in bytes form.
-     */
     public PercolateRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.documentSource(source, unsafe);
+        request.source(source, unsafe);
         return this;
     }
 
-    /**
-     * Sets the document to index in bytes form.
-     */
     public PercolateRequestBuilder setSource(byte[] source) {
-        request.documentSource(source);
+        request.source(source);
         return this;
     }
 
-    /**
-     * Sets the document to index in bytes form (assumed to be safe to be used from different
-     * threads).
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.documentSource(source, offset, length);
+        request.source(source, offset, length);
         return this;
     }
 
-    /**
-     * Sets the document to index in bytes form.
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     * @param unsafe Is the byte array safe to be used form a different thread
-     */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request.documentSource(source, offset, length, unsafe);
+        request.source(source, offset, length, unsafe);
         return this;
+    }
+
+    public PercolateRequestBuilder setPercolateDoc(PercolateSourceBuilder.DocBuilder docBuilder) {
+        sourceBuilder().setDoc(docBuilder);
+        return this;
+    }
+
+    public PercolateRequestBuilder setPercolateGet(PercolateSourceBuilder.GetBuilder getBuilder) {
+        sourceBuilder().setGet(getBuilder);
+        return this;
+    }
+
+    public PercolateRequestBuilder setPercolateQuery(QueryBuilder queryBuilder) {
+        sourceBuilder().setQueryBuilder(queryBuilder);
+        return this;
+    }
+
+    public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
+        sourceBuilder().setFilterBuilder(filterBuilder);
+        return this;
+    }
+
+    private PercolateSourceBuilder sourceBuilder() {
+        if (sourceBuilder == null) {
+            sourceBuilder = new PercolateSourceBuilder();
+        }
+        return sourceBuilder;
     }
 
     @Override
     protected void doExecute(ActionListener<PercolateResponse> listener) {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder);
+        }
         ((Client) client).percolate(request, listener);
     }
 

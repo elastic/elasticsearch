@@ -69,6 +69,13 @@ public class XContentFactory {
     }
 
     /**
+     * Returns a content builder using YAML format ({@link org.elasticsearch.common.xcontent.XContentType#YAML}.
+     */
+    public static XContentBuilder yamlBuilder() throws IOException {
+        return contentBuilder(XContentType.SMILE);
+    }
+
+    /**
      * Constructs a new yaml builder that will output the result into the provided output stream.
      */
     public static XContentBuilder yamlBuilder(OutputStream os) throws IOException {

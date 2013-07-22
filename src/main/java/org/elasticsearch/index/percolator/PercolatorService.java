@@ -96,9 +96,17 @@ public class PercolatorService extends AbstractComponent {
                 return new PercolateShardResponse(StringText.EMPTY_ARRAY, request.index(), request.shardId());
             }
 
-            Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.documentSource());
-            ParsedDocument parsedDocument = parseResult.v1();
-            Query query = parseResult.v2();
+            ParsedDocument parsedDocument;
+            Query query;
+            if (request.fetchedDoc() != null) {
+                parsedDocument = parseFetchedDoc(request.fetchedDoc(), percolateIndexService, request.documentType());
+                query = parseQueryOrFilter(percolateIndexService, request.source());
+            } else {
+                Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, indexShard, request.documentType(), request.source());
+                parsedDocument = parseResult.v1();
+                query = parseResult.v2();
+            }
+
 
             // first, parse the source doc into a MemoryIndex
             final MemoryIndex memoryIndex = cache.get();
@@ -169,12 +177,12 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    Tuple<ParsedDocument, Query> parsePercolate(IndexService documentIndexService, String type, BytesReference docSource) throws ElasticSearchException {
+    private Tuple<ParsedDocument, Query> parsePercolate(IndexService documentIndexService, IndexShard indexShard, String type, BytesReference source) throws ElasticSearchException {
         Query query = null;
         ParsedDocument doc = null;
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(docSource).createParser(docSource);
+            parser = XContentFactory.xContent(source).createParser(source);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -183,6 +191,10 @@ public class PercolatorService extends AbstractComponent {
                     // we need to check the "doc" here, so the next token will be START_OBJECT which is
                     // the actual document starting
                     if ("doc".equals(currentFieldName)) {
+                        if (doc != null) {
+                            throw new ElasticSearchParseException("Either specify doc or get, not both");
+                        }
+
                         MapperService mapperService = documentIndexService.mapperService();
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
                         doc = docMapper.parse(source(parser).type(type).flyweight(true));
@@ -217,6 +229,67 @@ public class PercolatorService extends AbstractComponent {
         }
 
         return new Tuple<ParsedDocument, Query>(doc, query);
+    }
+
+    private ParsedDocument parseFetchedDoc(BytesReference fetchedDoc, IndexService documentIndexService, String type) {
+        ParsedDocument doc = null;
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc);
+            MapperService mapperService = documentIndexService.mapperService();
+            DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
+            doc = docMapper.parse(source(parser).type(type).flyweight(true));
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to parse request", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+
+        if (doc == null) {
+            throw new ElasticSearchParseException("No doc to percolate in the request");
+        }
+
+        return doc;
+    }
+
+    private Query parseQueryOrFilter(IndexService documentIndexService, BytesReference source) {
+        Query query = null;
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(source).createParser(source);
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("query".equals(currentFieldName)) {
+                        if (query != null) {
+                            throw new ElasticSearchParseException("Either specify query or filter, not both");
+                        }
+                        query = documentIndexService.queryParserService().parse(parser).query();
+                    } else if ("filter".equals(currentFieldName)) {
+                        if (query != null) {
+                            throw new ElasticSearchParseException("Either specify query or filter, not both");
+                        }
+                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser);
+                        query = new XConstantScoreQuery(filter);
+                    }
+                } else if (token == null) {
+                    break;
+                }
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to parse request", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+
+        return query;
     }
 
     public void close() {

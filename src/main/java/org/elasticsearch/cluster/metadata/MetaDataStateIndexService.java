@@ -66,21 +66,18 @@ public class MetaDataStateIndexService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-
                 IndexMetaData indexMetaData = currentState.metaData().index(request.index);
                 if (indexMetaData == null) {
-                    listener.onFailure(new IndexMissingException(new Index(request.index)));
-                    return currentState;
+                    throw new IndexMissingException(new Index(request.index));
                 }
 
                 if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                    listener.onResponse(new Response(true));
                     return currentState;
                 }
 
@@ -105,7 +102,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(true));
             }
         });
@@ -119,8 +116,8 @@ public class MetaDataStateIndexService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
@@ -128,12 +125,10 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
                 IndexMetaData indexMetaData = currentState.metaData().index(request.index);
                 if (indexMetaData == null) {
-                    listener.onFailure(new IndexMissingException(new Index(request.index)));
-                    return currentState;
+                    throw new IndexMissingException(new Index(request.index));
                 }
 
                 if (indexMetaData.state() == IndexMetaData.State.OPEN) {
-                    listener.onResponse(new Response(true));
                     return currentState;
                 }
 
@@ -157,7 +152,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(true));
             }
         });

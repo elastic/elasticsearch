@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -62,16 +63,16 @@ public class TransportIndicesGetAliasesAction extends TransportMasterNodeOperati
     }
 
     @Override
-    protected IndicesGetAliasesResponse masterOperation(IndicesGetAliasesRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final IndicesGetAliasesRequest request, final ClusterState state, final ActionListener<IndicesGetAliasesResponse> listener) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
 
         @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type
-        Map<String, List<AliasMetaData>> result = (Map) state.metaData().findAliases(request.aliases(), request.indices());
+                Map<String, List<AliasMetaData>> result = (Map) state.metaData().findAliases(request.aliases(), request.indices());
         if (result.isEmpty()) {
             throw new AliasMissingException(request.aliases());
         }
-        return new IndicesGetAliasesResponse(result);
+        listener.onResponse(new IndicesGetAliasesResponse(result));
     }
 
 }

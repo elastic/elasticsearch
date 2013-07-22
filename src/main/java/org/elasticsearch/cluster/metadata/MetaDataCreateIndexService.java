@@ -127,19 +127,34 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
-        Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
-        try {
-            if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
-                userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
-                return;
-            }
-        } catch (InterruptedException e) {
-            userListener.onFailure(e);
+        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
+
+        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
+        if (mdLock.tryAcquire()) {
+            createIndex(request, userListener, mdLock);
             return;
         }
 
-        final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
+                        userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
+                        return;
+                    }
+                } catch (InterruptedException e) {
+                    userListener.onFailure(e);
+                    return;
+                }
 
+                createIndex(request, userListener, mdLock);
+            }
+        });
+    }
+
+    private void createIndex(final Request request, final Listener userListener, Semaphore mdLock) {
+        final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
 
             @Override
@@ -148,21 +163,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 boolean indexCreated = false;
                 String failureReason = null;
                 try {
-                    try {
-                        validate(request, currentState);
-                    } catch (Throwable e) {
-                        listener.onFailure(e);
-                        return currentState;
-                    }
+                    validate(request, currentState);
 
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
@@ -355,19 +365,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     });
 
                     return updatedState;
-                } catch (Throwable e) {
-                    logger.warn("[{}] failed to create", e, request.index);
+                } finally {
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
                         indicesService.removeIndex(request.index, failureReason != null ? failureReason : "failed to create index");
                     }
-                    listener.onFailure(e);
-                    return currentState;
                 }
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             }
         });
     }

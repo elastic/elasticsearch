@@ -29,13 +29,7 @@ public interface TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpda
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onTimeout(TimeValue, String)}.
+     * {@link #onFailure(Throwable)}
      */
     TimeValue timeout();
-
-    /**
-     * Called when the cluster sate update task wasn't processed by the provided
-     * {@link #timeout()}.
-     */
-    void onTimeout(TimeValue timeout, String source);
 }

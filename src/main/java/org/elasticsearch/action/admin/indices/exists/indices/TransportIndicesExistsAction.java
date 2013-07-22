@@ -44,7 +44,8 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // lightweight in memory check
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -75,13 +76,13 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected IndicesExistsResponse masterOperation(IndicesExistsRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) throws ElasticSearchException {
         boolean exists = true;
         for (String index : request.indices()) {
             if (!state.metaData().hasConcreteIndex(index)) {
                 exists = false;
             }
         }
-        return new IndicesExistsResponse(exists);
+        listener.onResponse(new IndicesExistsResponse(exists));
     }
 }

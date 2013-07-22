@@ -21,8 +21,6 @@ package org.elasticsearch.cluster;
 
 /**
  * A task that can update the cluster state.
- *
- *
  */
 public interface ClusterStateUpdateTask {
 
@@ -30,5 +28,10 @@ public interface ClusterStateUpdateTask {
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.
      */
-    ClusterState execute(ClusterState currentState);
+    ClusterState execute(ClusterState currentState) throws Exception;
+
+    /**
+     * A callback called when execute fails.
+     */
+    void onFailure(String source, Throwable t);
 }

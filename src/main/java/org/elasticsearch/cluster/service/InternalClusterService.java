@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -225,7 +226,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     threadPool.generic().execute(new Runnable() {
                         @Override
                         public void run() {
-                            timeoutUpdateTask.onTimeout(timeoutUpdateTask.timeout(), task.source);
+                            timeoutUpdateTask.onFailure(task.source, new ProcessClusterEventTimeoutException(timeoutUpdateTask.timeout(), task.source));
                         }
                     });
                 }
@@ -257,19 +258,22 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             ClusterState newClusterState;
             try {
                 newClusterState = updateTask.execute(previousClusterState);
-            } catch (Exception e) {
-                StringBuilder sb = new StringBuilder("failed to execute cluster state update, state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
-                sb.append(previousClusterState.nodes().prettyPrint());
-                sb.append(previousClusterState.routingTable().prettyPrint());
-                sb.append(previousClusterState.readOnlyRoutingNodes().prettyPrint());
-                logger.warn(sb.toString(), e);
+            } catch (Throwable e) {
+                if (logger.isTraceEnabled()) {
+                    StringBuilder sb = new StringBuilder("failed to execute cluster state update, state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
+                    sb.append(previousClusterState.nodes().prettyPrint());
+                    sb.append(previousClusterState.routingTable().prettyPrint());
+                    sb.append(previousClusterState.readOnlyRoutingNodes().prettyPrint());
+                    logger.trace(sb.toString(), e);
+                }
+                updateTask.onFailure(source, e);
                 return;
             }
 
             if (previousClusterState == newClusterState) {
                 logger.debug("processing [{}]: no change in cluster_state", source);
                 if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(newClusterState);
+                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
                 return;
             }
@@ -367,7 +371,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
 
                 if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(newClusterState);
+                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
 
                 logger.debug("processing [{}]: done applying updated cluster_state", source);

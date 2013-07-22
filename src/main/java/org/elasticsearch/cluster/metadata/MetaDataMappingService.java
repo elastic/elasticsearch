@@ -92,7 +92,12 @@ public class MetaDataMappingService extends AbstractComponent {
         }
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.URGENT, new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public void onFailure(String source, Throwable t) {
+                logger.warn("failure during [{}]", t, source);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 boolean createdIndex = false;
                 try {
                     Set<String> sTypes;
@@ -142,9 +147,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                     builder.put(indexMetaDataBuilder);
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
-                } catch (Exception e) {
-                    logger.warn("failed to dynamically refresh the mapping in cluster_state from shard", e);
-                    return currentState;
                 } finally {
                     if (createdIndex) {
                         indicesService.removeIndex(index, "created for mapping processing");
@@ -155,9 +157,15 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
+
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(final ClusterState currentState) throws Exception {
                 boolean createdIndex = false;
                 try {
                     // first, check if it really needs to be updated
@@ -202,10 +210,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                     builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
-                } catch (Throwable e) {
-                    logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
-                    listener.onFailure(e);
-                    return currentState;
                 } finally {
                     if (createdIndex) {
                         indicesService.removeIndex(index, "created for mapping processing");
@@ -214,14 +218,13 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(true));
             }
         });
     }
 
     public void removeMapping(final RemoveRequest request, final Listener listener) {
-        final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
         clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
             @Override
             public TimeValue timeout() {
@@ -229,53 +232,43 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
-                    listener.onFailure(new IndexMissingException(new Index("_all")));
-                    return currentState;
+                    throw new IndexMissingException(new Index("_all"));
                 }
 
-                try {
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                    boolean changed = false;
-                    String latestIndexWithout = null;
-                    for (String indexName : request.indices) {
-                        IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                        if (indexMetaData != null) {
-                            if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                                builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
-                                changed = true;
-                            } else {
-                                latestIndexWithout = indexMetaData.index();
-                            }
+                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                boolean changed = false;
+                String latestIndexWithout = null;
+                for (String indexName : request.indices) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                    if (indexMetaData != null) {
+                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                            changed = true;
+                        } else {
+                            latestIndexWithout = indexMetaData.index();
                         }
                     }
-
-                    if (!changed) {
-                        listener.onFailure(new TypeMissingException(new Index(latestIndexWithout), request.mappingType));
-                        return currentState;
-                    }
-
-                    logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
-
-                    notifyOnPostProcess.set(true);
-                    return ClusterState.builder().state(currentState).metaData(builder).build();
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                    return currentState;
                 }
+
+                if (!changed) {
+                    throw new TypeMissingException(new Index(latestIndexWithout), request.mappingType);
+                }
+
+                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
+
+                return ClusterState.builder().state(currentState).metaData(builder).build();
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
-                if (notifyOnPostProcess.get()) {
-                    listener.onResponse(new Response(true));
-                }
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new Response(true));
             }
         });
     }
@@ -289,12 +282,12 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public void onTimeout(TimeValue timeout, String source) {
-                listener.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(final ClusterState currentState) throws Exception {
                 List<String> indicesToClose = Lists.newArrayList();
                 try {
                     if (request.indices.length == 0) {
@@ -302,7 +295,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
                     for (String index : request.indices) {
                         if (!currentState.metaData().hasIndex(index)) {
-                            listener.onFailure(new IndexMissingException(new Index(index)));
+                            throw new IndexMissingException(new Index(index));
                         }
                     }
 
@@ -389,8 +382,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     if (mappings.isEmpty()) {
-                        // no changes, return
-                        listener.onResponse(new Response(true));
                         return currentState;
                     }
 
@@ -423,9 +414,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
                     mappingCreatedAction.add(new CountDownListener(counter, listener), request.timeout);
                     return updatedState;
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                    return currentState;
                 } finally {
                     for (String index : indicesToClose) {
                         indicesService.removeIndex(index, "created for mapping processing");
@@ -434,7 +422,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (notifyOnPostProcess.get()) {
                     listener.onResponse(new Response(true));
                 }

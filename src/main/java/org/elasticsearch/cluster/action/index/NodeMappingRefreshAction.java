@@ -60,12 +60,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     public void nodeMappingRefresh(final NodeMappingRefreshRequest request) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    innerMappingRefresh(request);
-                }
-            });
+            innerMappingRefresh(request);
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     NodeMappingRefreshTransportHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);

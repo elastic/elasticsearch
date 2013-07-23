@@ -124,6 +124,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                 @Override
                 public void onFailure(Throwable t) {
                     logger.debug("[{}] failed to delete index", t, index);
+                    lastFailure = t;
                     if (count.decrementAndGet() == 0) {
                         listener.onFailure(t);
                     }

@@ -105,7 +105,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
             }
             lastRefresh = System.currentTimeMillis();
         }
-        logger.info("start building nodes list using GCE API");
+        logger.debug("start building nodes list using GCE API");
 
         cachedDiscoNodes = Lists.newArrayList();
         String ipAddress = null;
@@ -236,7 +236,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
             logger.trace("Exception caught during discovery", e);
         }
 
-        logger.info("{} node(s) added", cachedDiscoNodes.size());
+        logger.debug("{} node(s) added", cachedDiscoNodes.size());
         logger.debug("using dynamic discovery nodes {}", cachedDiscoNodes);
 
         return cachedDiscoNodes;

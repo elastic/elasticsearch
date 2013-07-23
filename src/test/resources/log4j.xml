@@ -32,7 +32,7 @@ governing permissions and limitations under the License. -->
     </logger>
 
 	<root>
-		<priority value="trace" />
+		<priority value="info" />
 		<appender-ref ref="console" />
 	</root>
 

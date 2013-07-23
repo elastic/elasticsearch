@@ -17,7 +17,7 @@ governing permissions and limitations under the License. -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-gce</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
 
     <description>Google Compute Engine Cloud plugin for ElasticSearch</description>
     <inceptionYear>2013</inceptionYear>
@@ -172,25 +172,6 @@ governing permissions and limitations under the License. -->
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>wagon-maven-plugin</artifactId>
-                <version>1.0-beta-4</version>
-                <configuration>
-                    <serverId>elasticsearch.download</serverId>
-                    <fromFile>${project.build.directory}/releases/${project.build.finalName}.zip</fromFile>
-                    <url>s3://test.elasticsearch.org/elasticsearch/${project.artifactId}/</url>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>upload-zip-to-server</id>
-                        <phase>deploy</phase>
-                        <goals>
-                            <goal>upload-single</goal>
                         </goals>
                     </execution>
                 </executions>

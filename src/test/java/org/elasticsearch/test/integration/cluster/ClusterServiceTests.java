@@ -21,7 +21,10 @@ package org.elasticsearch.test.integration.cluster;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -112,6 +115,125 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         block.countDown();
         Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
         assertThat(executeCalled.get(), equalTo(false));
+    }
+
+    @Test
+    public void testPendingUpdateTask() throws Exception {
+        InternalNode node1 = (InternalNode) startNode("node1");
+        Client client = startNode("client-node", settingsBuilder().put("node.client", true).build()).client();
+
+        ClusterService clusterService = node1.injector().getInstance(ClusterService.class);
+        final CountDownLatch block1 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                try {
+                    block1.await();
+                } catch (InterruptedException e) {
+                    assert false;
+                }
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                assert false;
+            }
+        });
+
+        for (int i = 2; i <= 10; i++) {
+            clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    try {
+                        block1.await();
+                    } catch (InterruptedException e) {
+                        assert false;
+                    }
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    assert false;
+                }
+            });
+        }
+
+        List<PendingClusterTask> pendingClusterTasks = clusterService.pendingTasks();
+        assertThat(pendingClusterTasks.size(), equalTo(9));
+        int counter = 2;
+        for (PendingClusterTask task : pendingClusterTasks) {
+            assertThat(task.source().string(), equalTo("" + counter++));
+        }
+
+        PendingClusterTasksResponse response = client.admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        assertThat(response.pendingTasks().size(), equalTo(9));
+        counter = 2;
+        for (PendingClusterTask task : response) {
+            assertThat(task.source().string(), equalTo("" + counter++));
+        }
+        block1.countDown();
+        Thread.sleep(500);
+
+        pendingClusterTasks = clusterService.pendingTasks();
+        assertThat(pendingClusterTasks, empty());
+        response = client.admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        assertThat(response.pendingTasks(), empty());
+
+        final CountDownLatch block2 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                try {
+                    block2.await();
+                } catch (InterruptedException e) {
+                    assert false;
+                }
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                assert false;
+            }
+        });
+
+        for (int i = 2; i <= 5; i++) {
+            clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    try {
+                        block2.await();
+                    } catch (InterruptedException e) {
+                        assert false;
+                    }
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    assert false;
+                }
+            });
+        }
+        Thread.sleep(100);
+
+        pendingClusterTasks = clusterService.pendingTasks();
+        assertThat(pendingClusterTasks.size(), equalTo(4));
+        counter = 2;
+        for (PendingClusterTask task : pendingClusterTasks) {
+            assertThat(task.source().string(), equalTo("" + counter++));
+        }
+
+        response = client.admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        assertThat(response.pendingTasks().size(), equalTo(4));
+        counter = 2;
+        for (PendingClusterTask task : response) {
+            assertThat(task.source().string(), equalTo("" + counter++));
+            assertThat(task.getTimeInQueueInMillis(), greaterThan(0l));
+        }
+        block2.countDown();
     }
 
     @Test

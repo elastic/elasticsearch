@@ -29,6 +29,7 @@ import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,6 +39,19 @@ import java.util.Map;
  *
  */
 public abstract class StreamOutput extends OutputStream {
+
+    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<SoftReference<UTF8StreamWriter>>();
+
+    public static UTF8StreamWriter utf8StreamWriter() {
+        SoftReference<UTF8StreamWriter> ref = utf8StreamWriter.get();
+        UTF8StreamWriter writer = (ref == null) ? null : ref.get();
+        if (writer == null) {
+            writer = new UTF8StreamWriter(1024 * 4);
+            utf8StreamWriter.set(new SoftReference<UTF8StreamWriter>(writer));
+        }
+        writer.reset();
+        return writer;
+    }
 
     private Version version = Version.CURRENT;
 
@@ -187,7 +201,7 @@ public abstract class StreamOutput extends OutputStream {
             long pos1 = position();
             // make room for the size
             seek(pos1 + 4);
-            UTF8StreamWriter utf8StreamWriter = CachedStreamOutput.utf8StreamWriter();
+            UTF8StreamWriter utf8StreamWriter = utf8StreamWriter();
             utf8StreamWriter.setOutput(this);
             utf8StreamWriter.write(text.string());
             utf8StreamWriter.close();

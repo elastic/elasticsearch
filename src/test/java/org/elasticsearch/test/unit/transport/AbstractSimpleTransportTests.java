@@ -123,6 +123,37 @@ public abstract class AbstractSimpleTransportTests {
             assertThat(e.getMessage(), false, equalTo(true));
         }
 
+        res = serviceB.submitRequest(serviceANode, "sayHello",
+                new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
+            @Override
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public void handleResponse(StringMessageResponse response) {
+                assertThat("hello moshe", equalTo(response.message));
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exp.printStackTrace();
+                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+            }
+        });
+
+        try {
+            StringMessageResponse message = res.get();
+            assertThat("hello moshe", equalTo(message.message));
+        } catch (Exception e) {
+            assertThat(e.getMessage(), false, equalTo(true));
+        }
+
         serviceA.removeHandler("sayHello");
     }
 

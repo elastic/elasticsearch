@@ -31,6 +31,8 @@ import java.io.IOException;
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
+    public static final int DEFAULT_SIZE = 32 * 1024;
+
     /**
      * The buffer where data is stored.
      */
@@ -42,7 +44,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     protected int count;
 
     public BytesStreamOutput() {
-        this(1024);
+        this(DEFAULT_SIZE);
     }
 
     public BytesStreamOutput(int size) {

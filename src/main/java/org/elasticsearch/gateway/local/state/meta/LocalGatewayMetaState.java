@@ -35,7 +35,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -321,62 +321,57 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.bytes());
-            builder.startObject();
-            IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
-            builder.endObject();
-            builder.flush();
+        XContentBuilder builder = XContentFactory.contentBuilder(format, new BytesStreamOutput());
+        builder.startObject();
+        IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
+        builder.endObject();
+        builder.flush();
 
-            String stateFileName = "state-" + indexMetaData.version();
-            Exception lastFailure = null;
-            boolean wroteAtLeastOnce = false;
+        String stateFileName = "state-" + indexMetaData.version();
+        Exception lastFailure = null;
+        boolean wroteAtLeastOnce = false;
+        for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
+            File stateLocation = new File(indexLocation, "_state");
+            FileSystemUtils.mkdirs(stateLocation);
+            File stateFile = new File(stateLocation, stateFileName);
+
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(stateFile);
+                BytesReference bytes = builder.bytes();
+                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                fos.getChannel().force(true);
+                Closeables.closeQuietly(fos);
+                wroteAtLeastOnce = true;
+            } catch (Exception e) {
+                lastFailure = e;
+            } finally {
+                Closeables.closeQuietly(fos);
+            }
+        }
+
+        if (!wroteAtLeastOnce) {
+            logger.warn("[{}]: failed to state", lastFailure, indexMetaData.index());
+            throw new IOException("failed to write state for [" + indexMetaData.index() + "]", lastFailure);
+        }
+
+        // delete the old files
+        if (previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version()) {
             for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-                File stateLocation = new File(indexLocation, "_state");
-                FileSystemUtils.mkdirs(stateLocation);
-                File stateFile = new File(stateLocation, stateFileName);
-
-                FileOutputStream fos = null;
-                try {
-                    fos = new FileOutputStream(stateFile);
-                    BytesReference bytes = cachedEntry.bytes().bytes();
-                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
-                    fos.getChannel().force(true);
-                    Closeables.closeQuietly(fos);
-                    wroteAtLeastOnce = true;
-                } catch (Exception e) {
-                    lastFailure = e;
-                } finally {
-                    Closeables.closeQuietly(fos);
+                File[] files = new File(indexLocation, "_state").listFiles();
+                if (files == null) {
+                    continue;
                 }
-            }
-
-            if (!wroteAtLeastOnce) {
-                logger.warn("[{}]: failed to state", lastFailure, indexMetaData.index());
-                throw new IOException("failed to write state for [" + indexMetaData.index() + "]", lastFailure);
-            }
-
-            // delete the old files
-            if (previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version()) {
-                for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-                    File[] files = new File(indexLocation, "_state").listFiles();
-                    if (files == null) {
+                for (File file : files) {
+                    if (!file.getName().startsWith("state-")) {
                         continue;
                     }
-                    for (File file : files) {
-                        if (!file.getName().startsWith("state-")) {
-                            continue;
-                        }
-                        if (file.getName().equals(stateFileName)) {
-                            continue;
-                        }
-                        file.delete();
+                    if (file.getName().equals(stateFileName)) {
+                        continue;
                     }
+                    file.delete();
                 }
             }
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 
@@ -385,60 +380,55 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         // create metadata to write with just the global state
         MetaData globalMetaData = MetaData.builder().metaData(metaData).removeAllIndices().build();
 
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.bytes());
-            builder.startObject();
-            MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
-            builder.endObject();
-            builder.flush();
+        XContentBuilder builder = XContentFactory.contentBuilder(format);
+        builder.startObject();
+        MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
+        builder.endObject();
+        builder.flush();
 
-            String globalFileName = "global-" + globalMetaData.version();
-            Exception lastFailure = null;
-            boolean wroteAtLeastOnce = false;
-            for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                File stateLocation = new File(dataLocation, "_state");
-                FileSystemUtils.mkdirs(stateLocation);
-                File stateFile = new File(stateLocation, globalFileName);
+        String globalFileName = "global-" + globalMetaData.version();
+        Exception lastFailure = null;
+        boolean wroteAtLeastOnce = false;
+        for (File dataLocation : nodeEnv.nodeDataLocations()) {
+            File stateLocation = new File(dataLocation, "_state");
+            FileSystemUtils.mkdirs(stateLocation);
+            File stateFile = new File(stateLocation, globalFileName);
 
-                FileOutputStream fos = null;
-                try {
-                    fos = new FileOutputStream(stateFile);
-                    BytesReference bytes = cachedEntry.bytes().bytes();
-                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
-                    fos.getChannel().force(true);
-                    Closeables.closeQuietly(fos);
-                    wroteAtLeastOnce = true;
-                } catch (Exception e) {
-                    lastFailure = e;
-                } finally {
-                    Closeables.closeQuietly(fos);
-                }
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(stateFile);
+                BytesReference bytes = builder.bytes();
+                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                fos.getChannel().force(true);
+                Closeables.closeQuietly(fos);
+                wroteAtLeastOnce = true;
+            } catch (Exception e) {
+                lastFailure = e;
+            } finally {
+                Closeables.closeQuietly(fos);
             }
+        }
 
-            if (!wroteAtLeastOnce) {
-                logger.warn("[_global]: failed to write global state", lastFailure);
-                throw new IOException("failed to write global state", lastFailure);
+        if (!wroteAtLeastOnce) {
+            logger.warn("[_global]: failed to write global state", lastFailure);
+            throw new IOException("failed to write global state", lastFailure);
+        }
+
+        // delete the old files
+        for (File dataLocation : nodeEnv.nodeDataLocations()) {
+            File[] files = new File(dataLocation, "_state").listFiles();
+            if (files == null) {
+                continue;
             }
-
-            // delete the old files
-            for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                File[] files = new File(dataLocation, "_state").listFiles();
-                if (files == null) {
+            for (File file : files) {
+                if (!file.getName().startsWith("global-")) {
                     continue;
                 }
-                for (File file : files) {
-                    if (!file.getName().startsWith("global-")) {
-                        continue;
-                    }
-                    if (file.getName().equals(globalFileName)) {
-                        continue;
-                    }
-                    file.delete();
+                if (file.getName().equals(globalFileName)) {
+                    continue;
                 }
+                file.delete();
             }
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 

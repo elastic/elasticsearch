@@ -1,0 +1,21 @@
+---
+"Regression tests for #3363 and #3364":
+  - skip:
+      version:  "0 - 0.90.2"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+
+  - do:
+      catch: request
+      indices.put_alias: {}
+
+  - do:
+      catch: request
+      indices.put_alias:
+        index: test
+
+  - do:
+      catch: request
+      indices.put_alias:
+        name: test
+
+  

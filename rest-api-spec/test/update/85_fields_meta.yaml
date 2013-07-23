@@ -2,8 +2,8 @@
 "Fields":
 
   - skip:
-      version:  "0 - 0.90.2"
-      reason:   "Update doesn't return metadata fields"
+      version:  "0 - 999"
+      reason:   "Update doesn't return metadata fields, waiting for #3259"
 
   - do:
       indices.create:

@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -182,14 +182,11 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             value = context.parser().binaryValue();
             if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
                 if (compressThreshold == -1 || value.length > compressThreshold) {
-                    CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-                    StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-                    streamOutput.writeBytes(value, 0, value.length);
-                    streamOutput.close();
-                    // we copy over the byte array, since we need to push back the cached entry
-                    // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
-                    value = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
-                    CachedStreamOutput.pushEntry(cachedEntry);
+                    BytesStreamOutput bStream = new BytesStreamOutput();
+                    StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
+                    stream.writeBytes(value, 0, value.length);
+                    stream.close();
+                    value = bStream.bytes().toBytes();
                 }
             }
         }

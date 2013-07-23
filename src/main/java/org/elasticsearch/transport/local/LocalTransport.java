@@ -151,38 +151,34 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            StreamOutput stream = cachedEntry.handles();
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        StreamOutput stream = new HandlesStreamOutput(bStream);
 
-            stream.writeLong(requestId);
-            byte status = 0;
-            status = TransportStatus.setRequest(status);
-            stream.writeByte(status); // 0 for request, 1 for response.
+        stream.writeLong(requestId);
+        byte status = 0;
+        status = TransportStatus.setRequest(status);
+        stream.writeByte(status); // 0 for request, 1 for response.
 
-            stream.writeString(action);
-            request.writeTo(stream);
+        stream.writeString(action);
+        request.writeTo(stream);
 
-            stream.close();
+        stream.close();
 
-            final LocalTransport targetTransport = connectedNodes.get(node);
-            if (targetTransport == null) {
-                throw new NodeNotConnectedException(node, "Node not connected");
-            }
-
-            final byte[] data = cachedEntry.bytes().bytes().copyBytesArray().toBytes();
-
-            transportServiceAdapter.sent(data.length);
-
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
-                }
-            });
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
+        final LocalTransport targetTransport = connectedNodes.get(node);
+        if (targetTransport == null) {
+            throw new NodeNotConnectedException(node, "Node not connected");
         }
+
+        final byte[] data = bStream.bytes().toBytes();
+
+        transportServiceAdapter.sent(data.length);
+
+        threadPool.generic().execute(new Runnable() {
+            @Override
+            public void run() {
+                targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
+            }
+        });
     }
 
     ThreadPool threadPool() {

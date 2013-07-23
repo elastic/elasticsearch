@@ -33,7 +33,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -856,7 +856,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 return;
             }
             CheckIndex checkIndex = new CheckIndex(store.directory());
-            FastByteArrayOutputStream os = new FastByteArrayOutputStream();
+            BytesStreamOutput os = new BytesStreamOutput();
             PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
             checkIndex.setInfoStream(out);
             out.flush();

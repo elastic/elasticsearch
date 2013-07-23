@@ -252,16 +252,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         synchronized (sendMutex) {
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                StreamOutput out = cachedEntry.handles();
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                StreamOutput out = new HandlesStreamOutput(bStream);
                 out.writeBytes(INTERNAL_HEADER);
                 Version.writeVersion(Version.CURRENT, out);
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
                 out.close();
-                datagramPacketSend.setData(cachedEntry.bytes().bytes().copyBytesArray().toBytes());
+                datagramPacketSend.setData(bStream.bytes().toBytes());
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] sending ping request", id);
@@ -275,8 +275,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 } else {
                     logger.warn("failed to send multicast ping request: {}", ExceptionsHelper.detailedMessage(e));
                 }
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
             }
         }
     }

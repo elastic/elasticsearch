@@ -28,7 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
@@ -528,32 +529,27 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             options.withCompress(true);
         }
 
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-
         byte status = 0;
         status = TransportStatus.setRequest(status);
 
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        bStream.skip(NettyHeader.HEADER_SIZE);
+        StreamOutput stream = bStream;
         if (options.compress()) {
             status = TransportStatus.setCompress(status);
-            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
-            StreamOutput stream = cachedEntry.handles(CompressorFactory.defaultCompressor());
-            stream.setVersion(node.version());
-            stream.writeString(action);
-            request.writeTo(stream);
-            stream.close();
-        } else {
-            StreamOutput stream = cachedEntry.handles();
-            cachedEntry.bytes().skip(NettyHeader.HEADER_SIZE);
-            stream.setVersion(node.version());
-            stream.writeString(action);
-            request.writeTo(stream);
-            stream.close();
+            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
         }
-        ChannelBuffer buffer = cachedEntry.bytes().bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status, node.version());
+        stream = new HandlesStreamOutput(stream);
 
-        ChannelFuture future = targetChannel.write(buffer);
-        future.addListener(new CacheFutureListener(cachedEntry));
+        stream.setVersion(node.version());
+        stream.writeString(action);
+        request.writeTo(stream);
+        stream.close();
+
+        ChannelBuffer buffer = bStream.bytes().toChannelBuffer();
+        NettyHeader.writeHeader(buffer, requestId, status, node.version());
+        targetChannel.write(buffer);
+
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future
 //        channelFuture.addListener(new ChannelFutureListener() {
 //            @Override public void operationComplete(ChannelFuture future) throws Exception {
@@ -902,19 +898,4 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         }
     }
-
-    public static class CacheFutureListener implements ChannelFutureListener {
-
-        private final CachedStreamOutput.Entry cachedEntry;
-
-        public CacheFutureListener(CachedStreamOutput.Entry cachedEntry) {
-            this.cachedEntry = cachedEntry;
-        }
-
-        @Override
-        public void operationComplete(ChannelFuture channelFuture) throws Exception {
-            CachedStreamOutput.pushEntry(cachedEntry);
-        }
-    }
-
 }

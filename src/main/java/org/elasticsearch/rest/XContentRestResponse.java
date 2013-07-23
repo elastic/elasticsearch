@@ -73,7 +73,7 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     @Override
     public boolean contentThreadSafe() {
-        return false;
+        return true;
     }
 
     @Override

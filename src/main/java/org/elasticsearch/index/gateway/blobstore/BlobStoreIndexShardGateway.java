@@ -22,16 +22,14 @@ package org.elasticsearch.index.gateway.blobstore;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.blobstore.*;
-import org.elasticsearch.common.io.FastByteArrayInputStream;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
@@ -318,7 +316,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         CommitPoint commitPoint = new CommitPoint(version, commitPointName, CommitPoint.Type.GENERATED, indexCommitPointFiles, translogCommitPointFiles);
         try {
             byte[] commitPointData = CommitPoints.toXContent(commitPoint);
-            blobContainer.writeBlob(commitPointName, new FastByteArrayInputStream(commitPointData), commitPointData.length);
+            blobContainer.writeBlob(commitPointName, new BytesStreamInput(commitPointData, false), commitPointData.length);
         } catch (Exception e) {
             throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to write commit point", e);
         }
@@ -453,7 +451,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             final Iterator<CommitPoint.FileInfo> transIt = commitPoint.translogFiles().iterator();
 
             blobContainer.readBlob(transIt.next().name(), new BlobContainer.ReadBlobListener() {
-                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                BytesStreamOutput bos = new BytesStreamOutput();
                 boolean ignore = false;
 
                 @Override
@@ -497,7 +495,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         }
                     }
 
-                    FastByteArrayOutputStream newBos = new FastByteArrayOutputStream();
+                    BytesStreamOutput newBos = new BytesStreamOutput();
 
                     int leftOver = bos.size() - position;
                     if (leftOver > 0) {

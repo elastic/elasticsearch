@@ -20,8 +20,8 @@
 package org.elasticsearch.test.unit.common.xcontent.builder;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.FastCharArrayWriter;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -82,7 +82,7 @@ public class XContentBuilderTests {
 
     @Test
     public void testWritingBinaryToStream() throws Exception {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+        BytesStreamOutput bos = new BytesStreamOutput();
 
         XContentGenerator gen = XContentFactory.xContent(XContentType.JSON).createGenerator(bos);
         gen.writeStartObject();

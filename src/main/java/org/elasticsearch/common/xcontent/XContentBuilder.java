@@ -21,12 +21,11 @@ package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -70,19 +69,14 @@ public final class XContentBuilder implements BytesStream {
         XContentBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
     }
 
-    /**
-     * Constructs a new builder using a fresh {@link FastByteArrayOutputStream}.
-     */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(xContent, new FastByteArrayOutputStream());
+        return new XContentBuilder(xContent, new BytesStreamOutput());
     }
 
 
     private XContentGenerator generator;
 
     private final OutputStream bos;
-
-    private final Object payload;
 
     private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
@@ -94,17 +88,8 @@ public final class XContentBuilder implements BytesStream {
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, null);
-    }
-
-    /**
-     * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
-     * to call {@link #close()} when the builder is done with.
-     */
-    public XContentBuilder(XContent xContent, OutputStream bos, @Nullable Object payload) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos);
-        this.payload = payload;
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
@@ -1022,11 +1007,6 @@ public final class XContentBuilder implements BytesStream {
 
     public XContentGenerator generator() {
         return this.generator;
-    }
-
-    @Nullable
-    public Object payload() {
-        return this.payload;
     }
 
     public OutputStream stream() {

@@ -9,13 +9,6 @@
           id:     1
 
  - do:
-      delete:
-          index:          test_1
-          type:           test
-          id:             1
-          ignore_missing: 1
-
- - do:
       index:
           index:  test_1
           type:   test
@@ -23,7 +16,7 @@
           body:   { foo: bar }
 
  - is_true:   ok
- - match:   { _version: 3}
+ - match:   { _version: 2 }
 
  - do:
       delete:
@@ -31,4 +24,4 @@
           type:   test
           id:     1
 
- - match:   { _version: 4}
+ - match:   { _version: 3 }

@@ -9,13 +9,6 @@
         id:    1
 
   - do:
-      get:
-        index:          test_1
-        type:           test
-        id:             1
-        ignore_missing: 1
-
-  - do:
       index:
         index: test_1
         type:  test

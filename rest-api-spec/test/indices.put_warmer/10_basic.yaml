@@ -1,0 +1,44 @@
+---
+"Basic test for warmers":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  
+  - do:
+      catch: missing
+      indices.get_warmer:
+        index: test_index
+        name: test_warmer
+
+  - do:
+      indices.put_warmer:
+        index: test_index
+        name: test_warmer
+        body:
+          query:
+            match_all: {}
+
+  - is_true: ok
+
+  - do:
+      indices.get_warmer:
+        index: test_index
+        name: test_warmer
+
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+
+  - do:
+      indices.delete_warmer:
+        index: test_index
+
+  - is_true: ok
+
+  - do:
+      catch: missing
+      indices.get_warmer:
+        index: test_index
+        name: test_warmer

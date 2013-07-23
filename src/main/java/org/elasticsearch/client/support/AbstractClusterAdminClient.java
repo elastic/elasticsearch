@@ -61,6 +61,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
@@ -228,5 +232,18 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
         return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
     }
 
+    @Override
+    public PendingClusterTasksRequestBuilder preparePendingClusterTasks() {
+        return new PendingClusterTasksRequestBuilder(this);
+    }
 
+    @Override
+    public ActionFuture<PendingClusterTasksResponse> pendingClusterTasks(PendingClusterTasksRequest request) {
+        return execute(PendingClusterTasksAction.INSTANCE, request);
+    }
+
+    @Override
+    public void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener) {
+        execute(PendingClusterTasksAction.INSTANCE, request, listener);
+    }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -45,6 +46,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
@@ -236,10 +238,33 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
+    @Override
+    public List<PendingClusterTask> pendingTasks() {
+        long now = System.currentTimeMillis();
+        PrioritizedEsThreadPoolExecutor.Pending[] pendings = updateTasksExecutor.getPending();
+        List<PendingClusterTask> pendingClusterTasks = new ArrayList<PendingClusterTask>(pendings.length);
+        for (PrioritizedEsThreadPoolExecutor.Pending pending : pendings) {
+            final String source;
+            final long timeInQueue;
+            if (pending.task instanceof UpdateTask) {
+                UpdateTask updateTask = (UpdateTask) pending.task;
+                source = updateTask.source;
+                timeInQueue = now - updateTask.addedAt;
+            }  else {
+                source = "unknown";
+                timeInQueue = -1;
+            }
+
+            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue));
+        }
+        return pendingClusterTasks;
+    }
+
     class UpdateTask extends PrioritizedRunnable {
 
         public final String source;
         public final ClusterStateUpdateTask updateTask;
+        public final long addedAt = System.currentTimeMillis();
 
         UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
             super(priority);

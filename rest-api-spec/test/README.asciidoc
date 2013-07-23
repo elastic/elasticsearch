@@ -26,10 +26,9 @@ in the `indices.get_settings` API.
 
 Skipping tests:
 ---------------
-If tests should be skipped on particular versions of Elasticsearch, the
-first entry in the list of tests should be called `skip`, and contain
-the range of versions to be skipped, and the reason why the tests are
-skipped.  For instance:
+If any tests should be skipped on particular versions of Elasticsearch, there
+should be an entry called `skip` containing the range of versions to be
+skipped, and the reason why the tests are skipped.  For instance:
 
 ....
     "Parent":
@@ -41,7 +40,8 @@ skipped.  For instance:
        ... test definitions ...
 ....
 
-All tests in the file should be skipped if: `min <= current <= max`.
+All tests in the file following the skip statement should be skipped if:
+`min <= current <= max`.
 
 The `version` range should always have an upper bound. Versions should
 either have each version part compared numerically, or should be converted

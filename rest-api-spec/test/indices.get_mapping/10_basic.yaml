@@ -14,15 +14,19 @@
   - do:
       indices.get_mapping:
         index: test_index
-        type: test_type
-  
-  - match: {test_type.properties.text.type:     string}
-  - match: {test_type.properties.text.analyzer: whitespace}
+
+  - match: {test_index.test_type.properties.text.type:     string}
+  - match: {test_index.test_type.properties.text.analyzer: whitespace}
 
   - do:
       indices.get_mapping:
         index: test_index
-
-  - match: {test_index.test_type.properties.text.type:     string}
-  - match: {test_index.test_type.properties.text.analyzer: whitespace}
+        type: test_type
+  
+  - skip:
+      version:     "0.90.2 - 999"
+      reason:      "for newer versions the index name is always required"
+    
+  - match: {test_type.properties.text.type:     string}
+  - match: {test_type.properties.text.analyzer: whitespace}
 

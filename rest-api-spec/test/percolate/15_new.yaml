@@ -1,0 +1,31 @@
+---
+"Basic percolation tests":
+  - skip:
+      version:  "0 - 0.90.2"
+      reason:   "Percolator redesign"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      index:
+        index: test_index
+        type: _percolator
+        id:   test_percolator
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      percolate:
+        index: test_index
+        type:  test_type
+        body:
+          doc:
+            foo: bar
+
+  - match: {'matches': ['test_percolator']}

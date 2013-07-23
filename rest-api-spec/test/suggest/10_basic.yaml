@@ -1,5 +1,9 @@
 ---
 "Basic tests for suggest API":
+  - skip:
+      version:     "0 - 0.90.2"
+      reason:      "Suggest is broken on 0.90.2 - see #3246"
+
   - do:
       index:
         index: test

@@ -41,16 +41,12 @@ import java.net.InetAddress;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.cloud.gce.GceComputeService.Fields;
+
 /**
  *
  */
 public class GceUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
-
-    static final class Fields {
-        private static final String PROJECT = "project_id";
-        private static final String ZONE = "zone";
-        private static final String REFRESH = "refresh_interval";
-    }
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";
@@ -109,7 +105,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
             }
             lastRefresh = System.currentTimeMillis();
         }
-        logger.debug("start building nodes list using GCE API");
+        logger.info("start building nodes list using GCE API");
 
         cachedDiscoNodes = Lists.newArrayList();
         String ipAddress = null;
@@ -240,7 +236,9 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
             logger.trace("Exception caught during discovery", e);
         }
 
+        logger.info("{} node(s) added", cachedDiscoNodes.size());
         logger.debug("using dynamic discovery nodes {}", cachedDiscoNodes);
+
         return cachedDiscoNodes;
     }
 

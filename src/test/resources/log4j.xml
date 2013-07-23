@@ -21,14 +21,14 @@ governing permissions and limitations under the License. -->
 	</appender>
 
 	<logger name="org.elasticsearch">
-		<level value="info" />
+		<level value="error" />
 	</logger>
 
-	<logger name="org.elasticsearch.cloud">
-		<level value="trace" />
+	<logger name="org.elasticsearch.cloud.gce">
+		<level value="info" />
 	</logger>
-    <logger name="org.elasticsearch.discovery">
-        <level value="trace" />
+    <logger name="org.elasticsearch.discovery.gce">
+        <level value="info" />
     </logger>
 
 	<root>

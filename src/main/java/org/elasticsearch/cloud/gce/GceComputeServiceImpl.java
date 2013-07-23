@@ -94,7 +94,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
             HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
             JSON_FACTORY = new JacksonFactory();
 
-            logger.debug("starting GCE discovery service");
+            logger.info("starting GCE discovery service");
             ComputeCredential credential = new ComputeCredential.Builder(HTTP_TRANSPORT, JSON_FACTORY).build();
             credential.refreshToken();
 

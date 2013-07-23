@@ -96,6 +96,7 @@ public abstract class GceAbstractTest {
                 .put("path.logs", "./target/es/logs")
                 .put("path.work", "./target/es/work")
                 .put("cloud.gce.api.impl", mock)
+                .put("cloud.gce.refresh_interval", "5s")
                 .put("node.name", (nodes.size()+1) + "#" + mock.getSimpleName());
         if (filteredTags != null) {
             builder.put("discovery.gce.tags", filteredTags);

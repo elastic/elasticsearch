@@ -18,10 +18,9 @@
   - do:
       indices.get_mapping:
         index: test_index
-        type: test_type
   
-  - match: {test_type.properties.text.type:     string}
-  - match: {test_type.properties.text.analyzer: whitespace}
+  - match: {test_index.test_type.properties.text.type:     string}
+  - match: {test_index.test_type.properties.text.analyzer: whitespace}
 
   - do:
       indices.put_mapping:
@@ -43,7 +42,6 @@
   - do:
       indices.get_mapping:
         index: test_index
-        type: test_type
   
-  - match: {test_type.properties.text.type:     multi_field}
-  - match: {test_type.properties.text.fields.text_raw.index: not_analyzed}
+  - match: {test_index.test_type.properties.text.type:     multi_field}
+  - match: {test_index.test_type.properties.text.fields.text_raw.index: not_analyzed}

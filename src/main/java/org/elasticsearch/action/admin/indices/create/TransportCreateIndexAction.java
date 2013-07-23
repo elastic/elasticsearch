@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -92,7 +93,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
 
                     @Override
                     public void onFailure(Throwable t) {
-                        logger.warn("[{}] failed to create", t, request.index());
+                        if (t instanceof IndexAlreadyExistsException) {
+                            logger.trace("[{}] failed to create", t, request.index());
+                        } else {
+                            logger.debug("[{}] failed to create", t, request.index());
+                        }
                         listener.onFailure(t);
                     }
                 });

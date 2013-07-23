@@ -84,8 +84,8 @@ The argument to `catch` can be any of:
 
 [horizontal]
 `missing`::     a 404 response from ES
-`conflict`::     a 409 response from ES
-`request`::        a generic error response from ES
+`conflict`::    a 409 response from ES
+`request`::     a generic error response from ES
 `param`::       a client-side error indicating an unknown parameter has been passed
                 to the method
 `/foo bar/`::   the text of the error message matches this regular expression

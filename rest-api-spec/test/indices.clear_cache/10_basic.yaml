@@ -1,0 +1,6 @@
+---
+"clear_cache test":
+  - do:
+      indices.clear_cache: {}
+  
+  - is_true: ok

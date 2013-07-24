@@ -1,5 +1,5 @@
 ---
-"Basic test for bulk":
+"Array of objects":
   - do:
       bulk:
         refresh: true

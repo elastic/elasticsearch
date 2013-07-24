@@ -1,5 +1,5 @@
 ---
-"Basic test for bulk":
+"List of strings":
   - do:
       bulk:
         refresh: true

@@ -45,7 +45,7 @@
     </repositories>
 
     <dependencies>
-            <dependency>
+        <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-all</artifactId>
             <version>1.3</version>
@@ -285,6 +285,7 @@
                 <includes>
                     <include>**/*.*</include>
                 </includes>
+                <filtering>true</filtering>
             </resource>
         </resources>
 
@@ -331,26 +332,27 @@
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>
                             <listeners>
-                                <report-ant-xml mavenExtensions="true" dir="${project.build.directory}/surefire-reports" />
-                                <report-text 
-                                    showThrowable="true" 
-                                    showStackTraces="true" 
-                                    showOutput="onerror" 
-                                    showStatusOk="false" 
-                                    showStatusError="true" 
-                                    showStatusFailure="true" 
-                                    showStatusIgnored="true" 
-                                    showSuiteSummary="true"
-                                    timestamps="false" />
-                                 <report-execution-times file="${basedir}/.local-execution-hints.log"/>
+                                <report-ant-xml mavenExtensions="true"
+                                                dir="${project.build.directory}/surefire-reports"/>
+                                <report-text
+                                        showThrowable="true"
+                                        showStackTraces="true"
+                                        showOutput="onerror"
+                                        showStatusOk="false"
+                                        showStatusError="true"
+                                        showStatusFailure="true"
+                                        showStatusIgnored="true"
+                                        showSuiteSummary="true"
+                                        timestamps="false"/>
+                                <report-execution-times file="${basedir}/.local-execution-hints.log"/>
                             </listeners>
                             <assertions>
-                                <enable />
+                                <enable/>
                             </assertions>
                             <parallelism>${tests.jvms}</parallelism>
                             <balancers>
                                 <execution-times>
-                                    <fileset dir="${basedir}" includes=".local-execution-hints.log" />
+                                    <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
                                 </execution-times>
                             </balancers>
                             <includes>
@@ -380,7 +382,8 @@
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
-                                <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}</es.action.wait_on_mapping_change>
+                                <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
+                                </es.action.wait_on_mapping_change>
                                 <java.awt.headless>true</java.awt.headless>
                             </systemProperties>
                         </configuration>
@@ -391,9 +394,9 @@
                 <!-- we skip surefire to work with randomized testing above -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                 <version>2.15</version>
+                <version>2.15</version>
                 <configuration>
-                   <skipTests>true</skipTests>
+                    <skipTests>true</skipTests>
                 </configuration>
             </plugin>
             <plugin>
@@ -531,6 +534,23 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.2</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doCheck>false</doCheck>
+                    <doUpdate>false</doUpdate>
+                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>

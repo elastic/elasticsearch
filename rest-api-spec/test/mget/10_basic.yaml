@@ -11,8 +11,8 @@
           body:   { foo: bar }
 
   - do:
-      cluster.health:
-          wait_for_status: yellow
+      indices.flush:
+        refresh: true
 
   - do:
       mget:

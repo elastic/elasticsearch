@@ -295,7 +295,7 @@ public class Version implements Serializable {
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch Version: " + Version.CURRENT + ", JVM: " + JvmInfo.jvmInfo().version() + "(" + JvmInfo.jvmInfo().vmVersion() + ")");
+        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
     }
 
     @Override

@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.test.integration.rest.helper;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-
-import com.google.common.base.Charsets;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,8 +31,8 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 public class HttpClient {
 
@@ -42,7 +41,7 @@ public class HttpClient {
     public HttpClient(TransportAddress transportAddress) {
         InetSocketAddress address = ((InetSocketTransportAddress) transportAddress).address();
         try {
-            baseUrl = new URL("http", address.getHostName(), address.getPort(), "/");
+            baseUrl = new URL("http", address.getAddress().getHostAddress(), address.getPort(), "/");
         } catch (MalformedURLException e) {
             throw new ElasticSearchException("", e);
         }
@@ -81,7 +80,7 @@ public class HttpClient {
             urlConnection = (HttpURLConnection) url.openConnection();
             urlConnection.setRequestMethod(method);
             if (headers != null) {
-                for (Map.Entry<String,String> headerEntry : headers.entrySet()) {
+                for (Map.Entry<String, String> headerEntry : headers.entrySet()) {
                     urlConnection.setRequestProperty(headerEntry.getKey(), headerEntry.getValue());
                 }
             }

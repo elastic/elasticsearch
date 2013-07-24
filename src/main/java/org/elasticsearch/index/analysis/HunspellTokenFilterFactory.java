@@ -37,6 +37,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final HunspellDictionary dictionary;
     private final boolean dedup;
+    private final int recursionLevel;
 
     @Inject
     public HunspellTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService) {
@@ -53,14 +54,23 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         dedup = settings.getAsBoolean("dedup", true);
+
+        recursionLevel = settings.getAsInt("recursion_level", 2);
+        if (recursionLevel < 0) {
+            throw new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, "Negative recursion level not allowed for hunspell [%d]", recursionLevel));
+        }
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new HunspellStemFilter(tokenStream, dictionary, dedup);
+        return new HunspellStemFilter(tokenStream, dictionary, dedup, recursionLevel);
     }
 
     public boolean dedup() {
         return dedup;
+    }
+
+    public int recursionLevel() {
+        return recursionLevel;
     }
 }

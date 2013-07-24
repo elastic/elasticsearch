@@ -1,5 +1,5 @@
 ---
-"Basic test for bulk":
+"One big string":
   - do:
       bulk:
         refresh: true

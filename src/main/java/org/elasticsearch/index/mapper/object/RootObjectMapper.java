@@ -109,10 +109,6 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 dates = dynamicDateTimeFormatters.toArray(new FormatDateTimeFormatter[dynamicDateTimeFormatters.size()]);
             }
-            // root dynamic must not be null, since its the default
-            if (dynamic == null) {
-                dynamic = Dynamic.TRUE;
-            }
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),

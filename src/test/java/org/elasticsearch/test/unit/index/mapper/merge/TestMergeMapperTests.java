@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.mapper.merge;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
 import org.junit.Test;
 
@@ -62,6 +63,20 @@ public class TestMergeMapperTests {
         assertThat(stage1.mappers().smartName("obj1.prop1"), notNullValue());
     }
 
+    @Test
+    public void testMergeObjectDynamic() throws Exception {
+        String objectMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").endObject().endObject().string();
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(objectMapping);
+        assertThat(mapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.TRUE));
+
+        String withDynamicMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").field("dynamic", "false").endObject().endObject().string();
+        DocumentMapper withDynamicMapper = MapperTestUtils.newParser().parse(withDynamicMapping);
+        assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+
+        DocumentMapper.MergeResult mergeResult = mapper.merge(withDynamicMapper, mergeFlags().simulate(false));
+        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        assertThat(mapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+    }
 
     @Test
     public void testMergeObjectAndNested() throws Exception {

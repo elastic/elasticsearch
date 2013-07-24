@@ -61,7 +61,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
-        public static final Dynamic DYNAMIC = null; // not set, inherited from father
+        public static final Dynamic DYNAMIC = null; // not set, inherited from root
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
 
@@ -286,7 +286,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private final Filter nestedTypeFilter;
 
-    private final Dynamic dynamic;
+    private volatile Dynamic dynamic;
 
     private final ContentPath.Type pathType;
 
@@ -389,7 +389,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     }
 
     public final Dynamic dynamic() {
-        return this.dynamic;
+        return this.dynamic == null ? Dynamic.TRUE : this.dynamic;
     }
 
     protected boolean allowValue() {
@@ -800,6 +800,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
 
+        if (!mergeContext.mergeFlags().simulate()) {
+            if (mergeWithObject.dynamic != null) {
+                this.dynamic = mergeWithObject.dynamic;
+            }
+        }
+
         doMerge(mergeWithObject, mergeContext);
 
         List<Mapper> mappersToTraverse = new ArrayList<Mapper>();
@@ -866,16 +872,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         } else if (mappers.isEmpty()) { // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
-        // grr, ugly! on root, dynamic defaults to TRUE, on children, it defaults to null to
-        // inherit the root behavior
-        if (this instanceof RootObjectMapper) {
-            if (dynamic != Dynamic.TRUE) {
-                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-            }
-        } else {
-            if (dynamic != Defaults.DYNAMIC) {
-                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-            }
+        if (dynamic != null) {
+            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

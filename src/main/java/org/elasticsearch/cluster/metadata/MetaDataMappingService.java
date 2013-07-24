@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -112,6 +113,8 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         Set<String> indicesToRemove = Sets.newHashSet();
+        // keep track of what we already refreshed, no need to refresh it again...
+        Set<Tuple<String, String>> processedRefreshes = Sets.newHashSet();
         try {
             boolean dirty = false;
             MetaData.Builder mdBuilder = newMetaDataBuilder().metaData(currentState.metaData());
@@ -140,11 +143,16 @@ public class MetaDataMappingService extends AbstractComponent {
                     IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
                     List<String> updatedTypes = Lists.newArrayList();
                     for (String type : refreshTask.types) {
+                        Tuple<String, String> processedRefresh = Tuple.tuple(index, type);
+                        if (processedRefreshes.contains(processedRefresh)) {
+                            continue;
+                        }
                         DocumentMapper mapper = indexService.mapperService().documentMapper(type);
                         if (!mapper.mappingSource().equals(indexMetaData.mappings().get(type).source())) {
                             updatedTypes.add(type);
                             indexMetaDataBuilder.putMapping(new MappingMetaData(mapper));
                         }
+                        processedRefreshes.add(processedRefresh);
                     }
 
                     if (updatedTypes.isEmpty()) {
@@ -183,6 +191,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     DocumentMapper updatedMapper = indexService.mapperService().merge(type, mappingSource.string(), false);
+                    processedRefreshes.add(Tuple.tuple(index, type));
 
                     // if we end up with the same mapping as the original once, ignore
                     if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(updatedMapper.mappingSource())) {

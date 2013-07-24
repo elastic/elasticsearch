@@ -1,0 +1,29 @@
+---
+"Basic test for index open/close":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists:
+        index: test_index
+
+  - is_true: ''
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      catch: forbidden
+      search:
+        index: test_index
+
+  - do:
+      indices.open:
+        index: test_index
+
+  - do:
+      search:
+        index: test_index
+

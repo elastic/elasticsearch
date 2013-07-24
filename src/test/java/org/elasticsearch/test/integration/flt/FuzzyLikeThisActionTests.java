@@ -27,6 +27,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.testng.Assert.fail;
@@ -74,11 +75,7 @@ public class FuzzyLikeThisActionTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
 
         // flt field query on a numeric field -> failure
-        try {
-            searchResponse = client().prepareSearch().setQuery(fuzzyLikeThisFieldQuery("int_value").likeText("42")).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            // OK
-        }
+        assertThrows(client().prepareSearch().setQuery(fuzzyLikeThisFieldQuery("int_value").likeText("42")), SearchPhaseExecutionException.class);
 
         // flt field query on a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(fuzzyLikeThisFieldQuery("int_value").likeText("42").failOnUnsupportedField(false)).execute().actionGet();

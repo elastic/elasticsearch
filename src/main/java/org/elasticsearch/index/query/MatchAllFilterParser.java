@@ -47,9 +47,7 @@ public class MatchAllFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token;
-        while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
-        }
+        parser.skipChildren();
 
         return Queries.MATCH_ALL_FILTER;
     }

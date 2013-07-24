@@ -131,6 +131,10 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
             if (failOnUnsupportedField) {
                 throw new ElasticSearchIllegalArgumentException("fuzzy_like_this_field doesn't support binary/numeric fields: [" + fieldName + "]");
             } else {
+                token = parser.nextToken(); // move to close the field name
+                if (token != XContentParser.Token.END_OBJECT) {
+                    throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no end_object");
+                }
                 return null;
             }
         }

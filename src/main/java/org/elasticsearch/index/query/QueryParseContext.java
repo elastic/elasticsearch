@@ -199,11 +199,16 @@ public class QueryParseContext {
         if (queryParser == null) {
             throw new QueryParsingException(index, "No query registered for [" + queryName + "]");
         }
+        int preDepth = parser.currentDepth();
         Query result = queryParser.parse(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
+        if (parser.currentDepth() != preDepth) {
+            String msg = parser.currentDepth() > preDepth ? "didn't consume all tokens in scope" : "consumed too many tokens";
+            throw new QueryParsingException(index, "inner query parsing " + msg + " (type: " + queryName + ", at " + parser.getCurrentLocationDescription() + ")");
         }
+        // move to the END_OBJECT of query name
+        parser.nextToken();
+        assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+
         return result;
     }
 
@@ -236,11 +241,16 @@ public class QueryParseContext {
         if (filterParser == null) {
             throw new QueryParsingException(index, "No filter registered for [" + filterName + "]");
         }
+        int preDepth = parser.currentDepth();
         Filter result = filterParser.parse(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
+        if (parser.currentDepth() != preDepth) {
+            String msg = parser.currentDepth() > preDepth ? "didn't consume all tokens in scope" : "consumed too many tokens";
+            throw new QueryParsingException(index, "inner filter parsing " + msg + " (type: " + filterName + ", at " + parser.getCurrentLocationDescription() + ")");
         }
+        // move to the END_OBJECT of filter name
+        parser.nextToken();
+        assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+
         return result;
     }
 
@@ -249,7 +259,13 @@ public class QueryParseContext {
         if (filterParser == null) {
             throw new QueryParsingException(index, "No filter registered for [" + filterName + "]");
         }
+        int preDepth = parser.currentDepth();
         Filter result = filterParser.parse(this);
+        if (parser.currentDepth() != preDepth) {
+            String msg = parser.currentDepth() > preDepth ? "didn't consume all tokens in scope" : "consumed too many tokens";
+            throw new QueryParsingException(index, "inner filter parsing " + msg + " (type: " + filterName + ", at " + parser.getCurrentLocationDescription() + ")");
+        }
+
         // don't move to the nextToken in this case...
 //        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
 //            // if we are at END_OBJECT, move to the next one...

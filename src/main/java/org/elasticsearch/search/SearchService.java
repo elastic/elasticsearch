@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
@@ -562,7 +563,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (element == null) {
                         throw new SearchParseException(context, "No parser for element [" + fieldName + "]");
                     }
+                    int preDepth = parser.currentDepth();
                     element.parse(parser, context);
+                    if (parser.currentDepth() != preDepth) {
+                        String msg = parser.currentDepth() > preDepth ? "didn't consume all tokens in scope" : "consumed too many tokens";
+                        throw new ElasticSearchParseException("search element parsing " + msg + " (type: " + fieldName + ", at " + parser.getCurrentLocationDescription() + ")");
+                    }
                 } else if (token == null) {
                     break;
                 }

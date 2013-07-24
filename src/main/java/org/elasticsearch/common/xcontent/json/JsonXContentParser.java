@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.util.BytesRef;
@@ -35,9 +36,11 @@ import java.io.IOException;
 public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
+    int depth;
 
     public JsonXContentParser(JsonParser parser) {
         this.parser = parser;
+        depth = 0;
     }
 
     @Override
@@ -47,7 +50,34 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public Token nextToken() throws IOException {
-        return convertToken(parser.nextToken());
+        updateDepthLeavingToken(parser.getCurrentToken());
+        JsonToken token = parser.nextToken();
+        updateDepthEnteringToken(token);
+        return convertToken(token);
+    }
+
+    private void updateDepthLeavingToken(JsonToken token) {
+        if (token == null) {
+            return;
+        }
+        switch (token) {
+            case START_OBJECT:
+            case START_ARRAY:
+                depth++;
+                break;
+        }
+    }
+
+    private void updateDepthEnteringToken(JsonToken token) {
+        if (token == null) {
+            return;
+        }
+        switch (token) {
+            case END_OBJECT:
+            case END_ARRAY:
+                depth--;
+                break;
+        }
     }
 
     @Override
@@ -58,6 +88,11 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public Token currentToken() {
         return convertToken(parser.getCurrentToken());
+    }
+
+    @Override
+    public int currentDepth() {
+        return depth;
     }
 
     @Override
@@ -235,5 +270,11 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return Token.VALUE_EMBEDDED_OBJECT;
         }
         throw new ElasticSearchIllegalStateException("No matching token for json_token [" + token + "]");
+    }
+
+    @Override
+    public String getCurrentLocationDescription() {
+        JsonLocation loc = parser.getCurrentLocation();
+        return (new StringBuffer("line: ")).append(loc.getLineNr()).append(", column: ").append(loc.getColumnNr()).append(']').toString();
     }
 }

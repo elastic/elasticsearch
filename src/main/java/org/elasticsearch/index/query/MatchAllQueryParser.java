@@ -49,25 +49,28 @@ public class MatchAllQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
-        String normsField = null;
         String currentFieldName = null;
 
         XContentParser.Token token;
-        while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
+
+        // match_all also supports match_all:[] as some clients render empty scopes a lists
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("norms_field".equals(currentFieldName) || "normsField".equals(currentFieldName)) {
-                    normsField = parseContext.indexName(parser.text());
+                    throw new QueryParsingException(parseContext.index(), "[match_all] norms_field is no longer supported");
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new QueryParsingException(parseContext.index(), "[match_all] encountered an invalid token");
             }
         }
 
-        if (boost == 1.0f && normsField == null) {
+        if (boost == 1.0f) {
             return Queries.MATCH_ALL_QUERY;
         }
 

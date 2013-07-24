@@ -117,6 +117,15 @@ public interface XContentParser extends Closeable {
 
     Token currentToken();
 
+    /**
+     * returns the current depth in the xcontent structure. Note that the counter is increased when
+     * stepping into a scope (calling next when standing on a START element) and decreased when you step out
+     * (when next returns an END element).
+     *
+     * @return
+     */
+    int currentDepth();
+
     String currentName() throws IOException;
 
     Map<String, Object> map() throws IOException;
@@ -172,4 +181,10 @@ public interface XContentParser extends Closeable {
     byte[] binaryValue() throws IOException;
 
     void close();
+
+    /**
+     * Method that returns the location of the last processed character;
+     * usually for error reporting purposes.
+     */
+    String getCurrentLocationDescription();
 }

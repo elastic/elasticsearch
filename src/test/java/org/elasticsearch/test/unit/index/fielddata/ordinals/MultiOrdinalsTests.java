@@ -83,6 +83,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                 lastOrd = ordAndId.ord;
                 builder.nextOrdinal();
             }
+            ordAndId.ord = builder.currentOrdinal(); // remap the ordinals in case we have gaps?
             builder.addDoc(ordAndId.id);
         }
 
@@ -117,9 +118,9 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                     assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
                     LongsRef ref = docs.getOrds(docId);
                     assertThat(ref.offset, equalTo(0));
-
+                    
                     for (int i = ref.offset; i < ref.length; i++) {
-                        assertThat(ref.longs[i], equalTo(docOrds.get(i)));
+                        assertThat("index: " + i + " offset: " + ref.offset + " len: " + ref.length, ref.longs[i], equalTo(docOrds.get(i)));
                     }
                     final long[] array = new long[docOrds.size()];
                     for (int i = 0; i < array.length; i++) {
@@ -140,7 +141,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
     }
 
     public static class OrdAndId {
-        final long ord;
+        long ord;
         final int id;
 
         public OrdAndId(long ord, int id) {

@@ -27,9 +27,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 /**
  *
  */
-public class AbstractZenNodesTests extends AbstractNodesTests {
+public abstract class AbstractZenNodesTests extends AbstractNodesTests {
 
-    
     @Override
     protected final Settings getClassDefaultSettings() {
         // we force zen discovery here since it has specific handling for specific master / data nodes

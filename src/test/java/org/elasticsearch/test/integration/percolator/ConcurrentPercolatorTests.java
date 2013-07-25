@@ -78,7 +78,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testSimpleConcurrentPerculator() throws Exception {
+    public void testSimpleConcurrentPercolator() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
@@ -344,12 +344,15 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                     try {
                         XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
                                 .field("query", termQuery("field1", "value")).endObject();
-                        while (run.get()) {
+                        outer: while (run.get()) {
                             semaphore.acquire();
                             try {
                                 if (!liveIds.isEmpty() && getRandom().nextInt(100) < 19) {
                                     String id;
                                     do {
+                                        if (liveIds.isEmpty()) {
+                                            continue outer;
+                                        }
                                         id = Integer.toString(randomInt(idGen.get()));
                                     } while (!liveIds.remove(id));
 

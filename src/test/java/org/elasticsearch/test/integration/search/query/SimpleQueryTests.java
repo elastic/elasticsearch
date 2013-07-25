@@ -39,13 +39,9 @@ import java.util.Arrays;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  *
@@ -545,8 +541,8 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        assertThat("1", equalTo(searchResponse.getHits().getAt(0).id()));
-        assertThat("2", equalTo(searchResponse.getHits().getAt(1).id()));
+        // this uses dismax so scores are equal and the order can be arbitrary
+        assertSearchHits(searchResponse, "1", "2");
 
         builder.useDisMax(false);
         searchResponse = client().prepareSearch()

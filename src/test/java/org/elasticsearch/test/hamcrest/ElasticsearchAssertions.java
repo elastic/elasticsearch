@@ -31,6 +31,8 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.hamcrest.Matcher;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -45,6 +47,16 @@ public class ElasticsearchAssertions {
      */
     public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
         assertThat(searchResponse.getHits().totalHits(), is(expectedHitCount));
+    }
+    
+    public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
+        assertThat("Expected different hit count", searchResponse.getHits().hits().length, equalTo(ids.length));
+
+        Set<String> idsSet = new HashSet<String>(Arrays.asList(ids));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat("Expected id: " + hit.getId() + " in the result but wasn't", idsSet.remove(hit.getId()), equalTo(true));
+        }
+        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs", idsSet.size(), equalTo(0));
     }
 
     public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {

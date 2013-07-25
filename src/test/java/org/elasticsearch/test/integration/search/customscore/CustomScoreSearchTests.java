@@ -38,10 +38,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertNotNull;
 
 /**
  *
@@ -306,8 +305,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertSearchHits(response, "1", "2");
+
 
         logger.info("running param1 * param2 * _score with filter instead of query");
         response = client().search(searchRequest()
@@ -318,7 +317,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertSearchHits(response, "1", "2");
         assertThat(response.getHits().getAt(0).score(), equalTo(4f)); // _score is always 1
         assertThat(response.getHits().getAt(1).score(), equalTo(4f)); // _score is always 1
     }

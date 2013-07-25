@@ -452,6 +452,8 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     if (mappings.isEmpty()) {
+                        // no changes, return
+                        listener.onResponse(new Response(true));
                         return currentState;
                     }
 

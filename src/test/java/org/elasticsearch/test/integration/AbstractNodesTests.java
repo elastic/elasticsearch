@@ -100,6 +100,7 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
             Node node = nodeBuilder()
                     .settings(finalSettings)
                     .build();
+            logger.info("Build Node [{}] with settings [{}]", id, finalSettings.toDelimitedString(','));
             nodes.put(id, node);
             clients.put(id, node.client());
             return node;

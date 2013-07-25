@@ -55,7 +55,7 @@ public class IndexGatewayTests extends AbstractNodesTests {
 
     private Settings defaultSettings;
     private String storeType;
-      
+
     @After
     public void closeNodes() throws Exception {
         node("server1").stop();
@@ -71,28 +71,28 @@ public class IndexGatewayTests extends AbstractNodesTests {
         builder.put("cluster.routing.schedule", "100ms");
         builder.put("gateway.type", "fs");
         if (between(0, 5) == 0) {
-            builder.put("gateway.fs.buffer_size", between(1, 100) + "kb");    
-        } 
+            builder.put("gateway.fs.buffer_size", between(1, 100) + "kb");
+        }
         if (between(0, 5) == 0) {
             builder.put("gateway.fs.chunk_size", between(1, 100) + "kb");
         }
-        
+
         builder.put("index.number_of_replicas", "1");
         builder.put("index.number_of_shards", rarely() ? Integer.toString(between(2, 6)) : "1");
         storeType = rarely() ? "ram" : "fs";
-        builder.put("index.store", storeType);
+        builder.put("index.store.type", storeType);
         defaultSettings = builder.build();
         buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
         closeAllNodes();
     }
-    
+
     @Override
     protected final Settings getClassDefaultSettings() {
-      return defaultSettings;
+        return defaultSettings;
     }
-    
+
     protected boolean isPersistentStorage() {
         assert storeType != null;
         return "fs".equals(storeType);
@@ -359,13 +359,13 @@ public class IndexGatewayTests extends AbstractNodesTests {
     private String source(String id, String nameValue) {
         return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
     }
-    
+
     @Test
     @Slow
     public void testRandom() {
         testLoad(getRandom().nextBoolean());
     }
-    
+
     @Test
     @Slow
     public void testIndexActions() throws Exception {

@@ -1,0 +1,9 @@
+---
+"Text format":
+    - do:
+        indices.analyze:
+          format: text
+          text: tHE BLACK and white! AND red
+    - match:
+        tokens: "[black:4->9:<ALPHANUM>]\n\n4: \n[white:14->19:<ALPHANUM>]\n\n6: \n[red:25->28:<ALPHANUM>]\n"
+

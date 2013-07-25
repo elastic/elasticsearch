@@ -78,22 +78,22 @@
   - match: { _source.count:      1   }
 
   - do:
-      catch:      /script_lang not supported \[python\]/
+      catch:      /script_lang not supported \[doesnotexist\]/
       update:
           index:  test_1
           type:   test
           id:     1
           body:
             script: "1"
-            lang:   "python"
+            lang:   "doesnotexist"
             params: { bar: 'xxx' }
 
   - do:
-      catch:      /script_lang not supported \[python\]/
+      catch:      /script_lang not supported \[doesnotexist\]/
       update:
           index:  test_1
           type:   test
           id:     1
-          lang:   python
+          lang:   doesnotexist
           script: "1"
 

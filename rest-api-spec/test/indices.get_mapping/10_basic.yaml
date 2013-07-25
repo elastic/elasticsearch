@@ -1,5 +1,5 @@
 ---
-"Get mapping tests":
+"Get index mapping":
   - do:
         indices.create:
           index: test_index
@@ -18,15 +18,27 @@
   - match: {test_index.test_type.properties.text.type:     string}
   - match: {test_index.test_type.properties.text.analyzer: whitespace}
 
+---
+"Get type mapping":
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     string
+                      analyzer: whitespace
+
   - do:
       indices.get_mapping:
         index: test_index
         type: test_type
-  
+
   - skip:
       version:     "0.90.2 - 999"
-      reason:      "for newer versions the index name is always required"
-    
+      reason:      "for newer versions the index name is always returned"
+
   - match: {test_type.properties.text.type:     string}
   - match: {test_type.properties.text.analyzer: whitespace}
-

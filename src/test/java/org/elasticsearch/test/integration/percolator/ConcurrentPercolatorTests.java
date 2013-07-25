@@ -27,6 +27,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -86,16 +87,16 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
         ).execute().actionGet();
         ensureGreen();
 
-        final XContentBuilder onlyField1 = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        final BytesReference onlyField1 = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .field("field1", 1)
-                .endObject().endObject();
-        final XContentBuilder onlyField2 = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .endObject().endObject().bytes();
+        final BytesReference onlyField2 = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .field("field2", "value")
-                .endObject().endObject();
-        final XContentBuilder bothFields = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .endObject().endObject().bytes();
+        final BytesReference bothFields = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .field("field1", 1)
                 .field("field2", "value")
-                .endObject().endObject();
+                .endObject().endObject().bytes();
 
 
         // We need to index a document / define mapping, otherwise field1 doesn't get reconized as number field.

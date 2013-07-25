@@ -141,7 +141,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
             }
         });
         invoked1.await();
-        final CountDownLatch invoked2 = new CountDownLatch(8);
+        final CountDownLatch invoked2 = new CountDownLatch(9);
         for (int i = 2; i <= 10; i++) {
             clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
                 @Override

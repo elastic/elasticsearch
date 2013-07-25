@@ -1,14 +1,5 @@
 ---
-"Analyze API text format":
-    - do:
-        indices.analyze:
-          format: text
-          text: tHE BLACK and white! AND red
-    - match:
-        tokens: "[black:4->9:<ALPHANUM>]\n\n4: \n[white:14->19:<ALPHANUM>]\n\n6: \n[red:25->28:<ALPHANUM>]\n"
-
----
-"Analyze API JSON format":
+"Basic test":
     - do:
         indices.analyze:
           text: Foo Bar
@@ -17,7 +8,7 @@
     - match:     { tokens.1.token: bar }
 
 ---
-"Analyze API JSON format - tokenizer and filter":
+"Tokenizer and filter":
     - do:
         indices.analyze:
           filters:      lowercase
@@ -27,7 +18,7 @@
     - match:     { tokens.0.token: foo bar }
 
 ---
-"Analyze API JSON format - index and field":
+"Index and field":
     - do:
         indices.create:
           index: test
@@ -51,4 +42,3 @@
     - length: { tokens: 2 }
     - match:     { tokens.0.token: Foo }
     - match:     { tokens.1.token: Bar! }
-

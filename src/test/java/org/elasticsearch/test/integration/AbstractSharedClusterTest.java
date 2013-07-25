@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -53,9 +54,8 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.junit.*;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -384,6 +384,27 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         Res actionGet = builder.execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
+    }
+    
+    // TODO move this into a base class for integration tests
+    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder...builders) throws InterruptedException, ExecutionException {
+        Random random = getRandom();
+        List<IndexRequestBuilder> list = Arrays.asList(builders);
+        Collections.shuffle(list, random);
+        for (IndexRequestBuilder indexRequestBuilder : list) {
+            indexRequestBuilder.execute().actionGet();
+            if (frequently()) {
+                if (rarely()) {
+                    client().admin().indices().prepareFlush(index).execute().get();
+                } else if (rarely()) {
+                    client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute().get();
+                }
+                client().admin().indices().prepareRefresh(index).execute().get();
+            }
+        }
+        if (forceRefresh) {
+            client().admin().indices().prepareRefresh(index).execute().get();
+        }
     }
 
 }

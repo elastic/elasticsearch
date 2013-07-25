@@ -1,5 +1,5 @@
 ---
-"Metadata Fields":
+"Fields":
 
   - do:
       update:
@@ -15,5 +15,6 @@
   - match:   { get.fields.foo:  bar }
   - is_false:  get.fields.bar
 
-
-#### ADD _routing etc
+# TODO:
+#
+# - Add _routing

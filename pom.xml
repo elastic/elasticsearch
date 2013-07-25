@@ -205,6 +205,13 @@
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-xml</artifactId>
+            <version>2.2.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
             <version>2.2.2</version>
             <scope>compile</scope>
@@ -433,6 +440,7 @@
                             <include>org.mvel:mvel2</include>
                             <include>com.fasterxml.jackson.core:jackson-core</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
+                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-xml</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
                             <include>joda-time:joda-time</include>
                             <include>io.netty:netty</include>

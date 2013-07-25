@@ -21,10 +21,11 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.common.xcontent.xml.XmlXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 /**
- * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
+ * The content type of {@link XContent}.
  */
 public enum XContentType {
 
@@ -67,7 +68,7 @@ public enum XContentType {
         }
     },
     /**
-     * The jackson based smile binary format. Fast and compact binary format.
+     * The YAML format.
      */
     YAML(2) {
         @Override
@@ -83,6 +84,25 @@ public enum XContentType {
         @Override
         public XContent xContent() {
             return YamlXContent.yamlXContent;
+        }
+    },
+    /**
+     * The XML format.
+     */
+    XML(3) {
+        @Override
+        public String restContentType() {
+            return "application/xml";
+        }
+
+        @Override
+        public String shortName() {
+            return "xml";
+        }
+
+        @Override
+        public XContent xContent() {
+            return XmlXContent.xmlXContent();
         }
     };
 
@@ -100,6 +120,10 @@ public enum XContentType {
 
         if ("application/yaml".equals(contentType) || "yaml".equalsIgnoreCase(contentType)) {
             return YAML;
+        }
+
+        if ("application/xml".equals(contentType) || "xml".equalsIgnoreCase(contentType)) {
+            return XML;
         }
 
         return null;

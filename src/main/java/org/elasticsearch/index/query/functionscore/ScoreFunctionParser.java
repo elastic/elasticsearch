@@ -17,23 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search.function;
+package org.elasticsearch.index.query.functionscore;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParsingException;
 
-/**
- *
- */
-public interface ScoreFunction {
+import java.io.IOException;
 
-    void setNextReader(AtomicReaderContext context);
+public interface ScoreFunctionParser {
 
-    float score(int docId, float subQueryScore);
+    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException;
 
-    double factor(int docId);
+    /**
+     * Returns the name of the function, for example "linear", "gauss" etc. This
+     * name is used for registering the parser in
+     * {@link FunctionScoreQueryParser}.
+     * */
+    public String[] getNames();
 
-    Explanation explainScore(int docId, Explanation subQueryExpl);
-
-    Explanation explainFactor(int docId);
 }

@@ -1051,11 +1051,11 @@ public class Base64 {
             throw new NullPointerException("Destination array was null.");
         }   // end if
         if (srcOffset < 0 || srcOffset + 3 >= source.length) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, 
+            throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Source array with length %d cannot have offset of %d and still process four bytes.", source.length, srcOffset));
         }   // end if
         if (destOffset < 0 || destOffset + 2 >= destination.length) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, 
+            throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Destination array with length %d cannot have offset of %d and still store three bytes.", destination.length, destOffset));
         }   // end if
 
@@ -1161,7 +1161,7 @@ public class Base64 {
             throw new NullPointerException("Cannot decode null source array.");
         }   // end if
         if (off < 0 || off + len > source.length) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, 
+            throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Source array with length %d cannot have offset of %d and process %d bytes.", source.length, off, len));
         }   // end if
 
@@ -1206,7 +1206,7 @@ public class Base64 {
             }   // end if: white space, equals sign or better
             else {
                 // There's a bad input character in the Base64 stream.
-                throw new java.io.IOException(String.format(Locale.ROOT, 
+                throw new java.io.IOException(String.format(Locale.ROOT,
                         "Bad Base64 input character decimal %d in array position %d", ((int) source[i]) & 0xFF, i));
             }   // end else:
         }   // each input character
@@ -1281,7 +1281,7 @@ public class Base64 {
 
                 }   // end try
                 catch (java.io.IOException e) {
-                    e.printStackTrace();
+                    // e.printStackTrace();
                     // Just return originally-decoded bytes
                 }   // end catch
                 finally {

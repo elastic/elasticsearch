@@ -208,11 +208,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             if (sendRequestId != null) {
                 TransportResponseHandler handler = transportServiceAdapter.remove(sendRequestId);
                 if (handler != null) {
-                    handler.handleException(new RemoteTransportException(nodeName(), localAddress, action, e));
+                    handleException(handler, new RemoteTransportException(nodeName(), localAddress, action, e));
                 }
             } else {
                 logger.warn("Failed to receive message for action [" + action + "]", e);
@@ -246,7 +246,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         final TransportResponse response = handler.newInstance();
         try {
             response.readFrom(buffer);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
@@ -256,7 +256,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             public void run() {
                 try {
                     handler.handleResponse(response);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     handleException(handler, new ResponseHandlerFailureTransportException(e));
                 }
             }
@@ -279,6 +279,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             error = new RemoteTransportException("None remote transport exception", error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
-        handler.handleException(rtx);
+        try {
+            handler.handleException(rtx);
+        } catch (Throwable t) {
+            logger.error("failed to handle exception response [{}]", t, handler);
+        }
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.test.unit.common.xcontent.smile;
 
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -48,10 +48,10 @@ public class JsonVsSmileTests {
 
     @Test
     public void compareParsingTokens() throws IOException {
-        FastByteArrayOutputStream xsonOs = new FastByteArrayOutputStream();
+        BytesStreamOutput xsonOs = new BytesStreamOutput();
         XContentGenerator xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
 
-        FastByteArrayOutputStream jsonOs = new FastByteArrayOutputStream();
+        BytesStreamOutput jsonOs = new BytesStreamOutput();
         XContentGenerator jsonGen = XContentFactory.xContent(XContentType.JSON).createGenerator(jsonOs);
 
         xsonGen.writeStartObject();

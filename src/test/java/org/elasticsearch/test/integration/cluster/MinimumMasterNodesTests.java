@@ -32,8 +32,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.internal.InternalNode;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import java.util.LinkedList;
 import java.util.Set;
@@ -43,10 +43,9 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-@Test
 public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {

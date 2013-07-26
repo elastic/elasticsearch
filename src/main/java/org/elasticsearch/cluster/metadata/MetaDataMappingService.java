@@ -22,10 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Priority;
@@ -34,21 +32,20 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -69,7 +66,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private final NodeMappingCreatedAction mappingCreatedAction;
 
-    private final Map<String, Set<String>> indicesAndTypesToRefresh = Maps.newHashMap();
+    private final BlockingQueue<Object> refreshOrUpdateQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeMappingCreatedAction mappingCreatedAction) {
@@ -79,203 +76,288 @@ public class MetaDataMappingService extends AbstractComponent {
         this.mappingCreatedAction = mappingCreatedAction;
     }
 
+    static class RefreshTask {
+        final String index;
+        final String[] types;
+
+        RefreshTask(String index, String[] types) {
+            this.index = index;
+            this.types = types;
+        }
+    }
+
+    static class UpdateTask {
+        final String index;
+        final String type;
+        final CompressedString mappingSource;
+        final Listener listener;
+
+        UpdateTask(String index, String type, CompressedString mappingSource, Listener listener) {
+            this.index = index;
+            this.type = type;
+            this.mappingSource = mappingSource;
+            this.listener = listener;
+        }
+    }
+
+    /**
+     * Batch method to apply all the queued refresh or update operations. The idea is to try and batch as much
+     * as possible so we won't create the same index all the time for example for the updates on the same mapping
+     * and generate a single cluster change event out of all of those.
+     */
+    ClusterState executeRefreshOrUpdate(final ClusterState currentState) throws Exception {
+        List<Object> allTasks = new ArrayList<Object>();
+        refreshOrUpdateQueue.drainTo(allTasks);
+
+        if (allTasks.isEmpty()) {
+            return currentState;
+        }
+
+        // break down to tasks per index, so we can optimize the on demand index service creation
+        // to only happen for the duration of a single index processing of its respective events
+        Map<String, List<Object>> tasksPerIndex = Maps.newHashMap();
+        for (Object task : allTasks) {
+            String index = null;
+            if (task instanceof UpdateTask) {
+                index = ((UpdateTask) task).index;
+            } else if (task instanceof RefreshTask) {
+                index = ((RefreshTask) task).index;
+            } else {
+                logger.warn("illegal state, got wrong mapping task type [{}]", task);
+            }
+            if (index != null) {
+                List<Object> indexTasks = tasksPerIndex.get(index);
+                if (indexTasks == null) {
+                    indexTasks = new ArrayList<Object>();
+                    tasksPerIndex.put(index, indexTasks);
+                }
+                indexTasks.add(task);
+            }
+        }
+
+        boolean dirty = false;
+        MetaData.Builder mdBuilder = newMetaDataBuilder().metaData(currentState.metaData());
+        for (Map.Entry<String, List<Object>> entry : tasksPerIndex.entrySet()) {
+            String index = entry.getKey();
+            List<Object> tasks = entry.getValue();
+            boolean removeIndex = false;
+            // keep track of what we already refreshed, no need to refresh it again...
+            Set<String> processedRefreshes = Sets.newHashSet();
+            try {
+                for (Object task : tasks) {
+                    if (task instanceof RefreshTask) {
+                        RefreshTask refreshTask = (RefreshTask) task;
+                        final IndexMetaData indexMetaData = mdBuilder.get(index);
+                        if (indexMetaData == null) {
+                            // index got delete on us, ignore...
+                            continue;
+                        }
+                        IndexService indexService = indicesService.indexService(index);
+                        if (indexService == null) {
+                            // we need to create the index here, and add the current mapping to it, so we can merge
+                            indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                            removeIndex = true;
+                            for (String type : refreshTask.types) {
+                                // only add the current relevant mapping (if exists)
+                                if (indexMetaData.mappings().containsKey(type)) {
+                                    // don't apply the default mapping, it has been applied when the mapping was created
+                                    indexService.mapperService().merge(type, indexMetaData.mappings().get(type).source().string(), false);
+                                }
+                            }
+                        }
+                        IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
+                        List<String> updatedTypes = Lists.newArrayList();
+                        for (String type : refreshTask.types) {
+                            if (processedRefreshes.contains(type)) {
+                                continue;
+                            }
+                            DocumentMapper mapper = indexService.mapperService().documentMapper(type);
+                            if (!mapper.mappingSource().equals(indexMetaData.mappings().get(type).source())) {
+                                updatedTypes.add(type);
+                                indexMetaDataBuilder.putMapping(new MappingMetaData(mapper));
+                            }
+                            processedRefreshes.add(type);
+                        }
+
+                        if (updatedTypes.isEmpty()) {
+                            continue;
+                        }
+
+                        logger.warn("[{}] re-syncing mappings with cluster state for types [{}]", index, updatedTypes);
+                        mdBuilder.put(indexMetaDataBuilder);
+                        dirty = true;
+
+                    } else if (task instanceof UpdateTask) {
+                        UpdateTask updateTask = (UpdateTask) task;
+                        String type = updateTask.type;
+                        CompressedString mappingSource = updateTask.mappingSource;
+
+                        // first, check if it really needs to be updated
+                        final IndexMetaData indexMetaData = mdBuilder.get(index);
+                        if (indexMetaData == null) {
+                            // index got delete on us, ignore...
+                            continue;
+                        }
+                        if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(mappingSource)) {
+                            continue;
+                        }
+
+                        IndexService indexService = indicesService.indexService(index);
+                        if (indexService == null) {
+                            // we need to create the index here, and add the current mapping to it, so we can merge
+                            indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                            removeIndex = true;
+                            // only add the current relevant mapping (if exists)
+                            if (indexMetaData.mappings().containsKey(type)) {
+                                indexService.mapperService().merge(type, indexMetaData.mappings().get(type).source().string(), false);
+                            }
+                        }
+
+                        DocumentMapper updatedMapper = indexService.mapperService().merge(type, mappingSource.string(), false);
+                        processedRefreshes.add(type);
+
+                        // if we end up with the same mapping as the original once, ignore
+                        if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(updatedMapper.mappingSource())) {
+                            continue;
+                        }
+
+                        // build the updated mapping source
+                        if (logger.isDebugEnabled()) {
+                            try {
+                                logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, updatedMapper.mappingSource().string());
+                            } catch (Exception e) {
+                                // ignore
+                            }
+                        } else if (logger.isInfoEnabled()) {
+                            logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
+                        }
+
+                        mdBuilder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
+                        dirty = true;
+                    } else {
+                        logger.warn("illegal state, got wrong mapping task type [{}]", task);
+                    }
+                }
+            } finally {
+                if (removeIndex) {
+                    indicesService.removeIndex(index, "created for mapping processing");
+                }
+                for (Object task : tasks) {
+                    if (task instanceof UpdateTask) {
+                        ((UpdateTask) task).listener.onResponse(new Response(true));
+                    }
+                }
+            }
+        }
+
+        if (!dirty) {
+            return currentState;
+        }
+        return newClusterStateBuilder().state(currentState).metaData(mdBuilder).build();
+    }
+
     /**
      * Refreshes mappings if they are not the same between original and parsed version
      */
     public void refreshMapping(final String index, final String... types) {
-        synchronized (indicesAndTypesToRefresh) {
-            Set<String> sTypes = indicesAndTypesToRefresh.get(index);
-            if (sTypes == null) {
-                sTypes = Sets.newHashSet();
-                indicesAndTypesToRefresh.put(index, sTypes);
-            }
-            sTypes.addAll(Arrays.asList(types));
-        }
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        refreshOrUpdateQueue.add(new RefreshTask(index, types));
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
-                boolean createdIndex = false;
-                try {
-                    Set<String> sTypes;
-                    synchronized (indicesAndTypesToRefresh) {
-                        sTypes = indicesAndTypesToRefresh.remove(index);
-                    }
-                    // we already processed those types...
-                    if (sTypes == null || sTypes.isEmpty()) {
-                        return currentState;
-                    }
+            public void onFailure(String source, Throwable t) {
+                logger.warn("failure during [{}]", t, source);
+            }
 
-                    // first, check if it really needs to be updated
-                    final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                    if (indexMetaData == null) {
-                        // index got delete on us, ignore...
-                        return currentState;
-                    }
-
-                    IndexService indexService = indicesService.indexService(index);
-                    if (indexService == null) {
-                        // we need to create the index here, and add the current mapping to it, so we can merge
-                        indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
-                        createdIndex = true;
-                        for (String type : sTypes) {
-                            // only add the current relevant mapping (if exists)
-                            if (indexMetaData.mappings().containsKey(type)) {
-                                // don't apply the default mapping, it has been applied when the mapping was created
-                                indexService.mapperService().merge(type, indexMetaData.mappings().get(type).source().string(), false);
-                            }
-                        }
-                    }
-                    IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
-                    List<String> updatedTypes = Lists.newArrayList();
-                    for (String type : sTypes) {
-                        DocumentMapper mapper = indexService.mapperService().documentMapper(type);
-                        if (!mapper.mappingSource().equals(indexMetaData.mappings().get(type).source())) {
-                            updatedTypes.add(type);
-                            indexMetaDataBuilder.putMapping(new MappingMetaData(mapper));
-                        }
-                    }
-
-                    if (updatedTypes.isEmpty()) {
-                        return currentState;
-                    }
-
-                    logger.warn("[{}] re-syncing mappings with cluster state for types [{}]", index, updatedTypes);
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                    builder.put(indexMetaDataBuilder);
-                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
-                } catch (Exception e) {
-                    logger.warn("failed to dynamically refresh the mapping in cluster_state from shard", e);
-                    return currentState;
-                } finally {
-                    if (createdIndex) {
-                        indicesService.removeIndex(index, "created for mapping processing");
-                    }
-                }
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return executeRefreshOrUpdate(currentState);
             }
         });
     }
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        refreshOrUpdateQueue.add(new UpdateTask(index, type, mappingSource, listener));
+        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
-                boolean createdIndex = false;
-                try {
-                    // first, check if it really needs to be updated
-                    final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                    if (indexMetaData == null) {
-                        // index got delete on us, ignore...
-                        return currentState;
-                    }
-                    if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(mappingSource)) {
-                        return currentState;
-                    }
-
-                    IndexService indexService = indicesService.indexService(index);
-                    if (indexService == null) {
-                        // we need to create the index here, and add the current mapping to it, so we can merge
-                        indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
-                        createdIndex = true;
-                        // only add the current relevant mapping (if exists)
-                        if (indexMetaData.mappings().containsKey(type)) {
-                            indexService.mapperService().merge(type, indexMetaData.mappings().get(type).source().string(), false);
-                        }
-                    }
-
-                    DocumentMapper updatedMapper = indexService.mapperService().merge(type, mappingSource.string(), false);
-
-                    // if we end up with the same mapping as the original once, ignore
-                    if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(updatedMapper.mappingSource())) {
-                        return currentState;
-                    }
-
-                    // build the updated mapping source
-                    if (logger.isDebugEnabled()) {
-                        try {
-                            logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, updatedMapper.mappingSource().string());
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    } else if (logger.isInfoEnabled()) {
-                        logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
-                    }
-
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                    builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
-                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
-                } catch (Throwable e) {
-                    logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
-                    listener.onFailure(e);
-                    return currentState;
-                } finally {
-                    if (createdIndex) {
-                        indicesService.removeIndex(index, "created for mapping processing");
-                    }
-                }
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public ClusterState execute(final ClusterState currentState) throws Exception {
+                return executeRefreshOrUpdate(currentState);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(true));
             }
         });
     }
 
     public void removeMapping(final RemoveRequest request, final Listener listener) {
-        final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
-        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.HIGH, new TimeoutClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
-                if (request.indices.length == 0) {
-                    listener.onFailure(new IndexMissingException(new Index("_all")));
-                    return currentState;
-                }
-
-                try {
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                    boolean changed = false;
-                    String latestIndexWithout = null;
-                    for (String indexName : request.indices) {
-                        IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                        if (indexMetaData != null) {
-                            if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                                builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
-                                changed = true;
-                            } else {
-                                latestIndexWithout = indexMetaData.index();
-                            }
-                        }
-                    }
-
-                    if (!changed) {
-                        listener.onFailure(new TypeMissingException(new Index(latestIndexWithout), request.mappingType));
-                        return currentState;
-                    }
-
-                    logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
-
-                    notifyOnPostProcess.set(true);
-                    return ClusterState.builder().state(currentState).metaData(builder).build();
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                    return currentState;
-                }
+            public TimeValue timeout() {
+                return request.masterTimeout;
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
-                if (notifyOnPostProcess.get()) {
-                    listener.onResponse(new Response(true));
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                if (request.indices.length == 0) {
+                    throw new IndexMissingException(new Index("_all"));
                 }
+
+                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                boolean changed = false;
+                String latestIndexWithout = null;
+                for (String indexName : request.indices) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                    if (indexMetaData != null) {
+                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
+                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                            changed = true;
+                        } else {
+                            latestIndexWithout = indexMetaData.index();
+                        }
+                    }
+                }
+
+                if (!changed) {
+                    throw new TypeMissingException(new Index(latestIndexWithout), request.mappingType);
+                }
+
+                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
+
+                return ClusterState.builder().state(currentState).metaData(builder).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new Response(true));
             }
         });
     }
 
     public void putMapping(final PutRequest request, final Listener listener) {
         final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
-        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.HIGH, new TimeoutClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(final ClusterState currentState) throws Exception {
                 List<String> indicesToClose = Lists.newArrayList();
                 try {
                     if (request.indices.length == 0) {
@@ -283,7 +365,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
                     for (String index : request.indices) {
                         if (!currentState.metaData().hasIndex(index)) {
-                            listener.onFailure(new IndexMissingException(new Index(index)));
+                            throw new IndexMissingException(new Index(index));
                         }
                     }
 
@@ -330,7 +412,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
                         throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
                     }
-                    if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && mappingType.charAt(0) == '_') {
+                    if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.Constants.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                         throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
                     }
 
@@ -404,9 +486,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
                     mappingCreatedAction.add(new CountDownListener(counter, listener), request.timeout);
                     return updatedState;
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                    return currentState;
                 } finally {
                     for (String index : indicesToClose) {
                         indicesService.removeIndex(index, "created for mapping processing");
@@ -415,7 +494,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (notifyOnPostProcess.get()) {
                     listener.onResponse(new Response(true));
                 }
@@ -433,12 +512,17 @@ public class MetaDataMappingService extends AbstractComponent {
     public static class RemoveRequest {
 
         final String[] indices;
-
         final String mappingType;
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String[] indices, String mappingType) {
             this.indices = indices;
             this.mappingType = mappingType;
+        }
+
+        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
+            return this;
         }
     }
 
@@ -453,6 +537,7 @@ public class MetaDataMappingService extends AbstractComponent {
         boolean ignoreConflicts = false;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         public PutRequest(String[] indices, String mappingType, String mappingSource) {
             this.indices = indices;
@@ -467,6 +552,11 @@ public class MetaDataMappingService extends AbstractComponent {
 
         public PutRequest timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public PutRequest masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
             return this;
         }
     }

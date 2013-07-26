@@ -23,7 +23,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
-import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -61,39 +60,23 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
 
         final PagedBytes bytes = new PagedBytes(15);
 
-        int maxDoc = reader.maxDoc();
-        final int termCountHardLimit;
-        if (maxDoc == Integer.MAX_VALUE) {
-            termCountHardLimit = Integer.MAX_VALUE;
-        } else {
-            termCountHardLimit = maxDoc + 1;
-        }
-
-        // Try for coarse estimate for number of bits; this
-        // should be an underestimate most of the time, which
-        // is fine -- GrowableWriter will reallocate as needed
-        long numUniqueTerms = terms.size();
-        if (numUniqueTerms != -1L) {
-            if (numUniqueTerms > termCountHardLimit) {
-                // app is misusing the API (there is more than
-                // one term per doc); in this case we make best
-                // effort to load what we can (see LUCENE-2142)
-                numUniqueTerms = termCountHardLimit;
-            }
-        }
-
         final MonotonicAppendingLongBuffer termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
         termOrdToBytesOffset.add(0); // first ord is reserved for missing values
-        boolean preDefineBitsRequired = regex == null && frequency == null;
-        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc(), acceptableOverheadRatio);
+        final long numTerms;
+        if (regex == null && frequency == null) {
+            numTerms = terms.size();
+        } else {
+            numTerms = -1;
+        }
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio);
         try {
             // 0 is reserved for "unset"
             bytes.copyUsingLengthPrefix(new BytesRef());
             TermsEnum termsEnum = filter(terms, reader);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                final int termOrd = builder.nextOrdinal();
+                final long termOrd = builder.nextOrdinal();
                 assert termOrd == termOrdToBytesOffset.size();
                 termOrdToBytesOffset.add(bytes.copyUsingLengthPrefix(term));
                 docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);

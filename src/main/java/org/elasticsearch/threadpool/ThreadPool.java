@@ -72,6 +72,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String OPTIMIZE = "optimize";
     }
 
     public static final String THREADPOOL_GROUP = "threadpool.";
@@ -105,13 +106,14 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.BULK, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
                 .put(Names.GET, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
                 .put(Names.SEARCH, settingsBuilder().put("type", "fixed").put("size", availableProcessors * 3).put("queue_size", 1000).build())
-                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
+                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors * 3).put("queue_size", 1000).build())
                 .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.MERGE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
                 .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
                 .build();
 
         Map<String, ExecutorHolder> executors = Maps.newHashMap();

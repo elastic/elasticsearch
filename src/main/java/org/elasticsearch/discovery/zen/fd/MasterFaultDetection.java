@@ -266,7 +266,7 @@ public class MasterFaultDetection extends AbstractComponent {
                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                 return;
             }
-            transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withHighType().withTimeout(pingRetryTimeout),
+            transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withPingType().withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
                         public MasterPingResponseResponse newInstance() {
@@ -324,7 +324,7 @@ public class MasterFaultDetection extends AbstractComponent {
                                         notifyMasterFailure(masterToPing, "failed to ping, tried [" + pingRetryCount + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
-                                        transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withHighType().withTimeout(pingRetryTimeout), this);
+                                        transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withPingType().withTimeout(pingRetryTimeout), this);
                                     }
                                 }
                             }

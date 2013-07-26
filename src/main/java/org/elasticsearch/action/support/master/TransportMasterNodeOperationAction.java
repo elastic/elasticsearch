@@ -67,7 +67,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response newResponse();
 
-    protected abstract Response masterOperation(Request request, ClusterState state) throws ElasticSearchException;
+    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws ElasticSearchException;
 
     protected boolean localExecute(Request request) {
         return false;
@@ -79,6 +79,14 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
 
+    }
+
+    @Override
+    public void execute(Request request, ActionListener<Response> listener) {
+        // since the callback is async, we typically can get called from within an event in the cluster service
+        // or something similar, so make sure we are threaded so we won't block it.
+        request.listenerThreaded(true);
+        super.execute(request, listener);
     }
 
     @Override
@@ -133,8 +141,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     @Override
                     public void run() {
                         try {
-                            Response response = masterOperation(request, clusterState);
-                            listener.onResponse(response);
+                            masterOperation(request, clusterState, listener);
                         } catch (Throwable e) {
                             listener.onFailure(e);
                         }

@@ -19,10 +19,6 @@ package org.elasticsearch.test.integration.cluster.allocation;
  * under the License.
  */
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.instanceOf;
-
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.EvenShardsCountAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -32,13 +28,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
 
-@Test
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ShardsAllocatorModuleTests extends AbstractNodesTests {
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         closeAllNodes();
     }
@@ -51,7 +48,6 @@ public class ShardsAllocatorModuleTests extends AbstractNodesTests {
         Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, ShardsAllocatorModule.EVEN_SHARD_COUNT_ALLOCATOR_KEY)
                 .build();
         assertAllocatorInstance(build, EvenShardsCountAllocator.class);
-
         build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, ShardsAllocatorModule.BALANCED_ALLOCATOR_KEY).build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
@@ -66,6 +62,7 @@ public class ShardsAllocatorModuleTests extends AbstractNodesTests {
     }
 
     private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) {
+        closeNode("node");
         Node _node = startNode("node", settings);
         InternalNode node = (InternalNode) _node;
         ShardsAllocator instance = node.injector().getInstance(ShardsAllocator.class);

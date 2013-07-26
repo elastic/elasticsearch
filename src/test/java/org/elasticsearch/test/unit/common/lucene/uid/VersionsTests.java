@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.unit.common.lucene.uid;
 
-import org.apache.lucene.document.NumericDocValuesField;
-
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -32,38 +32,52 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.MockDirectoryWrapper;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.hamcrest.MatcherAssert;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class VersionsTests {
+@SuppressCodecs("Lucene3x")
+@ThreadLeakScope(Scope.NONE) // a thread in this JVM might be from a prev. test
+public class VersionsTests extends LuceneTestCase {
+    
+    public static DirectoryReader reopen(DirectoryReader reader) throws IOException {
+        return reopen(reader, true);
+    }
 
+    public static DirectoryReader reopen(DirectoryReader reader, boolean newReaderExpected) throws IOException {
+        DirectoryReader newReader = DirectoryReader.openIfChanged(reader);
+        if (newReader != null) {
+            reader.close();
+        } else {
+            assertFalse(newReaderExpected);
+        }
+        return newReader;
+    }
     @Test
     public void testVersions() throws Exception {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
         DirectoryReader directoryReader = DirectoryReader.open(writer, true);
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
 
         Document doc = new Document();
         doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
         writer.addDocument(doc);
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_SET));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(Versions.NOT_SET));
 
@@ -71,7 +85,7 @@ public class VersionsTests {
         doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(UidFieldMapper.VERSION, 1));
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(1l));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(1l));
 
@@ -81,7 +95,7 @@ public class VersionsTests {
         doc.add(uid);
         doc.add(version);
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(2l));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(2l));
 
@@ -91,19 +105,24 @@ public class VersionsTests {
         doc.add(uid);
         doc.add(version);
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(3l));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(3l));
 
         writer.deleteDocuments(new Term(UidFieldMapper.NAME, "1"));
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
+        directoryReader.close();
+        writer.close();
+        dir.close();
     }
 
     @Test
     public void testNestedDocuments() throws IOException {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         List<Document> docs = new ArrayList<Document>();
         for (int i = 0; i < 4; ++i) {
@@ -128,19 +147,23 @@ public class VersionsTests {
         writer.updateDocuments(new Term(UidFieldMapper.NAME, "1"), docs);
         version.setLongValue(7L);
         writer.updateDocuments(new Term(UidFieldMapper.NAME, "1"), docs);
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(7l));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(7l));
 
         writer.deleteDocuments(new Term(UidFieldMapper.NAME, "1"));
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
+        directoryReader.close();
+        writer.close();
+        dir.close();
     }
 
     @Test
     public void testBackwardCompatibility() throws IOException {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
         DirectoryReader directoryReader = DirectoryReader.open(writer, true);
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
@@ -155,10 +178,13 @@ public class VersionsTests {
         writer.addDocument(doc);
         writer.commit();
 
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(1l));
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "2")), equalTo(2l));
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "3")), equalTo(Versions.NOT_FOUND));
+        directoryReader.close();
+        writer.close();
+        dir.close();
     }
 
     // This is how versions used to be encoded
@@ -167,7 +193,7 @@ public class VersionsTests {
         static {
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.setIndexed(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.freeze();
         }
@@ -206,7 +232,7 @@ public class VersionsTests {
     public void testMergingOldIndices() throws Exception {
         final IndexWriterConfig iwConf = new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer());
         iwConf.setMergePolicy(new IndexUpgraderMergePolicy(iwConf.getMergePolicy()));
-        final Directory dir = new MockDirectoryWrapper(new RAMDirectory());
+        final Directory dir = newDirectory();
         final IndexWriter iw = new IndexWriter(dir, iwConf);
 
         // 1st segment, no _version

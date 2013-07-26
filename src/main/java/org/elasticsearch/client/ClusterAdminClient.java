@@ -51,6 +51,9 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 
 /**
  * Administrative actions/operations against indices.
@@ -258,5 +261,23 @@ public interface ClusterAdminClient {
      * Returns list of shards the given search would be executed on.
      */
     ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices);
+
+    /**
+     * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
+     * that update the cluster state (for example, a create index operation)
+     */
+    void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener);
+
+    /**
+     * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
+     * that update the cluster state (for example, a create index operation)
+     */
+    ActionFuture<PendingClusterTasksResponse> pendingClusterTasks(PendingClusterTasksRequest request);
+
+    /**
+     * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
+     * that update the cluster state (for example, a create index operation)
+     */
+    PendingClusterTasksRequestBuilder preparePendingClusterTasks();
 
 }

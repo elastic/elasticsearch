@@ -50,7 +50,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.percolator.PercolatorService;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -98,8 +99,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
-    private final PercolatorService percolatorService;
-
     private final AnalysisService analysisService;
 
     private final MapperService mapperService;
@@ -130,16 +129,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
-                                IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
-                                IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
-                                IndexFieldDataService indexFieldData) {
+                                AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
+                                SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
+                                IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData) {
         super(index, indexSettings);
         this.injector = injector;
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indexSettings = indexSettings;
-        this.percolatorService = percolatorService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -223,11 +220,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override
     public IndexFieldDataService fieldData() {
         return indexFieldData;
-    }
-
-    @Override
-    public PercolatorService percolateService() {
-        return this.percolatorService;
     }
 
     @Override
@@ -332,6 +324,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new TranslogModule(indexSettings));
         modules.add(new EngineModule(indexSettings));
         modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
+        modules.add(new PercolatorShardModule());
 
         Injector shardInjector;
         try {
@@ -432,6 +425,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             shardInjector.getInstance(Translog.class).close();
         } catch (Exception e) {
             logger.debug("failed to close translog", e);
+            // ignore
+        }
+        try {
+            // now we can close the translog
+            shardInjector.getInstance(PercolatorQueriesRegistry.class).close();
+        } catch (Exception e) {
+            logger.debug("failed to close PercolatorQueriesRegistry", e);
             // ignore
         }
 

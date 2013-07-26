@@ -38,6 +38,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
     private Integer maxQueryTerms;
     private Boolean ignoreTF;
     private String analyzer;
+    private boolean failOnUnsupportedField = true;
 
     /**
      * A fuzzy more like this query on the provided field.
@@ -89,6 +90,14 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         return this;
     }
 
+    /**
+     * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
+     */
+    public FuzzyLikeThisFieldQueryBuilder failOnUnsupportedField(boolean fail) {
+        failOnUnsupportedField = fail;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyLikeThisFieldQueryParser.NAME);
@@ -114,6 +123,9 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
+        }
+        if (!failOnUnsupportedField) {
+            builder.field("fail_on_unsupported_field", failOnUnsupportedField);
         }
         builder.endObject();
         builder.endObject();

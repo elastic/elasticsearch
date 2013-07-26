@@ -46,21 +46,13 @@ import static org.elasticsearch.index.get.GetField.readGetField;
 public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     private String index;
-
     private String type;
-
     private String id;
-
     private long version;
-
     private boolean exists;
-
     private Map<String, GetField> fields;
-
     private Map<String, Object> sourceAsMap;
-
     private BytesReference source;
-
     private byte[] sourceAsBytes;
 
     GetResult() {
@@ -275,8 +267,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readOptionalString();
+        index = in.readSharedString();
+        type = in.readOptionalSharedString();
         id = in.readString();
         version = in.readLong();
         exists = in.readBoolean();
@@ -300,8 +292,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeOptionalString(type);
+        out.writeSharedString(index);
+        out.writeOptionalSharedString(type);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(exists);

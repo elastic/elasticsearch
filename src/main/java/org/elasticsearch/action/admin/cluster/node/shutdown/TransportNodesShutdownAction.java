@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -96,7 +97,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected NodesShutdownResponse masterOperation(final NodesShutdownRequest request, final ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final NodesShutdownRequest request, final ClusterState state, final ActionListener<NodesShutdownResponse> listener) throws ElasticSearchException {
         if (disabled) {
             throw new ElasticSearchIllegalStateException("Shutdown is disabled");
         }
@@ -218,7 +219,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
             });
             t.start();
         }
-        return new NodesShutdownResponse(clusterName, nodes.toArray(new DiscoveryNode[nodes.size()]));
+        listener.onResponse(new NodesShutdownResponse(clusterName, nodes.toArray(new DiscoveryNode[nodes.size()])));
     }
 
     private class NodeShutdownRequestHandler extends BaseTransportRequestHandler<NodeShutdownRequest> {

@@ -37,7 +37,7 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -50,73 +50,40 @@ public class MergePolicySettingsTest {
     public void testCompoundFileSettings() throws IOException {
         IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
 
-        assertThat(new TieredMergePolicyProvider(createStore(EMPTY_SETTINGS), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new TieredMergePolicyProvider(createStore(EMPTY_SETTINGS), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build(true)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new TieredMergePolicyProvider(createStore(build(true)), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build(0.5)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new TieredMergePolicyProvider(createStore(build(0.5)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.5));
-        assertThat(new TieredMergePolicyProvider(createStore(build(1.0)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new TieredMergePolicyProvider(createStore(build(1.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build("true")), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new TieredMergePolicyProvider(createStore(build("true")), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build("True")), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new TieredMergePolicyProvider(createStore(build("True")), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build("False")), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new TieredMergePolicyProvider(createStore(build("False")), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build("false")), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new TieredMergePolicyProvider(createStore(build("false")), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build(false)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new TieredMergePolicyProvider(createStore(build(false)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build(0)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new TieredMergePolicyProvider(createStore(build(0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new TieredMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new TieredMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(EMPTY_SETTINGS), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(EMPTY_SETTINGS), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build(true)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build(true)), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build(0.5)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build(0.5)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.5));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build(1.0)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build(1.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build("true")), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build("true")), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build("True")), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build("True")), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build("False")), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build("False")), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build("false")), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build("false")), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build(false)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build(false)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build(0)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build(0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogByteSizeMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogByteSizeMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
-        assertThat(new LogDocMergePolicyProvider(createStore(EMPTY_SETTINGS), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogDocMergePolicyProvider(createStore(EMPTY_SETTINGS), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build(true)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogDocMergePolicyProvider(createStore(build(true)), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build(0.5)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogDocMergePolicyProvider(createStore(build(0.5)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.5));
-        assertThat(new LogDocMergePolicyProvider(createStore(build(1.0)), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogDocMergePolicyProvider(createStore(build(1.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build("true")), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogDocMergePolicyProvider(createStore(build("true")), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build("True")), service).newMergePolicy().getUseCompoundFile(), equalTo(true));
         assertThat(new LogDocMergePolicyProvider(createStore(build("True")), service).newMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build("False")), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogDocMergePolicyProvider(createStore(build("False")), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build("false")), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogDocMergePolicyProvider(createStore(build("false")), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build(false)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogDocMergePolicyProvider(createStore(build(false)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build(0)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogDocMergePolicyProvider(createStore(build(0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new LogDocMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getUseCompoundFile(), equalTo(false));
         assertThat(new LogDocMergePolicyProvider(createStore(build(0.0)), service).newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
     }
@@ -150,57 +117,45 @@ public class MergePolicySettingsTest {
         {
             IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
             TieredMergePolicyProvider mp = new TieredMergePolicyProvider(createStore(EMPTY_SETTINGS), service);
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(false));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
             service.refreshSettings(build(1.0));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(true));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(1.0));
 
             service.refreshSettings(build(0.1));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(true));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.1));
 
             service.refreshSettings(build(0.0));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(false));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.0));
         }
 
         {
             IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
             LogByteSizeMergePolicyProvider mp = new LogByteSizeMergePolicyProvider(createStore(EMPTY_SETTINGS), service);
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(false));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
             service.refreshSettings(build(1.0));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(true));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(1.0));
 
             service.refreshSettings(build(0.1));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(true));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.1));
 
             service.refreshSettings(build(0.0));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(false));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.0));
         }
 
         {
             IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
             LogDocMergePolicyProvider mp = new LogDocMergePolicyProvider(createStore(EMPTY_SETTINGS), service);
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(false));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.0));
 
             service.refreshSettings(build(1.0));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(true));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(1.0));
 
             service.refreshSettings(build(0.1));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(true));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.1));
 
             service.refreshSettings(build(0.0));
-            assertThat(mp.newMergePolicy().getUseCompoundFile(), equalTo(false));
             assertThat(mp.newMergePolicy().getNoCFSRatio(), equalTo(0.0));
         }
     }

@@ -84,6 +84,7 @@ public class RescoreBuilder implements ToXContent {
         private QueryBuilder queryBuilder;
         private Float rescoreQueryWeight;
         private Float queryWeight;
+        private String scoreMode;
         
         /**
          * Creates a new {@link QueryRescorer} instance
@@ -109,6 +110,14 @@ public class RescoreBuilder implements ToXContent {
             return this;
         }
 
+        /**
+         * Sets the original query score mode. The default is <tt>total</tt>
+         */
+        public QueryRescorer setScoreMode(String scoreMode) {
+            this.scoreMode = scoreMode;
+            return this;
+        }
+
         @Override
         protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("rescore_query", queryBuilder);
@@ -117,6 +126,9 @@ public class RescoreBuilder implements ToXContent {
             }
             if (rescoreQueryWeight != null) {
                 builder.field("rescore_query_weight", rescoreQueryWeight);
+            }
+            if (scoreMode != null) {
+                builder.field("score_mode", scoreMode);
             }
             return builder;
         }

@@ -36,6 +36,8 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
     private final int maxDoc;
     private final Bits acceptDocs;
 
+    private DocIdSetIterator iterator;
+
     protected MatchDocIdSet(int maxDoc, @Nullable Bits acceptDocs) {
         this.maxDoc = maxDoc;
         this.acceptDocs = acceptDocs;
@@ -49,11 +51,11 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
     @Override
     public DocIdSetIterator iterator() throws IOException {
         if (acceptDocs == null) {
-            return new NoAcceptDocsIterator(maxDoc);
+            return iterator = new NoAcceptDocsIterator(maxDoc);
         } else if (acceptDocs instanceof FixedBitSet) {
-            return new FixedBitSetIterator(((DocIdSet) acceptDocs).iterator());
+            return iterator = new FixedBitSetIterator(((DocIdSet) acceptDocs).iterator());
         } else {
-            return new BothIterator(maxDoc, acceptDocs);
+            return iterator = new BothIterator(maxDoc, acceptDocs);
         }
     }
 
@@ -70,6 +72,17 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
     @Override
     public int length() {
         return maxDoc;
+    }
+
+    /**
+     * Short circuiting the doc id set, by advancing to beyond the last doc id.
+     */
+    public void shortCircuit() {
+        try {
+            iterator.advance(DocIdSetIterator.NO_MORE_DOCS);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     class NoAcceptDocsIterator extends DocIdSetIterator {

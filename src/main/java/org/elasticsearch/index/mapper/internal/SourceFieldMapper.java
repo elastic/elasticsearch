@@ -33,7 +33,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -218,6 +218,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return this.excludes;
 
     }
+
     public String[] includes() {
         return this.includes;
     }
@@ -274,12 +275,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
             Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source, true);
             Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-            StreamOutput streamOutput;
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            StreamOutput streamOutput = bStream;
             if (compress != null && compress && (compressThreshold == -1 || source.length() > compressThreshold)) {
-                streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-            } else {
-                streamOutput = cachedEntry.bytes();
+                streamOutput = CompressorFactory.defaultCompressor().streamOutput(bStream);
             }
             XContentType contentType = formatContentType;
             if (contentType == null) {
@@ -288,31 +287,23 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             XContentBuilder builder = XContentFactory.contentBuilder(contentType, streamOutput).map(filteredSource);
             builder.close();
 
-            source = cachedEntry.bytes().bytes().copyBytesArray();
-
-            CachedStreamOutput.pushEntry(cachedEntry);
+            source = bStream.bytes();
         } else if (compress != null && compress && !CompressorFactory.isCompressed(source)) {
             if (compressThreshold == -1 || source.length() > compressThreshold) {
-                CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-                try {
-                    XContentType contentType = XContentFactory.xContentType(source);
-                    if (formatContentType != null && formatContentType != contentType) {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.bytes(CompressorFactory.defaultCompressor()));
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
-                        builder.close();
-                    } else {
-                        StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-                        source.writeTo(streamOutput);
-                        streamOutput.close();
-                    }
-                    // we copy over the byte array, since we need to push back the cached entry
-                    // TODO, we we had a handle into when we are done with parsing, then we push back then and not copy over bytes
-                    source = cachedEntry.bytes().bytes().copyBytesArray();
-                    // update the data in the context, so it can be compressed and stored compressed outside...
-                    context.source(source);
-                } finally {
-                    CachedStreamOutput.pushEntry(cachedEntry);
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                XContentType contentType = XContentFactory.xContentType(source);
+                if (formatContentType != null && formatContentType != contentType) {
+                    XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, CompressorFactory.defaultCompressor().streamOutput(bStream));
+                    builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
+                    builder.close();
+                } else {
+                    StreamOutput streamOutput = CompressorFactory.defaultCompressor().streamOutput(bStream);
+                    source.writeTo(streamOutput);
+                    streamOutput.close();
                 }
+                source = bStream.bytes();
+                // update the data in the context, so it can be compressed and stored compressed outside...
+                context.source(source);
             }
         } else if (formatContentType != null) {
             // see if we need to convert the content type
@@ -323,18 +314,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                 compressedStreamInput.resetToBufferStart();
                 if (contentType != formatContentType) {
                     // we need to reread and store back, compressed....
-                    CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-                    try {
-                        StreamOutput streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, streamOutput);
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(compressedStreamInput));
-                        builder.close();
-                        source = cachedEntry.bytes().bytes().copyBytesArray();
-                        // update the data in the context, so we store it in the translog in this format
-                        context.source(source);
-                    } finally {
-                        CachedStreamOutput.pushEntry(cachedEntry);
-                    }
+                    BytesStreamOutput bStream = new BytesStreamOutput();
+                    StreamOutput streamOutput = CompressorFactory.defaultCompressor().streamOutput(bStream);
+                    XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, streamOutput);
+                    builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(compressedStreamInput));
+                    builder.close();
+                    source = bStream.bytes();
+                    // update the data in the context, so we store it in the translog in this format
+                    context.source(source);
                 } else {
                     compressedStreamInput.close();
                 }
@@ -343,17 +330,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                 if (contentType != formatContentType) {
                     // we need to reread and store back
                     // we need to reread and store back, compressed....
-                    CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-                    try {
-                        XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, cachedEntry.bytes());
-                        builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
-                        builder.close();
-                        source = cachedEntry.bytes().bytes().copyBytesArray();
-                        // update the data in the context, so we store it in the translog in this format
-                        context.source(source);
-                    } finally {
-                        CachedStreamOutput.pushEntry(cachedEntry);
-                    }
+                    BytesStreamOutput bStream = new BytesStreamOutput();
+                    XContentBuilder builder = XContentFactory.contentBuilder(formatContentType, bStream);
+                    builder.copyCurrentStructure(XContentFactory.xContent(contentType).createParser(source));
+                    builder.close();
+                    source = bStream.bytes();
+                    // update the data in the context, so we store it in the translog in this format
+                    context.source(source);
                 }
             }
         }

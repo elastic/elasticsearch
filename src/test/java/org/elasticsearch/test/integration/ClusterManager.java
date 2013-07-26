@@ -18,16 +18,18 @@
  */
 package org.elasticsearch.test.integration;
 
+import java.util.Random;
+
 
 public class ClusterManager {
 
     private static TestCluster cluster;
 
-    public synchronized static TestCluster accquireCluster() {
+    public synchronized static TestCluster accquireCluster(Random random) {
         if (cluster == null) {
-            cluster = new TestCluster();
+            cluster = new TestCluster(random);
         }
-        cluster.reset();
+        cluster.reset(random);
         return cluster;
 
     }

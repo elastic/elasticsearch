@@ -49,7 +49,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.ElasticSearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 /**
  * Simple smoke test for {@link ElasticSearch090PostingsFormat}

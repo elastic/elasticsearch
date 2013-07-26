@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.integration.search.highlight;
 
-import com.beust.jcommander.internal.Maps;
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -27,9 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,13 +40,12 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class CustomHighlighterSearchTests extends AbstractNodesTests {
-    private Client client;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @Override
+    protected void beforeClass() throws Exception{
         ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomHighlighterPlugin.class.getName());
         startNode("server1", settings);
-        client = getClient();
+        Client client = client();
 
         client.prepareIndex("test", "test", "1").setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -58,19 +55,14 @@ public class CustomHighlighterSearchTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
     }
 
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
+    @Override
+    public Client client() {
         return client("server1");
     }
 
     @Test
     public void testThatCustomHighlightersAreSupported() throws IOException {
-        SearchResponse searchResponse = client.prepareSearch("test").setTypes("test")
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addHighlightedField("name").setHighlighterType("test-custom")
                 .execute().actionGet();
@@ -85,7 +77,7 @@ public class CustomHighlighterSearchTests extends AbstractNodesTests {
         options.put("myFieldOption", "someValue");
         highlightConfig.options(options);
 
-        SearchResponse searchResponse = client.prepareSearch("test").setTypes("test")
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addHighlightedField(highlightConfig)
                 .execute().actionGet();
@@ -99,7 +91,7 @@ public class CustomHighlighterSearchTests extends AbstractNodesTests {
         Map<String, Object> options = Maps.newHashMap();
         options.put("myGlobalOption", "someValue");
 
-        SearchResponse searchResponse = client.prepareSearch("test").setTypes("test")
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setHighlighterOptions(options)
                 .setHighlighterType("test-custom")

@@ -28,8 +28,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -37,15 +37,15 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@Test
 public class SimpleNumericTests {
 
+    @Test
     public void testNumericDetectionEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("numeric_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -61,11 +61,12 @@ public class SimpleNumericTests {
         assertThat(mapper, instanceOf(DoubleFieldMapper.class));
     }
 
+    @Test
     public void testNumericDetectionDefault() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -81,6 +82,7 @@ public class SimpleNumericTests {
         assertThat(mapper, instanceOf(StringFieldMapper.class));
     }
 
+    @Test
     public void testIgnoreMalformedOption() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -90,7 +92,7 @@ public class SimpleNumericTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -124,7 +126,7 @@ public class SimpleNumericTests {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = MapperTests.newParser(indexSettings).parse(mapping);
+        defaultMapper = MapperTestUtils.newParser(indexSettings).parse(mapping);
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
@@ -143,5 +145,4 @@ public class SimpleNumericTests {
             assertThat(e.getCause(), instanceOf(NumberFormatException.class));
         }
     }
-
 }

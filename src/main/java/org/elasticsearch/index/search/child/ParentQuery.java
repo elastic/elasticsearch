@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.search.child;
 
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -136,6 +139,10 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         if (uidToScore == null) {
             throw new ElasticSearchIllegalStateException("has_parent query hasn't executed properly");
         }
+        if (uidToScore.isEmpty()) {
+            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+        }
+
         return new ChildWeight(rewrittenParentQuery.createWeight(searcher));
     }
 
@@ -207,7 +214,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
-            if (childrenDocSet == null || childrenDocSet == DocIdSet.EMPTY_DOCIDSET) {
+            if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
             IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);

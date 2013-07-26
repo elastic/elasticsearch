@@ -25,9 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +49,7 @@ public abstract class AbstractSimpleTransportTests {
     protected DiscoveryNode serviceANode;
     protected DiscoveryNode serviceBNode;
 
-    @BeforeMethod
+    @Before
     public void setUp() {
         threadPool = new ThreadPool();
         build();
@@ -57,7 +57,7 @@ public abstract class AbstractSimpleTransportTests {
         serviceB.connectToNode(serviceANode);
     }
 
-    @AfterMethod
+    @After
     public void tearDown() {
         serviceA.close();
         serviceB.close();
@@ -94,6 +94,37 @@ public abstract class AbstractSimpleTransportTests {
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHello",
                 new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
+            @Override
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public void handleResponse(StringMessageResponse response) {
+                assertThat("hello moshe", equalTo(response.message));
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exp.printStackTrace();
+                assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+            }
+        });
+
+        try {
+            StringMessageResponse message = res.get();
+            assertThat("hello moshe", equalTo(message.message));
+        } catch (Exception e) {
+            assertThat(e.getMessage(), false, equalTo(true));
+        }
+
+        res = serviceB.submitRequest(serviceANode, "sayHello",
+                new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
                 return new StringMessageResponse();

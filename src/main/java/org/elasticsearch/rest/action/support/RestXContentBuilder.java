@@ -25,7 +25,7 @@ import org.elasticsearch.common.compress.CompressedStreamInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestRequest;
 
@@ -53,8 +53,7 @@ public class RestXContentBuilder {
             // default to JSON
             contentType = XContentType.JSON;
         }
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), cachedEntry.bytes(), cachedEntry);
+        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), new BytesStreamOutput());
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }

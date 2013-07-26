@@ -22,8 +22,8 @@ package org.elasticsearch.test.unit.index.mapper.typelevels;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +38,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testNoLevel() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -57,7 +57,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testTypeLevel() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -76,7 +76,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testNoLevelWithFieldTypeAsValue() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -97,7 +97,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testTypeLevelWithFieldTypeAsValue() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -118,7 +118,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testNoLevelWithFieldTypeAsObject() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -139,7 +139,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testTypeLevelWithFieldTypeAsObject() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -160,7 +160,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testNoLevelWithFieldTypeAsValueNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -181,7 +181,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testTypeLevelWithFieldTypeAsValueNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -202,7 +202,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testNoLevelWithFieldTypeAsObjectNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -224,7 +224,7 @@ public class ParseDocumentTypeLevelsTests {
     public void testTypeLevelWithFieldTypeAsObjectNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")

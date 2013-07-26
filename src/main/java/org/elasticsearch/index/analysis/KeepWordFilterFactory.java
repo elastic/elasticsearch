@@ -17,6 +17,8 @@ package org.elasticsearch.index.analysis;
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.apache.lucene.util.Version;
+
 import java.util.Arrays;
 import java.util.Map;
 
@@ -60,8 +62,8 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
  */
 @AnalysisSettingsRequired
 public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
-    private Boolean enablePositionIncrements;
-    private CharArraySet keepWords;
+    private final CharArraySet keepWords;
+    private final boolean enablePositionIncrements;
     private static final String KEEP_WORDS_KEY = "keep_words";
     private static final String KEEP_WORDS_PATH_KEY = KEEP_WORDS_KEY + "_path";
     private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case"; // for javadoc
@@ -80,14 +82,22 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
             throw new ElasticSearchIllegalArgumentException("keep requires either `" + KEEP_WORDS_KEY + "` or `"
                             + KEEP_WORDS_PATH_KEY + "` to be configured");
         }
-        this.enablePositionIncrements = settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
+        if (version.onOrAfter(Version.LUCENE_44) && settings.get(ENABLE_POS_INC_KEY) != null) {
+            throw new ElasticSearchIllegalArgumentException(ENABLE_POS_INC_KEY +  " is not supported anymore. Please fix your analysis chain or use"
+                    + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
+        }
+        enablePositionIncrements = version.onOrAfter(Version.LUCENE_44) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
+
         this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY, version);
         
     }
     
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new KeepWordFilter(enablePositionIncrements, tokenStream, keepWords);
+        if (version.onOrAfter(Version.LUCENE_44)) {
+            return new KeepWordFilter(version, tokenStream, keepWords);
+        }
+        return new KeepWordFilter(version, enablePositionIncrements, tokenStream, keepWords);
     }
 
     

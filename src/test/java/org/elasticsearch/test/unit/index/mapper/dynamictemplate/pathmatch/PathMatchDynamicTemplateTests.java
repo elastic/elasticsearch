@@ -24,8 +24,8 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -40,7 +40,7 @@ public class PathMatchDynamicTemplateTests {
     @Test
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-data.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
 

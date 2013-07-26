@@ -170,16 +170,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Causes the updated document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public UpdateRequestBuilder setPercolate(String percolate) {
-        request.percolate(percolate);
-        return this;
-    }
-
-    /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(IndexRequest indexRequest) {

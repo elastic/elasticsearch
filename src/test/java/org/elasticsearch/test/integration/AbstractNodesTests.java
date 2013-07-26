@@ -29,32 +29,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.Node;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
+@Ignore
 public abstract class AbstractNodesTests extends ElasticsearchTestCase {
+    private static Map<String, Node> nodes = newHashMap();
 
-    private Map<String, Node> nodes = newHashMap();
-
-    private Map<String, Client> clients = newHashMap();
-
-    private Settings defaultSettings = ImmutableSettings
+    private static Map<String, Client> clients = newHashMap();
+    
+    private static final Settings defaultSettings = ImmutableSettings
             .settingsBuilder()
-            .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
+            .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "CHILD_VM=[" + CHILD_VM_ID +"]")
             .build();
 
-    public void putDefaultSettings(Settings.Builder settings) {
-        putDefaultSettings(settings.build());
-    }
-
-    public void putDefaultSettings(Settings settings) {
-        defaultSettings = ImmutableSettings.settingsBuilder().put(defaultSettings).put(settings).build();
-    }
 
     public Node startNode(String id) {
         return buildNode(id).start();
@@ -77,59 +73,88 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
     }
 
     public Node buildNode(String id, Settings settings) {
-        String settingsSource = getClass().getName().replace('.', '/') + ".yml";
-        Settings finalSettings = settingsBuilder()
-                .loadFromClasspath(settingsSource)
-                .put(defaultSettings)
-                .put(settings)
-                .put("name", id)
-                .build();
-
-        if (finalSettings.get("gateway.type") == null) {
-            // default to non gateway
-            finalSettings = settingsBuilder().put(finalSettings).put("gateway.type", "none").build();
+        synchronized (AbstractNodesTests.class) {
+            if (nodes.containsKey(id)) {
+                throw new IllegalArgumentException("Node with id ["+ id + "] already exists");
+            }
+            assert !nodes.containsKey(id);
+            assert !clients.containsKey(id);
+                
+            String settingsSource = getClass().getName().replace('.', '/') + ".yml";
+            Settings finalSettings = settingsBuilder()
+                    .loadFromClasspath(settingsSource)
+                    .put(defaultSettings)
+                    .put(getClassDefaultSettings())
+                    .put(settings)
+                    .put("name", id)
+                    .build();
+    
+            if (finalSettings.get("gateway.type") == null) {
+                // default to non gateway
+                finalSettings = settingsBuilder().put(finalSettings).put("gateway.type", "none").build();
+            }
+            if (finalSettings.get("cluster.routing.schedule") != null) {
+                // decrease the routing schedule so new nodes will be added quickly
+                finalSettings = settingsBuilder().put(finalSettings).put("cluster.routing.schedule", "50ms").build();
+            }
+            Node node = nodeBuilder()
+                    .settings(finalSettings)
+                    .build();
+            logger.info("Build Node [{}] with settings [{}]", id, finalSettings.toDelimitedString(','));
+            nodes.put(id, node);
+            clients.put(id, node.client());
+            return node;
         }
-        if (finalSettings.get("cluster.routing.schedule") != null) {
-            // decrease the routing schedule so new nodes will be added quickly
-            finalSettings = settingsBuilder().put(finalSettings).put("cluster.routing.schedule", "50ms").build();
-        }
-
-        Node node = nodeBuilder()
-                .settings(finalSettings)
-                .build();
-        nodes.put(id, node);
-        clients.put(id, node.client());
-        return node;
     }
 
     public void closeNode(String id) {
-        Client client = clients.remove(id);
+        Client client;
+        Node node;
+        synchronized (AbstractNodesTests.class) {
+            client = clients.remove(id);
+            node = nodes.remove(id);
+        }
         if (client != null) {
             client.close();
         }
-        Node node = nodes.remove(id);
         if (node != null) {
             node.close();
         }
+
     }
 
     public Node node(String id) {
-        return nodes.get(id);
+        synchronized (AbstractNodesTests.class) {
+            return nodes.get(id);
+        }
     }
 
     public Client client(String id) {
-        return clients.get(id);
+        synchronized (AbstractNodesTests.class) {
+            return clients.get(id);
+        }
     }
-
     public void closeAllNodes() {
-        for (Client client : clients.values()) {
-            client.close();
+        closeAllNodes(false);
+    }
+    public void closeAllNodes(boolean preventRelocation) {
+        synchronized (AbstractNodesTests.class) {
+            if (preventRelocation) {
+                Settings build = ImmutableSettings.builder().put("cluster.routing.allocation.disable_allocation", true).build();
+                Client aClient = client();
+                if (aClient != null) {
+                        aClient.admin().cluster().prepareUpdateSettings().setTransientSettings(build).execute().actionGet();
+                }
+            }
+            for (Client client : clients.values()) {
+                client.close();
+            }
+            clients.clear();
+            for (Node node : nodes.values()) {
+                node.close();
+            }
+            nodes.clear();
         }
-        clients.clear();
-        for (Node node : nodes.values()) {
-            node.close();
-        }
-        nodes.clear();
     }
 
     public ImmutableSet<ClusterBlock> waitForNoBlocks(TimeValue timeout, String node) throws InterruptedException {
@@ -155,5 +180,50 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
         } catch (IndexMissingException e) {
             // ignore
         }
+    }
+    
+    private static volatile AbstractNodesTests testInstance; // this test class only works once per JVM
+    
+    @BeforeClass
+    public static void tearDownOnce() throws Exception {
+        synchronized (AbstractNodesTests.class) {
+            if (testInstance != null) {
+                testInstance.afterClass();
+                testInstance.closeAllNodes();
+                testInstance = null;
+            }
+        }
+    }
+    
+    @Before
+    public final void setUp() throws Exception {
+        synchronized (AbstractNodesTests.class) {
+            if (testInstance == null) {
+                testInstance = this;
+                testInstance.beforeClass();
+                
+            } else {
+                assert testInstance.getClass() == this.getClass();
+            }
+        }
+    }
+    
+    public Client client() {
+        synchronized (AbstractNodesTests.class) {
+            if (clients.isEmpty()) {
+                return null;
+            }
+            return clients.values().iterator().next();
+        }
+    }
+    
+    protected void afterClass() throws Exception {
+    }
+    
+    protected Settings getClassDefaultSettings() {
+        return ImmutableSettings.EMPTY;
+    }
+    
+    protected void beforeClass() throws Exception {
     }
 }

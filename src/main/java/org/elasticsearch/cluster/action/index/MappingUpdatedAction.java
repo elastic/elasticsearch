@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -36,8 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
@@ -61,7 +60,8 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        // we go async right away
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -75,33 +75,19 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     }
 
     @Override
-    protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
-        try {
-            metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource(), new MetaDataMappingService.Listener() {
-                @Override
-                public void onResponse(MetaDataMappingService.Response response) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Throwable t) {
-                    failure.set(t);
-                    latch.countDown();
-                }
-            });
-        } catch (Exception e) {
-            failure.set(e);
-        }
-        if (failure.get() != null) {
-            if (failure.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failure.get();
-            } else {
-                throw new ElasticSearchException("failed to update mapping", failure.get());
+    protected void masterOperation(final MappingUpdatedRequest request, final ClusterState state, final ActionListener<MappingUpdatedResponse> listener) throws ElasticSearchException {
+        metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource(), new MetaDataMappingService.Listener() {
+            @Override
+            public void onResponse(MetaDataMappingService.Response response) {
+                listener.onResponse(new MappingUpdatedResponse());
             }
-        }
-        return new MappingUpdatedResponse();
+
+            @Override
+            public void onFailure(Throwable t) {
+                logger.warn("failed to dynamically update the mapping in cluster_state from shard", t);
+                listener.onFailure(t);
+            }
+        });
     }
 
     public static class MappingUpdatedResponse extends ActionResponse {

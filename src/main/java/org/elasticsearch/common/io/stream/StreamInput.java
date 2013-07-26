@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 
@@ -220,6 +221,18 @@ public abstract class StreamInput extends InputStream {
         return new StringAndBytesText(readBytesReference(length));
     }
 
+    public Text[] readTextArray() throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+            return StringText.EMPTY_ARRAY;
+        }
+        Text[] ret = new Text[size];
+        for (int i = 0; i < size; i++) {
+            ret[i] = readText();
+        }
+        return ret;
+    }
+
     public Text readSharedText() throws IOException {
         return readText();
     }
@@ -228,6 +241,14 @@ public abstract class StreamInput extends InputStream {
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
             return readString();
+        }
+        return null;
+    }
+
+    @Nullable
+    public String readOptionalSharedString() throws IOException {
+        if (readBoolean()) {
+            return readSharedString();
         }
         return null;
     }
@@ -259,6 +280,10 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return new String(chars, 0, charCount);
+    }
+
+    public String readSharedString() throws IOException {
+        return readString();
     }
 
 
@@ -371,14 +396,14 @@ public abstract class StreamInput extends InputStream {
                 int size9 = readVInt();
                 Map map9 = new LinkedHashMap(size9);
                 for (int i = 0; i < size9; i++) {
-                    map9.put(readString(), readGenericValue());
+                    map9.put(readSharedString(), readGenericValue());
                 }
                 return map9;
             case 10:
                 int size10 = readVInt();
                 Map map10 = new HashMap(size10);
                 for (int i = 0; i < size10; i++) {
-                    map10.put(readString(), readGenericValue());
+                    map10.put(readSharedString(), readGenericValue());
                 }
                 return map10;
             case 11:

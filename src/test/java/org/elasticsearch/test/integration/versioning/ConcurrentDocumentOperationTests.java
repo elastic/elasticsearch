@@ -3,8 +3,7 @@ package org.elasticsearch.test.integration.versioning;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -18,12 +17,10 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-@Test
 public class ConcurrentDocumentOperationTests extends AbstractSharedClusterTest {
 
-    @BeforeTest
-    public void closeNodes() {
-        cluster().ensureAtLeastNumNodes(3);
+    protected int numberOfNodes() {
+        return 3;
     }
 
     @Test

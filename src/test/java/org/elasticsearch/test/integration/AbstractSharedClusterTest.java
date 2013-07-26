@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -50,19 +51,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeMethod;
+import org.junit.*;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -84,23 +80,24 @@ import static org.hamcrest.Matchers.equalTo;
  * baseclass. If your test modifies the cluster state with persistent or
  * transient settings the baseclass will raise and error.
  */
+@Ignore
 public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     private static TestCluster cluster;
 
     @BeforeClass
-    protected static void beforeClass() throws Exception {
+    public static void beforeClass() throws Exception {
         cluster();
     }
 
-    @BeforeMethod
+    @Before
     public final void before() {
         cluster.ensureAtLeastNumNodes(numberOfNodes());
         wipeIndices();
         wipeTemplates();
     }
 
-    @AfterMethod
+    @After
     public void after() {
         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
@@ -111,7 +108,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public static TestCluster cluster() {
         if (cluster == null) {
-            cluster = ClusterManager.accquireCluster();
+            cluster = ClusterManager.accquireCluster(getRandom());
         }
         return cluster;
     }
@@ -121,7 +118,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     @AfterClass
-    protected static void afterClass() {
+    public static void afterClass() {
         cluster = null;
         ClusterManager.releaseCluster();
     }
@@ -387,6 +384,27 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         Res actionGet = builder.execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
+    }
+    
+    // TODO move this into a base class for integration tests
+    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder...builders) throws InterruptedException, ExecutionException {
+        Random random = getRandom();
+        List<IndexRequestBuilder> list = Arrays.asList(builders);
+        Collections.shuffle(list, random);
+        for (IndexRequestBuilder indexRequestBuilder : list) {
+            indexRequestBuilder.execute().actionGet();
+            if (frequently()) {
+                if (rarely()) {
+                    client().admin().indices().prepareFlush(index).execute().get();
+                } else if (rarely()) {
+                    client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute().get();
+                }
+                client().admin().indices().prepareRefresh(index).execute().get();
+            }
+        }
+        if (forceRefresh) {
+            client().admin().indices().prepareRefresh(index).execute().get();
+        }
     }
 
 }

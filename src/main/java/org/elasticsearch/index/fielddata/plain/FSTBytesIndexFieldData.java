@@ -26,7 +26,6 @@ import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.INPUT_TYPE;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.apache.lucene.util.fst.Util;
-import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -61,13 +60,18 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         if (terms == null) {
             return FSTBytesAtomicFieldData.empty(reader.maxDoc());
         }
-        PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton(true);
+        PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<Long>(INPUT_TYPE.BYTE1, outputs);
         final IntsRef scratch = new IntsRef();
 
-        boolean preDefineBitsRequired = regex == null && frequency == null;
-        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc(), acceptableOverheadRatio);
+        final long numTerms;
+        if (regex == null && frequency == null) {
+            numTerms = terms.size();
+        } else {
+            numTerms = -1;
+        }
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio);
         try {
             
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
@@ -75,7 +79,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             TermsEnum termsEnum = filter(terms, reader);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                final int termOrd = builder.nextOrdinal();
+                final long termOrd = builder.nextOrdinal();
                 assert termOrd > 0;
                 fstBuilder.add(Util.toIntsRef(term, scratch), (long)termOrd);
                 docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);

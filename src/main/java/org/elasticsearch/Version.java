@@ -125,10 +125,10 @@ public class Version implements Serializable {
     public static final int V_0_90_2_ID = /*00*/900299;
     public static final Version V_0_90_2 = new Version(V_0_90_2_ID, false, org.apache.lucene.util.Version.LUCENE_43);
     public static final int V_0_90_3_ID = /*00*/900399;
-    public static final Version V_0_90_3 = new Version(V_0_90_3_ID, false, org.apache.lucene.util.Version.LUCENE_43);
+    public static final Version V_0_90_3 = new Version(V_0_90_3_ID, false, org.apache.lucene.util.Version.LUCENE_44);
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
-    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, true, org.apache.lucene.util.Version.LUCENE_43);
+    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, true, org.apache.lucene.util.Version.LUCENE_44);
 
     public static final Version CURRENT = V_1_0_0_Beta1;
 
@@ -295,7 +295,7 @@ public class Version implements Serializable {
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch Version: " + Version.CURRENT + ", JVM: " + JvmInfo.jvmInfo().version() + "(" + JvmInfo.jvmInfo().vmVersion() + ")");
+        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
     }
 
     @Override

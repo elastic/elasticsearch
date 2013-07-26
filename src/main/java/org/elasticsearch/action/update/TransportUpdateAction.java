@@ -193,9 +193,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(),
-                                response.getVersion(), response.isCreated());
-                        update.setMatches(response.getMatches());
+                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         if (request.fields() != null && request.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
                             update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
@@ -230,9 +228,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(),
-                                                                   response.getVersion(), response.isCreated());
-                        update.setMatches(response.getMatches());
+                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         listener.onResponse(update);
                     }

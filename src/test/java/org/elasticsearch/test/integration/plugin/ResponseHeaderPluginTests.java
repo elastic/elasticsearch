@@ -19,12 +19,7 @@
 
 package org.elasticsearch.test.integration.plugin;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import com.beust.jcommander.internal.Maps;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
@@ -33,11 +28,16 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.plugin.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.integration.rest.helper.HttpClient;
 import org.elasticsearch.test.integration.rest.helper.HttpClientResponse;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.Map;
+
+import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test a rest action that sets special response headers
@@ -46,14 +46,14 @@ public class ResponseHeaderPluginTests extends AbstractNodesTests {
 
     public static final String NODE_ID = "TEST";
 
-    @BeforeMethod
+    @Before
     public void startNode() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", TestResponseHeaderPlugin.class.getName());
         startNode(NODE_ID, settings);
         client(NODE_ID).admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
     }
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }

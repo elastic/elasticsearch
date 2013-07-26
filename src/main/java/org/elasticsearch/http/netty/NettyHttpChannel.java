@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpException;
@@ -27,7 +26,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.XContentRestResponse;
 import org.elasticsearch.rest.support.RestUtils;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
@@ -103,20 +101,16 @@ public class NettyHttpChannel implements HttpChannel {
         }
 
         // Convert the response content to a ChannelBuffer.
-        ChannelFutureListener releaseContentListener = null;
         ChannelBuffer buf;
         try {
             if (response instanceof XContentRestResponse) {
                 // if its a builder based response, and it was created with a CachedStreamOutput, we can release it
                 // after we write the response, and no need to do an extra copy because its not thread safe
                 XContentBuilder builder = ((XContentRestResponse) response).builder();
-                if (builder.payload() instanceof CachedStreamOutput.Entry) {
-                    releaseContentListener = new NettyTransport.CacheFutureListener((CachedStreamOutput.Entry) builder.payload());
+                if (response.contentThreadSafe()) {
                     buf = builder.bytes().toChannelBuffer();
-                } else if (response.contentThreadSafe()) {
-                    buf = ChannelBuffers.wrappedBuffer(response.content(), response.contentOffset(), response.contentLength());
                 } else {
-                    buf = ChannelBuffers.copiedBuffer(response.content(), response.contentOffset(), response.contentLength());
+                    buf = builder.bytes().copyBytesArray().toChannelBuffer();
                 }
             } else {
                 if (response.contentThreadSafe()) {
@@ -162,10 +156,6 @@ public class NettyHttpChannel implements HttpChannel {
 
         // Write the response.
         ChannelFuture future = channel.write(resp);
-        if (releaseContentListener != null) {
-            future.addListener(releaseContentListener);
-        }
-
         // Close the connection after the write operation is done if necessary.
         if (close) {
             future.addListener(ChannelFutureListener.CLOSE);

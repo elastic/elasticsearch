@@ -24,7 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 

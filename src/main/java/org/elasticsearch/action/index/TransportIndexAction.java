@@ -36,15 +36,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -234,21 +231,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, created);
         return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
-    }
-
-    @Override
-    protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse, IndexRequest> response) {
-        Engine.IndexingOperation op = (Engine.IndexingOperation) response.payload();
-        if (!Strings.hasLength(request.percolate())) {
-            return;
-        }
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        try {
-            PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), request.percolate()));
-            response.response().setMatches(percolate.matches());
-        } catch (Exception e) {
-            logger.warn("failed to percolate [{}]", e, request);
-        }
     }
 
     @Override

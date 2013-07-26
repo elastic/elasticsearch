@@ -133,7 +133,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     private boolean refresh = false;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
-    private String percolate;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
@@ -549,20 +548,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         return this.versionType;
     }
 
-    /**
-     * Causes the index request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public IndexRequest percolate(String percolate) {
-        this.percolate = percolate;
-        return this;
-    }
-
-    public String percolate() {
-        return this.percolate;
-    }
-
     public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticSearchException {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, aliasOrIndex));
@@ -623,7 +608,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -635,14 +620,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
         version = in.readLong();
-        percolate = in.readOptionalString();
         versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
@@ -652,7 +636,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);
-        out.writeOptionalString(percolate);
         out.writeByte(versionType.getValue());
     }
 

@@ -23,21 +23,21 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalSettingsPerparerTests {
-    @BeforeMethod
+    @Before
     public void setupSystemProperties() {
         System.setProperty("es.node.zone", "foo");
     }
 
-    @AfterMethod
+    @After
     public void cleanupSystemProperties() {
         System.clearProperty("es.node.zone");
     }

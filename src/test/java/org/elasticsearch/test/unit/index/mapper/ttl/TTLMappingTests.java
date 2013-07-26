@@ -26,8 +26,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +37,7 @@ public class TTLMappingTests {
     @Test
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -53,7 +53,7 @@ public class TTLMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl").field("enabled", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -69,7 +69,7 @@ public class TTLMappingTests {
     @Test
     public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED_STATE.enabled));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
         assertThat(docMapper.TTLFieldMapper().fieldType().indexed(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexed()));
@@ -83,7 +83,7 @@ public class TTLMappingTests {
                 .field("enabled", "yes").field("store", "no").field("index", "no")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.TTLFieldMapper().fieldType().indexed(), equalTo(false));
@@ -102,8 +102,8 @@ public class TTLMappingTests {
                 .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapperWithoutTtl = MapperTests.newParser().parse(mappingWithoutTtl);
-        DocumentMapper mapperWithTtl = MapperTests.newParser().parse(mappingWithTtl);
+        DocumentMapper mapperWithoutTtl = MapperTestUtils.newParser().parse(mappingWithoutTtl);
+        DocumentMapper mapperWithTtl = MapperTestUtils.newParser().parse(mappingWithTtl);
 
         DocumentMapper.MergeFlags mergeFlags = DocumentMapper.MergeFlags.mergeFlags().simulate(false);
         DocumentMapper.MergeResult mergeResult = mapperWithoutTtl.merge(mapperWithTtl, mergeFlags);
@@ -128,8 +128,8 @@ public class TTLMappingTests {
                 .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper initialMapper = MapperTests.newParser().parse(mappingWithTtl);
-        DocumentMapper updatedMapper = MapperTests.newParser().parse(updatedMapping);
+        DocumentMapper initialMapper = MapperTestUtils.newParser().parse(mappingWithTtl);
+        DocumentMapper updatedMapper = MapperTestUtils.newParser().parse(updatedMapping);
 
         DocumentMapper.MergeFlags mergeFlags = DocumentMapper.MergeFlags.mergeFlags().simulate(false);
         DocumentMapper.MergeResult mergeResult = initialMapper.merge(updatedMapper, mergeFlags);

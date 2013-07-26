@@ -99,7 +99,6 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
         } else {
             mergePolicy = new CustomTieredMergePolicyProvider(this);
         }
-        mergePolicy.setUseCompoundFile(compoundFormat);
         mergePolicy.setNoCFSRatio(noCFSRatio);
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
@@ -191,14 +190,11 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
             }
 
             final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicyProvider.this.noCFSRatio)));
-            final boolean compoundFormat = noCFSRatio != 0.0;
             if (noCFSRatio != TieredMergePolicyProvider.this.noCFSRatio) {
                 logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(TieredMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
-                TieredMergePolicyProvider.this.compoundFormat = compoundFormat;
                 TieredMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomTieredMergePolicyProvider policy : policies) {
                     policy.setNoCFSRatio(noCFSRatio);
-                    policy.setUseCompoundFile(compoundFormat);
                 }
             }
 

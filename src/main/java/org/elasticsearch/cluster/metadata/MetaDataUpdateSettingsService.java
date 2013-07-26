@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.Locale;
@@ -102,7 +103,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     if (numberOfReplicas >= min && numberOfReplicas <= max) {
                         final int fNumberOfReplicas = numberOfReplicas;
                         Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
-                        updateSettings(settings, new String[]{indexMetaData.index()}, new Listener() {
+                        updateSettings(settings, new String[]{indexMetaData.index()}, TimeValue.timeValueMinutes(10), new Listener() {
                             @Override
                             public void onSuccess() {
                                 logger.info("[{}] auto expanded replicas to [{}]", indexMetaData.index(), fNumberOfReplicas);
@@ -121,7 +122,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
     }
 
-    public void updateSettings(final Settings pSettings, final String[] indices, final Listener listener) {
+    public void updateSettings(final Settings pSettings, final String[] indices, final TimeValue masterTimeout, final Listener listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
         for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
             if (entry.getKey().equals("index")) {
@@ -168,112 +169,116 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
-        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
-                try {
-                    String[] actualIndices = currentState.metaData().concreteIndices(indices);
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
-                    MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
-
-                    // allow to change any settings to a close index, and only allow dynamic settings to be changed
-                    // on an open index
-                    Set<String> openIndices = Sets.newHashSet();
-                    Set<String> closeIndices = Sets.newHashSet();
-                    for (String index : actualIndices) {
-                        if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
-                            openIndices.add(index);
-                        } else {
-                            closeIndices.add(index);
-                        }
-                    }
-
-                    if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
-                        listener.onFailure(new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, 
-                                "Can't update non dynamic settings[%s] for open indices[%s]",
-                                removedSettings,
-                                openIndices
-                        )));
-                        return currentState;
-                    }
-
-                    int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
-                    if (updatedNumberOfReplicas != -1) {
-                        routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                        metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                        logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
-                    }
-
-                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    Boolean updatedReadOnly = openSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, null);
-                    if (updatedReadOnly != null) {
-                        for (String index : actualIndices) {
-                            if (updatedReadOnly) {
-                                blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                            } else {
-                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
-                            }
-                        }
-                    }
-                    Boolean updateMetaDataBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, null);
-                    if (updateMetaDataBlock != null) {
-                        for (String index : actualIndices) {
-                            if (updateMetaDataBlock) {
-                                blocks.addIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
-                            } else {
-                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
-                            }
-                        }
-                    }
-
-                    Boolean updateWriteBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, null);
-                    if (updateWriteBlock != null) {
-                        for (String index : actualIndices) {
-                            if (updateWriteBlock) {
-                                blocks.addIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
-                            } else {
-                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
-                            }
-                        }
-                    }
-
-                    Boolean updateReadBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, null);
-                    if (updateReadBlock != null) {
-                        for (String index : actualIndices) {
-                            if (updateReadBlock) {
-                                blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
-                            } else {
-                                blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
-                            }
-                        }
-                    }
-
-                    if (!openIndices.isEmpty()) {
-                        String[] indices = openIndices.toArray(new String[openIndices.size()]);
-                        metaDataBuilder.updateSettings(openSettings, indices);
-                    }
-
-                    if (!closeIndices.isEmpty()) {
-                        String[] indices = closeIndices.toArray(new String[closeIndices.size()]);
-                        metaDataBuilder.updateSettings(closeSettings, indices);
-                    }
-
-
-                    ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).blocks(blocks).build();
-
-                    // now, reroute in case things change that require it (like number of replicas)
-                    RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
-                    updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
-
-                    return updatedState;
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                    return currentState;
-                }
+            public TimeValue timeout() {
+                return masterTimeout;
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                String[] actualIndices = currentState.metaData().concreteIndices(indices);
+                RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
+                MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
+
+                // allow to change any settings to a close index, and only allow dynamic settings to be changed
+                // on an open index
+                Set<String> openIndices = Sets.newHashSet();
+                Set<String> closeIndices = Sets.newHashSet();
+                for (String index : actualIndices) {
+                    if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
+                        openIndices.add(index);
+                    } else {
+                        closeIndices.add(index);
+                    }
+                }
+
+                if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
+                    throw new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT,
+                            "Can't update non dynamic settings[%s] for open indices[%s]",
+                            removedSettings,
+                            openIndices
+                    ));
+                }
+
+                int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
+                if (updatedNumberOfReplicas != -1) {
+                    routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                    metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                    logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
+                }
+
+                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                Boolean updatedReadOnly = openSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, null);
+                if (updatedReadOnly != null) {
+                    for (String index : actualIndices) {
+                        if (updatedReadOnly) {
+                            blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                        } else {
+                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                        }
+                    }
+                }
+                Boolean updateMetaDataBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, null);
+                if (updateMetaDataBlock != null) {
+                    for (String index : actualIndices) {
+                        if (updateMetaDataBlock) {
+                            blocks.addIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
+                        } else {
+                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_METADATA_BLOCK);
+                        }
+                    }
+                }
+
+                Boolean updateWriteBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, null);
+                if (updateWriteBlock != null) {
+                    for (String index : actualIndices) {
+                        if (updateWriteBlock) {
+                            blocks.addIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
+                        } else {
+                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_WRITE_BLOCK);
+                        }
+                    }
+                }
+
+                Boolean updateReadBlock = openSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, null);
+                if (updateReadBlock != null) {
+                    for (String index : actualIndices) {
+                        if (updateReadBlock) {
+                            blocks.addIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
+                        } else {
+                            blocks.removeIndexBlock(index, IndexMetaData.INDEX_READ_BLOCK);
+                        }
+                    }
+                }
+
+                if (!openIndices.isEmpty()) {
+                    String[] indices = openIndices.toArray(new String[openIndices.size()]);
+                    metaDataBuilder.updateSettings(openSettings, indices);
+                }
+
+                if (!closeIndices.isEmpty()) {
+                    String[] indices = closeIndices.toArray(new String[closeIndices.size()]);
+                    metaDataBuilder.updateSettings(closeSettings, indices);
+                }
+
+
+                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).blocks(blocks).build();
+
+                // now, reroute in case things change that require it (like number of replicas)
+                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
+                updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+
+                return updatedState;
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 listener.onSuccess();
             }
         });

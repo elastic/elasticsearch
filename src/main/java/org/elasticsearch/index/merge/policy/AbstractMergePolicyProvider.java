@@ -27,13 +27,11 @@ public abstract class AbstractMergePolicyProvider<MP extends MergePolicy> extend
     
     public static final String INDEX_COMPOUND_FORMAT = "index.compound_format";
 
-    protected volatile boolean compoundFormat;
     protected volatile double noCFSRatio;
 
     protected AbstractMergePolicyProvider(Store store) {
         super(store.shardId(), store.indexSettings());
         this.noCFSRatio = parseNoCFSRatio(indexSettings.get(INDEX_COMPOUND_FORMAT, Boolean.toString(store.suggestUseCompoundFile())));
-        this.compoundFormat = noCFSRatio != 0.0;
     }
 
     public static double parseNoCFSRatio(String noCFSRatio) {

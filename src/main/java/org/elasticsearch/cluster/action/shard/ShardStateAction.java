@@ -127,6 +127,11 @@ public class ShardStateAction extends AbstractComponent {
                 }
                 return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.error("unexpected failure during [{}]", t, source);
+            }
         });
     }
 
@@ -194,9 +199,14 @@ public class ShardStateAction extends AbstractComponent {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void onFailure(String source, Throwable t) {
+                logger.error("unexpected failure during [{}]", t, source);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 rerouteRequired.set(true);
-                clusterService.submitStateUpdateTask("reroute post shard-started (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("reroute post shard-started (" + shardRouting + "), reason [" + reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         if (rerouteRequired.compareAndSet(true, false)) {
@@ -208,6 +218,11 @@ public class ShardStateAction extends AbstractComponent {
                         } else {
                             return currentState;
                         }
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
                     }
                 });
             }

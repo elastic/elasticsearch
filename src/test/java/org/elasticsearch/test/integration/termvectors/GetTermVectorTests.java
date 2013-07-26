@@ -19,23 +19,6 @@
 
 package org.elasticsearch.test.integration.termvectors;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
@@ -44,20 +27,9 @@ import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.document.*;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
@@ -65,7 +37,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.termvector.TermVectorRequest;
@@ -85,7 +56,12 @@ import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
+
+import java.io.*;
+import java.util.*;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetTermVectorTests extends AbstractSharedClusterTest {
 
@@ -122,7 +98,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     private void writeStandardTermVector(TermVectorResponse outResponse) throws IOException {
 
         Directory dir = FSDirectory.open(new File("/tmp/foo"));
-        IndexWriterConfig conf = new IndexWriterConfig(Version.LUCENE_42, new StandardAnalyzer(Version.LUCENE_42));
+        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
         conf.setOpenMode(OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);
         FieldType type = new FieldType(TextField.TYPE_STORED);
@@ -163,8 +139,8 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
                 mapping.put(fields[i], new Analyzer() {
                     @Override
                     protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-                        Tokenizer tokenizer = new StandardTokenizer(Version.LUCENE_42, reader);
-                        TokenFilter filter = new LowerCaseFilter(Version.LUCENE_42, tokenizer);
+                        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, reader);
+                        TokenFilter filter = new LowerCaseFilter(TEST_VERSION_CURRENT, tokenizer);
                         filter = new TypeAsPayloadTokenFilter(filter);
                         return new TokenStreamComponents(tokenizer, filter);
                     }
@@ -172,10 +148,10 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
                 });
             }
         }
-        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(Version.LUCENE_42), mapping);
+        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(TEST_VERSION_CURRENT), mapping);
 
         Directory dir = FSDirectory.open(new File("/tmp/foo"));
-        IndexWriterConfig conf = new IndexWriterConfig(Version.LUCENE_42, wrapper);
+        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, wrapper);
 
         conf.setOpenMode(OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);
@@ -339,9 +315,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRandomSingleTermVectors() throws ElasticSearchException, IOException {
-        long seed = System.currentTimeMillis();
-        Random random = new Random(seed);
-
+        Random random = getRandom(); 
         FieldType ft = new FieldType();
         int config = random.nextInt(6);
         boolean storePositions = false;
@@ -408,7 +382,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
         boolean isPayloadRequested = random.nextBoolean();
         boolean isOffsetRequested = random.nextBoolean();
         boolean isPositionsRequested = random.nextBoolean();
-        String infoString = createInfoString(isPositionsRequested, isOffsetRequested, isPayloadRequested, optionString, seed);
+        String infoString = createInfoString(isPositionsRequested, isOffsetRequested, isPayloadRequested, optionString);
         for (int i = 0; i < 10; i++) {
             TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i))
                     .setPayloads(isPayloadRequested).setOffsets(isOffsetRequested).setPositions(isPositionsRequested).setSelectedFields();
@@ -480,8 +454,8 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     }
 
     private String createInfoString(boolean isPositionsRequested, boolean isOffsetRequested, boolean isPayloadRequested,
-            String optionString, long seed) {
-        String ret = "Seed: " + seed + "\n" + "Store config: " + optionString + "\n" + "Requested: pos-"
+            String optionString) {
+        String ret = "Store config: " + optionString + "\n" + "Requested: pos-"
                 + (isPositionsRequested ? "yes" : "no") + ", offsets-" + (isOffsetRequested ? "yes" : "no") + ", payload- "
                 + (isPayloadRequested ? "yes" : "no") + "\n";
         return ret;

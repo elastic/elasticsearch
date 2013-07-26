@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.alias.exists;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -44,7 +45,8 @@ public class TransportAliasesExistAction extends TransportMasterNodeOperationAct
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // very lightweight operation, no need to fork
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -58,12 +60,12 @@ public class TransportAliasesExistAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected AliasesExistResponse masterOperation(GetAliasesRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
 
         boolean result = state.metaData().hasAliases(request.aliases(), request.indices());
-        return new AliasesExistResponse(result);
+        listener.onResponse(new AliasesExistResponse(result));
     }
 
 }

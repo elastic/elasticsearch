@@ -65,8 +65,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
 
-    private String percolate;
-
     private boolean refresh = false;
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
@@ -317,20 +315,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     public VersionType versionType() {
         return this.versionType;
-    }
-
-    /**
-     * Causes the update request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public UpdateRequest percolate(String percolate) {
-        this.percolate = percolate;
-        return this;
-    }
-
-    public String percolate() {
-        return this.percolate;
     }
 
     /**
@@ -596,14 +580,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
-        percolate = in.readOptionalString();
         refresh = in.readBoolean();
         if (in.readBoolean()) {
             doc = new IndexRequest();
@@ -632,14 +615,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
         out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
-        out.writeOptionalString(percolate);
         out.writeBoolean(refresh);
         if (doc == null) {
             out.writeBoolean(false);

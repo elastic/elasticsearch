@@ -22,8 +22,7 @@ package org.elasticsearch.test.integration.routing;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.Map;
 import java.util.Set;
@@ -40,10 +39,9 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AliasResolveRoutingTests extends AbstractSharedClusterTest {
 
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
+    @Override
+    protected int numberOfNodes() {
+        return 2;
     }
 
     @Test

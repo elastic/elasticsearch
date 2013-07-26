@@ -29,6 +29,7 @@ import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,6 +39,19 @@ import java.util.Map;
  *
  */
 public abstract class StreamOutput extends OutputStream {
+
+    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<SoftReference<UTF8StreamWriter>>();
+
+    public static UTF8StreamWriter utf8StreamWriter() {
+        SoftReference<UTF8StreamWriter> ref = utf8StreamWriter.get();
+        UTF8StreamWriter writer = (ref == null) ? null : ref.get();
+        if (writer == null) {
+            writer = new UTF8StreamWriter(1024 * 4);
+            utf8StreamWriter.set(new SoftReference<UTF8StreamWriter>(writer));
+        }
+        writer.reset();
+        return writer;
+    }
 
     private Version version = Version.CURRENT;
 
@@ -176,6 +190,15 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalSharedString(@Nullable String str) throws IOException {
+        if (str == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeSharedString(str);
+        }
+    }
+
     public void writeOptionalText(@Nullable Text text) throws IOException {
         if (text == null) {
             writeInt(-1);
@@ -189,7 +212,7 @@ public abstract class StreamOutput extends OutputStream {
             long pos1 = position();
             // make room for the size
             seek(pos1 + 4);
-            UTF8StreamWriter utf8StreamWriter = CachedStreamOutput.utf8StreamWriter();
+            UTF8StreamWriter utf8StreamWriter = utf8StreamWriter();
             utf8StreamWriter.setOutput(this);
             utf8StreamWriter.write(text.string());
             utf8StreamWriter.close();
@@ -201,6 +224,13 @@ public abstract class StreamOutput extends OutputStream {
             BytesReference bytes = text.bytes();
             writeInt(bytes.length());
             bytes.writeTo(this);
+        }
+    }
+
+    public void writeTextArray(Text[] array) throws IOException {
+        writeVInt(array.length);
+        for (Text t : array) {
+            writeText(t);
         }
     }
 
@@ -225,6 +255,10 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
+    }
+
+    public void writeSharedString(String str) throws IOException {
+        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -353,7 +387,7 @@ public abstract class StreamOutput extends OutputStream {
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeString(entry.getKey());
+                writeSharedString(entry.getKey());
                 writeGenericValue(entry.getValue());
             }
         } else if (type == Byte.class) {

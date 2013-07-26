@@ -19,14 +19,11 @@
 
 package org.elasticsearch.action.index;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A response of an index operation,
@@ -41,7 +38,6 @@ public class IndexResponse extends ActionResponse {
     private String type;
     private long version;
     private boolean created;
-    private List<String> matches;
 
     public IndexResponse() {
 
@@ -90,67 +86,23 @@ public class IndexResponse extends ActionResponse {
         return this.created;
     }
 
-    /**
-     * Returns the percolate queries matches. <tt>null</tt> if no percolation was requested.
-     */
-    public List<String> getMatches() {
-        return this.matches;
-    }
-
-    /**
-     * Internal.
-     */
-    public void setMatches(List<String> matches) {
-        this.matches = matches;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        index = in.readSharedString();
+        type = in.readSharedString();
         id = in.readString();
-        type = in.readString();
         version = in.readLong();
         created = in.readBoolean();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            if (size == 0) {
-                matches = ImmutableList.of();
-            } else if (size == 1) {
-                matches = ImmutableList.of(in.readString());
-            } else if (size == 2) {
-                matches = ImmutableList.of(in.readString(), in.readString());
-            } else if (size == 3) {
-                matches = ImmutableList.of(in.readString(), in.readString(), in.readString());
-            } else if (size == 4) {
-                matches = ImmutableList.of(in.readString(), in.readString(), in.readString(), in.readString());
-            } else if (size == 5) {
-                matches = ImmutableList.of(in.readString(), in.readString(), in.readString(), in.readString(), in.readString());
-            } else {
-                matches = new ArrayList<String>();
-                for (int i = 0; i < size; i++) {
-                    matches.add(in.readString());
-                }
-            }
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        out.writeSharedString(index);
+        out.writeSharedString(type);
         out.writeString(id);
-        out.writeString(type);
         out.writeLong(version);
         out.writeBoolean(created);
-        if (matches == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(matches.size());
-            for (String match : matches) {
-                out.writeString(match);
-            }
-        }
     }
 }

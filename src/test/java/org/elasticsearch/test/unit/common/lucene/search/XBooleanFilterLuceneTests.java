@@ -14,9 +14,9 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ public class XBooleanFilterLuceneTests {
     private Directory directory;
     private AtomicReader reader;
 
-    @BeforeClass
+    @Before
     public void setUp() throws Exception {
         directory = new RAMDirectory();
         IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new WhitespaceAnalyzer(Lucene.VERSION)));
@@ -47,7 +47,7 @@ public class XBooleanFilterLuceneTests {
         writer.close();
     }
 
-    @AfterClass
+    @After
     public void tearDown() throws Exception {
         reader.close();
         directory.close();

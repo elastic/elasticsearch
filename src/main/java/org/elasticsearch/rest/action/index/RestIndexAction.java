@@ -79,7 +79,6 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
-        indexRequest.percolate(request.param("percolate", null));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {
@@ -115,13 +114,6 @@ public class RestIndexAction extends BaseRestHandler {
                             .field(Fields._TYPE, response.getType())
                             .field(Fields._ID, response.getId())
                             .field(Fields._VERSION, response.getVersion());
-                    if (response.getMatches() != null) {
-                        builder.startArray(Fields.MATCHES);
-                        for (String match : response.getMatches()) {
-                            builder.value(match);
-                        }
-                        builder.endArray();
-                    }
                     builder.endObject();
                     RestStatus status = OK;
                     if (response.isCreated()) {

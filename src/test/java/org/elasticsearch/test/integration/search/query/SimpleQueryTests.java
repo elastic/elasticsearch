@@ -31,7 +31,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,13 +39,9 @@ import java.util.Arrays;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
 
 /**
  *
@@ -122,10 +118,11 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=whitespace")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").setRefresh(true).execute().actionGet();
+        indexRandom("test", true, 
+                client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
+                client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree")
+        );
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
@@ -166,7 +163,6 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1)).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
-
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
@@ -209,8 +205,9 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).get();
+        indexRandom("test", true, 
+                client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
@@ -287,16 +284,12 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
                 .execute().actionGet();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
-        client().prepareIndex("test", "type2", "1").setSource("field1", "value1").execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
-        client().prepareIndex("test", "type2", "2").setSource("field1", "value1").execute().actionGet();
-        client().prepareIndex("test", "type2", "3").setSource("field1", "value1").execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandom("test", true, 
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
+            client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
+            client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
+            client().prepareIndex("test", "type2", "2").setSource("field1", "value1"),
+            client().prepareIndex("test", "type2", "3").setSource("field1", "value1"));
 
         assertThat(client().prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type1"))).execute().actionGet().getCount(), equalTo(2l));
         assertThat(client().prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type2"))).execute().actionGet().getCount(), equalTo(3l));
@@ -545,8 +538,8 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        assertThat("1", equalTo(searchResponse.getHits().getAt(0).id()));
-        assertThat("2", equalTo(searchResponse.getHits().getAt(1).id()));
+        // this uses dismax so scores are equal and the order can be arbitrary
+        assertSearchHits(searchResponse, "1", "2");
 
         builder.useDisMax(false);
         searchResponse = client().prepareSearch()

@@ -194,6 +194,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.FieldData);
     }
 
+    public IndicesStatsRequest percolate(boolean percolate) {
+        flags.set(Flag.Percolate, percolate);
+        return this;
+    }
+
+    public boolean percolate() {
+        return flags.isSet(Flag.Percolate);
+    }
+
     public IndicesStatsRequest fieldDataFields(String... fieldDataFields) {
         flags.fieldDataFields(fieldDataFields);
         return this;

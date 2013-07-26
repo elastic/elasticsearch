@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -329,10 +328,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public Location add(Operation operation) throws TranslogException {
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         rwl.readLock().lock();
         try {
-            BytesStreamOutput out = cachedEntry.bytes();
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();
@@ -358,7 +356,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             rwl.readLock().unlock();
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 

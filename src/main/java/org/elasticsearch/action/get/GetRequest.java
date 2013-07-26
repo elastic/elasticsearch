@@ -200,7 +200,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -223,7 +223,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

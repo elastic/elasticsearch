@@ -22,24 +22,19 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Delete index action.
@@ -64,7 +59,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -104,59 +99,37 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, final ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) throws ElasticSearchException {
         if (request.indices().length == 0) {
-            return new DeleteIndexResponse(true);
+            listener.onResponse(new DeleteIndexResponse(true));
         }
-        final AtomicReference<DeleteIndexResponse> responseRef = new AtomicReference<DeleteIndexResponse>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(request.indices().length);
+        // TODO: this API should be improved, currently, if one delete index failed, we send a failure, we should send a response array that includes all the indices that were deleted
+        final AtomicInteger count = new AtomicInteger(request.indices().length);
         for (final String index : request.indices()) {
-            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()), new MetaDataDeleteIndexService.Listener() {
+            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
+
+                private volatile Throwable lastFailure;
+
                 @Override
                 public void onResponse(MetaDataDeleteIndexService.Response response) {
-                    responseRef.set(new DeleteIndexResponse(response.acknowledged()));
-                    // YACK, but here we go: If this index is also percolated, make sure to delete all percolated queries from the _percolator index
-                    IndexMetaData percolatorMetaData = state.metaData().index(PercolatorService.INDEX_NAME);
-                    if (percolatorMetaData != null && percolatorMetaData.mappings().containsKey(index)) {
-                        deleteMappingAction.execute(new DeleteMappingRequest(PercolatorService.INDEX_NAME).type(index), new ActionListener<DeleteMappingResponse>() {
-                            @Override
-                            public void onResponse(DeleteMappingResponse deleteMappingResponse) {
-                                latch.countDown();
-                            }
-
-                            @Override
-                            public void onFailure(Throwable e) {
-                                latch.countDown();
-                            }
-                        });
-                    } else {
-                        latch.countDown();
+                    if (count.decrementAndGet() == 0) {
+                        if (lastFailure != null) {
+                            listener.onFailure(lastFailure);
+                        } else {
+                            listener.onResponse(new DeleteIndexResponse(response.acknowledged()));
+                        }
                     }
                 }
 
                 @Override
                 public void onFailure(Throwable t) {
-                    failureRef.set(t);
-                    latch.countDown();
+                    logger.debug("[{}] failed to delete index", t, index);
+                    lastFailure = t;
+                    if (count.decrementAndGet() == 0) {
+                        listener.onFailure(t);
+                    }
                 }
             });
         }
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return responseRef.get();
     }
 }

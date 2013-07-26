@@ -19,33 +19,36 @@
 
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
-import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.ordinals.MultiOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-public abstract class MultiOrdinalsTests {
+public class MultiOrdinalsTests extends ElasticsearchTestCase {
 
     protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
         return this.creationMultiOrdinals(builder, ImmutableSettings.builder());
     }
 
 
-    protected abstract Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings);
+    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings) {
+        return builder.build(settings.build());
+    }
+
 
     @Test
     public void testRandomValues() throws IOException {
-        Random random = new Random(100);
+        Random random = getRandom();
         int numDocs = 100 + random.nextInt(1000);
         int numOrdinals = 1 + random.nextInt(200);
         int numValues = 100 + random.nextInt(100000);
@@ -74,12 +77,13 @@ public abstract class MultiOrdinalsTests {
                 return 1;
             }
         });
-        int lastOrd = -1;
+        long lastOrd = -1;
         for (OrdAndId ordAndId : ordsAndIds) {
             if (lastOrd != ordAndId.ord) {
                 lastOrd = ordAndId.ord;
                 builder.nextOrdinal();
             }
+            ordAndId.ord = builder.currentOrdinal(); // remap the ordinals in case we have gaps?
             builder.addDoc(ordAndId.id);
         }
 
@@ -105,27 +109,27 @@ public abstract class MultiOrdinalsTests {
         Ordinals ords = creationMultiOrdinals(builder);
         Ordinals.Docs docs = ords.ordinals();
         int docId = ordsAndIds.get(0).id;
-        List<Integer> docOrds = new ArrayList<Integer>();
+        List<Long> docOrds = new ArrayList<Long>();
         for (OrdAndId ordAndId : ordsAndIds) {
             if (docId == ordAndId.id) {
                 docOrds.add(ordAndId.ord);
             } else {
                 if (!docOrds.isEmpty()) {
                     assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
-                    IntsRef ref = docs.getOrds(docId);
+                    LongsRef ref = docs.getOrds(docId);
                     assertThat(ref.offset, equalTo(0));
-
+                    
                     for (int i = ref.offset; i < ref.length; i++) {
-                        assertThat(ref.ints[i], equalTo(docOrds.get(i)));
+                        assertThat("index: " + i + " offset: " + ref.offset + " len: " + ref.length, ref.longs[i], equalTo(docOrds.get(i)));
                     }
-                    final int[] array = new int[docOrds.size()];
+                    final long[] array = new long[docOrds.size()];
                     for (int i = 0; i < array.length; i++) {
                         array[i] = docOrds.get(i);
                     }
                     assertIter(docs.getIter(docId), array);
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
-                    assertThat(docs.getOrd(i), equalTo(0));
+                    assertThat(docs.getOrd(i), equalTo(0L));
                 }
                 docId = ordAndId.id;
                 docOrds.clear();
@@ -137,10 +141,10 @@ public abstract class MultiOrdinalsTests {
     }
 
     public static class OrdAndId {
-        final int ord;
+        long ord;
         final int id;
 
-        public OrdAndId(int ord, int id) {
+        public OrdAndId(long ord, int id) {
             this.ord = ord;
             this.id = id;
         }
@@ -150,7 +154,7 @@ public abstract class MultiOrdinalsTests {
             final int prime = 31;
             int result = 1;
             result = prime * result + id;
-            result = prime * result + ord;
+            result = prime * result + (int) ord;
             return result;
         }
 
@@ -174,7 +178,7 @@ public abstract class MultiOrdinalsTests {
     @Test
     public void testOrdinals() throws Exception {
         int maxDoc = 7;
-        int maxOrds = 32;
+        long maxOrds = 32;
         OrdinalsBuilder builder = new OrdinalsBuilder(maxDoc);
         builder.nextOrdinal(); // 1
         builder.addDoc(1).addDoc(4).addDoc(5).addDoc(6);
@@ -186,97 +190,99 @@ public abstract class MultiOrdinalsTests {
         builder.addDoc(0).addDoc(4).addDoc(5).addDoc(6);
         builder.nextOrdinal(); // 5
         builder.addDoc(4).addDoc(5).addDoc(6);
-        int ord = builder.nextOrdinal(); // 6
+        long ord = builder.nextOrdinal(); // 6
         builder.addDoc(4).addDoc(5).addDoc(6);
-        for (int i = ord; i < maxOrds; i++) {
+        for (long i = ord; i < maxOrds; i++) {
             builder.nextOrdinal();
             builder.addDoc(5).addDoc(6);
         }
-
+        
+        long[][] ordinalPlan = new long[][] {
+                {2, 4},
+                {1},
+                {3},
+                {},
+                {1, 3, 4, 5, 6},
+                {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32},
+                {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}
+        };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
         Ordinals.Docs docs = ordinals.ordinals();
-        assertThat(docs.getNumDocs(), equalTo(maxDoc));
-        assertThat(docs.getNumOrds(), equalTo(maxOrds));
-        assertThat(docs.getMaxOrd(), equalTo(maxOrds + 1)); // Includes null ord
-        assertThat(docs.isMultiValued(), equalTo(true));
-        assertThat(ordinals.getMemorySizeInBytes(), greaterThan(0l));
-
-        // Document 1
-        assertThat(docs.getOrd(0), equalTo(2));
-        IntsRef ref = docs.getOrds(0);
-        assertThat(ref.offset, equalTo(0));
-        assertThat(ref.ints[0], equalTo(2));
-        assertThat(ref.ints[1], equalTo(4));
-        assertThat(ref.length, equalTo(2));
-        assertIter(docs.getIter(0), 2, 4);
-
-        // Document 2
-        assertThat(docs.getOrd(1), equalTo(1));
-        ref = docs.getOrds(1);
-        assertThat(ref.offset, equalTo(0));
-        assertThat(ref.ints[0], equalTo(1));
-        assertThat(ref.length, equalTo(1));
-        assertIter(docs.getIter(1), 1);
-
-        // Document 3
-        assertThat(docs.getOrd(2), equalTo(3));
-        ref = docs.getOrds(2);
-        assertThat(ref.offset, equalTo(0));
-        assertThat(ref.ints[0], equalTo(3));
-        assertThat(ref.length, equalTo(1));
-        assertIter(docs.getIter(2), 3);
-
-        // Document 4
-        assertThat(docs.getOrd(3), equalTo(0));
-        ref = docs.getOrds(3);
-        assertThat(ref.offset, equalTo(0));
-        assertThat(ref.length, equalTo(0));
-        assertIter(docs.getIter(3));
-
-        // Document 5
-        assertThat(docs.getOrd(4), equalTo(1));
-        ref = docs.getOrds(4);
-        assertThat(ref.offset, equalTo(0));
-        assertThat(ref.ints[0], equalTo(1));
-        assertThat(ref.ints[1], equalTo(3));
-        assertThat(ref.ints[2], equalTo(4));
-        assertThat(ref.ints[3], equalTo(5));
-        assertThat(ref.ints[4], equalTo(6));
-        assertThat(ref.length, equalTo(5));
-        assertIter(docs.getIter(4), 1, 3, 4, 5, 6);
-
-        // Document 6
-        assertThat(docs.getOrd(5), equalTo(1));
-        ref = docs.getOrds(5);
-        assertThat(ref.offset, equalTo(0));
-        int[] expectedOrds = new int[maxOrds];
-        for (int i = 0; i < maxOrds; i++) {
-            expectedOrds[i] = i + 1;
-            assertThat(ref.ints[i], equalTo(i + 1));
-        }
-        assertIter(docs.getIter(5), expectedOrds);
-        assertThat(ref.length, equalTo(maxOrds));
-
-        // Document 7
-        assertThat(docs.getOrd(6), equalTo(1));
-        ref = docs.getOrds(6);
-        assertThat(ref.offset, equalTo(0));
-        expectedOrds = new int[maxOrds];
-        for (int i = 0; i < maxOrds; i++) {
-            expectedOrds[i] = i + 1;
-            assertThat(ref.ints[i], equalTo(i + 1));
-        }
-        assertIter(docs.getIter(6), expectedOrds);
-        assertThat(ref.length, equalTo(maxOrds));
+        assertEquals(docs, ordinalPlan);
     }
 
-    protected static void assertIter(Ordinals.Docs.Iter iter, int... expectedOrdinals) {
-        for (int expectedOrdinal : expectedOrdinals) {
+    protected static void assertIter(Ordinals.Docs.Iter iter, long... expectedOrdinals) {
+        for (long expectedOrdinal : expectedOrdinals) {
             assertThat(iter.next(), equalTo(expectedOrdinal));
         }
-        assertThat(iter.next(), equalTo(0)); // Last one should always be 0
-        assertThat(iter.next(), equalTo(0)); // Just checking it stays 0
+        assertThat(iter.next(), equalTo(0L)); // Last one should always be 0
+        assertThat(iter.next(), equalTo(0L)); // Just checking it stays 0
+    }
+
+    @Test
+    public void testMultiValuesDocsWithOverlappingStorageArrays() throws Exception {
+        int maxDoc = 7;
+        long maxOrds = 15;
+        OrdinalsBuilder builder = new OrdinalsBuilder(maxDoc);
+        for (int i = 0; i < maxOrds; i++) {
+            builder.nextOrdinal();
+            if (i < 10) {
+                builder.addDoc(0);
+            }
+            builder.addDoc(1);
+            if (i == 0) {
+                builder.addDoc(2);
+            }
+            if (i < 5) {
+                builder.addDoc(3);
+
+            }
+            if (i < 6) {
+                builder.addDoc(4);
+
+            }
+            if (i == 1) {
+                builder.addDoc(5);
+            }
+            if (i < 10) {
+                builder.addDoc(6);
+            }
+        }
+      
+        long[][] ordinalPlan = new long[][] {
+                {1,2,3,4,5,6,7,8,9,10},
+                {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15},
+                {1},
+                {1,2,3,4,5},
+                {1,2,3,4,5,6},
+                {2},
+                {1,2,3,4,5,6,7,8,9,10}
+        };
+        
+        Ordinals ordinals = new MultiOrdinals(builder);
+        Ordinals.Docs docs = ordinals.ordinals();
+        assertEquals(docs, ordinalPlan);
+    }
+
+    private void assertEquals(Ordinals.Docs docs, long[][] ordinalPlan) {
+        long numOrds = 0;
+        for (int doc = 0; doc < ordinalPlan.length; ++doc) {
+            if (ordinalPlan[doc].length > 0) {
+                numOrds = Math.max(numOrds, ordinalPlan[doc][ordinalPlan[doc].length - 1]);
+            }
+        }
+        assertThat(docs.getNumDocs(), equalTo(ordinalPlan.length));
+        assertThat(docs.getNumOrds(), equalTo(numOrds)); // Includes null ord
+        assertThat(docs.getMaxOrd(), equalTo(numOrds + 1));
+        assertThat(docs.isMultiValued(), equalTo(true));
+        for (int doc = 0; doc < ordinalPlan.length; ++doc) {
+            LongsRef ref = docs.getOrds(doc);
+            assertThat(ref.offset, equalTo(0));
+            long[] ords = ordinalPlan[doc];
+            assertThat(ref, equalTo(new LongsRef(ords, 0, ords.length)));
+            assertIter(docs.getIter(doc), ords);
+        }
     }
 
 }

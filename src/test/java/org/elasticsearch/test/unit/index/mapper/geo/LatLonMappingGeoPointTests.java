@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -42,7 +42,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -75,7 +75,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("normalize", false).field("validate", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -136,7 +136,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("normalize", false).field("validate", false).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -176,7 +176,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -185,9 +185,9 @@ public class LatLonMappingGeoPointTests {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getField("point.lat").numericValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lat").fieldType().stored(), is(false));
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getField("point.lon").numericValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon").fieldType().stored(), is(false));
         assertThat(doc.rootDoc().getField("point.geohash"), nullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
@@ -198,7 +198,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -220,7 +220,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -247,7 +247,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -266,7 +266,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -287,7 +287,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -314,7 +314,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -333,7 +333,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -354,7 +354,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -375,7 +375,7 @@ public class LatLonMappingGeoPointTests {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

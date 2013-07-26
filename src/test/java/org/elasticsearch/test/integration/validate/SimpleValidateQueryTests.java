@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.integration.validate;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -32,10 +32,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matcher;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-
-import com.google.common.base.Charsets;
+import org.junit.Test;
 
 import java.io.IOException;
 

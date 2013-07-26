@@ -182,7 +182,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, request, options);
-        } catch (final Exception e) {
+        } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             clientHandlers.remove(requestId);

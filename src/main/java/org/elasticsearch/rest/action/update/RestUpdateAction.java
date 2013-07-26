@@ -69,7 +69,6 @@ public class RestUpdateAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        updateRequest.percolate(request.param("percolate", null));
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
         updateRequest.script(request.param("script"));
         updateRequest.scriptLang(request.param("lang"));
@@ -144,13 +143,6 @@ public class RestUpdateAction extends BaseRestHandler {
                         builder.endObject();
                     }
 
-                    if (response.getMatches() != null) {
-                        builder.startArray(Fields.MATCHES);
-                        for (String match : response.getMatches()) {
-                            builder.value(match);
-                        }
-                        builder.endArray();
-                    }
                     builder.endObject();
                     RestStatus status = OK;
                     if (response.isCreated()) {

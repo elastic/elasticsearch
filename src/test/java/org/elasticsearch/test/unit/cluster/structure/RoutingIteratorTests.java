@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.unit.cluster.routing.allocation.RoutingAllocationTests;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
@@ -43,7 +43,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-@Test
 public class RoutingIteratorTests {
 
     @Test

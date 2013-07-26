@@ -23,7 +23,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 
 /**
- *
+ * Exception during indexing a percolator query.
  */
 public class PercolatorException extends IndexException {
 

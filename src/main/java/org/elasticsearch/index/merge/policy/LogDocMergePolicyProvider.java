@@ -86,7 +86,6 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
-        mergePolicy.setUseCompoundFile(compoundFormat);
         mergePolicy.setNoCFSRatio(noCFSRatio);
         policies.add(mergePolicy);
         return mergePolicy;
@@ -130,11 +129,9 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
             final boolean compoundFormat = noCFSRatio != 0.0;
             if (noCFSRatio != LogDocMergePolicyProvider.this.noCFSRatio) {
                 logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(LogDocMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
-                LogDocMergePolicyProvider.this.compoundFormat = compoundFormat;
                 LogDocMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomLogDocMergePolicy policy : policies) {
                     policy.setNoCFSRatio(noCFSRatio);
-                    policy.setUseCompoundFile(compoundFormat);
                 }
             }
         }

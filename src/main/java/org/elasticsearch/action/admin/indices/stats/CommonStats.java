@@ -32,6 +32,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -79,6 +80,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public FieldDataStats fieldData;
+
+    @Nullable
+    public PercolateStats percolate;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -179,6 +183,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             fieldData.add(stats.getFieldData());
         }
+        if (percolate == null) {
+            if (stats.getPercolate() != null) {
+                percolate = new PercolateStats();
+                percolate.add(stats.getPercolate());
+            }
+        } else {
+            percolate.add(stats.getPercolate());
+        }
     }
 
     @Nullable
@@ -241,6 +253,11 @@ public class CommonStats implements Streamable, ToXContent {
         return this.fieldData;
     }
 
+    @Nullable
+    public PercolateStats getPercolate() {
+        return percolate;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -284,6 +301,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (in.readBoolean()) {
             fieldData = FieldDataStats.readFieldDataStats(in);
+        }
+        if (in.readBoolean()) {
+            percolate = PercolateStats.readPercolateStats(in);
         }
     }
 
@@ -361,6 +381,12 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             fieldData.writeTo(out);
         }
+        if (percolate == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            percolate.writeTo(out);
+        }
     }
 
     // note, requires a wrapping object
@@ -401,6 +427,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (fieldData != null) {
             fieldData.toXContent(builder, params);
+        }
+        if (percolate != null) {
+            percolate.toXContent(builder, params);
         }
         return builder;
     }

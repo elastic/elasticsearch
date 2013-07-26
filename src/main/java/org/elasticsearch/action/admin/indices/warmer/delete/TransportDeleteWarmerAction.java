@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
@@ -41,8 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Delete index warmer.
@@ -56,7 +55,8 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // we go async right away
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -87,17 +87,59 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected DeleteWarmerResponse masterOperation(final DeleteWarmerRequest request, ClusterState state) throws ElasticSearchException {
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
+    protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticSearchException {
+        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new TimeoutClusterStateUpdateTask() {
 
-        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new ProcessedClusterStateUpdateTask() {
+            @Override
+            public TimeValue timeout() {
+                return request.masterNodeTimeout();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.debug("failed to delete warmer [{}] on indices [{}]", t, request.name(), request.indices());
+                listener.onFailure(t);
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
-                try {
-                    MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
+                MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
 
-                    boolean globalFoundAtLeastOne = false;
+                boolean globalFoundAtLeastOne = false;
+                for (String index : request.indices()) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(index);
+                    if (indexMetaData == null) {
+                        throw new IndexMissingException(new Index(index));
+                    }
+                    IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+                    if (warmers != null) {
+                        List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
+                        for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
+                            if (request.name() == null || Regex.simpleMatch(request.name(), entry.name())) {
+                                globalFoundAtLeastOne = true;
+                                // don't add it...
+                            } else {
+                                entries.add(entry);
+                            }
+                        }
+                        // a change, update it...
+                        if (entries.size() != warmers.entries().size()) {
+                            warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
+                            IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
+                            mdBuilder.put(indexBuilder);
+                        }
+                    }
+                }
+
+                if (!globalFoundAtLeastOne) {
+                    if (request.name() == null) {
+                        // full match, just return with no failure
+                        return currentState;
+                    }
+                    throw new IndexWarmerMissingException(request.name());
+                }
+
+                if (logger.isInfoEnabled()) {
                     for (String index : request.indices()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(index);
                         if (indexMetaData == null) {
@@ -105,77 +147,22 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                         }
                         IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                         if (warmers != null) {
-                            List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
                             for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                if (request.name() == null || Regex.simpleMatch(request.name(), entry.name())) {
-                                    globalFoundAtLeastOne = true;
-                                    // don't add it...
-                                } else {
-                                    entries.add(entry);
-                                }
-                            }
-                            // a change, update it...
-                            if (entries.size() != warmers.entries().size()) {
-                                warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
-                                IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
-                                mdBuilder.put(indexBuilder);
-                            }
-                        }
-                    }
-
-                    if (!globalFoundAtLeastOne) {
-                        if (request.name() == null) {
-                            // full match, just return with no failure
-                            return currentState;
-                        }
-                        throw new IndexWarmerMissingException(request.name());
-                    }
-
-                    if (logger.isInfoEnabled()) {
-                        for (String index : request.indices()) {
-                            IndexMetaData indexMetaData = currentState.metaData().index(index);
-                            if (indexMetaData == null) {
-                                throw new IndexMissingException(new Index(index));
-                            }
-                            IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-                            if (warmers != null) {
-                                for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                    if (Regex.simpleMatch(request.name(), entry.name())) {
-                                        logger.info("[{}] delete warmer [{}]", index, entry.name());
-                                    }
+                                if (Regex.simpleMatch(request.name(), entry.name())) {
+                                    logger.info("[{}] delete warmer [{}]", index, entry.name());
                                 }
                             }
                         }
                     }
-
-                    return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
-                } catch (Exception ex) {
-                    failureRef.set(ex);
-                    latch.countDown();
-                    return currentState;
                 }
+
+                return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
-                latch.countDown();
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new DeleteWarmerResponse(true));
             }
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return new DeleteWarmerResponse(true);
     }
 }

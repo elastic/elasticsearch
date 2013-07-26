@@ -32,8 +32,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +47,7 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
 
     private final ESLogger logger = Loggers.getLogger(SimpleIndexStateTests.class);
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }

@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.SinglePackedOrdinals;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -40,9 +40,9 @@ public class SingleOrdinalsTests {
     public void testSvValues() throws IOException {
         int numDocs = 1000000;
         int numOrdinals = numDocs / 4;
-        Map<Integer, Integer> controlDocToOrdinal = new HashMap<Integer, Integer>();
+        Map<Integer, Long> controlDocToOrdinal = new HashMap<Integer, Long>();
         OrdinalsBuilder builder = new OrdinalsBuilder(numDocs);
-        int ordinal = builder.nextOrdinal();
+        long ordinal = builder.nextOrdinal();
         for (int doc = 0; doc < numDocs; doc++) {
             if (doc % numOrdinals == 0) {
                 ordinal = builder.nextOrdinal();
@@ -56,7 +56,7 @@ public class SingleOrdinalsTests {
         Ordinals.Docs docs = ords.ordinals();
 
         assertThat(controlDocToOrdinal.size(), equalTo(docs.getNumDocs()));
-        for (Map.Entry<Integer, Integer> entry : controlDocToOrdinal.entrySet()) {
+        for (Map.Entry<Integer, Long> entry : controlDocToOrdinal.entrySet()) {
             assertThat(entry.getValue(), equalTo(docs.getOrd(entry.getKey())));
         }
 

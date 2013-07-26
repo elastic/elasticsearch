@@ -22,10 +22,10 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
-import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
-import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
-import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.XFastVectorHighlighter;
+import org.apache.lucene.search.vectorhighlight.XFieldFragList.WeightedFragInfo;
+import org.apache.lucene.search.vectorhighlight.XFieldFragList.WeightedFragInfo.SubInfo;
+import org.apache.lucene.search.vectorhighlight.XFragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.*;
@@ -35,7 +35,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Simple helper class for {@link FastVectorHighlighter} {@link FragmentsBuilder} implemenations.
+ * Simple helper class for {@link XFastVectorHighlighter} {@link XFragmentsBuilder} implemenations.
  */
 public final class FragmentBuilderHelper {
 
@@ -45,7 +45,7 @@ public final class FragmentBuilderHelper {
     
     /**
      * Fixes problems with broken analysis chains if positions and offsets are messed up that can lead to
-     * {@link StringIndexOutOfBoundsException} in the {@link FastVectorHighlighter}
+     * {@link StringIndexOutOfBoundsException} in the {@link XFastVectorHighlighter}
      */
     public static WeightedFragInfo fixWeightedFragInfo(FieldMapper<?> mapper, Field[] values, WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
@@ -57,7 +57,7 @@ public final class FragmentBuilderHelper {
              * the FastVectorHighlighter. Yet, this is really a lucene problem and should be fixed in lucene rather
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
-            CollectionUtil.quickSort(subInfos, new Comparator<SubInfo>() {
+            CollectionUtil.introSort(subInfos, new Comparator<SubInfo>() {
                 @Override
                 public int compare(SubInfo o1, SubInfo o2) {
                     int startOffset = o1.getTermsOffsets().get(0).getStartOffset();

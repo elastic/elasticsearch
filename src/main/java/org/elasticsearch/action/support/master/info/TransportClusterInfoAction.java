@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support.master.info;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,7 +38,8 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // read operation, lightweight...
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -46,11 +48,11 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected final Response masterOperation(Request request, ClusterState state) throws ElasticSearchException {
+    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         request.indices(concreteIndices);
-        return doMasterOperation(request, state);
+        doMasterOperation(request, state, listener);
     }
 
-    protected abstract Response doMasterOperation(Request request, ClusterState state) throws ElasticSearchException;
+    protected abstract void doMasterOperation(Request request, ClusterState state, final ActionListener<Response> listener) throws ElasticSearchException;
 }

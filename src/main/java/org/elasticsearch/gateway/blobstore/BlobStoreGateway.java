@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -150,24 +150,20 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
     @Override
     public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         try {
-            StreamOutput streamOutput;
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            StreamOutput stream = bStream;
             if (compress) {
-                streamOutput = cachedEntry.bytes(CompressorFactory.defaultCompressor());
-            } else {
-                streamOutput = cachedEntry.bytes();
+                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
             }
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, streamOutput);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
             builder.startObject();
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             builder.close();
-            metaDataBlobContainer.writeBlob(newMetaData, cachedEntry.bytes().bytes().streamInput(), cachedEntry.bytes().size());
+            metaDataBlobContainer.writeBlob(newMetaData, bStream.bytes().streamInput(), bStream.bytes().length());
         } catch (IOException e) {
             throw new GatewayException("Failed to write metadata [" + newMetaData + "]", e);
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
 
         currentIndex++;

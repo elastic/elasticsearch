@@ -29,7 +29,7 @@ import java.util.EnumSet;
 /**
  */
 public class CommonStatsFlags implements Streamable, Cloneable {
-    private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search);
+    private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Percolate);
     private String[] types = null;
     private String[] groups = null;
     private String[] fieldDataFields = null;
@@ -187,7 +187,8 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         IdCache("id_cache"),
         FieldData("fielddata"),
         Docs("docs"),
-        Warmer("warmer");
+        Warmer("warmer"),
+        Percolate("percolate");
 
         private final String restName;
 

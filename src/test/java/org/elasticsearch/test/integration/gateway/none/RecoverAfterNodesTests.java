@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,7 +38,7 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
 
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(1);
 
-    @AfterMethod
+    @After
     public void closeNodes() {
         closeAllNodes();
     }

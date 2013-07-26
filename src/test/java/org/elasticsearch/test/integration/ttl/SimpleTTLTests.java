@@ -19,18 +19,16 @@
 
 package org.elasticsearch.test.integration.ttl;
 
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleTTLTests extends AbstractNodesTests {
@@ -38,8 +36,8 @@ public class SimpleTTLTests extends AbstractNodesTests {
     static private final long purgeInterval = 200;
     private Client client;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @Override
+    protected void beforeClass() {
         Settings settings = settingsBuilder()
                 .put("indices.ttl.interval", purgeInterval)
                 .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
@@ -49,12 +47,6 @@ public class SimpleTTLTests extends AbstractNodesTests {
         startNode("node1", settings);
         startNode("node2", settings);
         client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
     }
 
     protected Client getClient() {
@@ -124,13 +116,32 @@ public class SimpleTTLTests extends AbstractNodesTests {
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
 
-        logger.info("--> checking purger");
         // make sure the purger has done its job for all indexed docs that are expired
         long shouldBeExpiredDate = now + providedTTLValue + purgeInterval + 2000;
         now1 = System.currentTimeMillis();
         if (shouldBeExpiredDate - now1 > 0) {
             Thread.sleep(shouldBeExpiredDate - now1);
         }
+
+        // We can't assume that after waiting for ttl + purgeInterval (waitTime) that the document have actually been deleted.
+        // The ttl purging happens in the background in a different thread, and might not have been completed after waiting for waitTime.
+        // But we can use index statistics' delete count to be sure that deletes have been executed, that must be incremented before
+        // ttl purging has finished.
+        logger.info("--> checking purger");
+        long currentDeleteCount;
+        do {
+            if (rarely()) {
+                client.admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
+            } else if (rarely()) {
+                client.admin().indices().prepareOptimize("test").setMaxNumSegments(1).execute().actionGet();
+            }
+            IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+                    .clear().setIndexing(true)
+                    .execute().actionGet();
+            currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
+        } while (currentDeleteCount < 4); // TTL deletes two docs, but it is indexed in the primary shard and replica shard.
+        assertThat(currentDeleteCount, equalTo(4l));
+
         // realtime get check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));

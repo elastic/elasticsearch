@@ -16,9 +16,9 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +34,7 @@ public class XBooleanFilterTests {
     private Directory directory;
     private AtomicReader reader;
 
-    @BeforeClass
+    @Before
     public void setup() throws Exception {
         char[][] documentMatrix = new char[][] {
                 {'a', 'b', 'c', 'd', 'v'},
@@ -57,7 +57,7 @@ public class XBooleanFilterTests {
         reader = new SlowCompositeReaderWrapper(DirectoryReader.open(directory));
     }
 
-    @AfterClass
+    @After
     public void tearDown() throws Exception {
         reader.close();
         directory.close();

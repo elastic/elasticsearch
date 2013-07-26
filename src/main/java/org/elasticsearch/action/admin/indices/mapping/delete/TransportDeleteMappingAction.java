@@ -41,20 +41,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  * Delete mapping action.
  */
 public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
-
     private final TransportFlushAction flushAction;
-
     private final TransportDeleteByQueryAction deleteByQueryAction;
-
     private final TransportRefreshAction refreshAction;
 
     @Inject
@@ -70,7 +64,8 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // no need for fork on another thread pool, we go async right away
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -101,10 +96,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected DeleteMappingResponse masterOperation(final DeleteMappingRequest request, final ClusterState state) throws ElasticSearchException {
-
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
+    protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticSearchException {
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {
@@ -114,32 +106,30 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                         refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
                                     @Override
                                     public void onResponse(MetaDataMappingService.Response response) {
-                                        latch.countDown();
+                                        listener.onResponse(new DeleteMappingResponse());
                                     }
 
                                     @Override
                                     public void onFailure(Throwable t) {
-                                        failureRef.set(t);
-                                        latch.countDown();
+                                        listener.onFailure(t);
                                     }
                                 });
                             }
 
                             @Override
                             public void onFailure(Throwable e) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
                                     @Override
                                     public void onResponse(MetaDataMappingService.Response response) {
-                                        latch.countDown();
+                                        listener.onResponse(new DeleteMappingResponse());
                                     }
 
                                     @Override
                                     public void onFailure(Throwable t) {
-                                        failureRef.set(t);
-                                        latch.countDown();
+                                        listener.onFailure(t);
                                     }
                                 });
                             }
@@ -147,34 +137,16 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
-                        failureRef.set(e);
-                        latch.countDown();
+                    public void onFailure(Throwable t) {
+                        listener.onFailure(t);
                     }
                 });
             }
 
             @Override
-            public void onFailure(Throwable e) {
-                failureRef.set(e);
-                latch.countDown();
+            public void onFailure(Throwable t) {
+                listener.onFailure(t);
             }
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return new DeleteMappingResponse();
     }
 }

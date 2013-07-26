@@ -30,7 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,19 +54,19 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsOpened("test1");
     }
 
-    @Test(expectedExceptions = IndexMissingException.class)
+    @Test(expected = IndexMissingException.class)
     public void testSimpleCloseMissingIndex() {
         Client client = client();
         client.admin().indices().prepareClose("test1").execute().actionGet();
     }
 
-    @Test(expectedExceptions = IndexMissingException.class)
+    @Test(expected = IndexMissingException.class)
     public void testSimpleOpenMissingIndex() {
         Client client = client();
         client.admin().indices().prepareOpen("test1").execute().actionGet();
     }
 
-    @Test(expectedExceptions = IndexMissingException.class)
+    @Test(expected = IndexMissingException.class)
     public void testCloseOneMissingIndex() {
         Client client = client();
         createIndex("test1");
@@ -87,7 +87,7 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsClosed("test1");
     }
 
-    @Test(expectedExceptions = IndexMissingException.class)
+    @Test(expected = IndexMissingException.class)
     public void testOpenOneMissingIndex() {
         Client client = client();
         createIndex("test1");
@@ -178,25 +178,25 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testCloseNoIndex() {
         Client client = client();
         client.admin().indices().prepareClose().execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testCloseNullIndex() {
         Client client = client();
         client.admin().indices().prepareClose(null).execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testOpenNoIndex() {
         Client client = client();
         client.admin().indices().prepareOpen().execute().actionGet();
     }
 
-    @Test(expectedExceptions = ActionRequestValidationException.class)
+    @Test(expected = ActionRequestValidationException.class)
     public void testOpenNullIndex() {
         Client client = client();
         client.admin().indices().prepareOpen(null).execute().actionGet();

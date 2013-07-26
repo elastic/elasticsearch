@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.gateway.local;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -26,14 +27,13 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class QuorumLocalGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod
+    @After
     public void cleanAndCloseNodes() throws Exception {
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
@@ -54,6 +54,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         // clean three nodes
         logger.info("--> cleaning nodes");
@@ -111,6 +112,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testQuorumRecovery() throws Exception {
         // clean three nodes
         logger.info("--> cleaning nodes");

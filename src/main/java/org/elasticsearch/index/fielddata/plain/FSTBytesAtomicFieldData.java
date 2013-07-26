@@ -21,12 +21,10 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.fst.BytesRefFSTEnum;
-import org.apache.lucene.util.fst.BytesRefFSTEnum.InputOutput;
-import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
-import org.apache.lucene.util.fst.Util;
+import org.elasticsearch.common.util.BigIntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
@@ -46,7 +44,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     // 0 ordinal in values means no value (its null)
     protected final Ordinals ordinals;
 
-    private volatile int[] hashes;
+    private volatile BigIntArray hashes;
     private long size = -1;
 
     private final FST<Long> fst;
@@ -104,18 +102,20 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         assert fst != null;
         if (hashes == null) {
             BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
-            int[] hashes = new int[ordinals.getMaxOrd()];
-            InputOutput<Long> next;
+            BigIntArray hashes = new BigIntArray(ordinals.getMaxOrd());
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
             // empty strings twice. ie. them merge fails for long output.
-            hashes[0] = new BytesRef().hashCode();
-            int i = 1;
+            hashes.set(0, new BytesRef().hashCode());
             try {
-                while ((next = fstEnum.next()) != null) {
-                    hashes[i++] = next.input.hashCode();
+                for (long i = 1, maxOrd = ordinals.getMaxOrd(); i < maxOrd; ++i) {
+                    hashes.set(i, fstEnum.next().input.hashCode());
                 }
-            } catch (IOException ex) {
-                //bogus
+                assert fstEnum.next() == null;
+            } catch (IOException e) {
+                // Don't use new "AssertionError("Cannot happen", e)" directly as this is a Java 1.7-only API
+                final AssertionError error = new AssertionError("Cannot happen");
+                error.initCause(e);
+                throw error;
             }
             this.hashes = hashes;
         }
@@ -141,7 +141,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         }
 
         @Override
-        public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+        public BytesRef getValueScratchByOrd(long ord, BytesRef ret) {
             if (ord == 0) {
                 ret.length = 0;
                 return ret;
@@ -170,16 +170,16 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
             @Override
             public Iter getIter(int docId) {
-                int ord = ordinals.getOrd(docId);
+                long ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
                 return iter.reset(getValueByOrd(ord), ord);
             }
         }
 
         static final class SingleHashed extends Single {
-            private final int[] hashes;
+            private final BigIntArray hashes;
 
-            SingleHashed(FST<Long> fst, Docs ordinals, int[] hashes) {
+            SingleHashed(FST<Long> fst, Docs ordinals, BigIntArray hashes) {
                 super(fst, ordinals);
                 this.hashes = hashes;
             }
@@ -188,16 +188,16 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
             protected Iter.Single newSingleIter() {
                 return new Iter.Single() {
                     public int hash() {
-                        return hashes[ord];
+                        return hashes.get(ord);
                     }
                 };
             }
 
             @Override
             public int getValueHashed(int docId, BytesRef ret) {
-                final int ord = ordinals.getOrd(docId);
+                final long ord = ordinals.getOrd(docId);
                 getValueScratchByOrd(ord, ret);
-                return hashes[ord];
+                return hashes.get(ord);
             }
         }
 
@@ -219,9 +219,9 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
 
         static final class MultiHashed extends Multi {
-            private final int[] hashes;
+            private final BigIntArray hashes;
 
-            MultiHashed(FST<Long> fst, Docs ordinals, int[] hashes) {
+            MultiHashed(FST<Long> fst, Docs ordinals, BigIntArray hashes) {
                 super(fst, ordinals);
                 this.hashes = hashes;
             }
@@ -230,16 +230,16 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
             protected Iter.Multi newMultiIter() {
                 return new Iter.Multi(this) {
                     public int hash() {
-                        return hashes[ord];
+                        return hashes.get(ord);
                     }
                 };
             }
 
             @Override
             public int getValueHashed(int docId, BytesRef ret) {
-                final int ord = ordinals.getOrd(docId);
+                final long ord = ordinals.getOrd(docId);
                 getValueScratchByOrd(ord, ret);
-                return hashes[ord];
+                return hashes.get(ord);
             }
 
         }

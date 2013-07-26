@@ -58,7 +58,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.hamcrest.Matchers;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 public class BalanceConfigurationTests {
 

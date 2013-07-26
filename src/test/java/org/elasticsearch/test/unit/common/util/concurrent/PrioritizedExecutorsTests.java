@@ -20,17 +20,17 @@
 package org.elasticsearch.test.unit.common.util.concurrent;
 
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedCallable;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +61,7 @@ public class PrioritizedExecutorsTests {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new  CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(7);
         executor.submit(new AwaitingJob(awaitingLatch));
         executor.submit(new Job(6, Priority.LANGUID, results, finishedLatch));
         executor.submit(new Job(4, Priority.LOW, results, finishedLatch));
@@ -88,7 +88,7 @@ public class PrioritizedExecutorsTests {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new  CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(7);
         executor.execute(new AwaitingJob(awaitingLatch));
         executor.execute(new Job(6, Priority.LANGUID, results, finishedLatch));
         executor.execute(new Job(4, Priority.LOW, results, finishedLatch));
@@ -115,7 +115,7 @@ public class PrioritizedExecutorsTests {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new  CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(7);
         executor.submit(new AwaitingJob(awaitingLatch));
         executor.submit(new CallableJob(6, Priority.LANGUID, results, finishedLatch));
         executor.submit(new CallableJob(4, Priority.LOW, results, finishedLatch));
@@ -142,7 +142,7 @@ public class PrioritizedExecutorsTests {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
-        CountDownLatch finishedLatch = new  CountDownLatch(7);
+        CountDownLatch finishedLatch = new CountDownLatch(7);
         executor.submit(new AwaitingJob(awaitingLatch));
         executor.submit(new CallableJob(6, Priority.LANGUID, results, finishedLatch));
         executor.submit(new Job(4, Priority.LOW, results, finishedLatch));
@@ -164,6 +164,59 @@ public class PrioritizedExecutorsTests {
         assertThat(results.get(6), equalTo(6));
     }
 
+    @Test
+    public void testTimeout() throws Exception {
+        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        final CountDownLatch block = new CountDownLatch(1);
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    block.await();
+                } catch (InterruptedException e) {
+                    assert false;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "the blocking";
+            }
+        });
+
+        final AtomicBoolean executeCalled = new AtomicBoolean();
+        final CountDownLatch timedOut = new CountDownLatch(1);
+        executor.execute(new Runnable() {
+                             @Override
+                             public void run() {
+                                 executeCalled.set(true);
+                             }
+
+                             @Override
+                             public String toString() {
+                                 return "the waiting";
+                             }
+                         }, timer, TimeValue.timeValueMillis(5), new Runnable() {
+                    @Override
+                    public void run() {
+                        timedOut.countDown();
+                    }
+                }
+        );
+
+        PrioritizedEsThreadPoolExecutor.Pending[] pending = executor.getPending();
+        assertThat(pending.length, equalTo(1));
+        assertThat(pending[0].task.toString(), equalTo("the waiting"));
+
+        assertThat(timedOut.await(500, TimeUnit.MILLISECONDS), equalTo(true));
+        block.countDown();
+        Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
+        assertThat(executeCalled.get(), equalTo(false));
+
+        timer.shutdownNow();
+        executor.shutdownNow();
+    }
 
     static class AwaitingJob extends PrioritizedRunnable {
 

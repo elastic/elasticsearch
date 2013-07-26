@@ -27,9 +27,10 @@ import com.google.common.io.Closeables;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -68,6 +68,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -125,28 +127,52 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
-        MetaDataService.MdLock mdLock = metaDataService.indexMetaDataLock(request.index);
-        try {
-            mdLock.lock();
-        } catch (InterruptedException e) {
-            userListener.onFailure(e);
+        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
+
+        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
+        if (mdLock.tryAcquire()) {
+            createIndex(request, userListener, mdLock);
             return;
         }
 
-        final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
-
-        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public void run() {
+                try {
+                    if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
+                        userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
+                        return;
+                    }
+                } catch (InterruptedException e) {
+                    userListener.onFailure(e);
+                    return;
+                }
+
+                createIndex(request, userListener, mdLock);
+            }
+        });
+    }
+
+    private void createIndex(final Request request, final Listener userListener, Semaphore mdLock) {
+        final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
+        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+
+            @Override
+            public TimeValue timeout() {
+                return request.masterTimeout;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 boolean indexCreated = false;
                 String failureReason = null;
                 try {
-                    try {
-                        validate(request, currentState);
-                    } catch (Throwable e) {
-                        listener.onFailure(e);
-                        return currentState;
-                    }
+                    validate(request, currentState);
 
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
@@ -156,20 +182,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
-
-                    // if its a _percolator index, don't index the query object
-                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
-                        mappings.put(MapperService.DEFAULT_MAPPING, parseMapping("{\n" +
-                                "    \"_default_\":{\n" +
-                                "        \"properties\" : {\n" +
-                                "            \"query\" : {\n" +
-                                "                \"type\" : \"object\",\n" +
-                                "                \"enabled\" : false\n" +
-                                "            }\n" +
-                                "        }\n" +
-                                "    }\n" +
-                                "}"));
-                    }
 
                     for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
@@ -226,29 +238,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // now, put the request settings, so they override templates
                     indexSettingsBuilder.put(request.settings);
 
-                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
-                        // if its percolator, always 1 shard
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, 1);
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                            if (request.index.equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                            }
+                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                        if (request.index.equals(riverIndexName)) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                        } else {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                         }
                     }
-                    if (request.index.equals(PercolatorService.INDEX_NAME)) {
-                        // if its percolator, always set number of replicas to 0, and expand to 0-all
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, 0);
-                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                            if (request.index.equals(riverIndexName)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            } else {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                            }
+                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                        if (request.index.equals(riverIndexName)) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                        } else {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         }
                     }
 
@@ -364,19 +365,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     });
 
                     return updatedState;
-                } catch (Throwable e) {
-                    logger.warn("[{}] failed to create", e, request.index);
+                } finally {
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
                         indicesService.removeIndex(request.index, failureReason != null ? failureReason : "failed to create index");
                     }
-                    listener.onFailure(e);
-                    return currentState;
                 }
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             }
         });
     }
@@ -384,16 +382,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     class CreateIndexListener implements Listener {
 
         private final AtomicBoolean notified = new AtomicBoolean();
-
-        private final MetaDataService.MdLock mdLock;
-
+        private final Semaphore mdLock;
         private final Request request;
-
         private final Listener listener;
-
         volatile ScheduledFuture future;
 
-        private CreateIndexListener(MetaDataService.MdLock mdLock, Request request, Listener listener) {
+        private CreateIndexListener(Semaphore mdLock, Request request, Listener listener) {
             this.mdLock = mdLock;
             this.request = request;
             this.listener = listener;
@@ -402,7 +396,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         @Override
         public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.unlock();
+                mdLock.release();
                 if (future != null) {
                     future.cancel(false);
                 }
@@ -413,7 +407,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         @Override
         public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.unlock();
+                mdLock.release();
                 if (future != null) {
                     future.cancel(false);
                 }
@@ -479,7 +473,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        CollectionUtil.quickSort(templates, new Comparator<IndexTemplateMetaData>() {
+        CollectionUtil.timSort(templates, new Comparator<IndexTemplateMetaData>() {
             @Override
             public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
                 return o2.order() - o1.order();
@@ -504,7 +498,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (request.index.contains("#")) {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain '#");
         }
-        if (!request.index.equals(riverIndexName) && !request.index.equals(PercolatorService.INDEX_NAME) && request.index.charAt(0) == '_') {
+        if (!request.index.equals(riverIndexName) && request.index.charAt(0) == '_') {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'");
         }
         if (!request.index.toLowerCase(Locale.ROOT).equals(request.index)) {
@@ -528,7 +522,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public static class Request {
 
         final String cause;
-
         final String index;
 
         State state = State.OPEN;
@@ -541,6 +534,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
 
         TimeValue timeout = TimeValue.timeValueSeconds(5);
+        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
         Set<ClusterBlock> blocks = Sets.newHashSet();
 
@@ -590,6 +584,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request timeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public Request masterTimeout(TimeValue masterTimeout) {
+            this.masterTimeout = masterTimeout;
             return this;
         }
     }

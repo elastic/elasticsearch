@@ -21,8 +21,7 @@ package org.elasticsearch.test.unit.common.io.streams;
 
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
@@ -31,12 +30,11 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class BytesStreamsTests {
 
     @Test
     public void testSimpleStreams() throws Exception {
-        BytesStreamOutput out = CachedStreamOutput.popEntry().bytes();
+        BytesStreamOutput out = new BytesStreamOutput();
         out.writeBoolean(false);
         out.writeByte((byte) 1);
         out.writeShort((short) -1);

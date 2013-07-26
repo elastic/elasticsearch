@@ -19,11 +19,12 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
+import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -61,6 +62,48 @@ public class HunspellTokenFilterFactoryTests {
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
         hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
         assertThat(hunspellTokenFilter.dedup(), is(false));
+    }
+
+    @Test
+    public void testDefaultRecursionLevel() throws IOException {
+        Settings settings = settingsBuilder()
+                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("index.analysis.filter.en_US.type", "hunspell")
+                .put("index.analysis.filter.en_US.locale", "en_US")
+                .build();
+
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("en_US");
+        assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+        HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
+        assertThat(hunspellTokenFilter.recursionLevel(), is(2));
+    }
+
+    @Test
+    public void testCustomRecursionLevel() throws IOException {
+        Settings settings = settingsBuilder()
+                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("index.analysis.filter.en_US.type", "hunspell")
+                .put("index.analysis.filter.en_US.recursion_level", 0)
+                .put("index.analysis.filter.en_US.locale", "en_US")
+                .build();
+
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("en_US");
+        assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+        HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
+        assertThat(hunspellTokenFilter.recursionLevel(), is(0));
+    }
+
+    @Test(expected = ProvisionException.class)
+    public void negativeRecursionLevelShouldFail() throws IOException {
+        Settings settings = settingsBuilder()
+                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("index.analysis.filter.en_US.type", "hunspell")
+                .put("index.analysis.filter.en_US.recursion_level", -1)
+                .put("index.analysis.filter.en_US.locale", "en_US")
+                .build();
+        AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
     }
 
 }

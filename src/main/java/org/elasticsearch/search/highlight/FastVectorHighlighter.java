@@ -18,20 +18,11 @@
  */
 package org.elasticsearch.search.highlight;
 
-import java.util.Map;
-
+import com.google.common.collect.Maps;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
-import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
-import org.apache.lucene.search.vectorhighlight.FieldQuery;
-import org.apache.lucene.search.vectorhighlight.FragListBuilder;
-import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
-import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
@@ -45,7 +36,7 @@ import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragme
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 
-import com.google.common.collect.Maps;
+import java.util.Map;
 
 /**
  *
@@ -85,10 +76,10 @@ public class FastVectorHighlighter implements Highlighter {
 
         try {
             MapperHighlightEntry entry = cache.mappers.get(mapper);
-            FieldQuery fieldQuery = null;
+            XFieldQuery fieldQuery = null;
             if (entry == null) {
-                FragListBuilder fragListBuilder;
-                BaseFragmentsBuilder fragmentsBuilder;
+                XFragListBuilder fragListBuilder;
+                XBaseFragmentsBuilder fragmentsBuilder;
 
                 BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
                 if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {
@@ -96,7 +87,7 @@ public class FastVectorHighlighter implements Highlighter {
                 }
 
                 if (field.numberOfFragments() == 0) {
-                    fragListBuilder = new SingleFragListBuilder();
+                    fragListBuilder = new XSingleFragListBuilder();
 
                     if (mapper.fieldType().stored()) {
                         fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
@@ -104,10 +95,10 @@ public class FastVectorHighlighter implements Highlighter {
                         fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                     }
                 } else {
-                    fragListBuilder = field.fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fragmentOffset());
+                    fragListBuilder = field.fragmentOffset() == -1 ? new XSimpleFragListBuilder() : new XSimpleFragListBuilder(field.fragmentOffset());
                     if (field.scoreOrdered()) {
                         if (mapper.fieldType().stored()) {
-                            fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                            fragmentsBuilder = new XScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                         }
@@ -127,7 +118,7 @@ public class FastVectorHighlighter implements Highlighter {
                     // parameters to FVH are not requires since:
                     // first two booleans are not relevant since they are set on the CustomFieldQuery (phrase and fieldMatch)
                     // fragment builders are used explicitly
-                    cache.fvh = new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();
+                    cache.fvh = new org.apache.lucene.search.vectorhighlight.XFastVectorHighlighter();
                 }
                 CustomFieldQuery.highlightFilters.set(field.highlightFilter());
                 if (field.requireFieldMatch()) {
@@ -166,16 +157,16 @@ public class FastVectorHighlighter implements Highlighter {
     }
 
     private class MapperHighlightEntry {
-        public FragListBuilder fragListBuilder;
-        public FragmentsBuilder fragmentsBuilder;
+        public XFragListBuilder fragListBuilder;
+        public XFragmentsBuilder fragmentsBuilder;
 
         public org.apache.lucene.search.highlight.Highlighter highlighter;
     }
 
     private class HighlighterEntry {
-        public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public FieldQuery noFieldMatchFieldQuery;
-        public FieldQuery fieldMatchFieldQuery;
+        public org.apache.lucene.search.vectorhighlight.XFastVectorHighlighter fvh;
+        public XFieldQuery noFieldMatchFieldQuery;
+        public XFieldQuery fieldMatchFieldQuery;
         public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
     }
 

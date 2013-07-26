@@ -27,7 +27,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.hamcrest.MatcherAssert.assertThat;

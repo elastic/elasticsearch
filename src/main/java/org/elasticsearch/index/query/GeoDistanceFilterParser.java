@@ -82,14 +82,8 @@ public class GeoDistanceFilterParser implements FilterParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                token = parser.nextToken();
-                point.resetLon(parser.doubleValue());
-                token = parser.nextToken();
-                point.resetLat(parser.doubleValue());
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                }
                 fieldName = currentFieldName;
+                GeoPoint.parse(parser, point);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 String currentName = parser.currentName();

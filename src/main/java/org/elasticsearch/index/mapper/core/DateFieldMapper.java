@@ -137,7 +137,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             DateFieldMapper.Builder builder = dateField(name);
             parseNumberField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -156,25 +156,25 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             return builder;
         }
     }
-    
+
     // public for test
     public static Locale parseLocale(String locale) {
         final String[] parts = locale.split("_", -1);
         switch (parts.length) {
-        case 3:
-            // lang_country_variant
-            return new Locale(parts[0], parts[1], parts[2]);
-        case 2:
-            // lang_country
-            return new Locale(parts[0], parts[1]);
-        case 1:
-            if ("ROOT".equalsIgnoreCase(parts[0])) {
-                return Locale.ROOT;
-            }
-            // lang
-            return new Locale(parts[0]);
-        default:
-            throw new ElasticSearchIllegalArgumentException("Can't parse locale: [" + locale + "]");
+            case 3:
+                // lang_country_variant
+                return new Locale(parts[0], parts[1], parts[2]);
+            case 2:
+                // lang_country
+                return new Locale(parts[0], parts[1]);
+            case 1:
+                if ("ROOT".equalsIgnoreCase(parts[0])) {
+                    return Locale.ROOT;
+                }
+                // lang
+                return new Locale(parts[0]);
+            default:
+                throw new ElasticSearchIllegalArgumentException("Can't parse locale: [" + locale + "]");
         }
     }
 
@@ -448,7 +448,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (timeUnit != Defaults.TIME_UNIT) {
             builder.field("numeric_resolution", timeUnit.name().toLowerCase(Locale.ROOT));
         }
-        if (dateTimeFormatter.locale() != null) {
+        // only serialize locale if needed, ROOT is the default, so no need to serialize that case as well...
+        if (dateTimeFormatter.locale() != null && dateTimeFormatter.locale() != Locale.ROOT) {
             builder.field("locale", dateTimeFormatter.locale());
         }
     }
@@ -461,7 +462,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number with locale [" + dateTimeFormatter.locale() +"]", e);
+                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number with locale [" + dateTimeFormatter.locale() + "]", e);
             }
         }
     }

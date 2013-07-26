@@ -134,6 +134,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setPercolate(boolean percolate) {
+        request.percolate(percolate);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         ((IndicesAdminClient) client).stats(request, listener);

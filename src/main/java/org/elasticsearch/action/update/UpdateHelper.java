@@ -76,7 +76,6 @@ public class UpdateHelper extends AbstractComponent {
                     // it has to be a "create!"
                     .create(true)
                     .routing(request.routing())
-                    .percolate(request.percolate())
                     .refresh(request.refresh())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
@@ -170,7 +169,6 @@ public class UpdateHelper extends AbstractComponent {
                     .version(updateVersion).versionType(request.versionType())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
-                    .percolate(request.percolate())
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
             return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);

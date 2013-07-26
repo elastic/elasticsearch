@@ -19,17 +19,20 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.junit.Test;
+
 import java.io.IOException;
 import java.io.StringReader;
 
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.testng.annotations.Test;
-
-public class CJKFilterFactoryTests {
+@ThreadLeakScope(Scope.NONE)
+public class CJKFilterFactoryTests extends BaseTokenStreamTestCase{
 
     private static final String RESOURCE = "org/elasticsearch/test/unit/index/analysis/cjk_analysis.json";
 
@@ -39,8 +42,8 @@ public class CJKFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_bigram");
         String source = "多くの学生が試験に落ちた。";
         String[] expected = new String[]{"多く", "くの", "の学", "学生", "生が", "が試", "試験", "験に", "に落", "落ち", "ちた" };
-        Tokenizer tokenizer = new StandardTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
     @Test
@@ -49,8 +52,8 @@ public class CJKFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_no_flags");
         String source = "多くの学生が試験に落ちた。";
         String[] expected = new String[]{"多く", "くの", "の学", "学生", "生が", "が試", "試験", "験に", "に落", "落ち", "ちた" };
-        Tokenizer tokenizer = new StandardTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
     
     @Test
@@ -59,8 +62,8 @@ public class CJKFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_han_only");
         String source = "多くの学生が試験に落ちた。";
         String[] expected = new String[]{"多", "く", "の",  "学生", "が",  "試験", "に",  "落", "ち", "た"  };
-        Tokenizer tokenizer = new StandardTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
     
     @Test
@@ -69,8 +72,8 @@ public class CJKFilterFactoryTests {
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_han_unigram_only");
         String source = "多くの学生が試験に落ちた。";
         String[] expected = new String[]{"多", "く", "の",  "学", "学生", "生", "が",  "試", "試験", "験", "に",  "落", "ち", "た"  };
-        Tokenizer tokenizer = new StandardTokenizer(Version.LUCENE_41, new StringReader(source));
-        AnalysisTestsHelper.assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
     
 

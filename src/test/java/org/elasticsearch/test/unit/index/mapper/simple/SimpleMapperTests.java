@@ -27,8 +27,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import com.google.common.base.Charsets;
 
@@ -45,7 +45,7 @@ public class SimpleMapperTests {
 
     @Test
     public void testSimpleMapper() throws Exception {
-        DocumentMapperParser mapperParser = MapperTests.newParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newParser();
         DocumentMapper docMapper = doc("test",
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false)))
@@ -66,11 +66,11 @@ public class SimpleMapperTests {
     @Test
     public void testParseToJsonAndParse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         String builtMapping = docMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
-        DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
+        DocumentMapper builtDocMapper = MapperTestUtils.newParser().parse(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
@@ -82,7 +82,7 @@ public class SimpleMapperTests {
     @Test
     public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
@@ -97,7 +97,7 @@ public class SimpleMapperTests {
     @Test
     public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse("person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
@@ -109,18 +109,18 @@ public class SimpleMapperTests {
     @Test
     public void testAttributes() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         String builtMapping = docMapper.mappingSource().string();
-        DocumentMapper builtDocMapper = MapperTests.newParser().parse(builtMapping);
+        DocumentMapper builtDocMapper = MapperTestUtils.newParser().parse(builtMapping);
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
 
     @Test
     public void testNoDocumentSent() throws Exception {
-        DocumentMapperParser mapperParser = MapperTests.newParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newParser();
         DocumentMapper docMapper = doc("test",
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false)))

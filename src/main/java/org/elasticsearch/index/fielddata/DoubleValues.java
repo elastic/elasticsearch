@@ -120,7 +120,7 @@ public abstract class DoubleValues {
 
         @Override
         public final double getValueMissing(int docId, double missingValue) {
-            final int ord = ordinals.getOrd(docId);
+            final long ord = ordinals.getOrd(docId);
             if (ord == 0) {
                 return missingValue;
             } else {
@@ -128,7 +128,7 @@ public abstract class DoubleValues {
             }
         }
 
-        public abstract double getValueByOrd(int ord);
+        public abstract double getValueByOrd(long ord);
 
         @Override
         public final Iter getIter(int docId) {
@@ -184,8 +184,8 @@ public abstract class DoubleValues {
 
         static class Multi implements Iter {
 
-            private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
-            private int ord;
+            private Ordinals.Docs.Iter ordsIter;
+            private long ord;
             private WithOrdinals values;
 
             public Multi(WithOrdinals values) {

@@ -34,13 +34,12 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.joda.time.DateTimeZone;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -353,7 +352,7 @@ public class LongFieldDataTests extends NumericFieldDataTests {
     }
 
     private void test(Data data) throws Exception {
-        Random r = new Random(data.ordinal());
+        Random r = getRandom();
         final int numDocs = 1000 + r.nextInt(19000);
         final List<TLongSet> values = new ArrayList<TLongSet>(numDocs);
         for (int i = 0; i < numDocs; ++i) {

@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.SlicedObjectList;
-import org.testng.annotations.Test;
+import org.junit.Test;
 /**
  * Tests for {@link SlicedObjectList}
  */

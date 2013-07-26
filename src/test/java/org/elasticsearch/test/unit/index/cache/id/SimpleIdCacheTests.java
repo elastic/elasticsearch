@@ -49,15 +49,14 @@ import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -223,7 +222,7 @@ public class SimpleIdCacheTests {
         assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("8"))), equalTo(4));
     }
 
-    @Test(expectedExceptions = AssertionError.class)
+    @Test(expected = AssertionError.class)
     public void testRefresh_tripAssert() throws Exception {
         SimpleIdCache idCache = createSimpleIdCache(Tuple.tuple("child", "parent"));
         IndexWriter writer = createIndexWriter();
@@ -262,7 +261,7 @@ public class SimpleIdCacheTests {
         Settings settings = ImmutableSettings.EMPTY;
         Index index = new Index("test");
         SimpleIdCache idCache = new SimpleIdCache(index, settings);
-        MapperService mapperService = MapperTests.newMapperService();
+        MapperService mapperService = MapperTestUtils.newMapperService();
 
         for (Tuple<String, String> documentType : documentTypes) {
             String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(documentType.v1())
@@ -309,11 +308,6 @@ public class SimpleIdCacheTests {
 
         @Override
         public IndexSettingsService settingsService() {
-            return null;
-        }
-
-        @Override
-        public PercolatorService percolateService() {
             return null;
         }
 

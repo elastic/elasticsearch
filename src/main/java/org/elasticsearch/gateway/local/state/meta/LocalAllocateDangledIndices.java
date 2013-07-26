@@ -151,7 +151,17 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState clusterState) {
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                    try {
+                        channel.sendResponse(t);
+                    } catch (Exception e) {
+                        logger.error("failed send response for allocating dangled", e);
+                    }
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     try {
                         channel.sendResponse(new AllocateDangledResponse(true));
                     } catch (IOException e) {

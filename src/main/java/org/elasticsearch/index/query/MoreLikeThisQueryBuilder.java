@@ -45,6 +45,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
+    private boolean failOnUnsupportedField = true;
 
     /**
      * Constructs a new more like this query which uses the "_all" field.
@@ -165,6 +166,14 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    /**
+     * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
+     */
+    public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
+        failOnUnsupportedField = fail;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MoreLikeThisQueryParser.NAME);
@@ -215,6 +224,9 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
+        }
+        if (!failOnUnsupportedField) {
+            builder.field("fail_on_unsupported_field", failOnUnsupportedField);
         }
         builder.endObject();
     }

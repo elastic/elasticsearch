@@ -1,307 +1,232 @@
 /*
- * Licensed to Elastic Search and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. Elastic Search licenses this
+ * regarding copyright ownership. ElasticSearch licenses this
  * file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  */
 
 package org.elasticsearch.index.percolator;
 
-import com.google.common.collect.Maps;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.memory.ExtendedMemoryIndex;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.action.percolate.PercolateShardRequest;
+import org.elasticsearch.action.percolate.PercolateShardResponse;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
-import org.elasticsearch.index.indexing.IndexingOperationListener;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+
+import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 /**
- *
  */
-public class PercolatorService extends AbstractIndexComponent {
+public class PercolatorService extends AbstractComponent {
 
-    public static final String INDEX_NAME = "_percolator";
-
+    private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndicesService indicesService;
 
-    private final PercolatorExecutor percolator;
-
-    private final ShardLifecycleListener shardLifecycleListener;
-
-    private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
-
-    private final Object mutex = new Object();
-
-    private boolean initialQueriesFetchDone = false;
-
     @Inject
-    public PercolatorService(Index index, @IndexSettings Settings indexSettings, IndicesService indicesService,
-                             PercolatorExecutor percolator) {
-        super(index, indexSettings);
+    public PercolatorService(Settings settings, IndicesService indicesService) {
+        super(settings);
         this.indicesService = indicesService;
-        this.percolator = percolator;
-        this.shardLifecycleListener = new ShardLifecycleListener();
-        this.indicesService.indicesLifecycle().addListener(shardLifecycleListener);
-        this.percolator.setIndicesService(indicesService);
+        final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
+        cache = new CloseableThreadLocal<MemoryIndex>() {
+            @Override
+            protected MemoryIndex initialValue() {
+                return new ExtendedMemoryIndex(false, maxReuseBytes);
+            }
+        };
+    }
 
-        // if percolator is already allocated, make sure to register real time percolation
-        if (percolatorAllocated()) {
-            IndexService percolatorIndexService = percolatorIndexService();
-            if (percolatorIndexService != null) {
-                for (IndexShard indexShard : percolatorIndexService) {
+    public PercolateShardResponse percolate(PercolateShardRequest request) {
+        IndexService percolateIndexService = indicesService.indexServiceSafe(request.index());
+        IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
+
+        ShardPercolateService shardPercolateService = indexShard.shardPercolateService();
+        shardPercolateService.prePercolate();
+        long startTime = System.nanoTime();
+        try {
+            ConcurrentMap<Text, Query> percolateQueries = indexShard.percolateRegistry().percolateQueries();
+            if (percolateQueries.isEmpty()) {
+                return new PercolateShardResponse(StringText.EMPTY_ARRAY, request.index(), request.shardId());
+            }
+
+            Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.documentSource());
+            ParsedDocument parsedDocument = parseResult.v1();
+            Query query = parseResult.v2();
+
+            // first, parse the source doc into a MemoryIndex
+            final MemoryIndex memoryIndex = cache.get();
+            try {
+                // TODO: This means percolation does not support nested docs...
+                for (IndexableField field : parsedDocument.rootDoc().getFields()) {
+                    if (!field.fieldType().indexed()) {
+                        continue;
+                    }
+                    // no need to index the UID field
+                    if (field.name().equals(UidFieldMapper.NAME)) {
+                        continue;
+                    }
+                    TokenStream tokenStream;
                     try {
-                        indexShard.indexingService().addListener(realTimePercolatorOperationListener);
-                    } catch (Exception e) {
-                        // ignore
+                        tokenStream = field.tokenStream(parsedDocument.analyzer());
+                        if (tokenStream != null) {
+                            memoryIndex.addField(field.name(), tokenStream, field.boost());
+                        }
+                    } catch (IOException e) {
+                        throw new ElasticSearchException("Failed to create token stream", e);
                     }
                 }
+
+                final IndexSearcher searcher = memoryIndex.createSearcher();
+                List<Text> matches = new ArrayList<Text>();
+
+                IndexFieldDataService fieldDataService = percolateIndexService.fieldData();
+                IndexCache indexCache = percolateIndexService.cache();
+                try {
+                    if (query == null) {
+                        Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+                        for (Map.Entry<Text, Query> entry : percolateQueries.entrySet()) {
+                            collector.reset();
+                            try {
+                                searcher.search(entry.getValue(), collector);
+                            } catch (IOException e) {
+                                logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                            }
+
+                            if (collector.exists()) {
+                                matches.add(entry.getKey());
+                            }
+                        }
+                    } else {
+                        Engine.Searcher percolatorSearcher = indexShard.searcher();
+                        try {
+                            percolatorSearcher.searcher().search(
+                                    query, new QueryCollector(logger, percolateQueries, searcher, fieldDataService, matches)
+                            );
+                        } catch (IOException e) {
+                            logger.warn("failed to execute", e);
+                        } finally {
+                            percolatorSearcher.release();
+                        }
+                    }
+                } finally {
+                    // explicitly clear the reader, since we can only register on callback on SegmentReader
+                    indexCache.clear(searcher.getIndexReader());
+                    fieldDataService.clear(searcher.getIndexReader());
+                }
+                return new PercolateShardResponse(matches.toArray(new Text[matches.size()]), request.index(), request.shardId());
+            } finally {
+                memoryIndex.reset();
+            }
+        } finally {
+            shardPercolateService.postPercolate(System.nanoTime() - startTime);
+        }
+    }
+
+    Tuple<ParsedDocument, Query> parsePercolate(IndexService documentIndexService, String type, BytesReference docSource) throws ElasticSearchException {
+        Query query = null;
+        ParsedDocument doc = null;
+        XContentParser parser = null;
+        try {
+            parser = XContentFactory.xContent(docSource).createParser(docSource);
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                    // we need to check the "doc" here, so the next token will be START_OBJECT which is
+                    // the actual document starting
+                    if ("doc".equals(currentFieldName)) {
+                        MapperService mapperService = documentIndexService.mapperService();
+                        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
+                        doc = docMapper.parse(source(parser).type(type).flyweight(true));
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("query".equals(currentFieldName)) {
+                        if (query != null) {
+                            throw new ElasticSearchParseException("Either specify query or filter, not both");
+                        }
+                        query = documentIndexService.queryParserService().parse(parser).query();
+                    } else if ("filter".equals(currentFieldName)) {
+                        if (query != null) {
+                            throw new ElasticSearchParseException("Either specify query or filter, not both");
+                        }
+                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser);
+                        query = new XConstantScoreQuery(filter);
+                    }
+                } else if (token == null) {
+                    break;
+                }
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to parse request", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
             }
         }
+
+        if (doc == null) {
+            throw new ElasticSearchParseException("No doc to percolate in the request");
+        }
+
+        return new Tuple<ParsedDocument, Query>(doc, query);
     }
 
     public void close() {
-        this.indicesService.indicesLifecycle().removeListener(shardLifecycleListener);
-
-        // clean up any index that has registered real time updated from the percolator shards allocated on this node
-        IndexService percolatorIndexService = percolatorIndexService();
-        if (percolatorIndexService != null) {
-            for (IndexShard indexShard : percolatorIndexService) {
-                try {
-                    indexShard.indexingService().removeListener(realTimePercolatorOperationListener);
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-        }
+        cache.close();
     }
 
-    public PercolatorExecutor.Response percolate(PercolatorExecutor.SourceRequest request) throws PercolatorException {
-        return percolator.percolate(request);
+    public static final class Constants {
+
+        public static final String TYPE_NAME = "_percolator";
+
     }
 
-    public PercolatorExecutor.Response percolate(PercolatorExecutor.DocAndSourceQueryRequest request) throws PercolatorException {
-        return percolator.percolate(request);
-    }
-
-    private void loadQueries(String indexName) {
-        IndexService indexService = percolatorIndexService();
-        IndexShard shard = indexService.shard(0);
-        shard.refresh(new Engine.Refresh(true));
-        Engine.Searcher searcher = shard.searcher();
-        try {
-            // create a query to fetch all queries that are registered under the index name (which is the type
-            // in the percolator).
-            Query query = new XConstantScoreQuery(indexQueriesFilter(indexName));
-            QueriesLoaderCollector queries = new QueriesLoaderCollector();
-            searcher.searcher().search(query, queries);
-            percolator.addQueries(queries.queries());
-        } catch (IOException e) {
-            throw new PercolatorException(index, "failed to load queries from percolator index");
-        } finally {
-            searcher.release();
-        }
-    }
-
-    private Filter indexQueriesFilter(String indexName) {
-        return percolatorIndexService().cache().filter().cache(new TermFilter(new Term(TypeFieldMapper.NAME, indexName)));
-    }
-
-    private boolean percolatorAllocated() {
-        if (!indicesService.hasIndex(INDEX_NAME)) {
-            return false;
-        }
-        if (percolatorIndexService().numberOfShards() == 0) {
-            return false;
-        }
-        if (percolatorIndexService().shard(0).state() != IndexShardState.STARTED) {
-            return false;
-        }
-        return true;
-    }
-
-    private IndexService percolatorIndexService() {
-        return indicesService.indexService(INDEX_NAME);
-    }
-
-    class QueriesLoaderCollector extends Collector {
-
-        private AtomicReader reader;
-
-        private Map<String, Query> queries = Maps.newHashMap();
-
-        public Map<String, Query> queries() {
-            return this.queries;
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            // the _source is the query
-            UidAndSourceFieldsVisitor fieldsVisitor = new UidAndSourceFieldsVisitor();
-            reader.document(doc, fieldsVisitor);
-            String id = fieldsVisitor.uid().id();
-            try {
-                final Query parseQuery = percolator.parseQuery(id, fieldsVisitor.source());
-                if (parseQuery != null) {
-                    queries.put(id, parseQuery);    
-                } else {
-                    logger.warn("failed to add query [{}] - parser returned null", id);
-                }
-                
-            } catch (Exception e) {
-                logger.warn("failed to add query [{}]", e, id);
-            }
-        }
-
-        @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
-            this.reader = context.reader();
-        }
-
-        @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return true;
-        }
-    }
-
-    class ShardLifecycleListener extends IndicesLifecycle.Listener {
-
-        @Override
-        public void afterIndexShardCreated(IndexShard indexShard) {
-            // add a listener that will update based on changes done to the _percolate index
-            // the relevant indices with loaded queries
-            if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
-                indexShard.indexingService().addListener(realTimePercolatorOperationListener);
-            }
-        }
-
-        @Override
-        public void afterIndexShardStarted(IndexShard indexShard) {
-            if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
-                // percolator index has started, fetch what we can from it and initialize the indices
-                // we have
-                synchronized (mutex) {
-                    if (initialQueriesFetchDone) {
-                        return;
-                    }
-                    // we load the queries for all existing indices
-                    for (IndexService indexService : indicesService) {
-                        // only load queries for "this" index percolator service
-                        if (indexService.index().equals(index())) {
-                            logger.debug("loading percolator queries for index [{}]...", indexService.index().name());
-                            loadQueries(indexService.index().name());
-                            logger.trace("done loading percolator queries for index [{}]", indexService.index().name());
-                        }
-                    }
-                    initialQueriesFetchDone = true;
-                }
-            }
-            if (!indexShard.shardId().index().equals(index())) {
-                // not our index, bail
-                return;
-            }
-            if (!percolatorAllocated()) {
-                return;
-            }
-            // we are only interested when the first shard on this node has been created for an index
-            // when it does, fetch the relevant queries if not fetched already
-            IndexService indexService = indicesService.indexService(indexShard.shardId().index().name());
-            if (indexService == null) {
-                return;
-            }
-            if (indexService.numberOfShards() != 1) {
-                return;
-            }
-            synchronized (mutex) {
-                if (initialQueriesFetchDone) {
-                    return;
-                }
-                // we load queries for this index
-                logger.debug("loading percolator queries for index [{}]...", indexService.index().name());
-                loadQueries(index.name());
-                logger.trace("done loading percolator queries for index [{}]", indexService.index().name());
-                initialQueriesFetchDone = true;
-            }
-        }
-    }
-
-    class RealTimePercolatorOperationListener extends IndexingOperationListener {
-
-        @Override
-        public Engine.Create preCreate(Engine.Create create) {
-            // validate the query here, before we index
-            if (create.type().equals(index().name())) {
-                percolator.parseQuery(create.id(), create.source());
-            }
-            return create;
-        }
-
-        @Override
-        public void postCreateUnderLock(Engine.Create create) {
-            // add the query under a doc lock
-            if (create.type().equals(index().name())) {
-                percolator.addQuery(create.id(), create.source());
-            }
-        }
-
-        @Override
-        public Engine.Index preIndex(Engine.Index index) {
-            // validate the query here, before we index
-            if (index.type().equals(index().name())) {
-                percolator.parseQuery(index.id(), index.source());
-            }
-            return index;
-        }
-
-        @Override
-        public void postIndexUnderLock(Engine.Index index) {
-            // add the query under a doc lock
-            if (index.type().equals(index().name())) {
-                percolator.addQuery(index.id(), index.source());
-            }
-        }
-
-        @Override
-        public void postDeleteUnderLock(Engine.Delete delete) {
-            // remove the query under a lock
-            if (delete.type().equals(index().name())) {
-                percolator.removeQuery(delete.id());
-            }
-        }
-    }
 }

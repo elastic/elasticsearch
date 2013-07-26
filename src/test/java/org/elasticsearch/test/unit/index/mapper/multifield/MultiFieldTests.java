@@ -25,8 +25,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.test.unit.index.mapper.MapperTests;
-import org.testng.annotations.Test;
+import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
+import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -37,13 +37,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@Test
 public class MultiFieldTests {
 
     @Test
     public void testMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-mapping.json");
-        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
@@ -75,7 +74,7 @@ public class MultiFieldTests {
 
     @Test
     public void testBuildThenParse() throws Exception {
-        DocumentMapperParser mapperParser = MapperTests.newParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newParser();
 
         DocumentMapper builderDocMapper = doc("test", rootObject("person").add(
                 multiField("name")

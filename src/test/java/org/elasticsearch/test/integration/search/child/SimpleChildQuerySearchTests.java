@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.search.child;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -42,7 +43,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -406,37 +406,37 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
-        Map<String, List<String>> parentToChildren = newHashMap();
+        Map<String, Set<String>> parentToChildren = newHashMap();
         // Childless parent
         client().prepareIndex("test", "parent", "p0").setSource("p_field", "p0").execute().actionGet();
-        parentToChildren.put("p0", new ArrayList<String>());
+        parentToChildren.put("p0", new HashSet<String>());
 
         String previousParentId = null;
         int numChildDocs = 32;
         int numChildDocsPerParent = 0;
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
         for (int i = 1; i <= numChildDocs; i++) {
+            
             if (previousParentId == null || i % numChildDocsPerParent == 0) {
                 previousParentId = "p" + i;
-                client().prepareIndex("test", "parent", previousParentId).setSource("p_field", previousParentId).execute().actionGet();
-                client().admin().indices().prepareFlush("test").execute().actionGet();
+                builders.add(client().prepareIndex("test", "parent", previousParentId).setSource("p_field", previousParentId));
                 numChildDocsPerParent++;
             }
 
             String childId = "c" + i;
-            client().prepareIndex("test", "child", childId)
+            builders.add(client().prepareIndex("test", "child", childId)
                     .setSource("c_field", childId)
-                    .setParent(previousParentId)
-                    .execute().actionGet();
+                    .setParent(previousParentId));
 
             if (!parentToChildren.containsKey(previousParentId)) {
-                parentToChildren.put(previousParentId, new ArrayList<String>());
+                parentToChildren.put(previousParentId, new HashSet<String>());
             }
-            parentToChildren.get(previousParentId).add(childId);
+            assertThat(parentToChildren.get(previousParentId).add(childId), is(true));
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandom("test", true, builders.toArray(new IndexRequestBuilder[0]));
 
         assertThat(parentToChildren.isEmpty(), equalTo(false));
-        for (Map.Entry<String, List<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
+        for (Map.Entry<String, Set<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
             SearchResponse searchResponse = client().prepareSearch("test")
                     .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", parentToChildrenEntry.getKey()))))
                     .setSize(numChildDocsPerParent)
@@ -444,12 +444,13 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
             assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(0));
-            List<String> childIds = parentToChildrenEntry.getValue();
+            Set<String> childIds = parentToChildrenEntry.getValue();
             assertThat(searchResponse.getHits().totalHits(), equalTo((long) childIds.size()));
-            int counter = 0;
-            for (String childId : childIds) {
-                assertThat(searchResponse.getHits().getAt(counter++).id(), equalTo(childId));
+            for (int i = 0; i < searchResponse.getHits().totalHits(); i++) {
+                assertThat(childIds.remove(searchResponse.getHits().getAt(i).id()), is(true));
+                assertThat(searchResponse.getHits().getAt(i).score(), is(1.0f));
             }
+            assertThat(childIds.size(), is(0));
         }
     }
 

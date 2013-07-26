@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.search.rescore;
 
+
+
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -37,7 +40,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -391,6 +393,113 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                                 .should(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).script("3.0f"))
                                 .should(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).script("5.0f"))
                                 .should(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).script("0.2f")))
+                        .setFrom(0)
+                        .setSize(10)
+                        .setRescorer(rescoreQuery)
+                        .setRescoreWindow(50).execute().actionGet();
+
+                assertHitCount(rescored, 4);
+
+                if ("total".equals(scoreMode) || "".equals(scoreMode)) {
+                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
+                    assertSecondHit(rescored, hasId(String.valueOf(i)));
+                    assertThirdHit(rescored, hasId(String.valueOf(i + 2)));
+                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(3.0f * primaryWeight + 7.0f * secondaryWeight));
+                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(2.0f * primaryWeight + 5.0f * secondaryWeight));
+                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight + 0.0f * secondaryWeight));
+                } else if ("max".equals(scoreMode)) {
+                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
+                    assertSecondHit(rescored, hasId(String.valueOf(i)));
+                    assertThirdHit(rescored, hasId(String.valueOf(i + 2)));
+                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(7.0f * secondaryWeight));
+                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(5.0f * secondaryWeight));
+                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight));
+                } else if ("min".equals(scoreMode)) {
+                    assertFirstHit(rescored, hasId(String.valueOf(i + 2)));
+                    assertSecondHit(rescored, hasId(String.valueOf(i + 1)));
+                    assertThirdHit(rescored, hasId(String.valueOf(i)));
+                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(5.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(3.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(2.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.0f * secondaryWeight));
+                } else if ("avg".equals(scoreMode)) {
+                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
+                    assertSecondHit(rescored, hasId(String.valueOf(i + 2)));
+                    assertThirdHit(rescored, hasId(String.valueOf(i)));
+                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo((3.0f * primaryWeight + 7.0f * secondaryWeight) / 2.0f));
+                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(5.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo((2.0f * primaryWeight + 5.0f * secondaryWeight) / 2.0f));
+                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo((0.2f * primaryWeight) / 2.0f));
+                } else if ("multiply".equals(scoreMode)) {
+                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
+                    assertSecondHit(rescored, hasId(String.valueOf(i)));
+                    assertThirdHit(rescored, hasId(String.valueOf(i + 2)));
+                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(3.0f * primaryWeight * 7.0f * secondaryWeight));
+                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(2.0f * primaryWeight * 5.0f * secondaryWeight));
+                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
+                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight * 0.0f * secondaryWeight));
+                }
+            }
+        }
+    }
+
+
+
+    @Test
+    public void testScoring_withFunctionScore() throws Exception {
+        client().admin()
+                .indices()
+                .prepareCreate("test")
+                .addMapping(
+                        "type1",
+                        jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
+                                .field("index", "not_analyzed").field("type", "string").endObject().endObject().endObject().endObject())
+                .setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
+        ensureGreen();
+        int numDocs = 1000;
+
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i)).execute().actionGet();
+        }
+
+        flush();
+        optimize(); // make sure we don't have a background merge running
+        refresh();
+        ensureGreen();
+
+        String[] scoreModes = new String[]{ "max", "min", "avg", "total", "multiply", "" };
+        float primaryWeight = 1.1f;
+        float secondaryWeight = 1.6f;
+
+        for (String scoreMode: scoreModes) {
+            for (int i = 0; i < numDocs - 4; i++) {
+                String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2), English.intToEnglish(i + 3) };
+
+                QueryRescorer rescoreQuery = RescoreBuilder
+                        .queryRescorer(
+                                QueryBuilders.boolQuery()
+                                    .disableCoord(true)
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("5.0f")))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("7.0f")))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.0f"))))
+                        .setQueryWeight(primaryWeight)
+                        .setRescoreQueryWeight(secondaryWeight);
+
+                if (!"".equals(scoreMode)) {
+                    rescoreQuery.setScoreMode(scoreMode);
+                }
+
+                SearchResponse rescored = client()
+                        .prepareSearch()
+                        .setPreference("test") // ensure we hit the same shards for tie-breaking
+                        .setQuery(QueryBuilders.boolQuery()
+                                .disableCoord(true)
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("2.0f")))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("3.0f")))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).add(new ScriptScoreFunctionBuilder().script("5.0f")))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.2f"))))
                         .setFrom(0)
                         .setSize(10)
                         .setRescorer(rescoreQuery)

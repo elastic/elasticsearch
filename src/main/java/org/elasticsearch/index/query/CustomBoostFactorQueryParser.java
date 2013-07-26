@@ -25,11 +25,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 
 import java.io.IOException;
 
 /**
- *
+ * @deprecated use {@link FunctionScoreQueryParser} instead.
  */
 public class CustomBoostFactorQueryParser implements QueryParser {
 
@@ -41,7 +42,7 @@ public class CustomBoostFactorQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[] { NAME, Strings.toCamelCase(NAME) };
     }
 
     @Override
@@ -63,7 +64,8 @@ public class CustomBoostFactorQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support ["
+                            + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("boost_factor".equals(currentFieldName) || "boostFactor".equals(currentFieldName)) {
@@ -71,7 +73,8 @@ public class CustomBoostFactorQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[custom_boost_factor] query does not support ["
+                            + currentFieldName + "]");
                 }
             }
         }

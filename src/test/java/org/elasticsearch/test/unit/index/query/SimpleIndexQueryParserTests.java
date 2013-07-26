@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.unit.index.query;
 
+
+
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BoostingQuery;
@@ -53,10 +55,9 @@ import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
-import org.elasticsearch.index.query.IndexQueryParserModule;
-import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
@@ -67,6 +68,7 @@ import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -115,6 +117,7 @@ public class SimpleIndexQueryParserTests {
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
+                new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -1463,6 +1466,19 @@ public class SimpleIndexQueryParserTests {
     }
 
 
+    
+
+    @Test
+    public void testCustomBoostFactorQueryBuilder_withFunctionScore() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(functionScoreQuery(termQuery("name.last", "banon")).add(new FactorBuilder().boostFactor(1.3f))).query();
+        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
+        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
+        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
+    }
+
+
     @Test
     public void testCustomBoostFactorQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -2224,5 +2240,24 @@ public class SimpleIndexQueryParserTests {
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), nullValue());
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("2"));
+    }
+    
+    @Test(expected = QueryParsingException.class)
+    public void assureMalformedThrowsException() throws IOException {
+        IndexQueryParserService queryParser;
+        queryParser = queryParser();
+        String query;
+        query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/faulty-function-score-query.json");
+        Query parsedQuery = queryParser.parse(query).query();
+    }
+    
+    @Test
+    public void testFilterParsing() throws IOException {
+        IndexQueryParserService queryParser;
+        queryParser = queryParser();
+        String query;
+        query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/function-filter-score-query.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat((double)(parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
     }
 }

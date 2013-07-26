@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.IndexQueryParserModule;
+import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -94,6 +95,7 @@ public class PercolatorExecutorTests {
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
+                new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override
                     protected void configure() {

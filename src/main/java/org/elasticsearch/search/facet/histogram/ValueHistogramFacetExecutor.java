@@ -41,14 +41,16 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData valueIndexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
     private final long interval;
+    private final int precision;
 
     final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-    public ValueHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, long interval, int precision, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.interval = interval;
+        this.precision = precision;
         this.cacheRecycler = context.cacheRecycler();
         this.entries = cacheRecycler.popLongObjectMap();
     }
@@ -69,7 +71,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
         private DoubleValues keyValues;
 
         public Collector() {
-            this.histoProc = new HistogramProc(interval, entries);
+            this.histoProc = new HistogramProc(interval, precision, entries);
         }
 
         @Override
@@ -91,20 +93,22 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
     public final static class HistogramProc extends DoubleFacetAggregatorBase {
 
         final long interval;
+        final int precision;
         final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
         DoubleValues valueValues;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        public HistogramProc(long interval, ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries) {
+        public HistogramProc(long interval, int precision, ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries) {
             this.interval = interval;
+            this.precision = precision;
             this.entries = entries;
         }
 
         @Override
         public void onValue(int docId, double value) {
-            long bucket = FullHistogramFacetExecutor.bucket(value, interval);
+            long bucket = FullHistogramFacetExecutor.bucket(value, interval, precision);
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
             if (entry == null) {
                 entry = new InternalFullHistogramFacet.FullEntry(bucket, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0, 0);

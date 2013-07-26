@@ -40,14 +40,16 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
     final SearchScript keyScript;
     final SearchScript valueScript;
     final long interval;
+    final int precision;
     private final HistogramFacet.ComparatorType comparatorType;
 
     final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-    public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, int precision, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.interval = interval > 0 ? interval : 0;
+        this.precision = precision > 0 ? precision : 0;
         this.comparatorType = comparatorType;
         this.cacheRecycler = context.cacheRecycler();
 
@@ -62,10 +64,6 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalFullHistogramFacet(facetName, comparatorType, entries, cacheRecycler);
-    }
-
-    public static long bucket(double value, long interval) {
-        return (((long) (value / interval)) * interval);
     }
 
     class Collector extends FacetExecutor.Collector {
@@ -93,10 +91,10 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
             keyScript.setNextDocId(doc);
             valueScript.setNextDocId(doc);
             long bucket;
-            if (interval == 0) {
+            if (interval == 0 && precision == 0) {
                 bucket = keyScript.runAsLong();
             } else {
-                bucket = bucket(keyScript.runAsDouble(), interval);
+                bucket = FullHistogramFacetExecutor.bucket(keyScript.runAsDouble(), interval, precision);
             }
             double value = valueScript.runAsDouble();
 

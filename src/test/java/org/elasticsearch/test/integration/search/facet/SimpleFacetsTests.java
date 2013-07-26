@@ -1474,6 +1474,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                     .addFacet(histogramScriptFacet("stats6").keyField("num").valueScript("doc['num'].value").interval(100))
                     .addFacet(histogramFacet("stats7").field("num").interval(100))
                     .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("doc.score").interval(100))
+                    .addFacet(histogramFacet("stats9").field("num").precision(1))
                     .execute().actionGet();
 
             if (searchResponse.getFailedShards() > 0) {
@@ -1594,6 +1595,12 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
             assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotal(), equalTo(1d));
             assertThat(facet.getEntries().get(1).getMean(), equalTo(1d));
+
+            facet = searchResponse.getFacets().facet("stats9");
+            assertThat(facet.getName(), equalTo("stats9"));
+            assertThat(facet.getEntries().size(), equalTo(1));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000l));
+            assertThat(facet.getEntries().get(0).getCount(), equalTo(3l));
 
         }
     }

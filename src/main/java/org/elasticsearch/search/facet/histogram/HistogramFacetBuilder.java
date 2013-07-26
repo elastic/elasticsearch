@@ -34,6 +34,7 @@ public class HistogramFacetBuilder extends FacetBuilder {
     private String keyFieldName;
     private String valueFieldName;
     private long interval = -1;
+    private int precision = -1;
     private HistogramFacet.ComparatorType comparatorType;
 
     /**
@@ -88,6 +89,14 @@ public class HistogramFacetBuilder extends FacetBuilder {
         return interval(unit.toMillis(interval));
     }
 
+    /**
+     * The interval used to control the bucket "size" where each key value of a hit will fall into.
+     */
+    public HistogramFacetBuilder precision(int precision) {
+        this.precision = precision;
+        return this;
+    }
+
     public HistogramFacetBuilder comparator(HistogramFacet.ComparatorType comparatorType) {
         this.comparatorType = comparatorType;
         return this;
@@ -124,8 +133,8 @@ public class HistogramFacetBuilder extends FacetBuilder {
         if (keyFieldName == null) {
             throw new SearchSourceBuilderException("field must be set on histogram facet for facet [" + name + "]");
         }
-        if (interval < 0) {
-            throw new SearchSourceBuilderException("interval must be set on histogram facet for facet [" + name + "]");
+        if (interval < 0 && precision < 0) {
+            throw new SearchSourceBuilderException("interval or precision must be set on histogram facet for facet [" + name + "]");
         }
         builder.startObject(name);
 
@@ -136,7 +145,12 @@ public class HistogramFacetBuilder extends FacetBuilder {
         } else {
             builder.field("field", keyFieldName);
         }
-        builder.field("interval", interval);
+
+        if (interval > 0) {
+            builder.field("interval", interval);
+        } else {
+            builder.field("precision", precision);
+        }
 
         if (comparatorType != null) {
             builder.field("comparator", comparatorType.description());

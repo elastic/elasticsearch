@@ -38,6 +38,7 @@ public class HistogramScriptFacetBuilder extends FacetBuilder {
     private String valueScript;
     private Map<String, Object> params;
     private long interval = -1;
+    private int precision = -1;
     private HistogramFacet.ComparatorType comparatorType;
 
     public HistogramScriptFacetBuilder(String name) {
@@ -69,6 +70,11 @@ public class HistogramScriptFacetBuilder extends FacetBuilder {
 
     public HistogramScriptFacetBuilder interval(long interval) {
         this.interval = interval;
+        return this;
+    }
+
+    public HistogramScriptFacetBuilder precision(int precision) {
+        this.precision = precision;
         return this;
     }
 
@@ -131,6 +137,9 @@ public class HistogramScriptFacetBuilder extends FacetBuilder {
         }
         if (interval > 0) { // interval is optional in script facet, can be defined by the key script
             builder.field("interval", interval);
+        }
+        if (precision > 0) { // precision is optional in script facet, can be defined by the key script
+            builder.field("precision", precision);
         }
         if (this.params != null) {
             builder.field("params", this.params);

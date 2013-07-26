@@ -45,13 +45,15 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
     private final HistogramFacet.ComparatorType comparatorType;
     final SearchScript valueScript;
     final long interval;
+    final int precision;
 
     final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-    public ValueScriptHistogramFacetExecutor(IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueScriptHistogramFacetExecutor(IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, long interval, int precision, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
+        this.precision = precision;
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.cacheRecycler = context.cacheRecycler();
 
@@ -68,17 +70,13 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
         return new InternalFullHistogramFacet(facetName, comparatorType, entries, cacheRecycler);
     }
 
-    public static long bucket(double value, long interval) {
-        return (((long) (value / interval)) * interval);
-    }
-
     class Collector extends FacetExecutor.Collector {
 
         private DoubleValues values;
         private final HistogramProc histoProc;
 
         public Collector() {
-            histoProc = new HistogramProc(interval, valueScript, entries);
+            histoProc = new HistogramProc(interval, precision, valueScript, entries);
         }
 
         @Override
@@ -105,20 +103,22 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
     public static class HistogramProc extends DoubleFacetAggregatorBase {
 
         private final long interval;
+        private final int precision;
 
         private final SearchScript valueScript;
 
         final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-        public HistogramProc(long interval, SearchScript valueScript, ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries) {
+        public HistogramProc(long interval, int precision, SearchScript valueScript, ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries) {
             this.interval = interval;
+            this.precision = precision;
             this.valueScript = valueScript;
             this.entries = entries;
         }
         @Override
         public void onValue(int docId, double value) {
             valueScript.setNextDocId(docId);
-            long bucket = bucket(value, interval);
+            long bucket = FullHistogramFacetExecutor.bucket(value, interval, precision);
             double scriptValue = valueScript.runAsDouble();
 
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);

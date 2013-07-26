@@ -69,6 +69,7 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         String scriptLang = null;
         Map<String, Object> params = null;
         long interval = 0;
+        int precision = 0;
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
         XContentParser.Token token;
         String fieldName = null;
@@ -90,6 +91,8 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
                     interval = parser.longValue();
                 } else if ("time_interval".equals(fieldName) || "timeInterval".equals(fieldName)) {
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
+                } else if ("precision".equals(fieldName)) {
+                    precision = parser.intValue();
                 } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
                     keyScript = parser.text();
                 } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
@@ -103,15 +106,15 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         }
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptHistogramFacetExecutor(scriptLang, keyScript, valueScript, params, interval, comparatorType, context);
+            return new ScriptHistogramFacetExecutor(scriptLang, keyScript, valueScript, params, interval, precision, comparatorType, context);
         }
 
         if (keyField == null) {
             throw new FacetPhaseExecutionException(facetName, "key field is required to be set for histogram facet, either using [field] or using [key_field]");
         }
 
-        if (interval <= 0) {
-            throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
+        if (interval <= 0 && precision <= 0) {
+            throw new FacetPhaseExecutionException(facetName, "[interval] or [precision] is required to be set for histogram facet");
         }
 
         FieldMapper keyMapper = context.smartNameFieldMapper(keyField);
@@ -130,14 +133,14 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         }
 
         if (valueScript != null) {
-            return new ValueScriptHistogramFacetExecutor(keyIndexFieldData, scriptLang, valueScript, params, interval, comparatorType, context);
+            return new ValueScriptHistogramFacetExecutor(keyIndexFieldData, scriptLang, valueScript, params, interval, precision, comparatorType, context);
         } else if (valueField == null) {
-            return new CountHistogramFacetExecutor(keyIndexFieldData, interval, comparatorType, context);
+            return new CountHistogramFacetExecutor(keyIndexFieldData, interval, precision, comparatorType, context);
         } else if (keyField.equals(valueField)) {
-            return new FullHistogramFacetExecutor(keyIndexFieldData, interval, comparatorType, context);
+            return new FullHistogramFacetExecutor(keyIndexFieldData, interval, precision, comparatorType, context);
         } else {
             // we have a value field, and its different than the key
-            return new ValueHistogramFacetExecutor(keyIndexFieldData, valueIndexFieldData, interval, comparatorType, context);
+            return new ValueHistogramFacetExecutor(keyIndexFieldData, valueIndexFieldData, interval, precision, comparatorType, context);
         }
     }
 }

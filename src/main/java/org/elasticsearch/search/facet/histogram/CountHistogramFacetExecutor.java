@@ -41,13 +41,15 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
     final long interval;
+    final int precision;
 
     final TLongLongHashMap counts;
 
-    public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, int precision, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
+        this.precision = precision;
         this.cacheRecycler = context.cacheRecycler();
 
         this.counts = cacheRecycler.popLongLongMap();
@@ -63,17 +65,13 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
         return new InternalCountHistogramFacet(facetName, comparatorType, counts, cacheRecycler);
     }
 
-    public static long bucket(double value, long interval) {
-        return (((long) (value / interval)) * interval);
-    }
-
     class Collector extends FacetExecutor.Collector {
 
         private final HistogramProc histoProc;
         private DoubleValues values;
 
         public Collector() {
-            histoProc = new HistogramProc(interval, counts);
+            histoProc = new HistogramProc(interval, precision, counts);
         }
 
         @Override
@@ -94,16 +92,18 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
     public final static class HistogramProc extends DoubleFacetAggregatorBase {
 
         private final long interval;
+        private final int precision;
         private final TLongLongHashMap counts;
 
-        public HistogramProc(long interval, TLongLongHashMap counts) {
+        public HistogramProc(long interval, int precision, TLongLongHashMap counts) {
             this.interval = interval;
+            this.precision = precision;
             this.counts = counts;
         }
 
         @Override
         public void onValue(int docId, double value) {
-            long bucket = bucket(value, interval);
+            long bucket = FullHistogramFacetExecutor.bucket(value, interval, precision);
             counts.adjustOrPutValue(bucket, 1, 1);
         }
 

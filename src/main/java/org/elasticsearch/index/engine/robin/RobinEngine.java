@@ -1285,7 +1285,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
-    public static final String INDEX_CODEC = "index.codec";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
 
     class ApplySettings implements IndexSettingsService.Listener {

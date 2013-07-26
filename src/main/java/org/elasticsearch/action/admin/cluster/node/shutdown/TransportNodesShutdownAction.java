@@ -267,7 +267,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                             wrapperManager.getMethod("stopAndReturn", int.class).invoke(null, 0);
                             shutdownWithWrapper = true;
                         } catch (Throwable e) {
-                            e.printStackTrace();
+                            logger.error("failed to initial shutdown on service wrapper", e);
                         }
                     }
                     if (!shutdownWithWrapper) {

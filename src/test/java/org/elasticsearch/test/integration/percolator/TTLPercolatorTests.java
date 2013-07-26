@@ -2,6 +2,7 @@ package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -15,7 +16,6 @@ import org.junit.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -68,14 +68,28 @@ public class TTLPercolatorTests extends AbstractNodesTests {
                 .endObject()
         ).execute().actionGet();
         assertThat(convertFromTextArray(percolateResponse.getMatches()), arrayContaining("kuku"));
-
         long timeSpent = System.currentTimeMillis() - now;
-        long waitTime = ttl + purgeInterval + 200;
-        if (timeSpent <= waitTime) {
-            long timeToWait = waitTime - timeSpent;
-            logger.info("Waiting {} ms for ttl purging...", timeToWait);
-            Thread.sleep(timeToWait);
+        long waitTime = ttl + purgeInterval - timeSpent;
+        if (waitTime >= 0) {
+            Thread.sleep(waitTime); // Doesn't make sense to check the deleteCount before ttl has expired
         }
+
+        // See comment in SimpleTTLTests
+        logger.info("Checking if the ttl purger has run");
+        long currentDeleteCount;
+        do {
+            if (rarely()) {
+                client.admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
+            } else if (rarely()) {
+                client.admin().indices().prepareOptimize("test").setMaxNumSegments(1).execute().actionGet();
+            }
+            IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+                    .clear().setIndexing(true)
+                    .execute().actionGet();
+            currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
+        } while (currentDeleteCount < 2); // TTL deletes one doc, but it is indexed in the primary shard and replica shard.
+        assertThat(currentDeleteCount, equalTo(2l));
+
         percolateResponse = client.preparePercolate("test", "type1").setSource(jsonBuilder()
                 .startObject()
                 .startObject("doc")

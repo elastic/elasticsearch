@@ -17,23 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search.function;
+package org.elasticsearch.index.query.functionscore;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.xcontent.ToXContent;
 
-/**
- *
- */
-public interface ScoreFunction {
+public interface ScoreFunctionBuilder extends ToXContent {
 
-    void setNextReader(AtomicReaderContext context);
+    public String getName();
 
-    float score(int docId, float subQueryScore);
-
-    double factor(int docId);
-
-    Explanation explainScore(int docId, Explanation subQueryExpl);
-
-    Explanation explainFactor(int docId);
 }

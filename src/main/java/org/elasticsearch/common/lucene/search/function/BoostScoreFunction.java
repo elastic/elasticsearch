@@ -49,7 +49,7 @@ public class BoostScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public float factor(int docId) {
+    public double factor(int docId) {
         return boost;
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.search.child;
 
+
+
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -28,6 +30,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -53,8 +56,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
     
     @Test
     public void multiLevelChild() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
+  
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -144,7 +146,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
     
     @Test // see #2744
     public void test2744() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -395,7 +396,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testHasParentFilter() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -457,7 +457,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleChildQueryWithFlush() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -557,7 +556,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleChildQueryWithFlushAnd3Shards() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
@@ -656,7 +654,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testScopedFacet() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -707,7 +704,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDeletedParent() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -773,7 +769,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDfsSearchType() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
@@ -813,7 +808,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testFixAOBEIfTopChildrenIsWrappedInMusNotClause() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -839,7 +833,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testTopChildrenReSearchBug() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -893,7 +886,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testHasChildAndHasParentFailWhenSomeSegmentsDontContainAnyParentOrChildDocs() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
@@ -936,7 +928,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testCountApiUsage() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -992,7 +983,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testScoreForParentChildQueries() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .addMapping("child", jsonBuilder()
@@ -1018,79 +1008,8 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        // Parent 1 and its children
-        client().prepareIndex("test", "parent", "1")
-                .setSource("p_field", "p_value1")
-                .execute().actionGet();
-        client().prepareIndex("test", "child", "1")
-                .setSource("c_field1", 1, "c_field2", 0)
-                .setParent("1").execute().actionGet();
-        client().prepareIndex("test", "child", "2")
-                .setSource("c_field1", 1, "c_field2", 0)
-                .setParent("1").execute().actionGet();
-        client().prepareIndex("test", "child", "3")
-                .setSource("c_field1", 2, "c_field2", 0)
-                .setParent("1").execute().actionGet();
-        client().prepareIndex("test", "child", "4")
-                .setSource("c_field1", 2, "c_field2", 0)
-                .setParent("1").execute().actionGet();
-        client().prepareIndex("test", "child", "5")
-                .setSource("c_field1", 1, "c_field2", 1)
-                .setParent("1").execute().actionGet();
-        client().prepareIndex("test", "child", "6")
-                .setSource("c_field1", 1, "c_field2", 2)
-                .setParent("1").execute().actionGet();
-
-        // Parent 2 and its children
-        client().prepareIndex("test", "parent", "2")
-                .setSource("p_field", "p_value2")
-                .execute().actionGet();
-        client().prepareIndex("test", "child", "7")
-                .setSource("c_field1", 3, "c_field2", 0)
-                .setParent("2").execute().actionGet();
-        client().prepareIndex("test", "child", "8")
-                .setSource("c_field1", 1, "c_field2", 1)
-                .setParent("2").execute().actionGet();
-        client().prepareIndex("test", "child", "9")
-                .setSource("c_field1", 1, "c_field2", 1)
-                .setParent("p").execute().actionGet();
-        client().prepareIndex("test", "child", "10")
-                .setSource("c_field1", 1, "c_field2", 1)
-                .setParent("2").execute().actionGet();
-        client().prepareIndex("test", "child", "11")
-                .setSource("c_field1", 1, "c_field2", 1)
-                .setParent("2").execute().actionGet();
-        client().prepareIndex("test", "child", "12")
-                .setSource("c_field1", 1, "c_field2", 2)
-                .setParent("2").execute().actionGet();
-
-        // Parent 3 and its children
-        client().prepareIndex("test", "parent", "3")
-                .setSource("p_field1", "p_value3", "p_field2", 5)
-                .execute().actionGet();
-        client().prepareIndex("test", "child", "13")
-                .setSource("c_field1", 4, "c_field2", 0, "c_field3", 0)
-                .setParent("3").execute().actionGet();
-        client().prepareIndex("test", "child", "14")
-                .setSource("c_field1", 1, "c_field2", 1, "c_field3", 1)
-                .setParent("3").execute().actionGet();
-        client().prepareIndex("test", "child", "15")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 2)
-                .setParent("3").execute().actionGet();
-        client().prepareIndex("test", "child", "16")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 3)
-                .setParent("3").execute().actionGet();
-        client().prepareIndex("test", "child", "17")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 4)
-                .setParent("3").execute().actionGet();
-        client().prepareIndex("test", "child", "18")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 5)
-                .setParent("3").execute().actionGet();
-        client().prepareIndex("test", "child1", "1")
-                .setSource("c_field1", 1, "c_field2", 2, "c_field3", 6)
-                .setParent("3").execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandom("test", false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
+        refresh();
 
         SearchResponse response = client().prepareSearch("test")
                 .setQuery(
@@ -1179,10 +1098,164 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().hits()[6].score(), equalTo(5f));
     }
 
+    List<IndexRequestBuilder> createDocBuilders() {
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        // Parent 1 and its children
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("parent").setId("1").setIndex("test").setSource("p_field", "p_value1"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("1").setIndex("test").setSource("c_field1", 1, "c_field2", 0).setParent("1"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("2").setIndex("test").setSource("c_field1", 1, "c_field2", 0).setParent("1"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("3").setIndex("test").setSource("c_field1", 2, "c_field2", 0).setParent("1"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("4").setIndex("test").setSource("c_field1", 2, "c_field2", 0).setParent("1"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("5").setIndex("test").setSource("c_field1", 1, "c_field2", 1).setParent("1"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("6").setIndex("test").setSource("c_field1", 1, "c_field2", 2).setParent("1"));
+       
+
+        // Parent 2 and its children
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("parent").setId("2").setIndex("test").setSource("p_field", "p_value2"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("7").setIndex("test").setSource("c_field1", 3, "c_field2", 0).setParent("2"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("8").setIndex("test").setSource("c_field1", 1, "c_field2", 1).setParent("2"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("9").setIndex("test").setSource("c_field1", 1, "c_field2", 1).setParent("p")); //why "p"????
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("10").setIndex("test").setSource("c_field1", 1, "c_field2", 1).setParent("2"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("11").setIndex("test").setSource("c_field1", 1, "c_field2", 1).setParent("2"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("12").setIndex("test").setSource("c_field1", 1, "c_field2", 2).setParent("2"));
+    
+       
+
+        // Parent 3 and its children
+        
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("parent").setId("3").setIndex("test").setSource("p_field1", "p_value3", "p_field2", 5));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("13").setIndex("test").setSource("c_field1", 4, "c_field2", 0, "c_field3", 0).setParent("3"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("14").setIndex("test").setSource("c_field1", 1, "c_field2", 1, "c_field3", 1).setParent("3"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("15").setIndex("test").setSource("c_field1", 1, "c_field2", 2, "c_field3", 2).setParent("3")); //why "p"????
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("16").setIndex("test").setSource("c_field1", 1, "c_field2", 2, "c_field3", 3).setParent("3"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("17").setIndex("test").setSource("c_field1", 1, "c_field2", 2, "c_field3", 4).setParent("3"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("18").setIndex("test").setSource("c_field1", 1, "c_field2", 2, "c_field3", 5).setParent("3"));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("child1").setId("1").setIndex("test").setSource("c_field1", 1, "c_field2", 2, "c_field3", 6).setParent("3"));
+    
+
+        return indexBuilders;
+    }
+    
+
+    @Test
+    public void testScoreForParentChildQueries_withFunctionScore() throws Exception {
+
+        client().admin().indices().prepareCreate("test")
+                .addMapping("child", jsonBuilder()
+                        .startObject()
+                        .startObject("type")
+                        .startObject("_parent")
+                        .field("type", "parent")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                ).addMapping("child1", jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("_parent")
+                .field("type", "parent")
+                .endObject()
+                .endObject()
+                .endObject()
+        ).setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+        ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        
+        indexRandom("test", false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
+        refresh();
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(
+                        QueryBuilders.hasChildQuery(
+                                "child",
+                                QueryBuilders.functionScoreQuery(
+                                        matchQuery("c_field2", 0)
+                                ).add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value")
+                        )).scoreType("sum")
+                )
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(4f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(3f));
+
+        response = client().prepareSearch("test")
+                .setQuery(
+                        QueryBuilders.hasChildQuery(
+                                "child",
+                                QueryBuilders.functionScoreQuery(
+                                        matchQuery("c_field2", 0)
+                                ).add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value")
+                        )).scoreType("max")
+                )
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(4f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(2f));
+
+        response = client().prepareSearch("test")
+                .setQuery(
+                        QueryBuilders.hasChildQuery(
+                                "child",
+                                QueryBuilders.functionScoreQuery(
+                                        matchQuery("c_field2", 0)
+                                ).add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value")
+                        )).scoreType("avg")
+                )
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(4f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1.5f));
+
+        response = client().prepareSearch("test")
+                .setQuery(
+                        QueryBuilders.hasParentQuery(
+                                "parent",
+                                QueryBuilders.functionScoreQuery(
+                                        matchQuery("p_field1", "p_value3")
+                                ).add(new ScriptScoreFunctionBuilder().script("doc['p_field2'].value")
+                        )).scoreType("score")
+                )
+                .addSort(SortBuilders.fieldSort("c_field3"))
+                .addSort(SortBuilders.scoreSort())
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(7l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("13"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(5f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("14"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(5f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("15"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(5f));
+        assertThat(response.getHits().hits()[3].id(), equalTo("16"));
+        assertThat(response.getHits().hits()[3].score(), equalTo(5f));
+        assertThat(response.getHits().hits()[4].id(), equalTo("17"));
+        assertThat(response.getHits().hits()[4].score(), equalTo(5f));
+        assertThat(response.getHits().hits()[5].id(), equalTo("18"));
+        assertThat(response.getHits().hits()[5].score(), equalTo(5f));
+        assertThat(response.getHits().hits()[6].id(), equalTo("1"));
+        assertThat(response.getHits().hits()[6].score(), equalTo(5f));
+    }
+
     @Test
     // https://github.com/elasticsearch/elasticsearch/issues/2536
     public void testParentChildQueriesCanHandleNoRelevantTypesInIndex() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .addMapping("parent", jsonBuilder()
@@ -1242,7 +1315,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testHasChildAndHasParentFilter_withFilter() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
@@ -1287,7 +1359,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleQueryRewrite() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
@@ -1364,7 +1435,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
     @Test
     // See also issue: https://github.com/elasticsearch/elasticsearch/issues/3144
     public void testReIndexingParentAndChildDocuments() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -1444,7 +1514,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
     @Test
     // See also issue: https://github.com/elasticsearch/elasticsearch/issues/3203
     public void testHasChildQueryWithMinimumScore() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(

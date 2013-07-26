@@ -36,10 +36,19 @@ public class FunctionScoreQuery extends Query {
 
     Query subQuery;
     final ScoreFunction function;
+    float maxBoost = Float.MAX_VALUE;
 
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
+    }
+
+    public void setMaxBoost(float maxBoost) {
+        this.maxBoost = maxBoost;
+    }
+
+    public float getMaxBoost() {
+        return this.maxBoost;
     }
 
     public Query getSubQuery() {
@@ -53,7 +62,9 @@ public class FunctionScoreQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = subQuery.rewrite(reader);
-        if (newQ == subQuery) return this;
+        if (newQ == subQuery){
+            return this;
+        }
         FunctionScoreQuery bq = (FunctionScoreQuery) this.clone();
         bq.subQuery = newQ;
         return bq;
@@ -101,7 +112,7 @@ public class FunctionScoreQuery extends Query {
                 return null;
             }
             function.setNextReader(context);
-            return new CustomBoostFactorScorer(this, subQueryScorer, function);
+            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost);
         }
 
         @Override
@@ -121,18 +132,20 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
-
     static class CustomBoostFactorScorer extends Scorer {
 
         private final float subQueryBoost;
         private final Scorer scorer;
         private final ScoreFunction function;
+        private final float maxBoost;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost)
+                throws IOException {
             super(w);
             this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
             this.function = function;
+            this.maxBoost = maxBoost;
         }
 
         @Override
@@ -152,7 +165,8 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            return subQueryBoost * function.score(scorer.docID(), scorer.score());
+            float factor = (float)function.score(scorer.docID(), scorer.score());
+            return subQueryBoost * Math.min(maxBoost, factor);
         }
 
         @Override
@@ -166,7 +180,6 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
-
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("custom score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
@@ -175,15 +188,14 @@ public class FunctionScoreQuery extends Query {
     }
 
     public boolean equals(Object o) {
-        if (getClass() != o.getClass()) return false;
+        if (getClass() != o.getClass())
+            return false;
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost()
-                && this.subQuery.equals(other.subQuery)
-                && this.function.equals(other.function);
+        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && this.function.equals(other.function)
+                && this.maxBoost == other.maxBoost;
     }
 
     public int hashCode() {
         return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }
 }
-

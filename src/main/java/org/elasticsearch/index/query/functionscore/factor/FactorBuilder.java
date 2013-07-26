@@ -17,51 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.index.query.functionscore.factor;
+
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.io.IOException;
 
 /**
  * A query that simply applies the boost factor to another query (multiply it).
  * 
- * @deprecated use {@link FunctionScoreQueryBuilder} instead.
+ * 
  */
-public class CustomBoostFactorQueryBuilder extends BaseQueryBuilder {
+public class FactorBuilder implements ScoreFunctionBuilder {
 
-    private final QueryBuilder queryBuilder;
-
-    private float boostFactor = -1;
-
-    /**
-     * A query that simply applies the boost factor to another query (multiply
-     * it).
-     * 
-     * @param queryBuilder
-     *            The query to apply the boost factor to.
-     */
-    public CustomBoostFactorQueryBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
-    }
+    private Float boostFactor;
 
     /**
      * Sets the boost factor for this query.
      */
-    public CustomBoostFactorQueryBuilder boostFactor(float boost) {
-        this.boostFactor = boost;
+    public FactorBuilder boostFactor(float boost) {
+        this.boostFactor = new Float(boost);
         return this;
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(CustomBoostFactorQueryParser.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
-        if (boostFactor != -1) {
-            builder.field("boost_factor", boostFactor);
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (boostFactor != null) {
+            builder.field("boost_factor", boostFactor.floatValue());
         }
-        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public String getName() {
+        return FactorParser.NAMES[0];
     }
 }

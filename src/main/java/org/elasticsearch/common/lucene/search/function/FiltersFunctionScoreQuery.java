@@ -287,7 +287,7 @@ public class FiltersFunctionScoreQuery extends Query {
         @Override
         public float score() throws IOException {
             int docId = scorer.docID();
-            float factor = 1.0f;
+            double factor = 1.0f;
             if (scoreMode == ScoreMode.First) {
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
@@ -296,7 +296,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
             } else if (scoreMode == ScoreMode.Max) {
-                float maxFactor = Float.NEGATIVE_INFINITY;
+                double maxFactor = Double.NEGATIVE_INFINITY;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
                         maxFactor = Math.max(filterFunctions[i].function.factor(docId), maxFactor);
@@ -306,7 +306,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     factor = maxFactor;
                 }
             } else if (scoreMode == ScoreMode.Min) {
-                float minFactor = Float.POSITIVE_INFINITY;
+                double minFactor = Double.POSITIVE_INFINITY;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
                         minFactor = Math.min(filterFunctions[i].function.factor(docId), minFactor);
@@ -322,7 +322,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
             } else { // Avg / Total
-                float totalFactor = 0.0f;
+                double totalFactor = 0.0f;
                 int count = 0;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
@@ -341,7 +341,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 factor = maxBoost;
             }
             float score = scorer.score();
-            return subQueryBoost * score * factor;
+            return (float)(subQueryBoost * score * factor);
         }
 
         @Override

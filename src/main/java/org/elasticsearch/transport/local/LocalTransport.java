@@ -186,11 +186,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final Long sendRequestId) {
-        transportServiceAdapter.received(data.length);
-        StreamInput stream = new BytesStreamInput(data, false);
-        stream = CachedStreamInput.cachedHandles(stream);
-
         try {
+            transportServiceAdapter.received(data.length);
+            StreamInput stream = new BytesStreamInput(data, false);
+            stream = CachedStreamInput.cachedHandles(stream);
+
             long requestId = stream.readLong();
             byte status = stream.readByte();
             boolean isRequest = TransportStatus.isRequest(status);

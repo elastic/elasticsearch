@@ -130,7 +130,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                         wrapperManager.getMethod("restartAndReturn").invoke(null);
                         restartWithWrapper = true;
                     } catch (Throwable e) {
-                        e.printStackTrace();
+                        logger.error("failed to initial restart on service wrapper", e);
                     }
                 }
                 if (!restartWithWrapper) {

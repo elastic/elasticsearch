@@ -890,20 +890,18 @@
                             <excludes>
                                 <exclude>jsr166e/**</exclude>
                                 <exclude>jsr166y/**</exclude>
-                                <!--  these excludes are due to sysout/syserr usage - we should check those at some point
+                                <!-- start excludes for valid system-out -->
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
-                                <exclude>org/elasticsearch/common/logging/support/LoggerMessageFormat.class</exclude>
-                                <exclude>org/elasticsearch/common/Base64.class</exclude>
-                                <exclude>org/elasticsearch/common/compress/bzip2/CBZip2InputStream.class</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
-                                 -->
+                                <exclude>org/elasticsearch/Version.class</exclude>
+                                <!-- end excludes for valid system-out -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
-                                <!-- <bundledSignaure>jdk-system-out</bundledSignaure>  see excludes -->
+                                <bundledSignaure>jdk-system-out</bundledSignaure>
                             </bundledSignatures>
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>

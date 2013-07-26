@@ -49,6 +49,7 @@ import java.util.List;
  */
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
+    static final String INDEX_CODEC = "index.codec";
     static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
 
     /**

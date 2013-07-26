@@ -45,6 +45,7 @@ import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.id.ShardIdCache;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -109,6 +110,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardFieldData shardFieldData;
     private final PercolatorQueriesRegistry percolatorQueriesRegistry;
     private final ShardPercolateService shardPercolateService;
+    private final CodecService codecService;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -133,7 +135,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData,
-                              PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService) {
+                              PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -155,6 +157,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.shardFieldData = shardFieldData;
         this.percolatorQueriesRegistry = percolatorQueriesRegistry;
         this.shardPercolateService = shardPercolateService;
+        this.codecService = codecService;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval()));
@@ -846,8 +849,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    //LUCENE 4 UPGRADE: currently passing 'null' codec to fixIndex, when we have proper support for a codec service
-    // we'll us that to figure out the codec that should be used
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
             checkIndexTook = 0;
@@ -871,7 +872,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     if (logger.isDebugEnabled()) {
                         logger.debug("fixing index, writing new segments file ...");
                     }
-                    checkIndex.fixIndex(status, null);
+                    checkIndex.fixIndex(status, codecService.codec(indexSettings.get(Engine.INDEX_CODEC, "default")));
                     if (logger.isDebugEnabled()) {
                         logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
                     }

@@ -41,6 +41,7 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -77,6 +78,7 @@ public class IndexAliasesServiceTests {
                 new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexEngineModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
                 new IndexCacheModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override
                     protected void configure() {

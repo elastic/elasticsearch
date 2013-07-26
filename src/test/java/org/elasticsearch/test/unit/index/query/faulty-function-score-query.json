@@ -1,0 +1,15 @@
+{
+    "function_score":{
+        "query":{
+            "term":{
+                "name.last":"banon"
+            }
+        },
+        "functions": { 
+            {
+            "boost_factor" : 3
+            }
+            }
+        }
+    }
+}

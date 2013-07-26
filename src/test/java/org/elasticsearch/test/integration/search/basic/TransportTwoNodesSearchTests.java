@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.search.basic;
 
+
+
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
@@ -29,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,7 +53,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -396,6 +398,31 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
         MultiSearchResponse response = client().prepareMultiSearch()
                 // Add custom score query with missing script
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("nid", 1))))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(3));
+        assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());
+
+        assertThat(response.getResponses()[1].getFailureMessage(), nullValue());
+        assertThat(response.getResponses()[1].getResponse().getHits().hits().length, equalTo(1));
+
+        assertThat(response.getResponses()[2].getFailureMessage(), nullValue());
+        assertThat(response.getResponses()[2].getResponse().getHits().hits().length, equalTo(10));
+
+        logger.info("Done Testing failed search");
+    }
+
+
+    @Test
+    public void testFailedMultiSearchWithWrongQuery_withFunctionScore() throws Exception {
+        prepareData();
+
+        logger.info("Start Testing failed multi search with a wrong query");
+
+        MultiSearchResponse response = client().prepareMultiSearch()
+                // Add custom score query with missing script
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("nid", 1)).add(new ScriptScoreFunctionBuilder())))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();

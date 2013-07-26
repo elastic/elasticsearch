@@ -143,7 +143,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         final TransportResponse response = handler.newInstance();
         try {
             response.readFrom(buffer);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
@@ -176,7 +176,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
         if (handler.executor() == ThreadPool.Names.SAME) {
-            handler.handleException(rtx);
+            try {
+                handler.handleException(rtx);
+            } catch (Throwable e) {
+                logger.error("failed to handle exception response [{}]", e, handler);
+            }
         } else {
             threadPool.executor(handler.executor()).execute(new Runnable() {
                 @Override
@@ -184,7 +188,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     try {
                         handler.handleException(rtx);
                     } catch (Throwable e) {
-                        logger.error("Failed to handle exception response", e);
+                        logger.error("failed to handle exception response [{}]", e, handler);
                     }
                 }
             });

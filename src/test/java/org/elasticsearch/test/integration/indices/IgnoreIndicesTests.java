@@ -19,19 +19,16 @@
 
 package org.elasticsearch.test.integration.indices;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.fail;
 
 public class IgnoreIndicesTests extends AbstractSharedClusterTest {
 
@@ -180,8 +177,9 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
         createIndex("test1", "test2");
         ensureGreen();
         client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        client().admin().indices().prepareClose("test2").execute().actionGet();
-        ensureGreen();
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test2").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
         try {
             client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
             fail("Exception should have been thrown");

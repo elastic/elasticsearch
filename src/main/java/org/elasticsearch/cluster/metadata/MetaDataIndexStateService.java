@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  *
  */
-public class MetaDataStateIndexService extends AbstractComponent {
+public class MetaDataIndexStateService extends AbstractComponent {
 
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
 
@@ -63,7 +63,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
     private final NodeIndicesStateUpdatedAction indicesStateUpdatedAction;
 
     @Inject
-    public MetaDataStateIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService, NodeIndicesStateUpdatedAction indicesStateUpdatedAction) {
+    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService, NodeIndicesStateUpdatedAction indicesStateUpdatedAction) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;

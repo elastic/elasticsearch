@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -76,26 +77,17 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
 
     private final ThreadPool threadPool;
-
     private final TransportService transportService;
-
     private final ClusterService clusterService;
-
     private AllocationService allocationService;
-
     private final ClusterName clusterName;
-
     private final DiscoveryNodeService discoveryNodeService;
-
     private final ZenPingService pingService;
-
     private final MasterFaultDetection masterFD;
-
     private final NodesFaultDetection nodesFD;
-
     private final PublishClusterStateAction publishClusterState;
-
     private final MembershipAction membership;
+    private final Version version;
 
 
     private final TimeValue pingTimeout;
@@ -127,7 +119,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService) {
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.threadPool = threadPool;
@@ -135,6 +127,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
         this.pingService = pingService;
+        this.version = version;
 
         // also support direct discovery.zen settings, for cases when it gets extended
         this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
@@ -176,7 +169,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
         String nodeId = UUID.randomBase64UUID();
-        localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes);
+        localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         nodesFD.updateNodes(latestDiscoNodes);
         pingService.start();

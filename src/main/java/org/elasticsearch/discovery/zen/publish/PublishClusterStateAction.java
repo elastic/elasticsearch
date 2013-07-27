@@ -46,9 +46,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private final TransportService transportService;
-
     private final DiscoveryNodesProvider nodesProvider;
-
     private final NewClusterStateListener listener;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
@@ -92,7 +90,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 }
             }
             transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
-                    new PublishClusterStateRequest(bytes),
+                    new PublishClusterStateRequest(bytes, node.version()),
                     TransportRequestOptions.options().withHighType().withCompress(false), // no need to compress, we already compressed the bytes
 
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
@@ -107,13 +105,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     class PublishClusterStateRequest extends TransportRequest {
 
         BytesReference clusterStateInBytes;
-        Version version = Version.CURRENT;
+        Version version;
 
-        private PublishClusterStateRequest() {
+        PublishClusterStateRequest() {
         }
 
-        private PublishClusterStateRequest(BytesReference clusterStateInBytes) {
+        PublishClusterStateRequest(BytesReference clusterStateInBytes, Version version) {
             this.clusterStateInBytes = clusterStateInBytes;
+            this.version = version;
         }
 
         @Override

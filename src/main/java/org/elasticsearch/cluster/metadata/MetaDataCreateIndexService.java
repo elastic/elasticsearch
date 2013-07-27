@@ -85,24 +85,18 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final Environment environment;
-
     private final ThreadPool threadPool;
-
     private final ClusterService clusterService;
-
     private final IndicesService indicesService;
-
     private final AllocationService allocationService;
-
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
-
     private final MetaDataService metaDataService;
-
+    private final Version version;
     private final String riverIndexName;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                      AllocationService allocationService, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, @RiverIndexName String riverIndexName) {
+                                      AllocationService allocationService, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -111,6 +105,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.allocationService = allocationService;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.metaDataService = metaDataService;
+        this.version = version;
         this.riverIndexName = riverIndexName;
     }
 
@@ -257,7 +252,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
                     }
 
-                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, Version.CURRENT);
+                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, version);
 
                     Settings actualIndexSettings = indexSettingsBuilder.build();
 

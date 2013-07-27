@@ -19,10 +19,13 @@
 
 package org.elasticsearch.test.unit.discovery.zen.ping.multicast;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -49,15 +52,16 @@ public class MulticastZenPingTests {
 
     @Test
     public void testSimplePings() {
+        Settings settings = ImmutableSettings.EMPTY;
         ThreadPool threadPool = new ThreadPool();
         ClusterName clusterName = new ClusterName("test");
-        final TransportService transportServiceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress());
+        final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
+        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
-        final TransportService transportServiceB = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress());
+        final TransportService transportServiceB = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
+        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
-        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName);
+        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName, Version.CURRENT);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -71,7 +75,7 @@ public class MulticastZenPingTests {
         });
         zenPingA.start();
 
-        MulticastZenPing zenPingB = new MulticastZenPing(threadPool, transportServiceB, clusterName);
+        MulticastZenPing zenPingB = new MulticastZenPing(threadPool, transportServiceB, clusterName, Version.CURRENT);
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -100,13 +104,13 @@ public class MulticastZenPingTests {
 
     @Test
     public void testExternalPing() throws Exception {
+        Settings settings = ImmutableSettings.EMPTY;
         ThreadPool threadPool = new ThreadPool();
-
         ClusterName clusterName = new ClusterName("test");
-        final TransportService transportServiceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress());
+        final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
+        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
-        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName);
+        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName, Version.CURRENT);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {

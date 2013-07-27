@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -76,7 +77,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -95,6 +95,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private final NetworkService networkService;
+    final Version version;
 
     final int workerCount;
     final int bossCount;
@@ -154,19 +155,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
     private final ReadWriteLock globalLock = new ReentrantReadWriteLock();
 
-    public NettyTransport(ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, threadPool, new NetworkService(EMPTY_SETTINGS));
-    }
-
-    public NettyTransport(Settings settings, ThreadPool threadPool) {
-        this(settings, threadPool, new NetworkService(settings));
-    }
-
     @Inject
-    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService) {
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, Version version) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
+        this.version = version;
 
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
@@ -541,13 +535,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
         stream = new HandlesStreamOutput(stream);
 
-        stream.setVersion(node.version());
+        // we pick the smallest of the 2, to support both backward and forward compatibility
+        // note, this is the only place we need to do this, since from here on, we use the serialized version
+        // as the version to use also when the node receiving this request will send the response with
+        Version version = Version.smallest(this.version, node.version());
+
+        stream.setVersion(version);
         stream.writeString(action);
         request.writeTo(stream);
         stream.close();
 
         ChannelBuffer buffer = bStream.bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status, node.version());
+        NettyHeader.writeHeader(buffer, requestId, status, version);
         targetChannel.write(buffer);
 
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future

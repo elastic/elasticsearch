@@ -39,13 +39,9 @@ import java.io.NotSerializableException;
 public class NettyTransportChannel implements TransportChannel {
 
     private final NettyTransport transport;
-
     private final Version version;
-
     private final String action;
-
     private final Channel channel;
-
     private final long requestId;
 
     public NettyTransportChannel(NettyTransport transport, String action, Channel channel, long requestId, Version version) {

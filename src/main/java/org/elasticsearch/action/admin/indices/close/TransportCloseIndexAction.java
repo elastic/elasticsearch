@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,13 +38,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
 
-    private final MetaDataStateIndexService stateIndexService;
+    private final MetaDataIndexStateService stateIndexService;
     private final boolean disableCloseAllIndices;
 
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
+                                     ThreadPool threadPool, MetaDataIndexStateService stateIndexService) {
         super(settings, transportService, clusterService, threadPool);
         this.stateIndexService = stateIndexService;
         this.disableCloseAllIndices = settings.getAsBoolean("action.disable_close_all_indices", false);
@@ -94,9 +94,9 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
-        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.indices()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataStateIndexService.Listener() {
+        stateIndexService.closeIndex(new MetaDataIndexStateService.Request(request.indices()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
             @Override
-            public void onResponse(MetaDataStateIndexService.Response response) {
+            public void onResponse(MetaDataIndexStateService.Response response) {
                 listener.onResponse(new CloseIndexResponse(response.acknowledged()));
             }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -173,6 +174,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
                                                           final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
+        if (node == null) {
+            throw new ElasticSearchIllegalStateException("can't send request to a null node");
+        }
         final long requestId = newRequestId();
         TimeoutHandler timeoutHandler = null;
         try {

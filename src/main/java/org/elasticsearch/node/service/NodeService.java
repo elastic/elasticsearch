@@ -70,7 +70,7 @@ public class NodeService extends AbstractComponent {
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
                        ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService) {
+                       PluginsService pluginService, Version version) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -82,7 +82,7 @@ public class NodeService extends AbstractComponent {
         if (address != null) {
             this.hostname = address.getHostName();
         }
-        this.version = Version.CURRENT;
+        this.version = version;
         this.pluginService = pluginService;
     }
 

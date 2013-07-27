@@ -117,8 +117,10 @@ public final class InternalNode implements Node {
     public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
 
+        Version version = Version.CURRENT;
+
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
-        logger.info("version[{}], pid[{}], build[{}/{}]", Version.CURRENT, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());
+        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());
 
         logger.info("initializing ...");
 
@@ -138,6 +140,7 @@ public final class InternalNode implements Node {
         NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
 
         ModulesBuilder modules = new ModulesBuilder();
+        modules.add(new Version.Module(version));
         modules.add(new CacheRecyclerModule(settings));
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));

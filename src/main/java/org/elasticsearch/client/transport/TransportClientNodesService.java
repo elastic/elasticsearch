@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -63,6 +64,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final ThreadPool threadPool;
 
+    private final Version version;
+
     // nodes that are added to be discovered
     private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
 
@@ -83,12 +86,12 @@ public class TransportClientNodesService extends AbstractComponent {
     private volatile boolean closed;
 
     @Inject
-    public TransportClientNodesService(Settings settings, ClusterName clusterName,
-                                       TransportService transportService, ThreadPool threadPool) {
+    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService, ThreadPool threadPool, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.threadPool = threadPool;
+        this.version = version;
 
         this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
         this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
@@ -147,7 +150,7 @@ public class TransportClientNodesService extends AbstractComponent {
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
-                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
+                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, version);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }

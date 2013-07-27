@@ -71,6 +71,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final TransportService transportService;
     private final ClusterName clusterName;
     private final NetworkService networkService;
+    private final Version version;
     private volatile DiscoveryNodesProvider nodesProvider;
 
     private final boolean pingEnabled;
@@ -87,16 +88,17 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final Object sendMutex = new Object();
     private final Object receiveMutex = new Object();
 
-    public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS));
+    public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version) {
+        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS), version);
     }
 
-    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService) {
+    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService, Version version) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
         this.networkService = networkService;
+        this.version = version;
 
         this.address = componentSettings.get("address");
         this.port = componentSettings.getAsInt("port", 54328);
@@ -256,7 +258,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 StreamOutput out = new HandlesStreamOutput(bStream);
                 out.writeBytes(INTERNAL_HEADER);
-                Version.writeVersion(Version.CURRENT, out);
+                Version.writeVersion(version, out);
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
@@ -467,7 +469,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
                 builder.startObject().startObject("response");
                 builder.field("cluster_name", MulticastZenPing.this.clusterName.value());
-                builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
+                builder.startObject("version").field("number", version.number()).field("snapshot_build", version.snapshot).endObject();
                 builder.field("transport_address", localNode.address().toString());
 
                 if (nodesProvider.nodeService() != null) {

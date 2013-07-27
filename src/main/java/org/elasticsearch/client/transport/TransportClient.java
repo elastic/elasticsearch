@@ -21,6 +21,7 @@ package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -161,9 +162,12 @@ public class TransportClient extends AbstractClient {
         this.pluginsService = new PluginsService(settings, tuple.v2());
         this.settings = pluginsService.updatedSettings();
 
+        Version version = Version.CURRENT;
+
         CompressorFactory.configure(this.settings);
 
         ModulesBuilder modules = new ModulesBuilder();
+        modules.add(new Version.Module(version));
         modules.add(new CacheRecyclerModule(settings));
         modules.add(new PluginsModule(this.settings, pluginsService));
         modules.add(new EnvironmentModule(environment));

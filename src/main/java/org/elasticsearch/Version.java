@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -236,6 +237,13 @@ public class Version implements Serializable {
         out.writeVInt(version.id);
     }
 
+    /**
+     * Returns the smallest version between the 2.
+     */
+    public static Version smallest(Version version1, Version version2) {
+        return version1.id < version2.id ? version1 : version2;
+    }
+
     public final int id;
     public final byte major;
     public final byte minor;
@@ -317,5 +325,19 @@ public class Version implements Serializable {
     @Override
     public int hashCode() {
         return id;
+    }
+
+    public static class Module extends AbstractModule {
+
+        private final Version version;
+
+        public Module(Version version) {
+            this.version = version;
+        }
+
+        @Override
+        protected void configure() {
+            bind(Version.class).toInstance(version);
+        }
     }
 }

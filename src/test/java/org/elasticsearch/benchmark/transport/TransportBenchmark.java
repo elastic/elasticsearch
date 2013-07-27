@@ -19,8 +19,10 @@
 
 package org.elasticsearch.benchmark.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -42,13 +44,13 @@ public class TransportBenchmark {
         LOCAL {
             @Override
             public Transport newTransport(Settings settings, ThreadPool threadPool) {
-                return new LocalTransport(settings, threadPool);
+                return new LocalTransport(settings, threadPool, Version.CURRENT);
             }
         },
         NETTY {
             @Override
             public Transport newTransport(Settings settings, ThreadPool threadPool) {
-                return new NettyTransport(settings, threadPool);
+                return new NettyTransport(settings, threadPool, new NetworkService(ImmutableSettings.EMPTY), Version.CURRENT);
             }
         };
 
@@ -75,7 +77,7 @@ public class TransportBenchmark {
         final ThreadPool clientThreadPool = new ThreadPool();
         final TransportService clientTransportService = new TransportService(type.newTransport(settings, clientThreadPool), clientThreadPool).start();
 
-        final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress());
+        final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress(), Version.CURRENT);
 
         serverTransportService.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessageRequest>() {
             @Override

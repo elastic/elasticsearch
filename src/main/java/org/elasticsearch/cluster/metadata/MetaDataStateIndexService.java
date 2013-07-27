@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.action.index.NodeIndicesStateUpdatedAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -45,6 +46,8 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -57,11 +60,14 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     private final AllocationService allocationService;
 
+    private final NodeIndicesStateUpdatedAction indicesStateUpdatedAction;
+
     @Inject
-    public MetaDataStateIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public MetaDataStateIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService, NodeIndicesStateUpdatedAction indicesStateUpdatedAction) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.indicesStateUpdatedAction = indicesStateUpdatedAction;
     }
 
     public void closeIndex(final Request request, final Listener listener) {
@@ -127,12 +133,19 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder().state(updatedState).routingTable(rtBuilder).build());
 
-                return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                ClusterState newClusterState = ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+
+                waitForOtherNodes(newClusterState, listener, request.timeout);
+
+                return newClusterState;
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new Response(true));
+                if (oldState == newState) {
+                    // we didn't do anything, callback
+                    listener.onResponse(new Response(true));
+                }
             }
         });
     }
@@ -192,14 +205,30 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder().state(updatedState).routingTable(rtBuilder).build());
 
-                return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                ClusterState newClusterState = ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+
+                waitForOtherNodes(newClusterState, listener, request.timeout);
+
+                return newClusterState;
+
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new Response(true));
+                if (oldState == newState) {
+                    // we didn't do anything, callback
+                    listener.onResponse(new Response(true));
+                }
             }
         });
+    }
+
+    private void waitForOtherNodes(ClusterState updatedState, Listener listener, TimeValue timeout) {
+        // wait for responses from other nodes if needed
+        int responseCount = updatedState.nodes().size();
+        long version = updatedState.version() + 1;
+        logger.trace("waiting for [{}] notifications with version [{}]", responseCount, version);
+        indicesStateUpdatedAction.add(new CountDownListener(responseCount, listener, version), timeout);
     }
 
     public static interface Listener {
@@ -240,6 +269,41 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
         public boolean acknowledged() {
             return acknowledged;
+        }
+    }
+
+    private class CountDownListener implements NodeIndicesStateUpdatedAction.Listener {
+
+        private final AtomicBoolean notified = new AtomicBoolean();
+        private final AtomicInteger countDown;
+        private final Listener listener;
+        private final long version;
+
+        public CountDownListener(int countDown, Listener listener, long version) {
+            this.countDown = new AtomicInteger(countDown);
+            this.listener = listener;
+            this.version = version;
+        }
+
+        @Override
+        public void onIndexStateUpdated(NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse response) {
+            if (version <= response.version()) {
+                logger.trace("Received NodeIndexStateUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
+                if (countDown.decrementAndGet() == 0) {
+                    indicesStateUpdatedAction.remove(this);
+                    if (notified.compareAndSet(false, true)) {
+                        listener.onResponse(new Response(true));
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onTimeout() {
+            indicesStateUpdatedAction.remove(this);
+            if (notified.compareAndSet(false, true)) {
+                listener.onResponse(new Response(false));
+            }
         }
     }
 }

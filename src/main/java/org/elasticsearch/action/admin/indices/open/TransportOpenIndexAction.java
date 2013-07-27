@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,11 +37,11 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
 
-    private final MetaDataStateIndexService stateIndexService;
+    private final MetaDataIndexStateService stateIndexService;
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
+                                    ThreadPool threadPool, MetaDataIndexStateService stateIndexService) {
         super(settings, transportService, clusterService, threadPool);
         this.stateIndexService = stateIndexService;
     }
@@ -75,9 +75,11 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
-        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataStateIndexService.Listener() {
+
+        stateIndexService.openIndex(new MetaDataIndexStateService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
+
             @Override
-            public void onResponse(MetaDataStateIndexService.Response response) {
+            public void onResponse(MetaDataIndexStateService.Response response) {
                 listener.onResponse(new OpenIndexResponse(response.acknowledged()));
             }
 

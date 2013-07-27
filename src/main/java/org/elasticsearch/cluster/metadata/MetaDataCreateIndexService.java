@@ -348,7 +348,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         }
                     }
                     if (request.state == State.CLOSE) {
-                        blocks.addIndexBlock(request.index, MetaDataStateIndexService.INDEX_CLOSED_BLOCK);
+                        blocks.addIndexBlock(request.index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
                     }
 
                     ClusterState updatedState = newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();

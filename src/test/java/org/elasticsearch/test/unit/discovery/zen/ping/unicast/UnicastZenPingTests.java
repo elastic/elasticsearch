@@ -19,9 +19,11 @@
 
 package org.elasticsearch.test.unit.discovery.zen.ping.unicast;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -45,17 +47,20 @@ public class UnicastZenPingTests {
 
     @Test
     public void testSimplePings() {
+        Settings settings = ImmutableSettings.EMPTY;
         ThreadPool threadPool = new ThreadPool();
         ClusterName clusterName = new ClusterName("test");
-        NettyTransport transportA = new NettyTransport(threadPool);
+        NetworkService networkService = new NetworkService(settings);
+
+        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, Version.CURRENT);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
-        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress());
+        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
-        NettyTransport transportB = new NettyTransport(threadPool);
+        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, Version.CURRENT);
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
-        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress());
+        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 
@@ -64,7 +69,7 @@ public class UnicastZenPingTests {
                 addressB.address().getAddress().getHostAddress() + ":" + addressB.address().getPort())
                 .build();
 
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, null);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, null);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -78,7 +83,7 @@ public class UnicastZenPingTests {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, null);
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {

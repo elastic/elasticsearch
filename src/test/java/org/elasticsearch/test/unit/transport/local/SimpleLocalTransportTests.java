@@ -19,20 +19,16 @@
 
 package org.elasticsearch.test.unit.transport.local;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.unit.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.junit.Test;
 
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
 
     @Override
-    protected void build() {
-        serviceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        serviceANode = new DiscoveryNode("A", serviceA.boundAddress().publishAddress());
-
-        serviceB = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
+    protected TransportService build(Settings settings, Version version) {
+        return new TransportService(new LocalTransport(settings, threadPool, version), threadPool).start();
     }
 }

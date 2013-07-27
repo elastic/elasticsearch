@@ -19,9 +19,13 @@
 
 package org.elasticsearch.test.unit.transport;
 
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -44,28 +48,36 @@ public abstract class AbstractSimpleTransportTests {
 
     protected ThreadPool threadPool;
 
+    protected static final Version version0 = Version.fromId(/*0*/99);
+    protected DiscoveryNode nodeA;
     protected TransportService serviceA;
+
+    protected static final Version version1 = Version.fromId(199);
+    protected DiscoveryNode nodeB;
     protected TransportService serviceB;
-    protected DiscoveryNode serviceANode;
-    protected DiscoveryNode serviceBNode;
+
+    protected abstract TransportService build(Settings settings, Version version);
 
     @Before
     public void setUp() {
         threadPool = new ThreadPool();
-        build();
-        serviceA.connectToNode(serviceBNode);
-        serviceB.connectToNode(serviceANode);
+        serviceA = build(ImmutableSettings.builder().put("name", "A").build(), version0);
+        nodeA = new DiscoveryNode("A", "A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
+        serviceB = build(ImmutableSettings.builder().put("name", "B").build(), version1);
+        nodeB = new DiscoveryNode("B", "B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
+
+        serviceA.connectToNode(nodeB);
+        serviceA.connectToNode(nodeA);
+        serviceB.connectToNode(nodeA);
+        serviceB.connectToNode(nodeB);
     }
 
     @After
     public void tearDown() {
         serviceA.close();
         serviceB.close();
-
         threadPool.shutdown();
     }
-
-    protected abstract void build();
 
     @Test
     public void testHelloWorld() {
@@ -92,7 +104,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHello",
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
@@ -123,7 +135,7 @@ public abstract class AbstractSimpleTransportTests {
             assertThat(e.getMessage(), false, equalTo(true));
         }
 
-        res = serviceB.submitRequest(serviceANode, "sayHello",
+        res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
@@ -181,7 +193,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(serviceANode, "sayHello",
+        TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(nodeA, "sayHello",
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<TransportResponse.Empty>() {
             @Override
             public TransportResponse.Empty newInstance() {
@@ -239,7 +251,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHello",
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
@@ -293,7 +305,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHelloException",
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloException",
                 new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
@@ -371,7 +383,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutNoResponse",
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutNoResponse",
                 new StringMessageRequest("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
@@ -434,7 +446,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
+        TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
                 new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
             public StringMessageResponse newInstance() {
@@ -470,7 +482,7 @@ public abstract class AbstractSimpleTransportTests {
         for (int i = 0; i < 10; i++) {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
-            res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
+            res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
                     new StringMessageRequest(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse newInstance() {
@@ -547,5 +559,293 @@ public abstract class AbstractSimpleTransportTests {
             super.writeTo(out);
             out.writeString(message);
         }
+    }
+
+
+    static class Version0Request extends TransportRequest {
+
+        int value1;
+
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            value1 = in.readInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeInt(value1);
+        }
+    }
+
+    static class Version1Request extends Version0Request {
+
+        int value2;
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            if (in.getVersion().onOrAfter(version1)) {
+                value2 = in.readInt();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getVersion().onOrAfter(version1)) {
+                out.writeInt(value2);
+            }
+        }
+    }
+
+    static class Version0Response extends TransportResponse {
+
+        int value1;
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            value1 = in.readInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeInt(value1);
+        }
+    }
+
+    static class Version1Response extends Version0Response {
+
+        int value2;
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            if (in.getVersion().onOrAfter(version1)) {
+                value2 = in.readInt();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getVersion().onOrAfter(version1)) {
+                out.writeInt(value2);
+            }
+        }
+    }
+
+    @Test
+    public void testVersion_from0to1() throws Exception {
+        serviceB.registerHandler("/version", new BaseTransportRequestHandler<Version1Request>() {
+            @Override
+            public Version1Request newInstance() {
+                return new Version1Request();
+            }
+
+            @Override
+            public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
+                assertThat(request.value1, equalTo(1));
+                assertThat(request.value2, equalTo(0)); // not set, coming from service A
+                Version1Response response = new Version1Response();
+                response.value1 = 1;
+                response.value2 = 2;
+                channel.sendResponse(response);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        Version0Request version0Request = new Version0Request();
+        version0Request.value1 = 1;
+        Version0Response version0Response = serviceA.submitRequest(nodeB, "/version", version0Request, new BaseTransportResponseHandler<Version0Response>() {
+            @Override
+            public Version0Response newInstance() {
+                return new Version0Response();
+            }
+
+            @Override
+            public void handleResponse(Version0Response response) {
+                assertThat(response.value1, equalTo(1));
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exp.printStackTrace();
+                assert false;
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        }).txGet();
+
+        assertThat(version0Response.value1, equalTo(1));
+    }
+
+    @Test
+    public void testVersion_from1to0() throws Exception {
+        serviceA.registerHandler("/version", new BaseTransportRequestHandler<Version0Request>() {
+            @Override
+            public Version0Request newInstance() {
+                return new Version0Request();
+            }
+
+            @Override
+            public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
+                assertThat(request.value1, equalTo(1));
+                Version0Response response = new Version0Response();
+                response.value1 = 1;
+                channel.sendResponse(response);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        Version1Request version1Request = new Version1Request();
+        version1Request.value1 = 1;
+        version1Request.value2 = 2;
+        Version1Response version1Response = serviceB.submitRequest(nodeA, "/version", version1Request, new BaseTransportResponseHandler<Version1Response>() {
+            @Override
+            public Version1Response newInstance() {
+                return new Version1Response();
+            }
+
+            @Override
+            public void handleResponse(Version1Response response) {
+                assertThat(response.value1, equalTo(1));
+                assertThat(response.value2, equalTo(0)); // initial values, cause its serialized from version 0
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exp.printStackTrace();
+                assert false;
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        }).txGet();
+
+        assertThat(version1Response.value1, equalTo(1));
+        assertThat(version1Response.value2, equalTo(0));
+    }
+
+    @Test
+    public void testVersion_from1to1() throws Exception {
+        serviceB.registerHandler("/version", new BaseTransportRequestHandler<Version1Request>() {
+            @Override
+            public Version1Request newInstance() {
+                return new Version1Request();
+            }
+
+            @Override
+            public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
+                assertThat(request.value1, equalTo(1));
+                assertThat(request.value2, equalTo(2));
+                Version1Response response = new Version1Response();
+                response.value1 = 1;
+                response.value2 = 2;
+                channel.sendResponse(response);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        Version1Request version1Request = new Version1Request();
+        version1Request.value1 = 1;
+        version1Request.value2 = 2;
+        Version1Response version1Response = serviceB.submitRequest(nodeB, "/version", version1Request, new BaseTransportResponseHandler<Version1Response>() {
+            @Override
+            public Version1Response newInstance() {
+                return new Version1Response();
+            }
+
+            @Override
+            public void handleResponse(Version1Response response) {
+                assertThat(response.value1, equalTo(1));
+                assertThat(response.value2, equalTo(2));
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exp.printStackTrace();
+                assert false;
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        }).txGet();
+
+        assertThat(version1Response.value1, equalTo(1));
+        assertThat(version1Response.value2, equalTo(2));
+    }
+
+    @Test
+    public void testVersion_from0to0() throws Exception {
+        serviceA.registerHandler("/version", new BaseTransportRequestHandler<Version0Request>() {
+            @Override
+            public Version0Request newInstance() {
+                return new Version0Request();
+            }
+
+            @Override
+            public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
+                assertThat(request.value1, equalTo(1));
+                Version0Response response = new Version0Response();
+                response.value1 = 1;
+                channel.sendResponse(response);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        Version0Request version0Request = new Version0Request();
+        version0Request.value1 = 1;
+        Version0Response version0Response = serviceA.submitRequest(nodeA, "/version", version0Request, new BaseTransportResponseHandler<Version0Response>() {
+            @Override
+            public Version0Response newInstance() {
+                return new Version0Response();
+            }
+
+            @Override
+            public void handleResponse(Version0Response response) {
+                assertThat(response.value1, equalTo(1));
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exp.printStackTrace();
+                assert false;
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        }).txGet();
+
+        assertThat(version0Response.value1, equalTo(1));
     }
 }

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.test.unit.transport.netty;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.unit.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -27,23 +30,17 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override
-    protected void build() {
-        serviceA = new TransportService(settingsBuilder().put("name", "A").build(), new NettyTransport(settingsBuilder().put("name", "A").build(), threadPool), threadPool).start();
-        serviceANode = new DiscoveryNode("A", serviceA.boundAddress().publishAddress());
-
-        serviceB = new TransportService(settingsBuilder().put("name", "B").build(), new NettyTransport(settingsBuilder().put("name", "B").build(), threadPool), threadPool).start();
-        serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
+    protected TransportService build(Settings settings, Version version) {
+        return new TransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), version), threadPool).start();
     }
 
     @Test
     public void testConnectException() {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress("localhost", 9876)));
+            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress("localhost", 9876), Version.CURRENT));
             assert false;
         } catch (ConnectTransportException e) {
 //            e.printStackTrace();

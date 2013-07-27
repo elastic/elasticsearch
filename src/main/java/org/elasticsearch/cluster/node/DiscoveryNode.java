@@ -67,27 +67,21 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
 
-    private String nodeName = "".intern();
-
+    private String nodeName = "";
     private String nodeId;
-
     private TransportAddress address;
-
     private ImmutableMap<String, String> attributes;
-
     private Version version = Version.CURRENT;
 
-    private DiscoveryNode() {
+    DiscoveryNode() {
     }
 
-    public DiscoveryNode(String nodeId, TransportAddress address) {
-        this("", nodeId, address, ImmutableMap.<String, String>of());
+    public DiscoveryNode(String nodeId, TransportAddress address, Version version) {
+        this("", nodeId, address, ImmutableMap.<String, String>of(), version);
     }
 
-    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes) {
-        if (nodeName == null) {
-            this.nodeName = "".intern();
-        } else {
+    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
+        if (nodeName != null) {
             this.nodeName = nodeName.intern();
         }
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
@@ -97,6 +91,7 @@ public class DiscoveryNode implements Streamable, Serializable {
         this.attributes = builder.build();
         this.nodeId = nodeId.intern();
         this.address = address;
+        this.version = version;
     }
 
     /**

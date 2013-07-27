@@ -19,24 +19,22 @@
 
 package org.elasticsearch.benchmark.transport;
 
-import static org.elasticsearch.transport.TransportRequestOptions.options;
-
-import java.util.concurrent.CountDownLatch;
-
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
+
+import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  *
@@ -52,11 +50,13 @@ public class BenchmarkNettyLargeMessages {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
 
-        final ThreadPool threadPool = new ThreadPool();
-        final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
-        final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
+        NetworkService networkService = new NetworkService(settings);
 
-        final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress("localhost", 9300));
+        final ThreadPool threadPool = new ThreadPool();
+        final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool, networkService, Version.CURRENT), threadPool).start();
+        final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool, networkService, Version.CURRENT), threadPool).start();
+
+        final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress("localhost", 9300), Version.CURRENT);
 //        final DiscoveryNode smallNode = new DiscoveryNode("small", new InetSocketTransportAddress("localhost", 9300));
         final DiscoveryNode smallNode = bigNode;
 

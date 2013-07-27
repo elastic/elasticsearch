@@ -20,13 +20,13 @@
 package org.elasticsearch.transport.local;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -48,6 +48,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     private final ThreadPool threadPool;
+    private final Version version;
     private volatile TransportServiceAdapter transportServiceAdapter;
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
@@ -55,14 +56,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
 
-    public LocalTransport(ThreadPool threadPool) {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, threadPool);
-    }
-
     @Inject
-    public LocalTransport(Settings settings, ThreadPool threadPool) {
+    public LocalTransport(Settings settings, ThreadPool threadPool, Version version) {
         super(settings);
         this.threadPool = threadPool;
+        this.version = version;
     }
 
     @Override
@@ -151,8 +149,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        final Version version = Version.smallest(node.version(), this.version);
+
         BytesStreamOutput bStream = new BytesStreamOutput();
         StreamOutput stream = new HandlesStreamOutput(bStream);
+        stream.setVersion(version);
 
         stream.writeLong(requestId);
         byte status = 0;
@@ -176,7 +177,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-                targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
+                targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
             }
         });
     }
@@ -185,18 +186,19 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return this.threadPool;
     }
 
-    void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final Long sendRequestId) {
+    void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
         try {
             transportServiceAdapter.received(data.length);
             StreamInput stream = new BytesStreamInput(data, false);
             stream = CachedStreamInput.cachedHandles(stream);
+            stream.setVersion(version);
 
             long requestId = stream.readLong();
             byte status = stream.readByte();
             boolean isRequest = TransportStatus.isRequest(status);
 
             if (isRequest) {
-                handleRequest(stream, requestId, sourceTransport);
+                handleRequest(stream, requestId, sourceTransport, version);
             } else {
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
                 // ignore if its null, the adapter logs it
@@ -220,9 +222,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport) throws Exception {
+    private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
         final String action = stream.readString();
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId);
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId, version);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {

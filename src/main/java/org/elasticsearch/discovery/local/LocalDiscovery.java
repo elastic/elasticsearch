@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.local;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,14 +56,11 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
 
     private final TransportService transportService;
-
     private final ClusterService clusterService;
-
     private final DiscoveryNodeService discoveryNodeService;
-
     private AllocationService allocationService;
-
     private final ClusterName clusterName;
+    private final Version version;
 
     private DiscoveryNode localNode;
 
@@ -78,12 +76,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
-                          DiscoveryNodeService discoveryNodeService) {
+                          DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
+        this.version = version;
     }
 
     @Override
@@ -106,7 +105,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             }
             logger.debug("Connected to cluster [{}]", clusterName);
             this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(),
-                    discoveryNodeService.buildAttributes());
+                    discoveryNodeService.buildAttributes(), version);
 
             clusterGroup.members().add(this);
 

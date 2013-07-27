@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.local;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
@@ -35,19 +36,18 @@ import java.io.NotSerializableException;
 public class LocalTransportChannel implements TransportChannel {
 
     private final LocalTransport sourceTransport;
-
     // the transport we will *send to*
     private final LocalTransport targetTransport;
-
     private final String action;
-
     private final long requestId;
+    private final Version version;
 
-    public LocalTransportChannel(LocalTransport sourceTransport, LocalTransport targetTransport, String action, long requestId) {
+    public LocalTransportChannel(LocalTransport sourceTransport, LocalTransport targetTransport, String action, long requestId, Version version) {
         this.sourceTransport = sourceTransport;
         this.targetTransport = targetTransport;
         this.action = action;
         this.requestId = requestId;
+        this.version = version;
     }
 
     @Override
@@ -64,6 +64,7 @@ public class LocalTransportChannel implements TransportChannel {
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
         StreamOutput stream = new HandlesStreamOutput(bStream);
+        stream.setVersion(version);
         stream.writeLong(requestId);
         byte status = 0;
         status = TransportStatus.setResponse(status);
@@ -74,7 +75,7 @@ public class LocalTransportChannel implements TransportChannel {
         targetTransport.threadPool().generic().execute(new Runnable() {
             @Override
             public void run() {
-                targetTransport.messageReceived(data, action, sourceTransport, null);
+                targetTransport.messageReceived(data, action, sourceTransport, version, null);
             }
         });
     }
@@ -100,7 +101,7 @@ public class LocalTransportChannel implements TransportChannel {
         targetTransport.threadPool().generic().execute(new Runnable() {
             @Override
             public void run() {
-                targetTransport.messageReceived(data, action, sourceTransport, null);
+                targetTransport.messageReceived(data, action, sourceTransport, version, null);
             }
         });
     }

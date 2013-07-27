@@ -42,10 +42,12 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestMainAction extends BaseRestHandler {
 
-    @Inject
-    public RestMainAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    private final Version version;
 
+    @Inject
+    public RestMainAction(Settings settings, Version version, Client client, RestController controller) {
+        super(settings, client);
+        this.version = version;
         controller.registerHandler(GET, "/", this);
         controller.registerHandler(HEAD, "/", this);
     }
@@ -78,10 +80,10 @@ public class RestMainAction extends BaseRestHandler {
                         builder.field("name", settings.get("name"));
                     }
                     builder.startObject("version")
-                            .field("number", Version.CURRENT.number())
+                            .field("number", version.number())
                             .field("build_hash", Build.CURRENT.hash())
                             .field("build_timestamp", Build.CURRENT.timestamp())
-                            .field("build_snapshot", Version.CURRENT.snapshot)
+                            .field("build_snapshot", version.snapshot)
                                     // We use the lucene version from lucene constants since
                                     // this includes bugfix release version as well and is already in
                                     // the right format. We can also be sure that the format is maitained

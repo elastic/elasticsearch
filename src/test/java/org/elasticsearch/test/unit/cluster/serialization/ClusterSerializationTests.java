@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.cluster.serialization;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -91,6 +92,6 @@ public class ClusterSerializationTests {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
     }
 }

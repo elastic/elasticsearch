@@ -125,6 +125,10 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return cluster().client();
     }
 
+    public static Iterable<Client> clients() {
+        return cluster().clients();
+    }
+
     public ImmutableSettings.Builder randomSettingsBuilder() {
         // TODO RANDOMIZE
         return ImmutableSettings.builder();

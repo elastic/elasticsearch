@@ -32,7 +32,6 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -273,6 +272,21 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsOpened("test1", "test2");
     }
 
+    @Test
+    public void testSimpleCloseOpenAcknowledged() {
+        createIndex("test1");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test1").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsClosedOnAllNodes("test1");
+
+        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test1").execute().actionGet();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsOpenedOnAllNodes("test1");
+    }
+
     private void assertIndexIsOpened(String... indices) {
         checkIndexState(IndexMetaData.State.OPEN, indices);
     }
@@ -281,12 +295,33 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         checkIndexState(IndexMetaData.State.CLOSE, indices);
     }
 
-    private void checkIndexState(IndexMetaData.State state, String... indices) {
+    private void assertIndexIsOpenedOnAllNodes(String... indices) {
+        checkIndexStateOnAllNodes(IndexMetaData.State.OPEN, indices);
+    }
+
+    private void assertIndexIsClosedOnAllNodes(String... indices) {
+        checkIndexStateOnAllNodes(IndexMetaData.State.CLOSE, indices);
+    }
+
+    private void checkIndexStateOnAllNodes(IndexMetaData.State state, String... indices) {
+        //we explicitly check the cluster state on all nodes forcing the local execution
+        // we want to make sure that acknowledged true means that all the nodes already hold the updated cluster state
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
+            checkIndexState(state, clusterStateResponse, indices);
+        }
+    }
+
+    private void checkIndexState(IndexMetaData.State expectedState, String... indices) {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
+        checkIndexState(expectedState, clusterStateResponse, indices);
+    }
+
+    private void checkIndexState(IndexMetaData.State expectedState, ClusterStateResponse clusterState, String... indices) {
         for (String index : indices) {
-            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get(index);
+            IndexMetaData indexMetaData = clusterState.getState().metaData().indices().get(index);
             assertThat(indexMetaData, notNullValue());
-            assertThat(indexMetaData.getState(), equalTo(state));
+            assertThat(indexMetaData.getState(), equalTo(expectedState));
         }
     }
 }

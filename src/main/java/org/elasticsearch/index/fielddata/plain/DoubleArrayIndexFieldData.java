@@ -22,13 +22,9 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.Index;
@@ -108,8 +104,8 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
                 // there's sweatspot where due to low unique value count, using ordinals will consume less memory
-                long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_DOUBLE + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
-                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_DOUBLE;
+                long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_DOUBLE + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
+                long uniqueValuesArraySize = values.sizeInBytes();
                 long ordinalsSize = build.getMemorySizeInBytes();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
                     return new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);

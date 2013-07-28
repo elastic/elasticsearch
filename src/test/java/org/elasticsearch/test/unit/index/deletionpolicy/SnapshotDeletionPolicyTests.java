@@ -25,7 +25,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -44,8 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * A set of tests for {@link org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy}.
- *
- *
  */
 public class SnapshotDeletionPolicyTests {
 
@@ -60,7 +57,7 @@ public class SnapshotDeletionPolicyTests {
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
         // LUCENE 4 UPGRADE: Not sure about version.
-        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Version.LUCENE_31, Lucene.STANDARD_ANALYZER)
+        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER)
                 .setIndexDeletionPolicy(deletionPolicy)
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
     }
@@ -70,7 +67,7 @@ public class SnapshotDeletionPolicyTests {
         indexWriter.close();
         dir.close();
     }
-    
+
     private Document testDocument() {
         Document document = new Document();
         document.add(new TextField("test", "1", Field.Store.YES));

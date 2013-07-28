@@ -21,7 +21,10 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -52,6 +55,7 @@ public class Lucene {
 
     public static ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
+    @SuppressWarnings("deprecation")
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
@@ -359,7 +363,7 @@ public class Lucene {
     private Lucene() {
 
     }
-    
+
     public static final boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
     }

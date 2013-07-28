@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
-
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +38,7 @@ import static org.elasticsearch.index.analysis.NGramTokenizerFactory.parseTokenC
 /**
  *
  */
+@SuppressWarnings("deprecation")
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;

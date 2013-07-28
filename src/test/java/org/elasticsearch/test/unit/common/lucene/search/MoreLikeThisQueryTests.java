@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.common.lucene.search;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -57,7 +58,7 @@ public class MoreLikeThisQueryTests {
         document.add(new TextField("text", "lucene release", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER);

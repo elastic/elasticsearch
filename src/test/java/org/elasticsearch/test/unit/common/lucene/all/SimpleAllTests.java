@@ -22,10 +22,8 @@ package org.elasticsearch.test.unit.common.lucene.all;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
@@ -83,7 +81,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something", 1.0f);
         allEntries.addText("field2", "else", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -93,11 +91,11 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else", 1.0f);
         allEntries.addText("field2", "something", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -124,7 +122,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something", 1.0f);
         allEntries.addText("field2", "else", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -134,11 +132,11 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else", 2.0f);
         allEntries.addText("field2", "something", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // this one is boosted. so the second doc is more relevant
@@ -166,7 +164,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something moo", 1.0f);
         allEntries.addText("field2", "else koo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -176,11 +174,11 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else koo", 1.0f);
         allEntries.addText("field2", "something moo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -217,7 +215,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something moo", 1.0f);
         allEntries.addText("field2", "else koo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -227,11 +225,11 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else koo", 2.0f);
         allEntries.addText("field2", "something moo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);

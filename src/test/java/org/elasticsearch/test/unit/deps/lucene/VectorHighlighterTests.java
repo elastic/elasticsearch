@@ -22,10 +22,7 @@ package org.elasticsearch.test.unit.deps.lucene;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.XFastVectorHighlighter;
@@ -52,7 +49,7 @@ public class VectorHighlighterTests {
         document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -75,7 +72,7 @@ public class VectorHighlighterTests {
         document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -113,7 +110,7 @@ public class VectorHighlighterTests {
         document.add(new Field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -135,7 +132,7 @@ public class VectorHighlighterTests {
         document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO));
         indexWriter.addDocument(document);
 
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 

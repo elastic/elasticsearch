@@ -45,7 +45,7 @@ public class JacksonLocationTests {
         //    }
         // }
         BytesStreamOutput os = new BytesStreamOutput();
-        JsonGenerator gen = new JsonFactory().createJsonGenerator(os);
+        JsonGenerator gen = new JsonFactory().createGenerator(os);
         gen.writeStartObject();
 
         gen.writeStringField("index", "test");
@@ -60,7 +60,7 @@ public class JacksonLocationTests {
         gen.close();
 
         byte[] data = os.bytes().toBytes();
-        JsonParser parser = new JsonFactory().createJsonParser(data);
+        JsonParser parser = new JsonFactory().createParser(data);
 
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "index"

@@ -62,32 +62,32 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createJsonGenerator(os, JsonEncoding.UTF8));
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createJsonGenerator(writer));
+        return new SmileXContentGenerator(smileFactory.createGenerator(writer));
     }
 
     @Override
     public XContentParser createParser(String content) throws IOException {
-        return new SmileXContentParser(smileFactory.createJsonParser(new FastStringReader(content)));
+        return new SmileXContentParser(smileFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
     public XContentParser createParser(InputStream is) throws IOException {
-        return new SmileXContentParser(smileFactory.createJsonParser(is));
+        return new SmileXContentParser(smileFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(byte[] data) throws IOException {
-        return new SmileXContentParser(smileFactory.createJsonParser(data));
+        return new SmileXContentParser(smileFactory.createParser(data));
     }
 
     @Override
     public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new SmileXContentParser(smileFactory.createJsonParser(data, offset, length));
+        return new SmileXContentParser(smileFactory.createParser(data, offset, length));
     }
 
     @Override

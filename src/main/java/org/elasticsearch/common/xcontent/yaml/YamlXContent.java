@@ -60,32 +60,32 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createJsonGenerator(os, JsonEncoding.UTF8));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createJsonGenerator(writer));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(writer));
     }
 
     @Override
     public XContentParser createParser(String content) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(new FastStringReader(content)));
+        return new YamlXContentParser(yamlFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
     public XContentParser createParser(InputStream is) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(is));
+        return new YamlXContentParser(yamlFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(byte[] data) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(data));
+        return new YamlXContentParser(yamlFactory.createParser(data));
     }
 
     @Override
     public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(data, offset, length));
+        return new YamlXContentParser(yamlFactory.createParser(data, offset, length));
     }
 
     @Override
@@ -98,6 +98,6 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentParser createParser(Reader reader) throws IOException {
-        return new YamlXContentParser(yamlFactory.createJsonParser(reader));
+        return new YamlXContentParser(yamlFactory.createParser(reader));
     }
 }

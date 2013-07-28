@@ -46,6 +46,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public TokenStream create(TokenStream tokenStream) {
         final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3

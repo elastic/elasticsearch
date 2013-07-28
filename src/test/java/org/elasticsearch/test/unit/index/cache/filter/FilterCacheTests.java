@@ -58,7 +58,7 @@ public class FilterCacheTests {
     private void verifyCache(FilterCache filterCache) throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-        DirectoryReader reader = IndexReader.open(indexWriter, true);
+        DirectoryReader reader = DirectoryReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
             Document document = new Document();

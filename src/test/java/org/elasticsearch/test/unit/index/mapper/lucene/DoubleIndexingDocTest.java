@@ -1,5 +1,6 @@
 package org.elasticsearch.test.unit.index.mapper.lucene;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -43,7 +44,7 @@ public class DoubleIndexingDocTest {
         writer.addDocument(doc.rootDoc(), doc.analyzer());
         writer.addDocument(doc.rootDoc(), doc.analyzer());
 
-        IndexReader reader = IndexReader.open(writer, true);
+        IndexReader reader = DirectoryReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().termQuery("value1", null), 10);

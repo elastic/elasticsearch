@@ -31,6 +31,7 @@ import java.io.Serializable;
 
 /**
  */
+@SuppressWarnings("deprecation")
 public class Version implements Serializable {
 
     // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator

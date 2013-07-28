@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.transport.netty;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.unit.transport.AbstractSimpleTransportTests;
@@ -34,6 +35,9 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override
     protected TransportService build(Settings settings, Version version) {
+        int startPort = 11000 + randomIntBetween(0, 255);
+        int endPort = startPort + 10;
+        settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
         return new TransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), version), threadPool).start();
     }
 

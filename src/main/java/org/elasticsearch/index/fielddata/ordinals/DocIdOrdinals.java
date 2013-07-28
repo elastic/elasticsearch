@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.LongsRef;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Ordinals that effectively are single valued and map "one to one" to the
@@ -50,7 +50,7 @@ public class DocIdOrdinals implements Ordinals {
 
     @Override
     public long getMemorySizeInBytes() {
-        return RamUsage.NUM_BYTES_OBJECT_REF;
+        return RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
     @Override

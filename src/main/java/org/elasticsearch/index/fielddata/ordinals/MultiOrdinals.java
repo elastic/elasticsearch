@@ -21,19 +21,23 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.AppendingLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 
-/** {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields. */
+/**
+ * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
+ */
 public class MultiOrdinals implements Ordinals {
 
     private static final int OFFSETS_PAGE_SIZE = 1024;
     private static final int OFFSET_INIT_PAGE_COUNT = 16;
 
-    /** Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%. */
+    /**
+     * Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%.
+     */
     public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds) {
         final int bitsPerOrd = PackedInts.bitsRequired(numOrds);
         // Compute the worst-case number of bits per value for offsets in the worst case, eg. if no docs have a value at the
@@ -168,7 +172,7 @@ public class MultiOrdinals implements Ordinals {
             final long endOffset = endOffsets.get(docId);
             final int numValues = (int) (endOffset - startOffset);
             if (longsScratch.length < numValues) {
-                longsScratch.longs = new long[ArrayUtil.oversize(numValues, RamUsage.NUM_BYTES_LONG)];
+                longsScratch.longs = new long[ArrayUtil.oversize(numValues, RamUsageEstimator.NUM_BYTES_LONG)];
             }
             for (int i = 0; i < numValues; ++i) {
                 longsScratch.longs[i] = 1L + ords.get(startOffset + i);

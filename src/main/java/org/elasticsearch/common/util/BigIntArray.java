@@ -19,13 +19,17 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
 
-/** Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
- *  configurable length. */
+/**
+ * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
+ * configurable length.
+ */
 public final class BigIntArray extends AbstractBigArray implements IntArray {
 
-    /** Default page size, 16KB of memory per page. */
+    /**
+     * Default page size, 16KB of memory per page.
+     */
     public static final int DEFAULT_PAGE_SIZE = 1 << 12;
 
     private int[][] pages;
@@ -63,7 +67,7 @@ public final class BigIntArray extends AbstractBigArray implements IntArray {
 
     @Override
     protected int numBytesPerElement() {
-        return RamUsage.NUM_BYTES_INT;
+        return RamUsageEstimator.NUM_BYTES_INT;
     }
 
 }

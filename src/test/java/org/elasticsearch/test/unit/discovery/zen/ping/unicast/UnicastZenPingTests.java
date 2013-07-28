@@ -32,22 +32,26 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class UnicastZenPingTests {
+public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimplePings() {
         Settings settings = ImmutableSettings.EMPTY;
+        int startPort = 11000 + randomIntBetween(0, 1000);
+        int endPort = startPort + 10;
+        settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
+
         ThreadPool threadPool = new ThreadPool();
         ClusterName clusterName = new ClusterName("test");
         NetworkService networkService = new NetworkService(settings);

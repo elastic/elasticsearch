@@ -109,12 +109,13 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
-                double[] sLat = new double[reader.maxDoc()];
-                double[] sLon = new double[reader.maxDoc()];
-                for (int i = 0; i < sLat.length; i++) {
+                int maxDoc = reader.maxDoc();
+                BigDoubleArrayList sLat = new BigDoubleArrayList(reader.maxDoc());
+                BigDoubleArrayList sLon = new BigDoubleArrayList(reader.maxDoc());
+                for (int i = 0; i < maxDoc; i++) {
                     long nativeOrdinal = ordinals.getOrd(i);
-                    sLat[i] = lat.get(nativeOrdinal);
-                    sLon[i] = lon.get(nativeOrdinal);
+                    sLat.add(lat.get(nativeOrdinal));
+                    sLon.add(lon.get(nativeOrdinal));
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {

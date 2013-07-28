@@ -61,10 +61,10 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     @Before
     public void setUp() {
         threadPool = new ThreadPool();
-        serviceA = build(ImmutableSettings.builder().put("name", "A").build(), version0);
-        nodeA = new DiscoveryNode("A", "A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
-        serviceB = build(ImmutableSettings.builder().put("name", "B").build(), version1);
-        nodeB = new DiscoveryNode("B", "B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
+        serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
+        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
+        serviceB = build(ImmutableSettings.builder().put("name", "TS_B").build(), version1);
+        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
 
         serviceA.connectToNode(nodeB);
         serviceA.connectToNode(nodeA);
@@ -344,7 +344,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         TransportConnectionListener disconnectListener = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
-                throw new RuntimeException("Should not be called");
+                assert false : "node connected should not be called, all connection have been done previously, node: " + node;
             }
 
             @Override

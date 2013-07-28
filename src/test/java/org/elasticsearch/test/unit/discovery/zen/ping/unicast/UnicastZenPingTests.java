@@ -58,13 +58,13 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
 
         NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, Version.CURRENT);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
-        final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
         NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, Version.CURRENT);
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
-        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 
@@ -77,7 +77,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("A").build();
+                return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("UZP_A").build();
             }
 
             @Override
@@ -91,7 +91,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeB).localNodeId("B").build();
+                return DiscoveryNodes.newNodesBuilder().put(nodeB).localNodeId("UZP_B").build();
             }
 
             @Override
@@ -104,7 +104,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         try {
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].target().id(), equalTo("B"));
+            assertThat(pingResponses[0].target().id(), equalTo("UZP_B"));
         } finally {
             zenPingA.close();
             zenPingB.close();

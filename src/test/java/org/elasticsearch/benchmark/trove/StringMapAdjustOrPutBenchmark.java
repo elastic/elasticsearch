@@ -19,6 +19,7 @@
 
 package org.elasticsearch.benchmark.trove;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import gnu.trove.map.custom_hash.TObjectIntCustomHashMap;
 import gnu.trove.map.hash.THashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
@@ -26,7 +27,6 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.strategy.IdentityHashingStrategy;
 import jsr166y.ThreadLocalRandom;
-import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.trove.StringIdentityHashingStrategy;
 import org.elasticsearch.common.unit.SizeValue;
@@ -47,7 +47,7 @@ public class StringMapAdjustOrPutBenchmark {
 
         String[] values = new String[NUMBER_OF_KEYS];
         for (int i = 0; i < values.length; i++) {
-            values[i] = RandomStringGenerator.randomAlphabetic(STRING_SIZE);
+            values[i] = RandomStrings.randomAsciiOfLength(ThreadLocalRandom.current(), STRING_SIZE);
         }
 
         StopWatch stopWatch;

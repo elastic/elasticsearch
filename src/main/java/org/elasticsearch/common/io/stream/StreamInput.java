@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -31,12 +33,25 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.SoftReference;
 import java.util.*;
 
 /**
  *
  */
 public abstract class StreamInput extends InputStream {
+
+    private static final ThreadLocal<SoftReference<char[]>> charCache = new ThreadLocal<SoftReference<char[]>>();
+
+    private static char[] charCache(int size) {
+        SoftReference<char[]> ref = charCache.get();
+        char[] arr = (ref == null) ? null : ref.get();
+        if (arr == null || arr.length < size) {
+            arr = new char[ArrayUtil.oversize(size, RamUsageEstimator.NUM_BYTES_CHAR)];
+            charCache.set(new SoftReference<char[]>(arr));
+        }
+        return arr;
+    }
 
     private Version version = Version.CURRENT;
 
@@ -209,7 +224,7 @@ public abstract class StreamInput extends InputStream {
 
     public String readString() throws IOException {
         int charCount = readVInt();
-        char[] chars = CachedStreamInput.getCharArray(charCount);
+        char[] chars = charCache(charCount);
         int c, charIndex = 0;
         while (charIndex < charCount) {
             c = readByte() & 0xff;

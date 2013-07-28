@@ -30,7 +30,6 @@ import java.lang.ref.SoftReference;
 public class CachedStreamInput {
 
     static class Entry {
-        char[] chars = new char[80];
         final HandlesStreamInput handles;
 
         Entry(HandlesStreamInput handles) {
@@ -69,13 +68,5 @@ public class CachedStreamInput {
         Entry entry = instance();
         entry.handles.reset(compressor.streamInput(in));
         return entry.handles;
-    }
-
-    public static char[] getCharArray(int size) {
-        Entry entry = instance();
-        if (entry.chars.length < size) {
-            entry.chars = new char[size];
-        }
-        return entry.chars;
     }
 }

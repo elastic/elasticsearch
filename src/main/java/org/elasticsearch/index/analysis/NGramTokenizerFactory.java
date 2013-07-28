@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
-
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -51,11 +50,11 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     static {
         ImmutableMap.Builder<String, CharMatcher> builder = ImmutableMap.builder();
-        builder.put("letter",      CharMatcher.Basic.LETTER);
-        builder.put("digit",       CharMatcher.Basic.DIGIT);
-        builder.put("whitespace",  CharMatcher.Basic.WHITESPACE);
+        builder.put("letter", CharMatcher.Basic.LETTER);
+        builder.put("digit", CharMatcher.Basic.DIGIT);
+        builder.put("whitespace", CharMatcher.Basic.WHITESPACE);
         builder.put("punctuation", CharMatcher.Basic.PUNCTUATION);
-        builder.put("symbol",      CharMatcher.Basic.SYMBOL);
+        builder.put("symbol", CharMatcher.Basic.SYMBOL);
         // Populate with unicode categories from java.lang.Character
         for (Field field : Character.class.getFields()) {
             if (!field.getName().startsWith("DIRECTIONALITY")
@@ -97,6 +96,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public Tokenizer create(Reader reader) {
         final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3

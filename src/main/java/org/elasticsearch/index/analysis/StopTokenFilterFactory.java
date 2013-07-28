@@ -36,6 +36,7 @@ import java.util.Set;
 /**
  *
  */
+@SuppressWarnings("deprecation")
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;
@@ -49,7 +50,6 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version, ignoreCase);
-        // LUCENE 4 UPGRADE: LUCENE_29 constant is no longer defined
         this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.LUCENE_30));
     }
 

@@ -46,7 +46,7 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        SmileParser parser = SmileXContent.smileFactory.createJsonParser(content);
+        SmileParser parser = SmileXContent.smileFactory.createParser(content);
         try {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
@@ -58,7 +58,7 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        SmileParser parser = SmileXContent.smileFactory.createJsonParser(content);
+        SmileParser parser = SmileXContent.smileFactory.createParser(content);
         try {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
@@ -72,9 +72,9 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
         writeFieldName(fieldName);
         SmileParser parser;
         if (content.hasArray()) {
-            parser = SmileXContent.smileFactory.createJsonParser(content.array(), content.arrayOffset(), content.length());
+            parser = SmileXContent.smileFactory.createParser(content.array(), content.arrayOffset(), content.length());
         } else {
-            parser = SmileXContent.smileFactory.createJsonParser(content.streamInput());
+            parser = SmileXContent.smileFactory.createParser(content.streamInput());
         }
         try {
             parser.nextToken();
@@ -87,7 +87,7 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        SmileParser parser = SmileXContent.smileFactory.createJsonParser(content, offset, length);
+        SmileParser parser = SmileXContent.smileFactory.createParser(content, offset, length);
         try {
             parser.nextToken();
             generator.copyCurrentStructure(parser);

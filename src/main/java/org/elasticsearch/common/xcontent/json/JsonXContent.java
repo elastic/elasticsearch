@@ -64,32 +64,32 @@ public class JsonXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createJsonGenerator(os, JsonEncoding.UTF8));
+        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createJsonGenerator(writer));
+        return new JsonXContentGenerator(jsonFactory.createGenerator(writer));
     }
 
     @Override
     public XContentParser createParser(String content) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(new FastStringReader(content)));
+        return new JsonXContentParser(jsonFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
     public XContentParser createParser(InputStream is) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(is));
+        return new JsonXContentParser(jsonFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(byte[] data) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(data));
+        return new JsonXContentParser(jsonFactory.createParser(data));
     }
 
     @Override
     public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(data, offset, length));
+        return new JsonXContentParser(jsonFactory.createParser(data, offset, length));
     }
 
     @Override

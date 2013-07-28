@@ -59,17 +59,38 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     protected abstract TransportService build(Settings settings, Version version);
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         threadPool = new ThreadPool();
         serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
         serviceB = build(ImmutableSettings.builder().put("name", "TS_B").build(), version1);
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
 
+        // wait till all nodes are properly connected and the event has been sent, so tests in this class
+        // will not get this callback called on the connections done in this setup
+        final CountDownLatch latch = new CountDownLatch(4);
+        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
+            @Override
+            public void onNodeConnected(DiscoveryNode node) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node) {
+                assert false : "disconnect should not be called " + node;
+            }
+        };
+        serviceA.addConnectionListener(waitForConnection);
+        serviceB.addConnectionListener(waitForConnection);
+
         serviceA.connectToNode(nodeB);
         serviceA.connectToNode(nodeA);
         serviceB.connectToNode(nodeA);
         serviceB.connectToNode(nodeB);
+
+        assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
+        serviceA.removeConnectionListener(waitForConnection);
+        serviceB.removeConnectionListener(waitForConnection);
     }
 
     @After

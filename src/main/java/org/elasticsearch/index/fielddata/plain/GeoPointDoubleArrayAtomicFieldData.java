@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
@@ -119,7 +119,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + lon.sizeInBytes() + lat.sizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.sizeInBytes() + lat.sizeInBytes();
             }
             return size;
         }
@@ -158,7 +158,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
             @Override
             public GeoPoint getValue(int docId) {
-                long ord =  ordinals.getOrd(docId);
+                long ord = ordinals.getOrd(docId);
                 if (ord == 0L) {
                     return null;
                 }
@@ -278,7 +278,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + (RamUsage.NUM_BYTES_ARRAY_HEADER + (lon.length * RamUsage.NUM_BYTES_DOUBLE)) + (RamUsage.NUM_BYTES_ARRAY_HEADER + (lat.length * RamUsage.NUM_BYTES_DOUBLE)) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + RamUsageEstimator.sizeOf(lon) + RamUsageEstimator.sizeOf(lat) + RamUsageEstimator.sizeOf(set.getBits());
             }
             return size;
         }
@@ -378,7 +378,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + (RamUsage.NUM_BYTES_ARRAY_HEADER + (lon.length * RamUsage.NUM_BYTES_DOUBLE)) + (RamUsage.NUM_BYTES_ARRAY_HEADER + (lat.length * RamUsage.NUM_BYTES_DOUBLE));
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + (RamUsageEstimator.sizeOf(lon) + RamUsageEstimator.sizeOf(lat));
             }
             return size;
         }

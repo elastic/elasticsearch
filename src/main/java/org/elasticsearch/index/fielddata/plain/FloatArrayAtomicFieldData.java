@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigFloatArrayList;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -115,7 +115,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + values.sizeInBytes() + ordinals.getMemorySizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + values.sizeInBytes() + ordinals.getMemorySizeInBytes();
             }
             return size;
         }
@@ -189,7 +189,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + values.sizeInBytes() + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
+                size = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + values.sizeInBytes() + RamUsageEstimator.sizeOf(set.getBits());
             }
             return size;
         }
@@ -281,7 +281,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + values.sizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + values.sizeInBytes();
             }
             return size;
         }

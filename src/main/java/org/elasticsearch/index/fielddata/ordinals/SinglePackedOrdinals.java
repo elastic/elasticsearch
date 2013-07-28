@@ -20,8 +20,8 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.RamUsage;
 
 /**
  */
@@ -60,7 +60,7 @@ public class SinglePackedOrdinals implements Ordinals {
     @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
-            size = RamUsage.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
+            size = RamUsageEstimator.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
         }
         return size;
     }
@@ -136,7 +136,7 @@ public class SinglePackedOrdinals implements Ordinals {
         @Override
         public LongsRef getOrds(int docId) {
             final long ordinal = reader.get(docId);
-            if (ordinal == 0)  {
+            if (ordinal == 0) {
                 longsScratch.length = 0;
             } else {
                 longsScratch.offset = 0;

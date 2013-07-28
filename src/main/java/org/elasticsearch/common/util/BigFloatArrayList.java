@@ -20,13 +20,17 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
 
-/** Float array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
- *  configurable length. */
+/**
+ * Float array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
+ * configurable length.
+ */
 public final class BigFloatArrayList extends AbstractBigArray {
 
-    /** Default page size, 16KB of memory per page. */
+    /**
+     * Default page size, 16KB of memory per page.
+     */
     private static final int DEFAULT_PAGE_SIZE = 1 << 12;
 
     private float[][] pages;
@@ -64,7 +68,7 @@ public final class BigFloatArrayList extends AbstractBigArray {
 
     @Override
     protected int numBytesPerElement() {
-        return RamUsage.NUM_BYTES_FLOAT;
+        return RamUsageEstimator.NUM_BYTES_FLOAT;
     }
 
 }

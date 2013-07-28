@@ -21,7 +21,7 @@ package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -341,12 +341,12 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 BytesReference bytes = builder.bytes();
                 fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                 fos.getChannel().force(true);
-                Closeables.closeQuietly(fos);
+                fos.close();
                 wroteAtLeastOnce = true;
             } catch (Exception e) {
                 lastFailure = e;
             } finally {
-                Closeables.closeQuietly(fos);
+                IOUtils.closeWhileHandlingException(fos);
             }
         }
 
@@ -400,12 +400,12 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 BytesReference bytes = builder.bytes();
                 fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                 fos.getChannel().force(true);
-                Closeables.closeQuietly(fos);
+                fos.close();
                 wroteAtLeastOnce = true;
             } catch (Exception e) {
                 lastFailure = e;
             } finally {
-                Closeables.closeQuietly(fos);
+                IOUtils.closeWhileHandlingException(fos);
             }
         }
 

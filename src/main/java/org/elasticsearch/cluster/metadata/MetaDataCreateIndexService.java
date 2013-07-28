@@ -23,8 +23,8 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.io.Closeables;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -488,7 +488,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     } catch (Exception e) {
                         logger.warn("[{}] failed to read template [{}] from config", e, request.index, templatesFile.getAbsolutePath());
                     } finally {
-                        Closeables.closeQuietly(parser);
+                        IOUtils.closeWhileHandlingException(parser);
                     }
                 }
             }

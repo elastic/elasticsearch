@@ -20,7 +20,7 @@
 package org.elasticsearch.common.blobstore.fs;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -85,7 +85,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
                 try {
                     is = new FileInputStream(new File(path, blobName));
                 } catch (FileNotFoundException e) {
-                    Closeables.closeQuietly(is);
+                    IOUtils.closeWhileHandlingException(is);
                     listener.onFailure(e);
                     return;
                 }
@@ -96,7 +96,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
                     }
                     listener.onCompleted();
                 } catch (Exception e) {
-                    Closeables.closeQuietly(is);
+                    IOUtils.closeWhileHandlingException(is);
                     listener.onFailure(e);
                 }
             }

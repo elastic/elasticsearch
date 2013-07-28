@@ -1,7 +1,6 @@
 package org.elasticsearch.test.integration.search.facet;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class ExtendedFacetsTests extends AbstractSharedClusterTest {
-    
+
     @Override
     public Settings getSettings() {
         return randomSettingsBuilder()
@@ -87,13 +86,13 @@ public class ExtendedFacetsTests extends AbstractSharedClusterTest {
         int numOfQueryValues = 50;
         String[] queryValues = new String[numOfQueryValues];
         for (int i = 0; i < numOfQueryValues; i++) {
-            queryValues[i] = RandomStringGenerator.random(5, 0, 0, true, true, null, random);
+            queryValues[i] = randomAsciiOfLength(5);
         }
 
         Set<String> uniqueValuesSet = new HashSet<String>();
         int numOfVals = 400;
         for (int i = 0; i < numOfVals; i++) {
-            uniqueValuesSet.add(RandomStringGenerator.random(10, 0, 0, true, true, null, random));
+            uniqueValuesSet.add(randomAsciiOfLength(10));
         }
         String[] allUniqueFieldValues = uniqueValuesSet.toArray(new String[uniqueValuesSet.size()]);
 

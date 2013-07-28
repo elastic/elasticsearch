@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.stress.rollingrestart;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -31,6 +31,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
 import java.util.Date;
+import java.util.Random;
 
 /**
  */
@@ -38,6 +39,8 @@ public class QuickRollingRestartStressTest {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
+
+        Random random = new Random();
 
         Settings settings = ImmutableSettings.settingsBuilder().build();
 
@@ -61,7 +64,7 @@ public class QuickRollingRestartStressTest {
             System.out.println("--> indexing data...");
             for (long i = 0; i < COUNT; i++) {
                 client.client().prepareIndex("test", "type", Long.toString(i))
-                        .setSource("date", new Date(), "data", RandomStringGenerator.randomAlphabetic(10000))
+                        .setSource("date", new Date(), "data", RandomStrings.randomAsciiOfLength(random, 10000))
                         .execute().actionGet();
             }
             System.out.println("--> done indexing data [" + COUNT + "]");

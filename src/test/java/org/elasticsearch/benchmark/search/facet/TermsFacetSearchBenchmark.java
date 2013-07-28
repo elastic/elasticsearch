@@ -19,6 +19,7 @@
 
 package org.elasticsearch.benchmark.search.facet;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -28,7 +29,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
+import java.util.Random;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -64,6 +65,8 @@ public class TermsFacetSearchBenchmark {
     static Client client;
 
     public static void main(String[] args) throws Exception {
+        Random random = new Random();
+
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "-1")
                 .put("gateway.type", "local")
@@ -86,7 +89,7 @@ public class TermsFacetSearchBenchmark {
         }
         String[] sValues = new String[NUMBER_OF_TERMS];
         for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-            sValues[i] = RandomStringGenerator.randomAlphabetic(STRING_TERM_SIZE);
+            sValues[i] = RandomStrings.randomAsciiOfLength(random, STRING_TERM_SIZE);
         }
 
         Thread.sleep(10000);

@@ -1,10 +1,11 @@
 package org.elasticsearch.test.stress.search1;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -34,7 +35,7 @@ public class ConcurrentSearchSerializationTests {
         final Client client = node1.client();
 
         System.out.println("Indexing...");
-        final String data = RandomStringGenerator.random(100);
+        final String data = RandomStrings.randomAsciiOfLength(ThreadLocalRandom.current(), 100);
         final CountDownLatch latch1 = new CountDownLatch(100);
         for (int i = 0; i < 100; i++) {
             client.prepareIndex("test", "type", Integer.toString(i))

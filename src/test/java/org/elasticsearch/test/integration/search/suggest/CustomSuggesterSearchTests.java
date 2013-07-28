@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -35,7 +34,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -62,21 +60,21 @@ public class CustomSuggesterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
-        String randomText = RandomStringGenerator.randomAlphanumeric(10);
-        String randomField = RandomStringGenerator.randomAlphanumeric(10);
-        String randomSuffix = RandomStringGenerator.randomAlphanumeric(10);
+        String randomText = randomAsciiOfLength(10);
+        String randomField = randomAsciiOfLength(10);
+        String randomSuffix = randomAsciiOfLength(10);
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch("test").setTypes("test").setFrom(0).setSize(1);
         XContentBuilder query = jsonBuilder().startObject()
                 .startObject("suggest")
-                    .startObject("someName")
-                        .field("text", randomText)
-                        .startObject("custom")
-                            .field("field", randomField)
-                            .field("suffix", randomSuffix)
-                        .endObject()
-                    .endObject()
+                .startObject("someName")
+                .field("text", randomText)
+                .startObject("custom")
+                .field("field", randomField)
+                .field("suffix", randomSuffix)
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject()
+                .endObject();
         searchRequestBuilder.setExtraSource(query.bytes());
 
         SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();

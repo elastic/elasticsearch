@@ -19,7 +19,6 @@
 
 package org.elasticsearch.benchmark.checksum;
 
-import org.elasticsearch.common.Digest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -34,7 +33,7 @@ public class ChecksumBenchmarkTest {
 
     public static final int BATCH_SIZE = 16 * 1024;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         System.out.println("Warning up");
         long warmSize = ByteSizeValue.parseBytesSizeValue("1g", null).bytes();
         crc(warmSize);
@@ -72,11 +71,11 @@ public class ChecksumBenchmarkTest {
         System.out.println("Adler took " + new TimeValue(System.currentTimeMillis() - start));
     }
 
-    private static void md5(long dataSize) {
+    private static void md5(long dataSize) throws Exception {
         long start = System.currentTimeMillis();
         byte[] data = new byte[BATCH_SIZE];
         long iter = dataSize / BATCH_SIZE;
-        MessageDigest digest = Digest.getMd5Digest();
+        MessageDigest digest = MessageDigest.getInstance("MD5");
         for (long i = 0; i < iter; i++) {
             digest.update(data);
         }

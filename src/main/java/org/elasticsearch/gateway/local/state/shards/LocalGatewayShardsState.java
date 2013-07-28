@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.local.state.shards;
 
 import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -291,12 +291,12 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 BytesReference bytes = builder.bytes();
                 fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
                 fos.getChannel().force(true);
-                Closeables.closeQuietly(fos);
+                fos.close();
                 wroteAtLeastOnce = true;
             } catch (Exception e) {
                 lastFailure = e;
             } finally {
-                Closeables.closeQuietly(fos);
+                IOUtils.closeWhileHandlingException(fos);
             }
         }
 

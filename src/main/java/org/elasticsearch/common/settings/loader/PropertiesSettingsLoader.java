@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 
@@ -46,7 +46,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
             }
             return result;
         } finally {
-            Closeables.closeQuietly(reader);
+            IOUtils.closeWhileHandlingException(reader);
         }
     }
 
@@ -62,7 +62,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
             }
             return result;
         } finally {
-            Closeables.closeQuietly(stream);
+            IOUtils.closeWhileHandlingException(stream);
         }
     }
 }

@@ -64,7 +64,7 @@ public class SearchContextHighlight {
         private String fragmenter;
 
         private int boundaryMaxScan = -1;
-        private char[] boundaryChars = null;
+        private Character[] boundaryChars = null;
 
         private Map<String, Object> options;
 
@@ -172,11 +172,11 @@ public class SearchContextHighlight {
             this.boundaryMaxScan = boundaryMaxScan;
         }
 
-        public char[] boundaryChars() {
+        public Character[] boundaryChars() {
             return boundaryChars;
         }
 
-        public void boundaryChars(char[] boundaryChars) {
+        public void boundaryChars(Character[] boundaryChars) {
             this.boundaryChars = boundaryChars;
         }
 

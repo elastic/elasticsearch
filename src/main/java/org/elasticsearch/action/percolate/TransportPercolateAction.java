@@ -38,9 +38,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.percolator.PercolateException;
-import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.percolator.PercolateException;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

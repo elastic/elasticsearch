@@ -1,4 +1,4 @@
-package org.elasticsearch.index.percolator;
+package org.elasticsearch.percolator;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.shard.ShardId;

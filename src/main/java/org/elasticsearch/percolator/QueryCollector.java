@@ -1,4 +1,4 @@
-package org.elasticsearch.index.percolator;
+package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;

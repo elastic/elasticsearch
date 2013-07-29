@@ -16,7 +16,7 @@
  * the License.
  */
 
-package org.elasticsearch.index.percolator;
+package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;

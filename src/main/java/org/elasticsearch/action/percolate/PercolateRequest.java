@@ -21,6 +21,7 @@ package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -46,11 +47,12 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     private String documentType;
     private String routing;
     private String preference;
+    private GetRequest getRequest;
 
     private BytesReference source;
     private boolean unsafe;
 
-    private BytesReference fetchedDoc;
+    private BytesReference docSource;
 
     // Used internally in order to compute tookInMillis, TransportBroadcastOperationAction itself doesn't allow
     // to hold it temporarily in an easy way
@@ -64,13 +66,13 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         this.documentType = documentType;
     }
 
-    public PercolateRequest(PercolateRequest request, BytesReference fetchedDoc) {
+    public PercolateRequest(PercolateRequest request, BytesReference docSource) {
         super(request.indices());
         this.documentType = request.documentType();
         this.routing = request.routing();
         this.preference = request.preference();
         this.source = request.source;
-        this.fetchedDoc = fetchedDoc;
+        this.docSource = docSource;
     }
 
     public String documentType() {
@@ -97,6 +99,14 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     public PercolateRequest preference(String preference) {
         this.preference = preference;
         return this;
+    }
+
+    public GetRequest getRequest() {
+        return getRequest;
+    }
+
+    public void getRequest(GetRequest getRequest) {
+        this.getRequest = getRequest;
     }
 
     /**
@@ -164,8 +174,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return this;
     }
 
-    BytesReference fetchedDoc() {
-        return fetchedDoc;
+    BytesReference docSource() {
+        return docSource;
     }
 
     @Override
@@ -177,8 +187,11 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         if (documentType == null) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (source == null) {
-            validationException = addValidationError("source is missing", validationException);
+        if (source == null && getRequest == null) {
+            validationException = addValidationError("source or get is missing", validationException);
+        }
+        if (getRequest != null && getRequest.fields() != null) {
+            validationException = addValidationError("get fields option isn't supported via percolate request", validationException);
         }
         return validationException;
     }
@@ -186,21 +199,33 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        startTime = in.readVLong();
         documentType = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         unsafe = false;
         source = in.readBytesReference();
-        startTime = in.readVLong();
+        docSource = in.readBytesReference();
+        if (in.readBoolean()) {
+            getRequest = new GetRequest(null);
+            getRequest.readFrom(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVLong(startTime);
         out.writeString(documentType);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeBytesReference(source);
-        out.writeVLong(startTime);
+        out.writeBytesReference(docSource);
+        if (getRequest != null) {
+            out.writeBoolean(true);
+            getRequest.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 }

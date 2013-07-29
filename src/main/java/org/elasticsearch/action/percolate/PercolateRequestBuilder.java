@@ -20,6 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
@@ -89,6 +90,15 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         return this;
     }
 
+    /**
+     * Enables percolating an existing document. Instead of specifying the source of the document to percolate, define
+     * a get request that will fetch a document and use its source.
+     */
+    public PercolateRequestBuilder setGetRequest(GetRequest getRequest) {
+        request.getRequest(getRequest);
+        return this;
+    }
+
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;
         return this;
@@ -141,11 +151,6 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
 
     public PercolateRequestBuilder setPercolateDoc(PercolateSourceBuilder.DocBuilder docBuilder) {
         sourceBuilder().setDoc(docBuilder);
-        return this;
-    }
-
-    public PercolateRequestBuilder setPercolateGet(PercolateSourceBuilder.GetBuilder getBuilder) {
-        sourceBuilder().setGet(getBuilder);
         return this;
     }
 

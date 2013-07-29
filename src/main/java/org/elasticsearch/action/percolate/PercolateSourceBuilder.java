@@ -35,13 +35,11 @@ import java.util.Map;
 public class PercolateSourceBuilder implements ToXContent {
 
     private DocBuilder docBuilder;
-    private GetBuilder getBuilder;
     private QueryBuilder queryBuilder;
     private FilterBuilder filterBuilder;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {
-            getBuilder = null;
             docBuilder = new DocBuilder();
         }
         return docBuilder;
@@ -53,22 +51,6 @@ public class PercolateSourceBuilder implements ToXContent {
 
     public void setDoc(DocBuilder docBuilder) {
         this.docBuilder = docBuilder;
-    }
-
-    public GetBuilder percolateGet() {
-        if (getBuilder == null) {
-            docBuilder = null;
-            getBuilder = new GetBuilder();
-        }
-        return getBuilder;
-    }
-
-    public GetBuilder getGet() {
-        return getBuilder;
-    }
-
-    public void setGet(GetBuilder getBuilder) {
-        this.getBuilder = getBuilder;
     }
 
     public QueryBuilder getQueryBuilder() {
@@ -102,9 +84,6 @@ public class PercolateSourceBuilder implements ToXContent {
         builder.startObject();
         if (docBuilder != null) {
             docBuilder.toXContent(builder, params);
-        }
-        if (getBuilder != null) {
-            getBuilder.toXContent(builder, params);
         }
         if (queryBuilder != null) {
             builder.field("query");
@@ -170,91 +149,6 @@ public class PercolateSourceBuilder implements ToXContent {
             }
             return builder;
         }
-    }
-
-    public static GetBuilder getBuilder(String index, String type, String id) {
-        return new GetBuilder().setIndex(index).setType(type).setId(id);
-    }
-
-    public static class GetBuilder implements ToXContent {
-
-        private String index;
-        private String type;
-        private String id;
-        private Long version;
-        private String routing;
-        private String preference;
-
-        public String getIndex() {
-            return index;
-        }
-
-        public GetBuilder setIndex(String index) {
-            this.index = index;
-            return this;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public GetBuilder setType(String type) {
-            this.type = type;
-            return this;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public GetBuilder setId(String id) {
-            this.id = id;
-            return this;
-        }
-
-        public Long getVersion() {
-            return version;
-        }
-
-        public GetBuilder setVersion(Long version) {
-            this.version = version;
-            return this;
-        }
-
-        public String getRouting() {
-            return routing;
-        }
-
-        public GetBuilder setRouting(String routing) {
-            this.routing = routing;
-            return this;
-        }
-
-        public String getPreference() {
-            return preference;
-        }
-
-        public GetBuilder setPreference(String preference) {
-            this.preference = preference;
-            return this;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("get");
-            builder.field("index", index);
-            builder.field("type", type);
-            builder.field("id", id);
-            if (version != null) {
-                builder.field("version", version);
-            }
-            if (routing != null) {
-                builder.field("routing", routing);
-            }
-            builder.endObject();
-            return builder;
-        }
-
     }
 
 }

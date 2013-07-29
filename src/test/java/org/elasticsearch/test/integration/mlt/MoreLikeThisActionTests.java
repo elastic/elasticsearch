@@ -33,10 +33,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.fail;
 
 /**
  *
@@ -172,12 +171,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
 
         // Explicit list of fields including numeric fields -> fail
-        try {
-            searchResponse = client().prepareMoreLikeThis("test", "type", "1").setField("string_value", "int_value").execute().actionGet();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            // OK
-        }
+        assertThrows(client().prepareMoreLikeThis("test", "type", "1").setField("string_value", "int_value"), SearchPhaseExecutionException.class);
 
         // mlt query with no field -> OK
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery().likeText("index").minTermFreq(1).minDocFreq(1)).execute().actionGet();
@@ -189,25 +183,24 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
 
-        // mlt query with at least a numeric field -> fail
-        try {
-            searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index")).execute().actionGet();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            // OK
-        }
+        // mlt query with at least a numeric field -> fail by default
+        assertThrows(client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index")), SearchPhaseExecutionException.class);
+
+        // mlt query with at least a numeric field -> fail by command
+        assertThrows(client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index").failOnUnsupportedField(true)), SearchPhaseExecutionException.class);
+
 
         // mlt query with at least a numeric field but fail_on_unsupported_field set to false
-        searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).get();
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
 
-        // mlt field query on a numeric field -> failure
-        try {
-            searchResponse = client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1)).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            // OK
-        }
+        // mlt field query on a numeric field -> failure by default
+        assertThrows(client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
+
+        // mlt field query on a numeric field -> failure by command
+        assertThrows(client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(true)),
+                SearchPhaseExecutionException.class);
 
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();

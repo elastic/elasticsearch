@@ -26,8 +26,6 @@ import java.io.IOException;
 /**
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
  * which is checked against the fields the query is constructed with.
- *
- *
  */
 public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
 
@@ -45,7 +43,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
-    private boolean failOnUnsupportedField = true;
+    private Boolean failOnUnsupportedField;
 
     /**
      * Constructs a new more like this query which uses the "_all" field.
@@ -225,7 +223,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
-        if (!failOnUnsupportedField) {
+        if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
         }
         builder.endObject();

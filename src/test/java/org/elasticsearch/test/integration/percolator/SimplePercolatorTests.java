@@ -25,12 +25,14 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,7 +40,6 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.action.percolate.PercolateSourceBuilder.getBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -113,6 +114,15 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type"));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+
+        logger.info("--> Percolate non existing doc");
+        try {
+            client().preparePercolate("test", "type")
+                    .setGetRequest(Requests.getRequest("test").type("type").id("5"))
+                    .execute().actionGet();
+            fail("Exception should have been thrown");
+        } catch (DocumentMissingException e) {
+        }
     }
 
     @Test
@@ -601,29 +611,37 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         logger.info("--> Percolate existing doc with id 1");
         PercolateResponse response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "1"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "4"));
 
         logger.info("--> Percolate existing doc with id 2");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "2"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("2"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
 
         logger.info("--> Percolate existing doc with id 3");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "3"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("3"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(4));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         logger.info("--> Percolate existing doc with id 4");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "4"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("4"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches()), arrayContaining("4"));
 
@@ -667,29 +685,37 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         logger.info("--> Percolate existing doc with id 1");
         PercolateResponse response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "1").setRouting("4"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("1").routing("4"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "4"));
 
         logger.info("--> Percolate existing doc with id 2");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "2").setRouting("3"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("2").routing("3"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
 
         logger.info("--> Percolate existing doc with id 3");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "3").setRouting("2"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("3").routing("2"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(4));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         logger.info("--> Percolate existing doc with id 4");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "4").setRouting("1"))
+                .setGetRequest(Requests.getRequest("test").type("type").id("4").routing("1"))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches()), arrayContaining("4"));
     }
@@ -725,17 +751,19 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         logger.info("--> Percolate existing doc with id 2 and version 1");
         PercolateResponse response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "2").setVersion(1l))
+                .setGetRequest(Requests.getRequest("test").type("type").id("2").version(1l))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
 
         logger.info("--> Percolate existing doc with id 2 and version 2");
         try {
-            response = client().preparePercolate("test", "type")
-                    .setPercolateGet(getBuilder("test", "type", "2").setVersion(2l))
+            client().preparePercolate("test", "type")
+                    .setGetRequest(Requests.getRequest("test").type("type").id("2").version(2l))
                     .execute().actionGet();
-            fail("Error should have been throwed");
+            fail("Error should have been thrown");
         } catch (VersionConflictEngineException e) {
         }
 
@@ -744,8 +772,10 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         logger.info("--> Percolate existing doc with id 2 and version 2");
         response = client().preparePercolate("test", "type")
-                .setPercolateGet(getBuilder("test", "type", "2").setVersion(2l))
+                .setGetRequest(Requests.getRequest("test").type("type").id("2").version(2l))
                 .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("2", "4"));
     }

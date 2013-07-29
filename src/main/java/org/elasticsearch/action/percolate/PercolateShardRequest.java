@@ -13,7 +13,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
 
     private String documentType;
     private BytesReference source;
-    private BytesReference fetchedDoc;
+    private BytesReference docSource;
 
     public PercolateShardRequest() {
     }
@@ -22,7 +22,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         super(index, shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
-        this.fetchedDoc = request.fetchedDoc();
+        this.docSource = request.docSource();
     }
 
     public String documentType() {
@@ -33,8 +33,8 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         return source;
     }
 
-    public BytesReference fetchedDoc() {
-        return fetchedDoc;
+    public BytesReference docSource() {
+        return docSource;
     }
 
     @Override
@@ -42,9 +42,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         super.readFrom(in);
         documentType = in.readString();
         source = in.readBytesReference();
-        if (in.readBoolean()) {
-            fetchedDoc = in.readBytesReference();
-        }
+        docSource = in.readBytesReference();
     }
 
     @Override
@@ -52,12 +50,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         super.writeTo(out);
         out.writeString(documentType);
         out.writeBytesReference(source);
-        if (fetchedDoc != null) {
-            out.writeBoolean(true);
-            out.writeBytesReference(fetchedDoc);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeBytesReference(docSource);
     }
 
 }

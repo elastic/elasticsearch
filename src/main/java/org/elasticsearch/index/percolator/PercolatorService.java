@@ -98,11 +98,11 @@ public class PercolatorService extends AbstractComponent {
 
             ParsedDocument parsedDocument;
             Query query;
-            if (request.fetchedDoc() != null) {
-                parsedDocument = parseFetchedDoc(request.fetchedDoc(), percolateIndexService, request.documentType());
+            if (request.docSource() != null && request.docSource().length() != 0) {
+                parsedDocument = parseFetchedDoc(request.docSource(), percolateIndexService, request.documentType());
                 query = parseQueryOrFilter(percolateIndexService, request.source());
             } else {
-                Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, indexShard, request.documentType(), request.source());
+                Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.source());
                 parsedDocument = parseResult.v1();
                 query = parseResult.v2();
             }
@@ -177,7 +177,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private Tuple<ParsedDocument, Query> parsePercolate(IndexService documentIndexService, IndexShard indexShard, String type, BytesReference source) throws ElasticSearchException {
+    private Tuple<ParsedDocument, Query> parsePercolate(IndexService documentIndexService, String type, BytesReference source) throws ElasticSearchException {
         Query query = null;
         ParsedDocument doc = null;
         XContentParser parser = null;
@@ -255,6 +255,10 @@ public class PercolatorService extends AbstractComponent {
     }
 
     private Query parseQueryOrFilter(IndexService documentIndexService, BytesReference source) {
+        if (source == null || source.length() == 0) {
+            return null;
+        }
+
         Query query = null;
         XContentParser parser = null;
         try {

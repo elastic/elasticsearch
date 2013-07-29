@@ -20,10 +20,8 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -36,21 +34,16 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.percolator.PercolateException;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,122 +69,29 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected void doExecute(PercolateRequest request, ActionListener<PercolateResponse> listener) {
-        resolveGet(request, listener);
-    }
-
-    // Add redirect here if a request ends up on a non data node? In the case when percolating an existing doc this
-    // could be beneficial.
-    void resolveGet(PercolateRequest originalRequest, ActionListener<PercolateResponse> listener) {
-        originalRequest.startTime = System.currentTimeMillis();
-        BytesReference body = originalRequest.source();
-        Tuple<GetRequest, Long> tuple = null;
-
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(body).createParser(body);
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchParseException("percolate request didn't start with start object");
-            }
-
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                    // we need to check the "doc" here, so the next token will be START_OBJECT which is
-                    // the actual document starting
-                    if ("doc".equals(currentFieldName)) {
-                        parser.close();
-                        super.doExecute(originalRequest, listener);
+    protected void doExecute(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
+        request.startTime = System.currentTimeMillis();
+        if (request.getRequest() != null) {
+            getAction.execute(request.getRequest(), new ActionListener<GetResponse>() {
+                @Override
+                public void onResponse(GetResponse getResponse) {
+                    if (!getResponse.isExists()) {
+                        onFailure(new DocumentMissingException(null, request.getRequest().type(), request.getRequest().id()));
                         return;
                     }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("get".equals(currentFieldName)) {
-                        tuple = createGetRequest(parser, originalRequest.indices()[0], originalRequest.documentType());
-                        break;
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else if (token == null) {
-                    break;
-                } else {
-                    parser.skipChildren();
-                }
-            }
 
-            // docSource shouldn't be null
-            assert tuple != null;
-            executeGet(tuple, originalRequest, listener);
-        } catch (IOException e) {
-            throw new ElasticSearchParseException("failed to parse request", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
+                    BytesReference docSource = getResponse.getSourceAsBytesRef();
+                    TransportPercolateAction.super.doExecute(new PercolateRequest(request, docSource), listener);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            super.doExecute(request, listener);
         }
-    }
-
-    void executeGet(Tuple<GetRequest, Long> tuple, final PercolateRequest originalRequest, final ActionListener<PercolateResponse> listener) {
-        final GetRequest getRequest = tuple.v1();
-        final Long getVersion = tuple.v2();
-        getAction.execute(tuple.v1(), new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                if (!getResponse.isExists()) {
-                    onFailure(new DocumentMissingException(null, getRequest.type(), getRequest.id()));
-                    return;
-                }
-
-                if (getVersion != null && getVersion != getResponse.getVersion()) {
-                    onFailure(new VersionConflictEngineException(null, getRequest.type(), getRequest.id(), getResponse.getVersion(), getVersion));
-                    return;
-                }
-                BytesReference fetchedSource = getResponse.getSourceAsBytesRef();
-                TransportPercolateAction.super.doExecute(new PercolateRequest(originalRequest, fetchedSource), listener);
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                listener.onFailure(e);
-            }
-        });
-    }
-
-    Tuple<GetRequest, Long> createGetRequest(XContentParser parser, String index, String type) throws IOException {
-        String getCurrentField = null;
-        String getIndex = index;
-        String getType = type;
-        String getId = null;
-        Long getVersion = null;
-        String getRouting = null;
-        String getPreference = "_local";
-
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                getCurrentField = parser.currentName();
-            } else if (token.isValue()) {
-                if ("index".equals(getCurrentField)) {
-                    getIndex = parser.text();
-                } else if ("type".equals(getCurrentField)) {
-                    getType = parser.text();
-                } else if ("id".equals(getCurrentField)) {
-                    getId = parser.text();
-                } else if ("version".equals(getCurrentField)) {
-                    getVersion = parser.longValue();
-                } else if ("routing".equals(getCurrentField)) {
-                    getRouting = parser.text();
-                } else if ("preference".equals(getCurrentField)) {
-                    getPreference = parser.text();
-                }
-            }
-        }
-        return new Tuple<GetRequest, Long>(
-                // We are on the network thread, so operationThreaded should be true
-                new GetRequest(getIndex).preference(getPreference).operationThreaded(true).type(getType).id(getId).routing(getRouting),
-                getVersion
-        );
     }
 
     @Override

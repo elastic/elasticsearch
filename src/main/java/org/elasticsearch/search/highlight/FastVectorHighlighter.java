@@ -25,7 +25,6 @@ import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -43,6 +42,8 @@ import java.util.Map;
  */
 public class FastVectorHighlighter implements Highlighter {
 
+    private static final SimpleBoundaryScanner DEFAULT_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
+
     private static final String CACHE_KEY = "highlight-fsv";
     private final Boolean termVectorMultiValue;
 
@@ -53,7 +54,7 @@ public class FastVectorHighlighter implements Highlighter {
 
     @Override
     public String[] names() {
-        return new String[] { "fvh", "fast-vector-highlighter" };
+        return new String[]{"fvh", "fast-vector-highlighter"};
     }
 
     @Override
@@ -81,9 +82,9 @@ public class FastVectorHighlighter implements Highlighter {
                 XFragListBuilder fragListBuilder;
                 XBaseFragmentsBuilder fragmentsBuilder;
 
-                BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
-                if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {
-                    boundaryScanner = new SimpleBoundaryScanner2(field.boundaryMaxScan(), field.boundaryChars());
+                BoundaryScanner boundaryScanner = DEFAULT_BOUNDARY_SCANNER;
+                if (field.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
+                    boundaryScanner = new SimpleBoundaryScanner(field.boundaryMaxScan(), field.boundaryChars());
                 }
 
                 if (field.numberOfFragments() == 0) {

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
+import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
@@ -75,8 +75,8 @@ public class HighlighterParseElement implements SearchParseElement {
         int globalFragmentSize = 100;
         int globalNumOfFragments = 5;
         String globalEncoder = "default";
-        int globalBoundaryMaxScan = SimpleBoundaryScanner2.DEFAULT_MAX_SCAN;
-        char[] globalBoundaryChars = SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS;
+        int globalBoundaryMaxScan = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
+        Character[] globalBoundaryChars = SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
         String globalHighlighterType = null;
         String globalFragmenter = null;
         Map<String, Object> globalOptions = null;
@@ -120,7 +120,11 @@ public class HighlighterParseElement implements SearchParseElement {
                 } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
                     globalBoundaryMaxScan = parser.intValue();
                 } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
-                    globalBoundaryChars = parser.text().toCharArray();
+                    char[] charsArr = parser.text().toCharArray();
+                    globalBoundaryChars = new Character[charsArr.length];
+                    for (int i = 0; i < charsArr.length; i++) {
+                        globalBoundaryChars[i] = charsArr[i];
+                    }
                 } else if ("type".equals(topLevelFieldName)) {
                     globalHighlighterType = parser.text();
                 } else if ("fragmenter".equals(topLevelFieldName)) {
@@ -170,7 +174,12 @@ public class HighlighterParseElement implements SearchParseElement {
                                     } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
                                         field.boundaryMaxScan(parser.intValue());
                                     } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
-                                        field.boundaryChars(parser.text().toCharArray());
+                                        char[] charsArr = parser.text().toCharArray();
+                                        Character[] boundaryChars = new Character[charsArr.length];
+                                        for (int i = 0; i < charsArr.length; i++) {
+                                            boundaryChars[i] = charsArr[i];
+                                        }
+                                        field.boundaryChars(boundaryChars);
                                     } else if ("type".equals(fieldName)) {
                                         field.highlighterType(parser.text());
                                     } else if ("fragmenter".equals(fieldName)) {

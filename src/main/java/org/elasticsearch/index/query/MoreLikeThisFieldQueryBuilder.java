@@ -25,8 +25,6 @@ import java.io.IOException;
 
 /**
  * A more like this query that runs against a specific field.
- *
- *
  */
 public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisFieldQueryBuilder> {
 
@@ -44,7 +42,7 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
-    private boolean failOnUnsupportedField;
+    private Boolean failOnUnsupportedField;
 
     /**
      * A more like this query that runs against a specific field.
@@ -211,7 +209,7 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
-        if (!failOnUnsupportedField) {
+        if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
         }
         builder.endObject();

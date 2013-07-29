@@ -38,7 +38,7 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
     private Integer maxQueryTerms;
     private Boolean ignoreTF;
     private String analyzer;
-    private boolean failOnUnsupportedField = true;;
+    private Boolean failOnUnsupportedField;
 
     /**
      * Constructs a new fuzzy like this query which uses the "_all" field.
@@ -137,7 +137,7 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
-        if (!failOnUnsupportedField) {
+        if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
         }
         builder.endObject();

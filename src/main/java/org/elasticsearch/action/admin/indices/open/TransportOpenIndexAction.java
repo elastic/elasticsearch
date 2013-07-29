@@ -37,13 +37,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
 
-    private final MetaDataIndexStateService stateIndexService;
+    private final MetaDataIndexStateService indexStateService;
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataIndexStateService stateIndexService) {
+                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService) {
         super(settings, transportService, clusterService, threadPool);
-        this.stateIndexService = stateIndexService;
+        this.indexStateService = indexStateService;
     }
 
     @Override
@@ -76,8 +76,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
 
-        stateIndexService.openIndex(new MetaDataIndexStateService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
-
+        indexStateService.openIndex(new MetaDataIndexStateService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
             @Override
             public void onResponse(MetaDataIndexStateService.Response response) {
                 listener.onResponse(new OpenIndexResponse(response.acknowledged()));

@@ -37,13 +37,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
 
-    private final MetaDataIndexStateService stateIndexService;
+    private final MetaDataIndexStateService indexStateService;
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataIndexStateService stateIndexService) {
+                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService) {
         super(settings, transportService, clusterService, threadPool);
-        this.stateIndexService = stateIndexService;
+        this.indexStateService = indexStateService;
     }
 
     @Override
@@ -76,7 +76,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
 
-        stateIndexService.closeIndex(new MetaDataIndexStateService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
+        indexStateService.closeIndex(new MetaDataIndexStateService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
             @Override
             public void onResponse(MetaDataIndexStateService.Response response) {
                 listener.onResponse(new CloseIndexResponse(response.acknowledged()));

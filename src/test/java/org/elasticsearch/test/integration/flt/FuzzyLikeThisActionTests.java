@@ -28,9 +28,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.fail;
 
 /**
  *
@@ -61,21 +59,23 @@ public class FuzzyLikeThisActionTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
 
-        // flt query with at least a numeric field -> fail
-        try {
-            searchResponse = client().prepareSearch().setQuery(fuzzyLikeThisQuery("string_value", "int_value").likeText("index")).execute().actionGet();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            // OK
-        }
+        // flt query with at least a numeric field -> fail by default
+        assertThrows(client().prepareSearch().setQuery(fuzzyLikeThisQuery("string_value", "int_value").likeText("index")), SearchPhaseExecutionException.class);
+
+        // flt query with at least a numeric field -> fail by command
+        assertThrows(client().prepareSearch().setQuery(fuzzyLikeThisQuery("string_value", "int_value").likeText("index").failOnUnsupportedField(true)), SearchPhaseExecutionException.class);
+
 
         // flt query with at least a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(fuzzyLikeThisQuery("string_value", "int_value").likeText("index").failOnUnsupportedField(false)).execute().actionGet();
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
 
-        // flt field query on a numeric field -> failure
+        // flt field query on a numeric field -> failure by default
         assertThrows(client().prepareSearch().setQuery(fuzzyLikeThisFieldQuery("int_value").likeText("42")), SearchPhaseExecutionException.class);
+
+        // flt field query on a numeric field -> failure by command
+        assertThrows(client().prepareSearch().setQuery(fuzzyLikeThisFieldQuery("int_value").likeText("42").failOnUnsupportedField(true)), SearchPhaseExecutionException.class);
 
         // flt field query on a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(fuzzyLikeThisFieldQuery("int_value").likeText("42").failOnUnsupportedField(false)).execute().actionGet();

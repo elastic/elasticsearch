@@ -38,7 +38,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
     private Integer maxQueryTerms;
     private Boolean ignoreTF;
     private String analyzer;
-    private boolean failOnUnsupportedField = true;
+    private Boolean failOnUnsupportedField;
 
     /**
      * A fuzzy more like this query on the provided field.
@@ -124,7 +124,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
         }
-        if (!failOnUnsupportedField) {
+        if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
         }
         builder.endObject();

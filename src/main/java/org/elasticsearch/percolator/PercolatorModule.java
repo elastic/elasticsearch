@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.percolator;
+package org.elasticsearch.percolator;
 
 import org.elasticsearch.common.inject.AbstractModule;
 

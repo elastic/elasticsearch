@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.percolator.PercolatorService;
 
 import java.util.concurrent.ConcurrentMap;
 

@@ -29,8 +29,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +49,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         private String id;
         private String routing;
         private String[] fields;
+        private long version = Versions.MATCH_ANY;
+        private VersionType versionType = VersionType.INTERNAL;
 
         Item() {
 
@@ -110,6 +114,24 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
             return this.fields;
         }
 
+        public long version() {
+            return version;
+        }
+
+        public Item version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return versionType;
+        }
+
+        public Item versionType(VersionType versionType) {
+            this.versionType = versionType;
+            return this;
+        }
+
         public static Item readItem(StreamInput in) throws IOException {
             Item item = new Item();
             item.readFrom(in);
@@ -129,6 +151,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                     fields[i] = in.readString();
                 }
             }
+            version = in.readVLong();
+            versionType = VersionType.fromValue(in.readByte());
         }
 
         @Override
@@ -145,6 +169,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                     out.writeString(field);
                 }
             }
+            out.writeVLong(version);
+            out.writeByte(versionType.getValue());
         }
     }
 
@@ -241,6 +267,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             String routing = null;
                             String parent = null;
                             List<String> fields = null;
+                            long version = Versions.MATCH_ANY;
+                            VersionType versionType = VersionType.INTERNAL;
+
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
@@ -258,6 +287,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                     } else if ("fields".equals(currentFieldName)) {
                                         fields = new ArrayList<String>();
                                         fields.add(parser.text());
+                                    } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+                                        version = parser.longValue();
+                                    } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
+                                        versionType = VersionType.fromString(parser.text());
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     if ("fields".equals(currentFieldName)) {
@@ -274,7 +307,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             } else {
                                 aFields = defaultFields;
                             }
-                            add(new Item(index, type, id).routing(routing).fields(aFields).parent(parent));
+                            add(new Item(index, type, id).routing(routing).fields(aFields).parent(parent).version(version).versionType(versionType));
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

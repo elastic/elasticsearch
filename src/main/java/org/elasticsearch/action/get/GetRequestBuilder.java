@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.VersionType;
 
 /**
  * A get document action request builder.
@@ -104,6 +105,23 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     public GetRequestBuilder setRealtime(Boolean realtime) {
         request.realtime(realtime);
+        return this;
+    }
+
+    /**
+     * Sets the version, which will cause the get operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public GetRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     */
+    public GetRequestBuilder setVersionType(VersionType versionType) {
+        request.versionType(versionType);
         return this;
     }
 

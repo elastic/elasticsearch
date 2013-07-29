@@ -50,6 +50,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -315,6 +316,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (versionValue.delete()) {
                         return GetResult.NOT_EXISTS;
                     }
+                    if (get.version() != Versions.MATCH_ANY) {
+                        if (get.versionType().isVersionConflict(versionValue.version(), get.version())) {
+                            Uid uid = Uid.createUid(get.uid().text());
+                            throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), versionValue.version(), get.version());
+                        }
+                    }
                     if (!get.loadSource()) {
                         return new GetResult(true, versionValue.version(), null);
                     }
@@ -332,19 +339,31 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
             // no version, get the version from the index, we know that we refresh on flush
             Searcher searcher = searcher();
+            final Versions.DocIdAndVersion docIdAndVersion;
             try {
-                final Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
-                if (docIdAndVersion != null) {
-                    return new GetResult(searcher, docIdAndVersion);
-                }
-                // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
+                docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
             } catch (Exception e) {
                 searcher.release();
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "Couldn't resolve version", e);
             }
-            searcher.release();
-            return GetResult.NOT_EXISTS;
+
+            if (get.version() != Versions.MATCH_ANY && docIdAndVersion != null) {
+                if (get.versionType().isVersionConflict(docIdAndVersion.version, get.version())) {
+                    searcher.release();
+                    Uid uid = Uid.createUid(get.uid().text());
+                    throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
+                }
+            }
+
+            if (docIdAndVersion != null) {
+                // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
+                return new GetResult(searcher, docIdAndVersion);
+            } else {
+                searcher.release();
+                return GetResult.NOT_EXISTS;
+            }
+
         } finally {
             rwl.readLock().unlock();
         }

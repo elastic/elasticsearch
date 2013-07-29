@@ -20,10 +20,12 @@
 package org.elasticsearch.action.get;
 
 import gnu.trove.list.array.TIntArrayList;
+import gnu.trove.list.array.TLongArrayList;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +42,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     List<String> types;
     List<String> ids;
     List<String[]> fields;
+    TLongArrayList versions;
+    List<VersionType> versionTypes;
 
     MultiGetShardRequest() {
 
@@ -52,6 +56,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         types = new ArrayList<String>();
         ids = new ArrayList<String>();
         fields = new ArrayList<String[]>();
+        versions = new TLongArrayList();
+        versionTypes = new ArrayList<VersionType>();
     }
 
     public int shardId() {
@@ -90,11 +96,13 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         return this;
     }
 
-    public void add(int location, @Nullable String type, String id, String[] fields) {
+    public void add(int location, @Nullable String type, String id, String[] fields, long version, VersionType versionType) {
         this.locations.add(location);
         this.types.add(type);
         this.ids.add(id);
         this.fields.add(fields);
+        this.versions.add(version);
+        this.versionTypes.add(versionType);
     }
 
     @Override
@@ -105,6 +113,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         types = new ArrayList<String>(size);
         ids = new ArrayList<String>(size);
         fields = new ArrayList<String[]>(size);
+        versions = new TLongArrayList(size);
+        versionTypes = new ArrayList<VersionType>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {
@@ -123,6 +133,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
             } else {
                 fields.add(null);
             }
+            versions.add(in.readVLong());
+            versionTypes.add(VersionType.fromValue(in.readByte()));
         }
 
         preference = in.readOptionalString();
@@ -156,6 +168,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
                     out.writeString(field);
                 }
             }
+            out.writeVLong(versions.get(i));
+            out.writeByte(versionTypes.get(i).getValue());
         }
 
         out.writeOptionalString(preference);

@@ -26,6 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 
@@ -52,6 +54,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     private boolean refresh = false;
 
     Boolean realtime;
+
+    private VersionType versionType = VersionType.INTERNAL;
+    private long version = Versions.MATCH_ANY;
 
     GetRequest() {
         type = "_all";
@@ -197,6 +202,31 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         return this;
     }
 
+    /**
+     * Sets the version, which will cause the get operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public long version() {
+        return version;
+    }
+
+    public GetRequest version(long version) {
+        this.version = version;
+        return this;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     */
+    public GetRequest versionType(VersionType versionType) {
+        this.versionType = versionType;
+        return this;
+    }
+
+    public VersionType versionType() {
+        return this.versionType;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -218,6 +248,8 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else if (realtime == 1) {
             this.realtime = true;
         }
+        this.versionType = VersionType.fromValue(in.readByte());
+        this.version = in.readVLong();
     }
 
     @Override
@@ -244,6 +276,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else {
             out.writeByte((byte) 1);
         }
+
+        out.writeByte(versionType.getValue());
+        out.writeVLong(version);
     }
 
     @Override

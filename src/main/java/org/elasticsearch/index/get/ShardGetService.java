@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -94,11 +95,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType) throws ElasticSearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime);
+            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -143,12 +144,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime) throws ElasticSearchException {
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType) throws ElasticSearchException {
         boolean loadSource = gFields == null || gFields.length > 0;
         Engine.GetResult get = null;
         if (type == null || type.equals("_all")) {
             for (String typeX : mapperService.types()) {
-                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(typeX, id))).loadSource(loadSource));
+                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(typeX, id)))
+                        .loadSource(loadSource).version(version).versionType(versionType));
                 if (get.exists()) {
                     type = typeX;
                     break;
@@ -164,7 +166,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
             }
         } else {
-            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id))).loadSource(loadSource));
+            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id)))
+                    .loadSource(loadSource).version(version).versionType(versionType));
             if (!get.exists()) {
                 get.release();
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);

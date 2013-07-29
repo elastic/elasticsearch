@@ -276,7 +276,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
-                String percolate = null;
                 int retryOnConflict = 0;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)

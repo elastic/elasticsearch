@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -494,6 +495,209 @@ public class GetActionTests extends AbstractSharedClusterTest {
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
         assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
         assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
+    }
+
+    @Test
+    public void testGetWithVersion() {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(response.isExists(), equalTo(false));
+
+        logger.info("--> index doc 1");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+
+        // From translog:
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareGet("test", "type1", "1").setVersion(0).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        response = client().prepareGet("test", "type1", "1").setVersion(1).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        try {
+            client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
+            assert false;
+        } catch (VersionConflictEngineException e) {}
+
+        // From Lucene index:
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareGet("test", "type1", "1").setVersion(0).setRealtime(false).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        response = client().prepareGet("test", "type1", "1").setVersion(1).setRealtime(false).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(1l));
+
+        try {
+            client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
+            assert false;
+        } catch (VersionConflictEngineException e) {}
+
+        logger.info("--> index doc 1 again, so increasing the version");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+
+        // From translog:
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareGet("test", "type1", "1").setVersion(0).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        try {
+            client().prepareGet("test", "type1", "1").setVersion(1).execute().actionGet();
+            assert false;
+        } catch (VersionConflictEngineException e) {}
+
+        response = client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        // From Lucene index:
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        // version 0 means ignore version, which is the default
+        response = client().prepareGet("test", "type1", "1").setVersion(0).setRealtime(false).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(2l));
+
+        try {
+            client().prepareGet("test", "type1", "1").setVersion(1).setRealtime(false).execute().actionGet();
+            assert false;
+        } catch (VersionConflictEngineException e) {}
+
+        response = client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getVersion(), equalTo(2l));
+    }
+
+    @Test
+    public void testMultiGetWithVersion() throws Exception {
+        try {
+            client().admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // fine
+        }
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
+
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        MultiGetResponse response = client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
+
+        for (int i = 0; i < 3; i++) {
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+
+        // Version from translog
+        response = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "type1", "1").version(0))
+                .add(new MultiGetRequest.Item("test", "type1", "1").version(1))
+                .add(new MultiGetRequest.Item("test", "type1", "1").version(2))
+                .execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(3));
+        // [0] version doesn't matter, which is the default
+        assertThat(response.getResponses()[0].getFailure(), nullValue());
+        assertThat(response.getResponses()[0].getId(), equalTo("1"));
+        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[1].getId(), equalTo("1"));
+        assertThat(response.getResponses()[1].getFailure(), nullValue());
+        assertThat(response.getResponses()[1].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[2].getFailure(), notNullValue());
+        assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+
+        //Version from Lucene index
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "type1", "1").version(0))
+                .add(new MultiGetRequest.Item("test", "type1", "1").version(1))
+                .add(new MultiGetRequest.Item("test", "type1", "1").version(2))
+                .setRealtime(false)
+                .execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(3));
+        // [0] version doesn't matter, which is the default
+        assertThat(response.getResponses()[0].getFailure(), nullValue());
+        assertThat(response.getResponses()[0].getId(), equalTo("1"));
+        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[1].getId(), equalTo("1"));
+        assertThat(response.getResponses()[1].getFailure(), nullValue());
+        assertThat(response.getResponses()[1].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
+        assertThat(response.getResponses()[2].getFailure(), notNullValue());
+        assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+
+
+        for (int i = 0; i < 3; i++) {
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+
+        // Version from translog
+        response = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "type1", "2").version(0))
+                .add(new MultiGetRequest.Item("test", "type1", "2").version(1))
+                .add(new MultiGetRequest.Item("test", "type1", "2").version(2))
+                .execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(3));
+        // [0] version doesn't matter, which is the default
+        assertThat(response.getResponses()[0].getFailure(), nullValue());
+        assertThat(response.getResponses()[0].getId(), equalTo("2"));
+        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
+        assertThat(response.getResponses()[1].getFailure(), notNullValue());
+        assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[2].getId(), equalTo("2"));
+        assertThat(response.getResponses()[2].getFailure(), nullValue());
+        assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
+
+
+        //Version from Lucene index
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "type1", "2").version(0))
+                .add(new MultiGetRequest.Item("test", "type1", "2").version(1))
+                .add(new MultiGetRequest.Item("test", "type1", "2").version(2))
+                .setRealtime(false)
+                .execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(3));
+        // [0] version doesn't matter, which is the default
+        assertThat(response.getResponses()[0].getFailure(), nullValue());
+        assertThat(response.getResponses()[0].getId(), equalTo("2"));
+        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
+        assertThat(response.getResponses()[1].getFailure(), notNullValue());
+        assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[2].getId(), equalTo("2"));
+        assertThat(response.getResponses()[2].getFailure(), nullValue());
+        assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
     }
 
 }

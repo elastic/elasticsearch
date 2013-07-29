@@ -823,6 +823,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final boolean realtime;
         private final Term uid;
         private boolean loadSource = true;
+        private long version;
+        private VersionType versionType;
 
         public Get(boolean realtime, Term uid) {
             this.realtime = realtime;
@@ -843,6 +845,24 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Get loadSource(boolean loadSource) {
             this.loadSource = loadSource;
+            return this;
+        }
+
+        public long version() {
+            return version;
+        }
+
+        public Get version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return versionType;
+        }
+
+        public Get versionType(VersionType versionType) {
+            this.versionType = versionType;
             return this;
         }
     }

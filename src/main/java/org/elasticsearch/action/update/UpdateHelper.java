@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -65,7 +64,8 @@ public class UpdateHelper extends AbstractComponent {
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
-                new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME}, true);
+                new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME},
+                true, request.version(), request.versionType());
 
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
@@ -84,11 +84,6 @@ public class UpdateHelper extends AbstractComponent {
                 indexRequest.version(request.version()).versionType(VersionType.EXTERNAL);
             }
             return new Result(indexRequest, Operation.UPSERT, null, null);
-        }
-
-        if (request.versionType().isVersionConflict(getResult.getVersion(), request.version())) {
-            throw new VersionConflictEngineException(new ShardId(request.index(), request.shardId()), request.type(), request.id(),
-                    getResult.getVersion(), request.version());
         }
 
         long updateVersion = getResult.getVersion();

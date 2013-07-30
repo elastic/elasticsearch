@@ -28,7 +28,6 @@ import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.StringReader;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -41,7 +40,7 @@ public class NumericAnalyzerTests extends ElasticsearchTestCase {
         final double value = randomDouble();
         NumericDoubleAnalyzer analyzer = new NumericDoubleAnalyzer(precisionStep);
 
-        final TokenStream ts1 = analyzer.tokenStream("dummy", new StringReader(String.valueOf(value)));
+        final TokenStream ts1 = analyzer.tokenStream("dummy", String.valueOf(value));
         final NumericTokenStream ts2 = new NumericTokenStream(precisionStep);
         ts2.setDoubleValue(value);
         final NumericTermAttribute numTerm1 = ts1.addAttribute(NumericTermAttribute.class);

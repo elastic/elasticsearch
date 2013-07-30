@@ -38,8 +38,6 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.junit.Test;
 
-import java.io.StringReader;
-
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 @ThreadLeakScope(Scope.NONE)
@@ -60,15 +58,15 @@ public class PatternCaptureTokenFilterTests extends BaseTokenStreamTestCase{
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("single");
 
-        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("foobarbaz")), new String[]{"foobarbaz","foobar","foo"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", "foobarbaz"), new String[]{"foobarbaz","foobar","foo"});
 
         NamedAnalyzer analyzer2 = analysisService.analyzer("multi");
 
-        assertTokenStreamContents(analyzer2.tokenStream("test", new StringReader("abc123def")), new String[]{"abc123def","abc","123","def"});
+        assertTokenStreamContents(analyzer2.tokenStream("test", "abc123def"), new String[]{"abc123def","abc","123","def"});
 
         NamedAnalyzer analyzer3 = analysisService.analyzer("preserve");
 
-        assertTokenStreamContents(analyzer3.tokenStream("test", new StringReader("foobarbaz")), new String[]{"foobar","foo"});
+        assertTokenStreamContents(analyzer3.tokenStream("test", "foobarbaz"), new String[]{"foobar","foo"});
 
     }
 

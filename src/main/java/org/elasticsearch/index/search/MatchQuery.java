@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
@@ -33,7 +32,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -201,7 +199,7 @@ public class MatchQuery {
         }
 
         // Logic similar to QueryParser#getFieldQuery
-        final TokenStream source = analyzer.tokenStream(field, new FastStringReader(value.toString()));
+        final TokenStream source = analyzer.tokenStream(field, value.toString());
         source.reset();
         int numTokens = 0;
         int positionCount = 0;

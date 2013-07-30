@@ -37,8 +37,6 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.junit.Test;
 
-import java.io.StringReader;
-
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -66,10 +64,10 @@ public class CharFilterTests extends BaseTokenStreamTestCase{
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
         
-        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("jeff quit phish")), new String[]{"jeff", "qit", "fish"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
-        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("jeff quit phish")), new String[]{"jeff", "qit", "fish"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
     }
 
     @Test
@@ -90,9 +88,9 @@ public class CharFilterTests extends BaseTokenStreamTestCase{
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
 
-        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("<b>hello</b>!")), new String[]{"hello"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", "<b>hello</b>!"), new String[]{"hello"});
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
-        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("<b>hello</b>!")), new String[]{"hello"});
+        assertTokenStreamContents(analyzer1.tokenStream("test", "<b>hello</b>!"), new String[]{"hello"});
     }
 }

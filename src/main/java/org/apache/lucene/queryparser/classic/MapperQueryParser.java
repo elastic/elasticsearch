@@ -26,7 +26,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -543,7 +541,7 @@ public class MapperQueryParser extends QueryParser {
         // get Analyzer from superclass and tokenize the term
         TokenStream source;
         try {
-            source = getAnalyzer().tokenStream(field, new StringReader(termStr));
+            source = getAnalyzer().tokenStream(field, termStr);
             source.reset();
         } catch (IOException e) {
             return super.getPrefixQuery(field, termStr);
@@ -686,7 +684,7 @@ public class MapperQueryParser extends QueryParser {
             if (c == '?' || c == '*') {
                 if (isWithinToken) {
                     try {
-                        TokenStream source = getAnalyzer().tokenStream(field, new FastStringReader(tmp.toString()));
+                        TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
                         source.reset();
                         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                         if (source.incrementToken()) {
@@ -716,7 +714,7 @@ public class MapperQueryParser extends QueryParser {
         }
         if (isWithinToken) {
             try {
-                TokenStream source = getAnalyzer().tokenStream(field, new FastStringReader(tmp.toString()));
+                TokenStream source = getAnalyzer().tokenStream(field, tmp.toString());
                 source.reset();
                 CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                 if (source.incrementToken()) {

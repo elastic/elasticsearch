@@ -19,15 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
-import java.io.IOException;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -36,11 +31,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+
+import java.io.IOException;
+
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  *
@@ -202,7 +199,7 @@ public class CommonTermsQueryParser implements QueryParser {
         }
 
         // Logic similar to QueryParser#getFieldQuery
-        TokenStream source = analyzer.tokenStream(field, new FastStringReader(queryString.toString()));
+        TokenStream source = analyzer.tokenStream(field, queryString.toString());
         source.reset();
         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
         int count = 0;

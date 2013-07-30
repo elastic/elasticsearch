@@ -178,14 +178,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             try {
                 nodeIndexCreatedAction.nodeIndexCreated(index, event.state().nodes().localNodeId());
             } catch (Exception e) {
-                logger.debug("failed to send to master index {} created event", index);
+                logger.debug("failed to send to master index {} created event", e, index);
             }
         }
         for (String index : event.indicesDeleted()) {
             try {
                 nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
             } catch (Exception e) {
-                logger.debug("failed to send to master index {} deleted event", index);
+                logger.debug("failed to send to master index {} deleted event", e, index);
             }
         }
     }
@@ -193,7 +193,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private void notifyIndicesStateChanged(final ClusterChangedEvent event) {
         //handles open/close index notifications
         if (event.indicesStateChanged()) {
-            nodeIndicesStateUpdatedAction.nodeIndexStateUpdated(new NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
+            try {
+                nodeIndicesStateUpdatedAction.nodeIndexStateUpdated(new NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
+            } catch (Exception e) {
+                logger.debug("failed to send to master indices state change event", e);
+            }
         }
     }
 

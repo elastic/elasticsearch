@@ -1,5 +1,8 @@
 ---
 "Source filtering":
+  - skip:
+      version:  "0 - 0.90.999"
+      reason:   "source filtering is not supported in pre 1.0 versions."
 
   - do:
       index:
@@ -40,3 +43,18 @@
   - match:  { _source.include.field1: v1 }
   - is_false: _source.include.field2
   - is_false: _source.count
+
+
+  - do:
+      get:
+        index:  test_1
+        type:   test
+        id:     1
+        fields: count
+        _source: true
+
+  - match:   { _index:   test_1  }
+  - match:   { _type:    test    }
+  - match:   { _id:      1       }
+  - match:   { fields.count:  1  }
+  - match:   { _source.include.field1: v1 }

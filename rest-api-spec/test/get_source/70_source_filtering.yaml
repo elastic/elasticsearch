@@ -1,5 +1,8 @@
 ---
 "Source filtering":
+  - skip:
+      version:  "0 - 0.90.999"
+      reason:   "source filtering is not supported in pre 1.0 versions."
 
   - do:
       index:

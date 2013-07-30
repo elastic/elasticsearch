@@ -23,7 +23,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Priority;
@@ -276,7 +279,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
         refreshOrUpdateQueue.add(new UpdateTask(index, type, mappingSource, listener));
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public void onFailure(String source, Throwable t) {
                 listener.onFailure(t);
@@ -285,11 +288,6 @@ public class MetaDataMappingService extends AbstractComponent {
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
                 return executeRefreshOrUpdate(currentState);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new Response(true));
             }
         });
     }

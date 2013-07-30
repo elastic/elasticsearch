@@ -143,6 +143,10 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
         return this.aliasActions;
     }
 
+    public List<AliasAction> getAliasActions() {
+        return aliasActions();
+    }
+
     /**
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.

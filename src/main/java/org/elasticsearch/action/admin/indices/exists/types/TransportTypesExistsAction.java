@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.exists.types;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -32,6 +31,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Map;
 
 /**
  * Types exists transport action.
@@ -84,7 +85,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
                 return;
             }
 
-            ImmutableMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
+            Map<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
             if (mappings.isEmpty()) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;

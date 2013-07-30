@@ -1063,7 +1063,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             snapshotIndexCommit = deletionPolicy.snapshot();
             traslogSnapshot = translog.snapshot();
         } catch (Exception e) {
-            if (snapshotIndexCommit != null) snapshotIndexCommit.release();
+            if (snapshotIndexCommit != null) {
+                snapshotIndexCommit.release();
+            }
             throw new SnapshotFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();
@@ -1368,7 +1370,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            long gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
+            long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
             if (gcDeletesInMillis != RobinEngine.this.gcDeletesInMillis) {
                 logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
                 RobinEngine.this.gcDeletesInMillis = gcDeletesInMillis;

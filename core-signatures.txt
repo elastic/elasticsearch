@@ -15,3 +15,5 @@ java.lang.Character#codePointAt(char[],int) @ Implicit end offset is error-prone
 
 java.util.Collections#sort(java.util.List)
 java.util.Collections#sort(java.util.List,java.util.Comparator)
+
+java.io.StringReader#<init>(java.lang.String) @ Use FastStringReader instead

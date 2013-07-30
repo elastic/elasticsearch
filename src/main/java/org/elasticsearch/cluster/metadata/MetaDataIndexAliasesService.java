@@ -110,6 +110,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(aliasAction.index()));
                         }
+                        // TODO: not copy (putAll)
                         IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
                         if (aliasAction.actionType() == AliasAction.Type.ADD) {
                             String filter = aliasAction.filter();

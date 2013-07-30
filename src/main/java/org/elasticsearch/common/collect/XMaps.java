@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.collect;
 
+import com.google.common.collect.ForwardingMap;
 import gnu.trove.impl.Constants;
-
-import java.util.Map;
-
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.trove.ExtTHashMap;
 
-import com.google.common.collect.ForwardingMap;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * This class provides factory methods for Maps. The returned {@link Map}
@@ -89,4 +88,12 @@ public final class XMaps {
             }
         };
     }
+
+    /**
+     * Wraps the given map into a read only implementation.
+     */
+    public static <K, V> Map<K, V> makeReadOnly(Map<K, V> map) {
+        return Collections.unmodifiableMap(map);
+    }
+
 }

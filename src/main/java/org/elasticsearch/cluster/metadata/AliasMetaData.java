@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
@@ -30,7 +31,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -41,15 +44,22 @@ public class AliasMetaData {
 
     private final CompressedString filter;
 
-    private String indexRouting;
+    private final String indexRouting;
 
-    private String searchRouting;
+    private final String searchRouting;
+
+    private final Set<String> searchRoutingValues;
 
     private AliasMetaData(String alias, CompressedString filter, String indexRouting, String searchRouting) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
         this.searchRouting = searchRouting;
+        if (searchRouting != null) {
+            searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
+        } else {
+            searchRoutingValues = ImmutableSet.of();
+        }
     }
 
     public String alias() {
@@ -68,6 +78,10 @@ public class AliasMetaData {
         return filter();
     }
 
+    public boolean filteringRequired() {
+        return filter != null;
+    }
+
     public String getSearchRouting() {
         return searchRouting();
     }
@@ -82,6 +96,10 @@ public class AliasMetaData {
 
     public String indexRouting() {
         return indexRouting;
+    }
+
+    public Set<String> searchRoutingValues() {
+        return searchRoutingValues;
     }
 
     public static Builder builder(String alias) {

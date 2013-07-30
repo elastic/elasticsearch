@@ -80,6 +80,10 @@ public class MapBuilder<K, V> {
         return this.map;
     }
 
+    public Map<K, V> readOnlyMap() {
+        return XMaps.makeReadOnly(map);
+    }
+
     public ImmutableMap<K, V> immutableMap() {
         return ImmutableMap.copyOf(map);
     }

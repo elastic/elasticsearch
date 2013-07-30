@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.*;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
@@ -29,6 +31,7 @@ import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -37,7 +40,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Reader;
-import java.io.StringReader;
 import java.util.List;
 import java.util.Map;
 
@@ -59,7 +61,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             for (String line : rules) {
                 sb.append(line).append(System.getProperty("line.separator"));
             }
-            rulesReader = new StringReader(sb.toString());
+            rulesReader = new FastStringReader(sb.toString());
         } else if (settings.get("synonyms_path") != null) {
             rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
         } else {

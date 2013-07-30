@@ -65,7 +65,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URL;
 import java.util.*;
 
@@ -301,7 +304,7 @@ public class Analysis {
      * @see #isCharacterTokenStream(TokenStream)
      */
     public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
-        return isCharacterTokenStream(analyzer.tokenStream(fieldName, new StringReader("")));
+        return isCharacterTokenStream(analyzer.tokenStream(fieldName, ""));
     }
 
 }

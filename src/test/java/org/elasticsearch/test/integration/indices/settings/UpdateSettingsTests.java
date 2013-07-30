@@ -24,10 +24,11 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -81,5 +82,22 @@ public class UpdateSettingsTests extends AbstractSharedClusterTest {
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("1s"));
         assertThat(indexMetaData.settings().get("index.cache.filter.type"), equalTo("none"));
+    }
+
+    @Test
+    public void testRobinEngineGCDeletesSetting() throws InterruptedException {
+        createIndex("test");
+        client().prepareIndex("test", "type", "1").setSource("f", 1).get(); // set version to 1
+        client().prepareDelete("test", "type", "1").get(); // sets version to 2
+        client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get(); // delete is still in cache this should work & set version to 3
+        client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.gc_deletes", 0)
+                ).get();
+
+        client().prepareDelete("test", "type", "1").get(); // sets version to 4
+        Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
+        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class); // delete is should not be in cache
+
     }
 }

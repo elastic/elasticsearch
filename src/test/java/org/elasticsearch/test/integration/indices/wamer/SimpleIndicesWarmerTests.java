@@ -31,10 +31,8 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  */
@@ -182,7 +180,7 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
     public void ensureThatIndexWarmersCanBeChangedOnRuntime() throws Exception {
         client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1, "index.number_of_replicas", 0))
                 .execute().actionGet();
 
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
@@ -191,16 +189,16 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
 
-        client().prepareIndex("test", "test", "1").setSource("{ \"foo\" : \"bar\"}").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "test", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings("{ \"index.warmer.enabled\": false}").execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put("index.warmer.enabled", false)).execute().actionGet();
 
         long warmerRunsAfterDisabling = getWarmerRuns();
-        assertThat(warmerRunsAfterDisabling, is(greaterThan(1L)));
+        assertThat(getWarmerRuns(), greaterThanOrEqualTo(1L));
 
-        client().prepareIndex("test", "test", "2").setSource("{ \"foo2\" : \"bar2\"}").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "test", "2").setSource("foo2", "bar2").setRefresh(true).execute().actionGet();
 
-        assertThat(warmerRunsAfterDisabling, is(getWarmerRuns()));
+        assertThat(getWarmerRuns(), equalTo(warmerRunsAfterDisabling));
     }
 
     private long getWarmerRuns() {

@@ -51,11 +51,12 @@ public class RestPercolateAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate", this);
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate", new RestPercolateExistingDocHandler());
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate", new RestPercolateExistingDocHandler());
     }
 
     @Override
-    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel) {
+    public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
         String index = restRequest.param("index");
         String type = restRequest.param("type");
 
@@ -66,17 +67,10 @@ public class RestPercolateAction extends BaseRestHandler {
 
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
+        executePercolate(percolateRequest, restRequest, restChannel);
+    }
 
-        GetRequest getRequest = new GetRequest(restRequest.param("get_index", index), restRequest.param("get_type", type),
-                restRequest.param("id"));
-        getRequest.routing(restRequest.param("get_routing"));
-        getRequest.preference(restRequest.param("get_preference"));
-        getRequest.refresh(restRequest.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.realtime(restRequest.paramAsBooleanOptional("realtime", null));
-        getRequest.version(RestActions.parseVersion(restRequest));
-        getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
-        percolateRequest.getRequest(getRequest);
-
+    void executePercolate(PercolateRequest percolateRequest, final RestRequest restRequest, final RestChannel restChannel) {
         // we just send a response, no need to fork
         percolateRequest.listenerThreaded(false);
         client.percolate(percolateRequest, new ActionListener<PercolateResponse>() {
@@ -128,6 +122,39 @@ public class RestPercolateAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    class RestPercolateExistingDocHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
+            String index = restRequest.param("index");
+            String type = restRequest.param("type");
+
+            GetRequest getRequest = new GetRequest(index, type,
+                    restRequest.param("id"));
+            getRequest.routing(restRequest.param("routing"));
+            getRequest.preference(restRequest.param("preference"));
+            getRequest.refresh(restRequest.paramAsBoolean("refresh", getRequest.refresh()));
+            getRequest.realtime(restRequest.paramAsBooleanOptional("realtime", null));
+            getRequest.version(RestActions.parseVersion(restRequest));
+            getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
+
+            PercolateRequest percolateRequest = new PercolateRequest(
+                    restRequest.param("percolate_index", index),
+                    restRequest.param("percolate_type", type)
+            );
+            percolateRequest.getRequest(getRequest);
+            percolateRequest.routing(restRequest.param("percolate_routing"));
+            percolateRequest.preference(restRequest.param("percolate_preference"));
+            percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
+
+            percolateRequest.routing(restRequest.param("percolate_routing"));
+            percolateRequest.preference(restRequest.param("percolate_preference"));
+
+            executePercolate(percolateRequest, restRequest, restChannel);
+        }
+
     }
 
     static final class Fields {

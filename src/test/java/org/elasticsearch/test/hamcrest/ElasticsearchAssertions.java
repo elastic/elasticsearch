@@ -23,8 +23,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
@@ -36,6 +38,7 @@ import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.fail;
 
 /**
  *
@@ -46,9 +49,16 @@ public class ElasticsearchAssertions {
      * assertions
      */
     public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
-        assertThat(searchResponse.getHits().totalHits(), is(expectedHitCount));
+        if (searchResponse.getHits().totalHits() != expectedHitCount) {
+            String msg = "Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " +
+                    searchResponse.getFailedShards() + " shard failures:";
+            for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
+                msg += "\n " + failure.toString();
+            }
+            fail(msg);
+        }
     }
-    
+
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
         assertThat("Expected different hit count", searchResponse.getHits().hits().length, equalTo(ids.length));
 
@@ -61,6 +71,14 @@ public class ElasticsearchAssertions {
 
     public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
         assertThat(countResponse.getCount(), is(expectedHitCount));
+        if (countResponse.getCount() != expectedHitCount) {
+            String msg = "Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " +
+                    countResponse.getFailedShards() + " shard failures:";
+            for (ShardOperationFailedException failure : countResponse.getShardFailures()) {
+                msg += "\n " + failure.toString();
+            }
+            fail(msg);
+        }
     }
 
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {

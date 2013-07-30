@@ -116,7 +116,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(final ClusterState currentState) {
                 if (!currentState.metaData().hasConcreteIndex(request.index)) {
                     throw new IndexMissingException(new Index(request.index));
                 }
@@ -136,11 +136,24 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                 ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
 
-                final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
-
+                // wait for events from all nodes that it has been removed from their respective metadata...
+                int count = currentState.nodes().size();
+                // add the notifications that the store was deleted from *date* nodes
+                count += currentState.nodes().dataNodes().size();
+                final AtomicInteger counter = new AtomicInteger(count);
                 final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
                     @Override
                     public void onNodeIndexDeleted(String index, String nodeId) {
+                        if (index.equals(request.index)) {
+                            if (counter.decrementAndGet() == 0) {
+                                listener.onResponse(new Response(true));
+                                nodeIndexDeletedAction.remove(this);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onNodeIndexStoreDeleted(String index, String nodeId) {
                         if (index.equals(request.index)) {
                             if (counter.decrementAndGet() == 0) {
                                 listener.onResponse(new Response(true));

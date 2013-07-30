@@ -109,14 +109,18 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
             deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
 
                 private volatile Throwable lastFailure;
+                private volatile boolean ack = true;
 
                 @Override
                 public void onResponse(MetaDataDeleteIndexService.Response response) {
+                    if (!response.acknowledged()) {
+                        ack = false;
+                    }
                     if (count.decrementAndGet() == 0) {
                         if (lastFailure != null) {
                             listener.onFailure(lastFailure);
                         } else {
-                            listener.onResponse(new DeleteIndexResponse(response.acknowledged()));
+                            listener.onResponse(new DeleteIndexResponse(ack));
                         }
                     }
                 }

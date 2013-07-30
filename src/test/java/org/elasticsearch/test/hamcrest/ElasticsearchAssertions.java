@@ -70,7 +70,6 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
-        assertThat(countResponse.getCount(), is(expectedHitCount));
         if (countResponse.getCount() != expectedHitCount) {
             String msg = "Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " +
                     countResponse.getFailedShards() + " shard failures:";

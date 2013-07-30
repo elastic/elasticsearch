@@ -79,10 +79,6 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
-
-
         ClusterState clusterState1 = clusterService1.state();
         RoutingNode routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
@@ -102,9 +98,6 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
-
         clusterState1 = clusterService1.state();
         routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
@@ -116,21 +109,27 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Starting server3");
         // start another server
         startNode("server3", settings);
-        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
-        logger.info("Running Cluster Health");
+        // first wait for 3 nodes in the cluster
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
+        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
+        assertThat(clusterHealth.getInitializingShards(), equalTo(0));
+        assertThat(clusterHealth.getUnassignedShards(), equalTo(0));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
         assertThat(clusterHealth.getActiveShards(), equalTo(22));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
 
         clusterState1 = clusterService1.state();
         routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
@@ -159,9 +158,6 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getActiveShards(), equalTo(22));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
-
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), equalTo(11));
@@ -176,8 +172,6 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // last, lets delete the index
         DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().prepareDelete("test").execute().actionGet();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
-
-        Thread.sleep(500); // wait till the cluster state gets published
 
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
@@ -223,19 +217,27 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // start another server
         logger.info("Starting server2");
         startNode("server2", settings);
-        Thread.sleep(200);
 
-        logger.info("Running Cluster Health");
+
+
+        // first wait for 2 nodes in the cluster
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
+        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(2));
+        assertThat(clusterHealth.getInitializingShards(), equalTo(0));
+        assertThat(clusterHealth.getUnassignedShards(), equalTo(0));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
         assertThat(clusterHealth.getActiveShards(), equalTo(11));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
 
         ClusterService clusterService2 = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class);
 
@@ -250,21 +252,28 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // start another server
         logger.info("Starting server3");
         startNode("server3");
-        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
-        logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("3")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+
+        // first wait for 3 nodes in the cluster
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
+        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
+        assertThat(clusterHealth.getInitializingShards(), equalTo(0));
+        assertThat(clusterHealth.getUnassignedShards(), equalTo(0));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
         assertThat(clusterHealth.getActiveShards(), equalTo(11));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
 
         clusterState1 = clusterService1.state();
         routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
@@ -293,9 +302,6 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getActiveShards(), equalTo(11));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        // sleep till the cluster state gets published, since we check the master
-        Thread.sleep(200);
-
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(6)));
@@ -311,8 +317,6 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().delete(deleteIndexRequest("test")).actionGet();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
-        Thread.sleep(500); // wait till the cluster state gets published
-
         clusterState2 = clusterService2.state();
         routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.shards().isEmpty(), equalTo(true));
@@ -320,20 +324,5 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         clusterState3 = clusterService3.state();
         routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3.shards().isEmpty(), equalTo(true));
-    }
-
-    @Test
-    public void testTwoIndicesCreation() throws Exception {
-
-        Settings settings = settingsBuilder()
-                .put(SETTING_NUMBER_OF_SHARDS, 11)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("cluster.routing.schedule", "20ms") // reroute every 20ms so we identify new nodes fast
-                .build();
-
-        // start one server
-        startNode("server1", settings);
-        client("server1").admin().indices().create(createIndexRequest("test1")).actionGet();
-        client("server1").admin().indices().create(createIndexRequest("test2")).actionGet();
     }
 }

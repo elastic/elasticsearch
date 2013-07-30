@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -166,8 +165,8 @@ public class ClusterChangedEvent {
 
     public boolean indicesStateChanged() {
         if (metaDataChanged()) {
-            ImmutableMap<String,IndexMetaData> indices = state.metaData().indices();
-            ImmutableMap<String,IndexMetaData> previousIndices = previousState.metaData().indices();
+            Map<String,IndexMetaData> indices = state.metaData().indices();
+            Map<String,IndexMetaData> previousIndices = previousState.metaData().indices();
 
             for (Map.Entry<String, IndexMetaData> entry : indices.entrySet()) {
                 IndexMetaData indexMetaData = entry.getValue();

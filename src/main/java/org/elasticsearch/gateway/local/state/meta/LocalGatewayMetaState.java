@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -98,6 +99,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private final ThreadPool threadPool;
 
     private final LocalAllocateDangledIndices allocateDangledIndices;
+    private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
     @Nullable
     private volatile MetaData currentMetaData;
@@ -113,12 +115,14 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     @Inject
     public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
-                                 TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices) throws Exception {
+                                 TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices,
+                                 NodeIndexDeletedAction nodeIndexDeletedAction) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.format = XContentType.fromRestContentType(settings.get("format", "smile"));
         this.allocateDangledIndices = allocateDangledIndices;
+        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         nodesListGatewayMetaState.init(this);
 
         if (this.format == XContentType.SMILE) {
@@ -221,6 +225,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     if (!newMetaData.hasIndex(current.index())) {
                         logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                        try {
+                            nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
+                        } catch (Exception e) {
+                            logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
+                        }
                     }
                 }
             }

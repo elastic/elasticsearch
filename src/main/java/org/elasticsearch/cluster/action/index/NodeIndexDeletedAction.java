@@ -54,6 +54,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         transportService.registerHandler(NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedTransportHandler());
+        transportService.registerHandler(NodeIndexStoreDeletedTransportHandler.ACTION, new NodeIndexStoreDeletedTransportHandler());
     }
 
     public void add(Listener listener) {
@@ -79,14 +80,37 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
+    public void nodeIndexStoreDeleted(final String index, final String nodeId) throws ElasticSearchException {
+        DiscoveryNodes nodes = clusterService.state().nodes();
+        if (nodes.localNodeMaster()) {
+            threadPool.generic().execute(new Runnable() {
+                @Override
+                public void run() {
+                    innerNodeIndexStoreDeleted(index, nodeId);
+                }
+            });
+        } else {
+            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+                    NodeIndexStoreDeletedTransportHandler.ACTION, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+        }
+    }
+
     private void innerNodeIndexDeleted(String index, String nodeId) {
         for (Listener listener : listeners) {
             listener.onNodeIndexDeleted(index, nodeId);
         }
     }
 
+    private void innerNodeIndexStoreDeleted(String index, String nodeId) {
+        for (Listener listener : listeners) {
+            listener.onNodeIndexStoreDeleted(index, nodeId);
+        }
+    }
+
     public static interface Listener {
         void onNodeIndexDeleted(String index, String nodeId);
+
+        void onNodeIndexStoreDeleted(String index, String nodeId);
     }
 
     private class NodeIndexDeletedTransportHandler extends BaseTransportRequestHandler<NodeIndexDeletedMessage> {
@@ -110,6 +134,27 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
+    private class NodeIndexStoreDeletedTransportHandler extends BaseTransportRequestHandler<NodeIndexStoreDeletedMessage> {
+
+        static final String ACTION = "cluster/nodeIndexStoreDeleted";
+
+        @Override
+        public NodeIndexStoreDeletedMessage newInstance() {
+            return new NodeIndexStoreDeletedMessage();
+        }
+
+        @Override
+        public void messageReceived(NodeIndexStoreDeletedMessage message, TransportChannel channel) throws Exception {
+            innerNodeIndexStoreDeleted(message.index, message.nodeId);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+    }
+
     static class NodeIndexDeletedMessage extends TransportRequest {
 
         String index;
@@ -119,6 +164,34 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
 
         NodeIndexDeletedMessage(String index, String nodeId) {
+            this.index = index;
+            this.nodeId = nodeId;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(index);
+            out.writeString(nodeId);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            index = in.readString();
+            nodeId = in.readString();
+        }
+    }
+
+    static class NodeIndexStoreDeletedMessage extends TransportRequest {
+
+        String index;
+        String nodeId;
+
+        NodeIndexStoreDeletedMessage() {
+        }
+
+        NodeIndexStoreDeletedMessage(String index, String nodeId) {
             this.index = index;
             this.nodeId = nodeId;
         }

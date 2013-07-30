@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -126,7 +125,7 @@ public class PlainHighlighter implements Highlighter {
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
                 Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
-                TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
+                TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), text);
                 if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;

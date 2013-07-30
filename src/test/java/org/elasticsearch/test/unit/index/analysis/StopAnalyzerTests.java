@@ -38,8 +38,6 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.junit.Test;
 
-import java.io.StringReader;
-
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 @ThreadLeakScope(Scope.NONE)
@@ -60,11 +58,11 @@ public class StopAnalyzerTests extends BaseTokenStreamTestCase {
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("analyzer1");
 
-        assertTokenStreamContents(analyzer1.tokenStream("test", new StringReader("to be or not to be")), new String[0]);
+        assertTokenStreamContents(analyzer1.tokenStream("test", "to be or not to be"), new String[0]);
 
         NamedAnalyzer analyzer2 = analysisService.analyzer("analyzer2");
 
-        assertTokenStreamContents(analyzer2.tokenStream("test", new StringReader("to be or not to be")), new String[0]);
+        assertTokenStreamContents(analyzer2.tokenStream("test", "to be or not to be"), new String[0]);
     }
 
 }

@@ -83,7 +83,7 @@ public class InternalFilterFacet extends InternalFacet implements FilterFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        int count = 0;
+        long count = 0;
         for (Facet facet : facets) {
             count += ((FilterFacet) facet).getCount();
         }

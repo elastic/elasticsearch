@@ -40,7 +40,7 @@ public class FilterFacetExecutor extends FacetExecutor {
 
     private final Filter filter;
 
-    int count = -1;
+    long count = -1;
 
     public FilterFacetExecutor(Filter filter) {
         this.filter = filter;
@@ -82,7 +82,7 @@ public class FilterFacetExecutor extends FacetExecutor {
 
     class Collector extends FacetExecutor.Collector {
 
-        private int count = 0;
+        private long count = 0;
         private Bits bits;
 
         @Override

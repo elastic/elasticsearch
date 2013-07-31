@@ -112,18 +112,18 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
 
         // delete indices that were there before, but are deleted now
         // we need to do it so they won't be detected as dangling
-        if (nodeEnv.hasNodeFile()) {
-            if (currentMetaData != null) {
-                // only delete indices when we already received a state (currentMetaData != null)
-                for (IndexMetaData current : currentMetaData) {
-                    if (!newMetaData.hasIndex(current.index())) {
-                        logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
+        if (currentMetaData != null) {
+            // only delete indices when we already received a state (currentMetaData != null)
+            for (IndexMetaData current : currentMetaData) {
+                if (!newMetaData.hasIndex(current.index())) {
+                    logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
+                    if (nodeEnv.hasNodeFile()) {
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
-                        try {
-                            nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
-                        } catch (Exception e) {
-                            logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
-                        }
+                    }
+                    try {
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
+                    } catch (Exception e) {
+                        logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }
                 }
             }

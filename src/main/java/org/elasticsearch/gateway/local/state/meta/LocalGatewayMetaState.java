@@ -213,23 +213,23 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         // delete indices that were there before, but are deleted now
         // we need to do it so they won't be detected as dangling
-        if (nodeEnv.hasNodeFile()) {
-            if (currentMetaData != null) {
-                // only delete indices when we already received a state (currentMetaData != null)
-                // and we had a go at processing dangling indices at least once
-                // this will also delete the _state of the index itself
-                for (IndexMetaData current : currentMetaData) {
-                    if (danglingIndices.containsKey(current.index())) {
-                        continue;
-                    }
-                    if (!newMetaData.hasIndex(current.index())) {
-                        logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
+        if (currentMetaData != null) {
+            // only delete indices when we already received a state (currentMetaData != null)
+            // and we had a go at processing dangling indices at least once
+            // this will also delete the _state of the index itself
+            for (IndexMetaData current : currentMetaData) {
+                if (danglingIndices.containsKey(current.index())) {
+                    continue;
+                }
+                if (!newMetaData.hasIndex(current.index())) {
+                    logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
+                    if (nodeEnv.hasNodeFile()) {
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
-                        try {
-                            nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
-                        } catch (Exception e) {
-                            logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
-                        }
+                    }
+                    try {
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
+                    } catch (Exception e) {
+                        logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }
                 }
             }

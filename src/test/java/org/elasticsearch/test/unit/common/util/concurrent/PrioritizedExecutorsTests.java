@@ -197,7 +197,7 @@ public class PrioritizedExecutorsTests {
                              public String toString() {
                                  return "the waiting";
                              }
-                         }, timer, TimeValue.timeValueMillis(5), new Runnable() {
+                         }, timer, TimeValue.timeValueMillis(100) /* enough timeout to catch them in the pending list... */, new Runnable() {
                     @Override
                     public void run() {
                         timedOut.countDown();
@@ -209,7 +209,7 @@ public class PrioritizedExecutorsTests {
         assertThat(pending.length, equalTo(1));
         assertThat(pending[0].task.toString(), equalTo("the waiting"));
 
-        assertThat(timedOut.await(500, TimeUnit.MILLISECONDS), equalTo(true));
+        assertThat(timedOut.await(2, TimeUnit.SECONDS), equalTo(true));
         block.countDown();
         Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
         assertThat(executeCalled.get(), equalTo(false));

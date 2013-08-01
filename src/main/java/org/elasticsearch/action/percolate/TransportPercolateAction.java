@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,6 +45,7 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,7 +126,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         int successfulShards = 0;
         int failedShards = 0;
 
-        List<Text[]> shardResults = null;
+        List<PercolateShardResponse> shardResults = null;
         List<ShardOperationFailedException> shardFailures = null;
 
         for (int i = 0; i < shardsResponses.length(); i++) {
@@ -142,7 +144,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                 if (shardResults == null) {
                     shardResults = newArrayList();
                 }
-                shardResults.add(percolateShardResponse.matches());
+                shardResults.add(percolateShardResponse);
                 successfulShards++;
             }
         }
@@ -153,17 +155,21 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         }
 
         int size = 0;
-        for (Text[] shardResult : shardResults) {
-            size += shardResult.length;
+        for (PercolateShardResponse response : shardResults) {
+            size += response.matches().length;
         }
-        Text[] finalMatches = new Text[size];
-        int offset = 0;
-        for (Text[] shardResult : shardResults) {
-            System.arraycopy(shardResult, 0, finalMatches, offset, shardResult.length);
-            offset += shardResult.length;
+
+        List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(size);
+        for (PercolateShardResponse response : shardResults) {
+            Text index = new StringText(response.getIndex());
+            for (Text id : response.matches()) {
+                finalMatches.add(new PercolateResponse.Match(id, index));
+            }
         }
-        assert size == offset;
-        return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches, tookInMillis);
+
+        return new PercolateResponse(
+                shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches.toArray(new PercolateResponse.Match[size]), tookInMillis
+        );
     }
 
     @Override

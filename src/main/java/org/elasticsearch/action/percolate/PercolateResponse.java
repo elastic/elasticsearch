@@ -23,6 +23,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -34,12 +35,12 @@ import java.util.List;
 /**
  *
  */
-public class PercolateResponse extends BroadcastOperationResponse implements Iterable<Text> {
+public class PercolateResponse extends BroadcastOperationResponse implements Iterable<PercolateResponse.Match> {
 
     private long tookInMillis;
-    private Text[] matches;
+    private Match[] matches;
 
-    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, Text[] matches, long tookInMillis) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, Match[] matches, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
         this.matches = matches;
@@ -53,7 +54,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     PercolateResponse() {
     }
 
-    public PercolateResponse(Text[] matches) {
+    public PercolateResponse(Match[] matches) {
         this.matches = matches;
     }
 
@@ -71,12 +72,12 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         return tookInMillis;
     }
 
-    public Text[] getMatches() {
+    public Match[] getMatches() {
         return this.matches;
     }
 
     @Override
-    public Iterator<Text> iterator() {
+    public Iterator<Match> iterator() {
         return Arrays.asList(matches).iterator();
     }
 
@@ -84,13 +85,63 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         tookInMillis = in.readVLong();
-        matches = in.readTextArray();
+        int size = in.readVInt();
+        matches = new Match[size];
+        for (int i = 0; i < size; i++) {
+            matches[i] = new Match();
+            matches[i].readFrom(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(tookInMillis);
-        out.writeTextArray(matches);
+        out.writeVInt(matches.length);
+        for (Match match : matches) {
+            match.writeTo(out);
+        }
+    }
+
+    public static class Match implements Streamable {
+
+        private Text id;
+        private Text index;
+
+        public Match(Text id, Text index) {
+            this.id = id;
+            this.index = index;
+        }
+
+        Match() {
+        }
+
+        public Text id() {
+            return id;
+        }
+
+        public Text index() {
+            return index;
+        }
+
+        public Text getId() {
+            return id;
+        }
+
+        public Text getIndex() {
+            return index;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            id = in.readText();
+            index = in.readText();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeText(id);
+            out.writeText(index);
+        }
     }
 }

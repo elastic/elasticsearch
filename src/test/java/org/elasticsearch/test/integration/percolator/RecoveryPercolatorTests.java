@@ -84,7 +84,9 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        PercolateResponse percolate = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
@@ -102,7 +104,9 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        percolate = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
@@ -133,7 +137,9 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
         assertThat(client.prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        PercolateResponse percolate = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
@@ -162,7 +168,9 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         assertThat(client.prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
-        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        percolate = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
@@ -179,7 +187,9 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
         assertThat(client.prepareCount().setTypes("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        percolate = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
@@ -220,11 +230,12 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         }
 
         logger.info("--> Percolate doc with field1=95");
-        PercolateResponse response = client.preparePercolate("test", "type1")
+        PercolateResponse response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 95).endObject().endObject())
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(6));
-        assertThat(convertFromTextArray(response.getMatches()), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("95", "96", "97", "98", "99", "100"));
 
         logger.info("--> Close and open index to trigger percolate queries loading...");
         client.admin().indices().prepareClose("test").execute().actionGet();
@@ -233,10 +244,11 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         ensureGreen(client);
 
         logger.info("--> Percolate doc with field1=100");
-        response = client.preparePercolate("test", "type1")
+        response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject())
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(1));
-        assertThat(response.getMatches()[0].string(), equalTo("100"));
+        assertThat(response.getMatches()[0].id().string(), equalTo("100"));
     }
 }

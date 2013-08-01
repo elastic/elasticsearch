@@ -133,20 +133,23 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                             }
                             PercolateResponse percolate;
                             if (count % 3 == 0) {
-                                percolate = client().preparePercolate("index", "type").setSource(bothFields)
+                                percolate = client().preparePercolate().setIndices("index").setDocumentType("type")
+                                        .setSource(bothFields)
                                         .execute().actionGet();
                                 assertThat(percolate.getMatches(), arrayWithSize(2));
-                                assertThat(convertFromTextArray(percolate.getMatches()), arrayContainingInAnyOrder("test1", "test2"));
+                                assertThat(convertFromTextArray(percolate.getMatches(), "index"), arrayContainingInAnyOrder("test1", "test2"));
                             } else if (count % 3 == 1) {
-                                percolate = client().preparePercolate("index", "type").setSource(onlyField2)
+                                percolate = client().preparePercolate().setIndices("index").setDocumentType("type")
+                                        .setSource(onlyField2)
                                         .execute().actionGet();
                                 assertThat(percolate.getMatches(), arrayWithSize(1));
-                                assertThat(convertFromTextArray(percolate.getMatches()), arrayContaining("test1"));
+                                assertThat(convertFromTextArray(percolate.getMatches(), "index"), arrayContaining("test1"));
                             } else {
-                                percolate = client().preparePercolate("index", "type").setSource(onlyField1)
+                                percolate = client().preparePercolate().setIndices("index").setDocumentType("type")
+                                        .setSource(onlyField1)
                                         .execute().actionGet();
                                 assertThat(percolate.getMatches(), arrayWithSize(1));
-                                assertThat(convertFromTextArray(percolate.getMatches()), arrayContaining("test2"));
+                                assertThat(convertFromTextArray(percolate.getMatches(), "index"), arrayContaining("test2"));
                             }
                         }
 
@@ -272,7 +275,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                             switch (x) {
                                 case 0:
                                     atLeastExpected = type1.get();
-                                    response = client().preparePercolate("index", "type")
+                                    response = client().preparePercolate().setIndices("index").setDocumentType("type")
                                             .setSource(onlyField1Doc).execute().actionGet();
                                     assertThat(response.getShardFailures(), emptyArray());
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
@@ -280,7 +283,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                                     break;
                                 case 1:
                                     atLeastExpected = type2.get();
-                                    response = client().preparePercolate("index", "type")
+                                    response = client().preparePercolate().setIndices("index").setDocumentType("type")
                                             .setSource(onlyField2Doc).execute().actionGet();
                                     assertThat(response.getShardFailures(), emptyArray());
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
@@ -288,7 +291,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                                     break;
                                 case 2:
                                     atLeastExpected = type3.get();
-                                    response = client().preparePercolate("index", "type")
+                                    response = client().preparePercolate().setIndices("index").setDocumentType("type")
                                             .setSource(field1AndField2Doc).execute().actionGet();
                                     assertThat(response.getShardFailures(), emptyArray());
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
@@ -398,7 +401,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                     break;
                 }
                 int atLeastExpected = liveIds.size();
-                PercolateResponse response = client().preparePercolate("index", "type")
+                PercolateResponse response = client().preparePercolate().setIndices("index").setDocumentType("type")
                         .setSource(percolateDoc).execute().actionGet();
                 assertThat(response.getShardFailures(), emptyArray());
                 assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));

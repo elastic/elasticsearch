@@ -61,8 +61,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     PercolateRequest() {
     }
 
-    public PercolateRequest(String index, String documentType) {
-        super(new String[]{index});
+    public PercolateRequest(String[] indices, String documentType) {
+        super(indices);
         this.documentType = documentType;
     }
 

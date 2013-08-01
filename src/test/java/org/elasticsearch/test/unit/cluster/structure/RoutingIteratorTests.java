@@ -282,7 +282,7 @@ public class RoutingIteratorTests {
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         // after all are started, check routing iteration
-        ShardIterator shardIterator = clusterState.routingTable().index("test").shard(0).preferAttributesActiveShardsIt(new String[]{"rack_id"}, clusterState.nodes());
+        ShardIterator shardIterator = clusterState.routingTable().index("test").shard(0).preferAttributesActiveInitializingShardsIt(new String[]{"rack_id"}, clusterState.nodes());
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertThat(shardRouting, notNullValue());
         assertThat(shardRouting.currentNodeId(), equalTo("node1"));
@@ -290,7 +290,7 @@ public class RoutingIteratorTests {
         assertThat(shardRouting, notNullValue());
         assertThat(shardRouting.currentNodeId(), equalTo("node2"));
 
-        shardIterator = clusterState.routingTable().index("test").shard(0).preferAttributesActiveShardsIt(new String[]{"rack_id"}, clusterState.nodes());
+        shardIterator = clusterState.routingTable().index("test").shard(0).preferAttributesActiveInitializingShardsIt(new String[]{"rack_id"}, clusterState.nodes());
         shardRouting = shardIterator.nextOrNull();
         assertThat(shardRouting, notNullValue());
         assertThat(shardRouting.currentNodeId(), equalTo("node1"));

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -40,6 +41,23 @@ public class SearchPhaseExecutionException extends ElasticSearchException {
         super(buildMessage(phaseName, msg, shardFailures), cause);
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+    }
+
+    @Override
+    public RestStatus status() {
+        if (shardFailures.length == 0) {
+            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
+            return RestStatus.SERVICE_UNAVAILABLE;
+        }
+        RestStatus status = shardFailures[0].status();
+        if (shardFailures.length > 1) {
+            for (int i = 1; i < shardFailures.length; i++) {
+                if (shardFailures[i].status().getStatus() >= 500) {
+                    status = shardFailures[i].status();
+                }
+            }
+        }
+        return status;
     }
 
     public String phaseName() {

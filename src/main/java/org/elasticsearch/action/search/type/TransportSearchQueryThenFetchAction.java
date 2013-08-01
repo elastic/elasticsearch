@@ -20,7 +20,10 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchOperationThreading;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
@@ -155,7 +158,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
-                    AsyncAction.this.addShardFailure(shardIndex, new ShardSearchFailure(t));
+                    AsyncAction.this.addShardFailure(shardIndex, t);
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

@@ -21,11 +21,16 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
 public class NoShardAvailableActionException extends IndexShardException {
+
+    public NoShardAvailableActionException(ShardId shardId) {
+        super(shardId, null);
+    }
 
     public NoShardAvailableActionException(ShardId shardId, String msg) {
         super(shardId, msg);
@@ -35,4 +40,8 @@ public class NoShardAvailableActionException extends IndexShardException {
         super(shardId, msg, cause);
     }
 
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
+    }
 }

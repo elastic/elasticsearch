@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 import org.elasticsearch.search.suggest.term.TermSuggester;
 
@@ -36,6 +37,7 @@ public class SuggestModule extends AbstractModule {
     public SuggestModule() {
         registerSuggester(PhraseSuggester.class);
         registerSuggester(TermSuggester.class);
+        registerSuggester(CompletionSuggester.class);
     }
 
     public void registerSuggester(Class<? extends Suggester> suggester) {

@@ -1,2 +1,3 @@
 org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat
 org.elasticsearch.index.codec.postingsformat.ElasticSearch090PostingsFormat
+org.elasticsearch.search.suggest.completion.Completion090PostingsFormat

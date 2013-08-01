@@ -41,16 +41,21 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
     private SearchShardTarget shardTarget;
-
     private String reason;
-
     private RestStatus status;
+    private transient Throwable failure;
 
     private ShardSearchFailure() {
 
     }
 
+    @Nullable
+    public Throwable failure() {
+        return failure;
+    }
+
     public ShardSearchFailure(Throwable t) {
+        this.failure = t;
         Throwable actual = ExceptionsHelper.unwrapCause(t);
         if (actual != null && actual instanceof SearchException) {
             this.shardTarget = ((SearchException) actual).shard();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.integration.indices.settings;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
@@ -38,23 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class UpdateNumberOfReplicasTests extends AbstractSharedClusterTest {
 
-   
-    /*
-     * Comment from Boaz on the dev@ list:
-     * 
-     * A short update on the failing
-     * UpdateNumberOfReplicasTest.simpleUpdateNumberOfReplicasTests - Shay and I
-     * pinned down the source of the problem - it's caused by making searches
-     * based on dated knowledge of the cluster state and calling shards that
-     * have been relocating away in the mean time.
-     * 
-     * I'll be working on a a fix (when searching on a shard that is in the
-     * process of relocating, fail over to the relocation target if the search
-     * to the relocation source failed), but will it take a couple of days to
-     * complete.
-     */
+
     @Test
-    @AwaitsFix(bugUrl = "Boaz is on it ;)")
     public void simpleUpdateNumberOfReplicasTests() throws Exception {
         logger.info("Creating index test");
         prepareCreate("test", 2).execute().actionGet();

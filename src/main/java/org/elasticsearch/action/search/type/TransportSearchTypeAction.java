@@ -94,7 +94,8 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         private final AtomicInteger totalOps = new AtomicInteger();
 
         protected final AtomicArray<FirstResult> firstResults;
-        private final AtomicArray<ShardSearchFailure> shardFailures;
+        private volatile AtomicArray<ShardSearchFailure> shardFailures;
+        private final Object shardFailuresMutex = new Object();
         protected volatile ScoreDoc[] sortedShardList;
 
         protected final long startTime = System.currentTimeMillis();
@@ -127,7 +128,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
 
             firstResults = new AtomicArray<FirstResult>(shardsIts.size());
-            shardFailures = new AtomicArray<ShardSearchFailure>(shardsIts.size());
         }
 
         public void start() {
@@ -310,6 +310,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
+            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
             if (shardFailures == null) {
                 return ShardSearchFailure.EMPTY_ARRAY;
             }
@@ -322,6 +323,14 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         protected final void addShardFailure(final int shardIndex, Throwable t) {
+            // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
+            if (shardFailures == null) {
+                synchronized (shardFailuresMutex) {
+                    if (shardFailures == null) {
+                        shardFailures = new AtomicArray<ShardSearchFailure>(shardsIts.size());
+                    }
+                }
+            }
             ShardSearchFailure failure = shardFailures.get(shardIndex);
             if (failure == null) {
                 shardFailures.set(shardIndex, new ShardSearchFailure(t));
@@ -376,8 +385,14 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
         protected final void processFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result) {
             firstResults.set(shardIndex, result);
-            // clean a previous error on this shard group
-            shardFailures.set(shardIndex, null);
+
+            // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
+            // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
+            // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
+            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
+            if (shardFailures != null) {
+                shardFailures.set(shardIndex, null);
+            }
         }
 
         final void innerMoveToSecondPhase() throws Exception {

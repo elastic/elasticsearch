@@ -24,10 +24,10 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
@@ -57,16 +57,19 @@ public class RestPercolateAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
-        String index = restRequest.param("index");
+        String[] indices = RestActions.splitIndices(restRequest.param("index"));
         String type = restRequest.param("type");
 
-        PercolateRequest percolateRequest = new PercolateRequest(index, type);
+        PercolateRequest percolateRequest = new PercolateRequest(indices, type);
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
         percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
 
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
+        if (restRequest.hasParam("ignore_indices")) {
+            percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
+        }
         executePercolate(percolateRequest, restRequest, restChannel);
     }
 
@@ -100,8 +103,18 @@ public class RestPercolateAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.startArray(Fields.MATCHES);
-                    for (Text match : response) {
-                        builder.value(match);
+                    boolean justIds = "ids".equals(restRequest.param("percolate_format"));
+                    if (justIds) {
+                        for (PercolateResponse.Match match : response) {
+                            builder.value(match.id());
+                        }
+                    } else {
+                        for (PercolateResponse.Match match : response) {
+                            builder.startObject();
+                            builder.field(Fields._INDEX, match.getIndex());
+                            builder.field(Fields._ID, match.getId());
+                            builder.endObject();
+                        }
                     }
                     builder.endArray();
 
@@ -141,7 +154,7 @@ public class RestPercolateAction extends BaseRestHandler {
             getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
 
             PercolateRequest percolateRequest = new PercolateRequest(
-                    restRequest.param("percolate_index", index),
+                    RestActions.splitIndices(restRequest.param("percolate_index", index)),
                     restRequest.param("percolate_type", type)
             );
             percolateRequest.getRequest(getRequest);
@@ -152,6 +165,9 @@ public class RestPercolateAction extends BaseRestHandler {
             percolateRequest.routing(restRequest.param("percolate_routing"));
             percolateRequest.preference(restRequest.param("percolate_preference"));
 
+            if (restRequest.hasParam("ignore_indices")) {
+                percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
+            }
             executePercolate(percolateRequest, restRequest, restChannel);
         }
 
@@ -169,5 +185,7 @@ public class RestPercolateAction extends BaseRestHandler {
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
     }
 }

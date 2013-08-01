@@ -88,7 +88,9 @@ public class NoMasterNodeTests extends AbstractNodesTests {
         try {
             PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
             percolateSource.percolateDocument().setDoc(new HashMap());
-            node.client().preparePercolate("test", "type1").setSource(percolateSource).execute().actionGet();
+            node.client().preparePercolate()
+                    .setIndices("test").setDocumentType("type1")
+                    .setSource(percolateSource).execute().actionGet();
             assert false;
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

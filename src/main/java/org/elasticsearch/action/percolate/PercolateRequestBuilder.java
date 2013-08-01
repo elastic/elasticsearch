@@ -40,20 +40,8 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
 
     private PercolateSourceBuilder sourceBuilder;
 
-    public PercolateRequestBuilder(Client client, String index, String type) {
-        super((InternalClient) client, new PercolateRequest(index, type));
-    }
-
-    PercolateRequestBuilder(Client client) {
+    public PercolateRequestBuilder(Client client) {
         super((InternalClient) client, new PercolateRequest());
-    }
-
-    /**
-     * Sets the index to percolate the document against.
-     */
-    public PercolateRequestBuilder setIndex(String index) {
-        request.indices(index);
-        return this;
     }
 
     /**

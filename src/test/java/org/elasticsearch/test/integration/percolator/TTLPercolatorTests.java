@@ -60,14 +60,16 @@ public class TTLPercolatorTests extends AbstractNodesTests {
                 .endObject()
         ).setRefresh(true).setTTL(ttl).execute().actionGet();
 
-        PercolateResponse percolateResponse = client.preparePercolate("test", "type1").setSource(jsonBuilder()
+        PercolateResponse percolateResponse = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder()
                 .startObject()
                 .startObject("doc")
                 .field("field1", "value1")
                 .endObject()
                 .endObject()
         ).execute().actionGet();
-        assertThat(convertFromTextArray(percolateResponse.getMatches()), arrayContaining("kuku"));
+        assertThat(convertFromTextArray(percolateResponse.getMatches(), "test"), arrayContaining("kuku"));
         long timeSpent = System.currentTimeMillis() - now;
         long waitTime = ttl + purgeInterval - timeSpent;
         if (waitTime >= 0) {
@@ -90,7 +92,9 @@ public class TTLPercolatorTests extends AbstractNodesTests {
         } while (currentDeleteCount < 2); // TTL deletes one doc, but it is indexed in the primary shard and replica shard.
         assertThat(currentDeleteCount, equalTo(2l));
 
-        percolateResponse = client.preparePercolate("test", "type1").setSource(jsonBuilder()
+        percolateResponse = client.preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(jsonBuilder()
                 .startObject()
                 .startObject("doc")
                 .field("field1", "value1")

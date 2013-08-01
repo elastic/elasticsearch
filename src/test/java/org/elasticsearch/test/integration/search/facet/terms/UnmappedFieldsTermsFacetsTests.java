@@ -28,11 +28,11 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
-    
+
     @Override
     public Settings getSettings() {
         return randomSettingsBuilder()
@@ -52,7 +52,7 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
     protected int numberOfShards() {
         return 5;
     }
-    
+
     @Override
     protected int numberOfNodes() {
         return 1;
@@ -67,8 +67,8 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("mapped", ""+i)
+            client().prepareIndex("idx", "type", "" + i).setSource(jsonBuilder().startObject()
+                    .field("mapped", "" + i)
                     .endObject()).execute().actionGet();
         }
 
@@ -174,15 +174,15 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        
+
         createIndex("unmapped_idx");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("mapped_idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("mapped_idx", "type", "" + i).setSource(jsonBuilder().startObject()
                     .field("mapped", "" + i)
-                    .field("partially_mapped_str", ""+i)
-                    .field("partially_mapped_bool", i%2 == 0)
+                    .field("partially_mapped_str", "" + i)
+                    .field("partially_mapped_bool", i % 2 == 0)
                     .field("partially_mapped_byte", i)
                     .field("partially_mapped_short", i)
                     .field("partially_mapped_int", i)
@@ -193,8 +193,8 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
         }
 
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("unmapped_idx", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("mapped", ""+i)
+            client().prepareIndex("unmapped_idx", "type", "" + i).setSource(jsonBuilder().startObject()
+                    .field("mapped", "" + i)
                     .endObject()).execute().actionGet();
         }
 
@@ -236,7 +236,11 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
 
         facet = searchResponse.getFacets().facet("partially_mapped_bool");
         assertThat(facet.getName(), equalTo("partially_mapped_bool"));
-        assertThat(facet.getEntries().size(), is(2));
+        ArrayList<String> terms = new ArrayList<String>();
+        for (TermsFacet.Entry entry : facet.getEntries()) {
+            terms.add(entry.getTerm().toString());
+        }
+        assertThat("unexpected number of bool terms:" + terms, facet.getEntries().size(), is(2));
         assertThat(facet.getTotalCount(), is(10l));
         assertThat(facet.getOtherCount(), is(0l));
         assertThat(facet.getMissingCount(), is(10l));
@@ -290,17 +294,17 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
                 .setSettings(getSettings())
                 .addMapping("type", jsonBuilder().startObject()
                         .field("type").startObject()
-                            .field("properties").startObject()
-                                .field("string").startObject().field("type", "string").endObject()
-                                .field("long").startObject().field("type", "long").endObject()
-                                .field("double").startObject().field("type", "double").endObject()
-                            .endObject()
+                        .field("properties").startObject()
+                        .field("string").startObject().field("type", "string").endObject()
+                        .field("long").startObject().field("type", "long").endObject()
+                        .field("double").startObject().field("type", "double").endObject()
+                        .endObject()
                         .endObject())
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("idx", "type", "" + i).setSource(jsonBuilder().startObject()
                     .field("foo", "bar")
                     .endObject()).execute().actionGet();
         }
@@ -343,8 +347,8 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("mapped_str", ""+i)
+            client().prepareIndex("idx", "type", "" + i).setSource(jsonBuilder().startObject()
+                    .field("mapped_str", "" + i)
                     .field("mapped_long", i)
                     .field("mapped_double", i)
                     .endObject()).execute().actionGet();

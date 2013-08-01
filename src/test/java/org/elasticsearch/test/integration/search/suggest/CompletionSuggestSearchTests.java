@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperException;
@@ -288,9 +289,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     @Test
     public void testThatUpgradeToMultiFieldWorks() throws Exception {
         client().admin().indices().prepareDelete().get();
-        int randomShardNumber = between(1, 5);
-        int randomReplicaNumber = between(0, 2);
-        Settings.Builder settingsBuilder = settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, randomShardNumber).put(SETTING_NUMBER_OF_REPLICAS, randomReplicaNumber);
+        Settings.Builder settingsBuilder = createDefaultSettings();
 
         client().admin().indices().prepareCreate(INDEX).setSettings(settingsBuilder).get();
         ensureYellow();
@@ -405,10 +404,13 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     }
 
     private void createIndexAndMapping(String indexAnalyzer, String searchAnalyzer, boolean payloads, boolean preserveSeparators, boolean preservePositionIncrements) throws IOException {
+        createIndexAndMappingAndSettings(createDefaultSettings(), indexAnalyzer, searchAnalyzer, payloads, preserveSeparators, preservePositionIncrements);
+    }
+
+    private ImmutableSettings.Builder createDefaultSettings() {
         int randomShardNumber = between(1, 5);
-        int randomReplicaNumber = between(0, 2);
-        Settings.Builder settingsBuilder = settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, randomShardNumber).put(SETTING_NUMBER_OF_REPLICAS, randomReplicaNumber);
-        createIndexAndMappingAndSettings(settingsBuilder, indexAnalyzer, searchAnalyzer, payloads, preserveSeparators, preservePositionIncrements);
+        int randomReplicaNumber = between(0, numberOfNodes()-1);
+        return settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, randomShardNumber).put(SETTING_NUMBER_OF_REPLICAS, randomReplicaNumber);
     }
 
     private void createData(boolean optimize) throws IOException, InterruptedException, ExecutionException {

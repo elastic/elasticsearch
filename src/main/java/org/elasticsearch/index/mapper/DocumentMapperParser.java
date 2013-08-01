@@ -94,6 +94,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(MultiFieldMapper.CONTENT_TYPE, new MultiFieldMapper.TypeParser())
+                .put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser())
                 .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
 
         if (ShapesAvailability.JTS_AVAILABLE) {

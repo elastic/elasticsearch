@@ -159,6 +159,7 @@ public final class SuggestUtils {
             numTokens++;
         }
         consumer.end();
+        stream.close();
         return numTokens;
     }
     

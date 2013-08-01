@@ -34,5 +34,5 @@ public interface ShardIterator extends ShardsIterator {
     /**
      * Resets the iterator.
      */
-    ShardIterator reset();
+    void reset();
 }

@@ -27,16 +27,18 @@ public interface ShardsIterator {
     /**
      * Resets the iterator to its initial state.
      */
-    ShardsIterator reset();
+    void reset();
 
     /**
      * The number of shard routing instances.
-     * @return  number of shard routing instances in this iterator
+     *
+     * @return number of shard routing instances in this iterator
      */
     int size();
 
     /**
      * The number of active shard routing instances
+     *
      * @return number of active shard routing instances
      */
     int sizeActive();
@@ -63,6 +65,7 @@ public interface ShardsIterator {
 
     /**
      * Return the number of shards remaining in this {@link ShardsIterator}
+     *
      * @return number of shard remaining
      */
     int remaining();

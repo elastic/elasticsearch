@@ -54,9 +54,8 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override
-    public ShardsIterator reset() {
+    public void reset() {
         this.counter = this.index;
-        return this;
     }
 
     @Override

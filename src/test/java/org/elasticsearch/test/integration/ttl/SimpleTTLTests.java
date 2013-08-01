@@ -21,7 +21,6 @@ package org.elasticsearch.test.integration.ttl;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -34,7 +33,6 @@ import static org.hamcrest.Matchers.*;
 public class SimpleTTLTests extends AbstractNodesTests {
 
     static private final long purgeInterval = 200;
-    private Client client;
 
     @Override
     protected void beforeClass() {
@@ -46,18 +44,13 @@ public class SimpleTTLTests extends AbstractNodesTests {
                 .build();
         startNode("node1", settings);
         startNode("node2", settings);
-        client = getClient();
-    }
-
-    protected Client getClient() {
-        return client("node1");
     }
 
     @Test
     public void testSimpleTTL() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type1")
@@ -73,46 +66,46 @@ public class SimpleTTLTests extends AbstractNodesTests {
                         .endObject()
                         .endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");
         // Index one doc without routing, one doc with routing, one doc with not TTL and no default and one doc with default TTL
-        client.prepareIndex("test", "type1", "1").setSource("field1", "value1").setTTL(providedTTLValue).setRefresh(true).execute().actionGet();
-        client.prepareIndex("test", "type1", "with_routing").setSource("field1", "value1").setTTL(providedTTLValue).setRouting("routing").setRefresh(true).execute().actionGet();
-        client.prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").execute().actionGet();
-        client.prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTTL(providedTTLValue).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1").setTTL(providedTTLValue).setRouting("routing").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").execute().actionGet();
         long now = System.currentTimeMillis();
 
         // realtime get check
         long now1 = System.currentTimeMillis();
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         long ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // verify the ttl is still decreasing when going to the replica
         now1 = System.currentTimeMillis();
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // non realtime get (stored)
         now1 = System.currentTimeMillis();
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // non realtime get going the replica
         now1 = System.currentTimeMillis();
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
 
         // no TTL provided so no TTL fetched
-        getResponse = client.prepareGet("test", "type1", "no_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "no_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.getField("_ttl"), nullValue());
         // no TTL provided make sure it has default TTL
-        getResponse = client.prepareGet("test", "type2", "default_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type2", "default_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
 
@@ -131,11 +124,11 @@ public class SimpleTTLTests extends AbstractNodesTests {
         long currentDeleteCount;
         do {
             if (rarely()) {
-                client.admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
+                client().admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
             } else if (rarely()) {
-                client.admin().indices().prepareOptimize("test").setMaxNumSegments(1).execute().actionGet();
+                client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).execute().actionGet();
             }
-            IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+            IndicesStatsResponse response = client().admin().indices().prepareStats("test")
                     .clear().setIndexing(true)
                     .execute().actionGet();
             currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
@@ -143,24 +136,24 @@ public class SimpleTTLTests extends AbstractNodesTests {
         assertThat(currentDeleteCount, equalTo(4l));
 
         // realtime get check
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         // replica realtime get check
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         // non realtime get (stored) check
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         // non realtime get going the replica check
-        getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
     }
 }

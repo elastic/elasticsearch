@@ -798,13 +798,14 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     @Test
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
+        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
                 .field("i_value", -1)
                 .field("d_value", -1.1)
                 .endObject()).execute().actionGet();
-        ensureYellow();
+
         logger.info("--> sort with an unmapped field, verify it fails");
         try {
                 SearchResponse result = client().prepareSearch()
@@ -813,7 +814,10 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                     .execute().actionGet();
                 assertThat("Expected exception but returned with", result, nullValue());
         } catch (SearchPhaseExecutionException e) {
-
+            //we check that it's a parse failure rather than a different shard failure
+            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
+                assertThat(shardSearchFailure.reason(), containsString("Parse Failure [No mapping found for [kkk] in order to sort on]"));
+            }
         }
 
         SearchResponse searchResponse = client().prepareSearch()

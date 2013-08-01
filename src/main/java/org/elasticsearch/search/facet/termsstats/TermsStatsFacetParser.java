@@ -123,7 +123,9 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         SearchScript valueScript = null;
         if (valueField != null) {
             FieldMapper fieldMapper = context.smartNameFieldMapper(valueField);
-            if (!(fieldMapper instanceof NumberFieldMapper)) {
+            if (fieldMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "failed to find mapping for " + valueField);
+            } else if (!(fieldMapper instanceof NumberFieldMapper)) {
                 throw new FacetPhaseExecutionException(facetName, "value_field [" + valueField + "] isn't a number field, but a " + fieldMapper.fieldDataType().getType());
             }
             valueIndexFieldData = context.fieldData().getForField(fieldMapper);

@@ -214,7 +214,7 @@ public class PluginManager {
         // extract the plugin
         File extractLocation = new File(environment.pluginsFile(), name);
         if (extractLocation.exists()) {
-            throw new IOException("plugin directory already exists. To update the plugin, uninstall it first using -remove " + name + " command");
+            throw new IOException("plugin directory " + extractLocation.getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
         }
         ZipFile zipFile = null;
         try {
@@ -235,6 +235,7 @@ public class PluginManager {
                 FileSystemUtils.mkdirs(target.getParentFile());
                 Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
             }
+            System.out.println("Installed " + name + " into " + extractLocation.getAbsolutePath());
         } catch (Exception e) {
             System.err.println("failed to extract plugin [" + pluginFile + "]: " + ExceptionsHelper.detailedMessage(e));
             return;
@@ -261,6 +262,7 @@ public class PluginManager {
             System.out.println("Found bin, moving to " + toLocation.getAbsolutePath());
             FileSystemUtils.deleteRecursively(toLocation);
             binFile.renameTo(toLocation);
+            System.out.println("Installed " + name + " into " + toLocation.getAbsolutePath());
         }
 
         // try and identify the plugin type, see if it has no .class or .jar files in it
@@ -273,10 +275,9 @@ public class PluginManager {
                 extractLocation.renameTo(tmpLocation);
                 FileSystemUtils.mkdirs(extractLocation);
                 tmpLocation.renameTo(site);
+                System.out.println("Installed " + name + " into " + site.getAbsolutePath());
             }
         }
-
-        System.out.println("Installed " + name);
     }
 
     public void removePlugin(String name) throws IOException {

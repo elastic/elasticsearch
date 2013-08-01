@@ -145,6 +145,10 @@ public class SimpleTTLTests extends AbstractNodesTests {
         assertThat(getResponse.isExists(), equalTo(false));
         getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
+
+        // Need to run a refresh, in order for the non realtime get to work.
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
         // non realtime get (stored) check
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));

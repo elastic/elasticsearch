@@ -33,8 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@Ignore("abstract")
-public abstract class NumericFieldDataTests extends AbstractStringFieldDataTests {
+public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImplTests {
 
     protected abstract FieldDataType getFieldDataType();
 

@@ -28,6 +28,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.NestedWrappableComparator;
 import org.elasticsearch.index.fielddata.fieldcomparator.NumberComparatorBase;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 
@@ -60,9 +61,9 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
             case MIN:
                 return new NestedFieldComparator.Lowest(wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             case SUM:
-                return new NestedFieldComparator.Sum((NumberComparatorBase) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
+                return new NestedFieldComparator.Sum((NumberComparatorBase<?>) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             case AVG:
-                return new NestedFieldComparator.Avg((NumberComparatorBase) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
+                return new NestedFieldComparator.Avg((NumberComparatorBase<?>) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             default:
                 throw new ElasticSearchIllegalArgumentException(
                     String.format(Locale.ROOT, "Unsupported sort_mode[%s] for nested type", sortMode)
@@ -194,7 +195,6 @@ abstract class NestedFieldComparator extends FieldComparator {
                 copyMissing(wrappedComparator, slot);
                 return;
             }
-            wrappedComparator.copy(spareSlot, nestedDoc);
             wrappedComparator.copy(slot, nestedDoc);
 
             while (true) {
@@ -263,7 +263,6 @@ abstract class NestedFieldComparator extends FieldComparator {
                 copyMissing(wrappedComparator, slot);
                 return;
             }
-            wrappedComparator.copy(spareSlot, nestedDoc);
             wrappedComparator.copy(slot, nestedDoc);
 
             while (true) {
@@ -406,15 +405,15 @@ abstract class NestedFieldComparator extends FieldComparator {
         }
     }
 
-    static final void copyMissing(FieldComparator comparator, int slot) {
-        if (comparator instanceof NumberComparatorBase) {
-            ((NumberComparatorBase) comparator).missing(slot);
+    static final void copyMissing(FieldComparator<?> comparator, int slot) {
+        if (comparator instanceof NestedWrappableComparator<?>) {
+            ((NestedWrappableComparator<?>) comparator).missing(slot);
         }
     }
 
-    static final int compareBottomMissing(FieldComparator comparator) {
-        if (comparator instanceof NumberComparatorBase) {
-            return ((NumberComparatorBase) comparator).compareBottomMissing();
+    static final int compareBottomMissing(FieldComparator<?> comparator) {
+        if (comparator instanceof NestedWrappableComparator<?>) {
+            return ((NestedWrappableComparator<?>) comparator).compareBottomMissing();
         } else {
             return 0;
         }

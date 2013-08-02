@@ -34,6 +34,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,7 +52,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -112,11 +112,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected boolean retryOnFailure(Throwable e) {
-        e = ExceptionsHelper.unwrapCause(e);
-        if (e instanceof IllegalIndexShardStateException) {
-            return true;
-        }
-        return false;
+        return TransportActions.isShardNotAvailableException(e);
     }
 
     @Override

@@ -20,11 +20,11 @@
 package org.elasticsearch.action.search.type;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,9 +37,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.IndexShardMissingException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
@@ -337,27 +334,10 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             } else {
                 // the failure is already present, try and not override it with an exception that is less meaningless
                 // for example, getting illegal shard state
-                if (isOverrideException(t)) {
+                if (TransportActions.isReadOverrideException(t)) {
                     shardFailures.set(shardIndex, new ShardSearchFailure(t));
                 }
             }
-        }
-
-        protected boolean isOverrideException(Throwable t) {
-            Throwable actual = ExceptionsHelper.unwrapCause(t);
-            if (actual instanceof IllegalIndexShardStateException) {
-                return false;
-            }
-            if (actual instanceof IndexMissingException) {
-                return false;
-            }
-            if (actual instanceof IndexShardMissingException) {
-                return false;
-            }
-            if (actual instanceof NoShardAvailableActionException) {
-                return false;
-            }
-            return false;
         }
 
         /**

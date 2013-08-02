@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRespons
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.AliasMissingException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -120,13 +119,13 @@ public class AliasesBenchmark {
     }
 
     private static int countAliases(Client client) {
-        try {
-            IndicesGetAliasesResponse response = client.admin().indices().prepareGetAliases("a*")
-                    .addIndices(INDEX_NAME)
-                    .execute().actionGet();
-            return response.getAliases().get(INDEX_NAME).size();
-        } catch (AliasMissingException e) {
+        IndicesGetAliasesResponse response = client.admin().indices().prepareGetAliases("a*")
+                .addIndices(INDEX_NAME)
+                .execute().actionGet();
+        if (response.getAliases().isEmpty()) {
             return 0;
+        } else {
+            return response.getAliases().get(INDEX_NAME).size();
         }
     }
 

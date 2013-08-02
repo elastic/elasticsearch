@@ -37,6 +37,7 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -57,7 +58,7 @@ public class RestIndicesGetAliasesAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = RestActions.splitIndices(request.param("index"));
-        IndicesGetAliasesRequest getAliasesRequest = new IndicesGetAliasesRequest(aliases);
+        final IndicesGetAliasesRequest getAliasesRequest = new IndicesGetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
 
         if (request.hasParam("ignore_indices")) {
@@ -70,6 +71,15 @@ public class RestIndicesGetAliasesAction extends BaseRestHandler {
             public void onResponse(IndicesGetAliasesResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    if (response.getAliases().isEmpty()) {
+                        String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
+                        builder.startObject()
+                                .field("error", message)
+                                .field("status", RestStatus.NOT_FOUND.getStatus())
+                                .endObject();
+                        channel.sendResponse(new XContentRestResponse(request, RestStatus.NOT_FOUND, builder));
+                        return;
+                    }
                     builder.startObject();
                     for (Map.Entry<String, List<AliasMetaData>> entry : response.getAliases().entrySet()) {
                         builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
@@ -96,6 +106,20 @@ public class RestIndicesGetAliasesAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    private static String toNamesString(String... names) {
+        if (names == null || names.length == 0) {
+            return "";
+        } else if (names.length == 1) {
+            return names[0];
+        } else {
+            StringBuilder builder = new StringBuilder(names[0]);
+            for (int i = 1; i < names.length; i++) {
+                builder.append(',').append(names[i]);
+            }
+            return builder.toString();
+        }
     }
 
     static class Fields {

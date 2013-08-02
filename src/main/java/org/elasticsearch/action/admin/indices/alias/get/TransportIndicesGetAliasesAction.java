@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.AliasMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,10 +67,7 @@ public class TransportIndicesGetAliasesAction extends TransportMasterNodeOperati
         request.indices(concreteIndices);
 
         @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type
-                Map<String, List<AliasMetaData>> result = (Map) state.metaData().findAliases(request.aliases(), request.indices());
-        if (result.isEmpty()) {
-            throw new AliasMissingException(request.aliases());
-        }
+        Map<String, List<AliasMetaData>> result = (Map) state.metaData().findAliases(request.aliases(), request.indices());
         listener.onResponse(new IndicesGetAliasesResponse(result));
     }
 

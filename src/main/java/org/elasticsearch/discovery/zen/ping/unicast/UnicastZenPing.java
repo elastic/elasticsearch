@@ -185,7 +185,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             }
                             listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
                         } catch (RejectedExecutionException ex) {
-                            logger.info("Ping execution ejected", ex);
+                            logger.debug("Ping execution ejected", ex);
                         }
                     }
                 });

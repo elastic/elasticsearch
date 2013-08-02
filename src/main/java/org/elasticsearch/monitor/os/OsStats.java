@@ -138,8 +138,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         builder.field(Fields.TIMESTAMP, timestamp);
 
         if (uptime != -1) {
-            builder.field(Fields.UPTIME, uptime().format());
-            builder.field(Fields.UPTIME_IN_MILLIS, uptime().millis());
+            builder.byteSizeField(Fields.UPTIME, Fields.UPTIME_IN_MILLIS, uptime);
         }
 
         if (loadAverage.length > 0) {
@@ -161,28 +160,22 @@ public class OsStats implements Streamable, Serializable, ToXContent {
 
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.field(Fields.FREE, mem.free().toString());
-            builder.field(Fields.FREE_IN_BYTES, mem.free);
-            builder.field(Fields.USED, mem.used().toString());
-            builder.field(Fields.USED_IN_BYTES, mem.used);
+            builder.byteSizeField(Fields.FREE, Fields.FREE_IN_BYTES, mem.free);
+            builder.byteSizeField(Fields.USED, Fields.USED_IN_BYTES, mem.used);
 
             builder.field(Fields.FREE_PERCENT, mem.freePercent());
             builder.field(Fields.USED_PERCENT, mem.usedPercent());
 
-            builder.field(Fields.ACTUAL_FREE, mem.actualFree().toString());
-            builder.field(Fields.ACTUAL_FREE_IN_BYTES, mem.actualFree);
-            builder.field(Fields.ACTUAL_USED, mem.actualUsed().toString());
-            builder.field(Fields.ACTUAL_USED_IN_BYTES, mem.actualUsed);
+            builder.byteSizeField(Fields.ACTUAL_FREE, Fields.ACTUAL_FREE_IN_BYTES, mem.actualFree);
+            builder.byteSizeField(Fields.ACTUAL_USED, Fields.ACTUAL_USED_IN_BYTES, mem.actualUsed);
 
             builder.endObject();
         }
 
         if (swap != null) {
             builder.startObject(Fields.SWAP);
-            builder.field(Fields.USED, swap.used().toString());
-            builder.field(Fields.USED_IN_BYTES, swap.used);
-            builder.field(Fields.FREE, swap.free().toString());
-            builder.field(Fields.FREE_IN_BYTES, swap.free);
+            builder.byteSizeField(Fields.USED, Fields.USED_IN_BYTES, swap.used);
+            builder.byteSizeField(Fields.FREE, Fields.FREE_IN_BYTES, swap.free);
             builder.endObject();
         }
 

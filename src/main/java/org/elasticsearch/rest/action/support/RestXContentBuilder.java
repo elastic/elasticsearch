@@ -57,6 +57,9 @@ public class RestXContentBuilder {
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }
+
+        builder.readableFormat(request.paramAsBoolean("readable_format", builder.readableFormat()));
+
         String casing = request.param("case");
         if (casing != null && "camelCase".equals(casing)) {
             builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.CAMELCASE);

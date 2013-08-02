@@ -27,6 +27,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
@@ -48,7 +50,7 @@ public final class XContentBuilder implements BytesStream {
 
     public static enum FieldCaseConversion {
         /**
-         * No came conversion will occur.
+         * No conversion will occur.
          */
         NONE,
         /**
@@ -56,7 +58,7 @@ public final class XContentBuilder implements BytesStream {
          */
         UNDERSCORE,
         /**
-         * Underscore will be converted to Camel case conversion.
+         * Underscore will be converted to Camel case.
          */
         CAMELCASE
     }
@@ -73,7 +75,6 @@ public final class XContentBuilder implements BytesStream {
         return new XContentBuilder(xContent, new BytesStreamOutput());
     }
 
-
     private XContentGenerator generator;
 
     private final OutputStream bos;
@@ -82,6 +83,7 @@ public final class XContentBuilder implements BytesStream {
 
     private StringBuilder cachedStringBuilder;
 
+    private boolean readableFormat = false;
 
     /**
      * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
@@ -104,6 +106,15 @@ public final class XContentBuilder implements BytesStream {
     public XContentBuilder prettyPrint() {
         generator.usePrettyPrint();
         return this;
+    }
+
+    public XContentBuilder readableFormat(boolean readableFormat) {
+        this.readableFormat = readableFormat;
+        return this;
+    }
+
+    public boolean readableFormat() {
+        return this.readableFormat;
     }
 
     public XContentBuilder field(String name, ToXContent xContent) throws IOException {
@@ -822,6 +833,38 @@ public final class XContentBuilder implements BytesStream {
 
     public XContentBuilder rawField(String fieldName, BytesReference content) throws IOException {
         generator.writeRawField(fieldName, content, bos);
+        return this;
+    }
+
+    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, TimeValue timeValue) throws IOException {
+        if (readableFormat) {
+            field(readableFieldName, timeValue.toString());
+        }
+        field(rawFieldName, timeValue.millis());
+        return this;
+    }
+
+    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTime) throws IOException {
+        if (readableFormat) {
+            field(readableFieldName, new TimeValue(rawTime).toString());
+        }
+        field(rawFieldName, rawTime);
+        return this;
+    }
+
+    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
+        if (readableFormat) {
+            field(readableFieldName, byteSizeValue.toString());
+        }
+        field(rawFieldName, byteSizeValue.bytes());
+        return this;
+    }
+
+    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawSize) throws IOException {
+        if (readableFormat) {
+            field(readableFieldName, new ByteSizeValue(rawSize).toString());
+        }
+        field(rawFieldName, rawSize);
         return this;
     }
 

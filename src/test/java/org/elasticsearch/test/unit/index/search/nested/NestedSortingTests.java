@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -216,7 +215,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         SortMode sortMode = SortMode.MIN;
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
-        BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(indexFieldData, sortMode);
+        BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode);
         Filter parentFilter = new TermFilter(new Term("__type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
         NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);

@@ -82,8 +82,7 @@ public class FilterCacheStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.FILTER_CACHE);
-        builder.field(Fields.MEMORY_SIZE, getMemorySize().toString());
-        builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySize);
+        builder.byteSizeField(Fields.MEMORY_SIZE, Fields.MEMORY_SIZE_IN_BYTES, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
         builder.endObject();
         return builder;

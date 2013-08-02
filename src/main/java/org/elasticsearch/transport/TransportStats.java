@@ -118,11 +118,9 @@ public class TransportStats implements Streamable, ToXContent {
         builder.startObject(Fields.TRANSPORT);
         builder.field(Fields.SERVER_OPEN, serverOpen);
         builder.field(Fields.RX_COUNT, rxCount);
-        builder.field(Fields.RX_SIZE, rxSize().toString());
-        builder.field(Fields.RX_SIZE_IN_BYTES, rxSize);
+        builder.byteSizeField(Fields.RX_SIZE, Fields.RX_SIZE_IN_BYTES, rxSize);
         builder.field(Fields.TX_COUNT, txCount);
-        builder.field(Fields.TX_SIZE, txSize().toString());
-        builder.field(Fields.TX_SIZE_IN_BYTES, txSize);
+        builder.byteSizeField(Fields.TX_SIZE, Fields.TX_SIZE_IN_BYTES, txSize);
         builder.endObject();
         return builder;
     }

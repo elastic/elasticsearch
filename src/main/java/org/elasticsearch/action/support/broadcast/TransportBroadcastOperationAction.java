@@ -20,10 +20,10 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,9 +34,6 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexShardMissingException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -101,38 +98,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     }
 
     /**
-     * Override this method to ignore specific exception, note, the result should be OR'ed with the call
-     * to super#ignoreException since there is additional logic here....
-     */
-    protected boolean ignoreException(Throwable t) {
-        if (ignoreIllegalShardState()) {
-            Throwable actual = ExceptionsHelper.unwrapCause(t);
-            if (actual instanceof IllegalIndexShardStateException) {
-                return true;
-            }
-            if (actual instanceof IndexMissingException) {
-                return true;
-            }
-            if (actual instanceof IndexShardMissingException) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Should non active routing shard state be ignore or node, defaults to false.
+     * Should non active routing shard state be ignore or not.
      */
     protected boolean ignoreNonActiveExceptions() {
         return false;
-    }
-
-    /**
-     * Should the API ignore illegal shard state cases, for example, if the shard is actually missing on the
-     * target node (cause it hasn't been allocated there for example). Defaults to true.
-     */
-    protected boolean ignoreIllegalShardState() {
-        return true;
     }
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
@@ -321,9 +290,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             ShardRouting nextShard = shardIt.nextOrNull();
             if (nextShard != null) {
                 if (t != null) {
-                    // trace log this exception
                     if (logger.isTraceEnabled()) {
-                        if (!ignoreException(t)) {
+                        if (!TransportActions.isShardNotAvailableException(t)) {
                             if (shard != null) {
                                 logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
                             } else {
@@ -338,10 +306,9 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 // so there is no meaning to this flag
                 performOperation(shardIt, nextShard, shardIndex, true);
             } else {
-                // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {
                     if (t != null) {
-                        if (!ignoreException(t)) {
+                        if (!TransportActions.isShardNotAvailableException(t)) {
                             if (shard != null) {
                                 logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
                             } else {
@@ -364,10 +331,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             if (!accumulateExceptions()) {
                 return;
             }
-            if (ignoreNonActiveExceptions() && t instanceof NoShardAvailableActionException) {
-                return;
-            }
-            if (ignoreException(t)) {
+
+            if (ignoreNonActiveExceptions() && TransportActions.isShardNotAvailableException(t)) {
                 return;
             }
 
@@ -388,27 +353,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
             // the failure is already present, try and not override it with an exception that is less meaningless
             // for example, getting illegal shard state
-            if (isOverrideException(t)) {
+            if (TransportActions.isReadOverrideException(t)) {
                 shardsResponses.set(shardIndex, t);
             }
         }
-    }
-
-    protected boolean isOverrideException(Throwable t) {
-        Throwable actual = ExceptionsHelper.unwrapCause(t);
-        if (actual instanceof IllegalIndexShardStateException) {
-            return false;
-        }
-        if (actual instanceof IndexMissingException) {
-            return false;
-        }
-        if (actual instanceof IndexShardMissingException) {
-            return false;
-        }
-        if (actual instanceof NoShardAvailableActionException) {
-            return false;
-        }
-        return false;
     }
 
     class TransportHandler extends BaseTransportRequestHandler<Request> {

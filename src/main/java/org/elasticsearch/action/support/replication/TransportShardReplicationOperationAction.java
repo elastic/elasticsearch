@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,11 +40,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
@@ -162,26 +160,17 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     protected boolean retryPrimaryException(Throwable e) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        return cause instanceof IndexShardMissingException ||
-                cause instanceof IllegalIndexShardStateException ||
-                cause instanceof IndexMissingException;
+        return TransportActions.isShardNotAvailableException(e);
     }
 
     /**
      * Should an exception be ignored when the operation is performed on the replica.
      */
     boolean ignoreReplicaException(Throwable e) {
+        if (TransportActions.isShardNotAvailableException(e)) {
+            return true;
+        }
         Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof IllegalIndexShardStateException) {
-            return true;
-        }
-        if (cause instanceof IndexMissingException) {
-            return true;
-        }
-        if (cause instanceof IndexShardMissingException) {
-            return true;
-        }
         if (cause instanceof ConnectTransportException) {
             return true;
         }

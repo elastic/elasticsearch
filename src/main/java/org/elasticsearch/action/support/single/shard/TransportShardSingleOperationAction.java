@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -41,7 +42,7 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 
 /**
- *
+ * A base class for single shard read operations.
  */
 public abstract class TransportShardSingleOperationAction<Request extends SingleShardOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
@@ -94,12 +95,10 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
-
         private final ShardIterator shardIt;
-
         private final Request request;
-
         private final DiscoveryNodes nodes;
+        private volatile Throwable lastFailure;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.request = request;
@@ -121,7 +120,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
 
         public void start() {
-            perform(null);
+            perform(new NoShardAvailableActionException(shardIt.shardId()));
         }
 
         private void onFailure(ShardRouting shardRouting, Throwable e) {
@@ -131,10 +130,15 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             perform(e);
         }
 
-        private void perform(@Nullable final Throwable lastException) {
+        private void perform(@Nullable final Throwable currentFailure) {
+            Throwable lastFailure = this.lastFailure;
+            if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
+                lastFailure = currentFailure;
+                this.lastFailure = currentFailure;
+            }
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
-                Throwable failure = lastException;
+                Throwable failure = lastFailure;
                 if (failure == null) {
                     failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
                 } else {

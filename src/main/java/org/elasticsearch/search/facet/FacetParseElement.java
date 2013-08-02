@@ -83,7 +83,7 @@ public class FacetParseElement implements SearchParseElement {
                         fieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("facet_filter".equals(fieldName) || "facetFilter".equals(fieldName)) {
-                            filter = context.queryParserService().parseInnerFilter(parser);
+                            filter = context.queryParserService().parseInnerFilter(parser).filter();
                         } else {
                             FacetParser facetParser = facetParsers.processor(fieldName);
                             if (facetParser == null) {

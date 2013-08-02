@@ -81,7 +81,7 @@ public class GeoDistanceSortParser implements SortParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
+                    nestedFilter = context.queryParserService().parseInnerFilter(parser).filter();
                 } else {
                     fieldName = currentName;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

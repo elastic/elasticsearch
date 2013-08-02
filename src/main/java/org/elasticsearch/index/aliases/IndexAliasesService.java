@@ -134,7 +134,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             byte[] filterSource = filter.uncompressed();
             XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource);
             try {
-                return indexQueryParser.parseInnerFilter(parser);
+                return indexQueryParser.parseInnerFilter(parser).filter();
             } finally {
                 parser.close();
             }

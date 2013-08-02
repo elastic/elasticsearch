@@ -175,14 +175,18 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
-                        sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
-                        ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
-                        sendPingsHandler.close();
-                        for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
-                            logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
-                            transportService.disconnectFromNode(node);
+                        try {
+                            sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
+                            ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
+                            sendPingsHandler.close();
+                            for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
+                                logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
+                                transportService.disconnectFromNode(node);
+                            }
+                            listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
+                        } catch (RejectedExecutionException ex) {
+                            logger.info("Ping execution ejected", ex);
                         }
-                        listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
                     }
                 });
             }

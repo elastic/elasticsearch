@@ -37,14 +37,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.AliasMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Set;
@@ -777,12 +775,8 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
-        try {
-            client().admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
-            Assert.fail("Exception should have been thrown");
-        } catch (AliasMissingException e) {
-            assertThat(e.getMessage(), equalTo("alias [foo] missing"));
-        }
+        getResponse = client().admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
+        assertThat(getResponse.getAliases().isEmpty(), equalTo(true));
         existsResponse = client().admin().indices().prepareAliasesExist("foo")
                 .addIndices("foobar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(false));

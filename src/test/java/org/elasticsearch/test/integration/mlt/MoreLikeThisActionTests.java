@@ -123,6 +123,8 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
                 .endObject()
                 .endObject().endObject().string();
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
+        ensureGreen();
+
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
                 .setRouting("2")
@@ -141,7 +143,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         prepareCreate("foo", 2, ImmutableSettings.builder().put("index.number_of_replicas", 0)
                 .put("index.number_of_shards", 2))
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth("foo").setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())

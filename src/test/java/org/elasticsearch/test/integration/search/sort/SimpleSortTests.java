@@ -790,9 +790,9 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
-        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("3"));
+        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
+        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
         
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -803,9 +803,9 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
-        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
-        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
-        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("3"));
+        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
+        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -846,7 +846,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testSortMissing() throws Exception {
+    public void testSortMissingNumbers() throws Exception {
         prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
                 .startObject()
@@ -914,6 +914,90 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+    }
+
+    @Test
+    public void testSortMissingStrings() throws ElasticSearchException, IOException {
+        prepareCreate("test").addMapping("type1",
+                XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("properties")
+                            .startObject("value")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()).execute().actionGet();
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("id", "1")
+                .field("value", "a")
+                .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("id", "2")
+                .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("id", "1")
+                .field("value", "c")
+                .endObject()).execute().actionGet();
+        
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException();
+        }
+
+        logger.info("--> sort with no missing (same as missing _last)");
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC))
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+
+        logger.info("--> sort with missing _last");
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("_last"))
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+
+        logger.info("--> sort with missing _first");
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("_first"))
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+
+        logger.info("--> sort with missing b");
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("b"))
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
     }
 

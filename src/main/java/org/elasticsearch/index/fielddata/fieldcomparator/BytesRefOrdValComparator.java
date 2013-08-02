@@ -38,12 +38,19 @@ import java.io.IOException;
  * to large results, this comparator will be much faster
  * than {@link org.apache.lucene.search.FieldComparator.TermValComparator}.  For very small
  * result sets it may be slower.
+ *
+ * Internally this comparator multiplies ordinals by 4 so that virtual ordinals can be inserted in-between the original field data ordinals.
+ * Thanks to this, an ordinal for the missing value and the bottom value can be computed and all ordinals are directly comparable. For example,
+ * if the field data ordinals are (a,1), (b,2) and (c,3), they will be internally stored as (a,4), (b,8), (c,12). Then the ordinal for the
+ * missing value will be computed by binary searching. For example, if the missing value is 'ab', it will be assigned 6 as an ordinal (between
+ * 'a' and 'b'. And if the bottom value is 'ac', it will be assigned 7 as an ordinal (between 'ab' and 'b').
  */
-public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
+public final class BytesRefOrdValComparator extends NestedWrappableComparator<BytesRef> {
 
     final IndexFieldData.WithOrdinals<?> indexFieldData;
+    final BytesRef missingValue;
 
-    /* Ords for each slot.
+    /* Ords for each slot, times 4.
        @lucene.internal */
     final long[] ords;
 
@@ -67,6 +74,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     /* Current reader's doc ord/values.
        @lucene.internal */
     BytesValues.WithOrdinals termsIndex;
+    long missingOrd;
 
     /* Bottom slot, or -1 if queue isn't full yet
        @lucene.internal */
@@ -77,21 +85,12 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
        @lucene.internal */
     long bottomOrd;
 
-    /* True if current bottom slot matches the current
-       reader.
-       @lucene.internal */
-    boolean bottomSameReader;
-
-    /* Bottom value (same as values[bottomSlot] once
-       bottomSlot is set).  Cached for faster compares.
-      @lucene.internal */
-    BytesRef bottomValue;
-
     final BytesRef tempBR = new BytesRef();
 
-    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
+        this.missingValue = missingValue;
         ords = new long[numHits];
         values = new BytesRef[numHits];
         readerGen = new int[numHits];
@@ -122,7 +121,17 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     }
 
     @Override
+    public int compareBottomMissing() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void copy(int slot, int doc) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void missing(int slot) {
         throw new UnsupportedOperationException();
     }
 
@@ -140,15 +149,17 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         return docValue.compareTo(value);
     }
 
-    /**
-     * Base class for specialized (per bit width of the
-     * ords) per-segment comparator.  NOTE: this is messy;
-     * we do this only because hotspot can't reliably inline
-     * the underlying array access when looking up doc->ord
-     *
-     * @lucene.internal
-     */
-    abstract class PerSegmentComparator extends FieldComparator<BytesRef> {
+    class PerSegmentComparator extends NestedWrappableComparator<BytesRef> {
+        final Ordinals.Docs readerOrds;
+        final BytesValues.WithOrdinals termsIndex;
+
+        public PerSegmentComparator(BytesValues.WithOrdinals termsIndex) {
+            this.readerOrds = termsIndex.ordinals();
+            this.termsIndex = termsIndex;
+            if (readerOrds.getNumOrds() > Long.MAX_VALUE / 4) {
+                throw new IllegalStateException("Current terms index pretends it has more than " + (Long.MAX_VALUE / 4) + " ordinals, which is unsupported by this impl");
+            }
+        }
 
         @Override
         public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
@@ -187,223 +198,105 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         public int compareDocToValue(int doc, BytesRef value) {
             return BytesRefOrdValComparator.this.compareDocToValue(doc, value);
         }
-    }
 
-    // Used per-segment when bit width of doc->ord is 8:
-    private final class ByteOrdComparator extends PerSegmentComparator {
-        private final byte[] readerOrds;
-        private final BytesValues.WithOrdinals termsIndex;
-        private final int docBase;
-
-        public ByteOrdComparator(byte[] readerOrds, BytesValues.WithOrdinals termsIndex, int docBase) {
-            this.readerOrds = readerOrds;
-            this.termsIndex = termsIndex;
-            this.docBase = docBase;
+        protected long getOrd(int doc) {
+            return readerOrds.getOrd(doc);
         }
 
         @Override
         public int compareBottom(int doc) {
             assert bottomSlot != -1;
-            final int docOrd = (readerOrds[doc] & 0xFF);
-            if (bottomSameReader) {
-                // ord is precisely comparable, even in the equal case
-                return (int) bottomOrd - docOrd;
-            } else if (bottomOrd >= docOrd) {
-                // the equals case always means bottom is > doc
-                // (because we set bottomOrd to the lower bound in
-                // setBottom):
-                return 1;
-            } else {
-                return -1;
-            }
+            final long docOrd = getOrd(doc);
+            final long comparableOrd = docOrd == 0 ? missingOrd : docOrd << 2;
+            return LongValuesComparator.compare(bottomOrd, comparableOrd);
+        }
+
+        @Override
+        public int compareBottomMissing() {
+            assert bottomSlot != -1;
+            return LongValuesComparator.compare(bottomOrd, missingOrd);
         }
 
         @Override
         public void copy(int slot, int doc) {
-            final int ord = readerOrds[doc] & 0xFF;
-            ords[slot] = ord;
+            final long ord = getOrd(doc);
             if (ord == 0) {
-                values[slot] = null;
+                ords[slot] = missingOrd;
+                values[slot] = missingValue;
             } else {
                 assert ord > 0;
-                if (values[slot] == null) {
+                ords[slot] = ord << 2;
+                if (values[slot] == null || values[slot] == missingValue) {
                     values[slot] = new BytesRef();
                 }
                 termsIndex.getValueScratchByOrd(ord, values[slot]);
             }
             readerGen[slot] = currentReaderGen;
         }
-    }
-
-    // Used per-segment when bit width of doc->ord is 16:
-    private final class ShortOrdComparator extends PerSegmentComparator {
-        private final short[] readerOrds;
-        private final BytesValues.WithOrdinals termsIndex;
-        private final int docBase;
-
-        public ShortOrdComparator(short[] readerOrds, BytesValues.WithOrdinals termsIndex, int docBase) {
-            this.readerOrds = readerOrds;
-            this.termsIndex = termsIndex;
-            this.docBase = docBase;
-        }
 
         @Override
-        public int compareBottom(int doc) {
-            assert bottomSlot != -1;
-            final int docOrd = (readerOrds[doc] & 0xFFFF);
-            if (bottomSameReader) {
-                // ord is precisely comparable, even in the equal case
-                return (int) bottomOrd - docOrd;
-            } else if (bottomOrd >= docOrd) {
-                // the equals case always means bottom is > doc
-                // (because we set bottomOrd to the lower bound in
-                // setBottom):
-                return 1;
-            } else {
-                return -1;
-            }
-        }
-
-        @Override
-        public void copy(int slot, int doc) {
-            final int ord = readerOrds[doc] & 0xFFFF;
-            ords[slot] = ord;
-            if (ord == 0) {
-                values[slot] = null;
-            } else {
-                assert ord > 0;
-                if (values[slot] == null) {
-                    values[slot] = new BytesRef();
-                }
-                termsIndex.getValueScratchByOrd(ord, values[slot]);
-            }
-            readerGen[slot] = currentReaderGen;
+        public void missing(int slot) {
+            ords[slot] = missingOrd;
+            values[slot] = missingValue;
         }
     }
 
-    // Used per-segment when bit width of doc->ord is 32:
-    private final class IntOrdComparator extends PerSegmentComparator {
-        private final int[] readerOrds;
-        private final BytesValues.WithOrdinals termsIndex;
-        private final int docBase;
-
-        public IntOrdComparator(int[] readerOrds, BytesValues.WithOrdinals termsIndex, int docBase) {
-            this.readerOrds = readerOrds;
-            this.termsIndex = termsIndex;
-            this.docBase = docBase;
+    // for assertions
+    private boolean consistentInsertedOrd(BytesValues.WithOrdinals termsIndex, long ord, BytesRef value) {
+        assert ord >= 0 : ord;
+        assert (ord == 0) == (value == null) : "ord=" + ord + ", value=" + value;
+        final long previousOrd = ord >>> 2;
+        final long nextOrd = previousOrd + 1;
+        final BytesRef previous = previousOrd == 0 ? null : termsIndex.getValueByOrd(previousOrd);
+        if ((ord & 3) == 0) { // there was an existing ord with the inserted value
+            assert compareValues(previous, value) == 0;
+        } else {
+            assert compareValues(previous, value) < 0;
         }
-
-        @Override
-        public int compareBottom(int doc) {
-            assert bottomSlot != -1;
-            final int docOrd = readerOrds[doc];
-            if (bottomSameReader) {
-                // ord is precisely comparable, even in the equal case
-                return (int) bottomOrd - docOrd;
-            } else if (bottomOrd >= docOrd) {
-                // the equals case always means bottom is > doc
-                // (because we set bottomOrd to the lower bound in
-                // setBottom):
-                return 1;
-            } else {
-                return -1;
-            }
+        if (nextOrd < termsIndex.ordinals().getMaxOrd()) {
+            final BytesRef next = termsIndex.getValueByOrd(nextOrd);
+            assert compareValues(value, next) < 0;
         }
-
-        @Override
-        public void copy(int slot, int doc) {
-            final int ord = readerOrds[doc];
-            ords[slot] = ord;
-            if (ord == 0) {
-                values[slot] = null;
-            } else {
-                assert ord > 0;
-                if (values[slot] == null) {
-                    values[slot] = new BytesRef();
-                }
-                termsIndex.getValueScratchByOrd(ord, values[slot]);
-            }
-            readerGen[slot] = currentReaderGen;
-        }
+        return true;
     }
 
-    // Used per-segment when bit width is not a native array
-    // size (8, 16, 32):
-    final class AnyOrdComparator extends PerSegmentComparator {
-        private final IndexFieldData fieldData;
-        private final Ordinals.Docs readerOrds;
-        private final BytesValues.WithOrdinals termsIndex;
-        private final int docBase;
-
-        public AnyOrdComparator(IndexFieldData fieldData, BytesValues.WithOrdinals termsIndex, int docBase) {
-            this.fieldData = fieldData;
-            this.readerOrds = termsIndex.ordinals();
-            this.termsIndex = termsIndex;
-            this.docBase = docBase;
+    // find where to insert an ord in the current terms index
+    private long ordInCurrentReader(BytesValues.WithOrdinals termsIndex, BytesRef value) {
+        final long docOrd = binarySearch(termsIndex, value);
+        assert docOrd != -1; // would mean smaller than null
+        final long ord;
+        if (docOrd >= 0) {
+            // value exists in the current segment
+            ord = docOrd << 2;
+        } else {
+            // value doesn't exist, use the ord between the previous and the next term
+            ord = ((-2 - docOrd) << 2) + 2;
         }
-
-        @Override
-        public int compareBottom(int doc) {
-            assert bottomSlot != -1;
-            final long docOrd = readerOrds.getOrd(doc);
-            if (bottomSameReader) {
-                // ord is precisely comparable, even in the equal case
-                return LongValuesComparator.compare(bottomOrd, docOrd);
-            } else if (bottomOrd >= docOrd) {
-                // the equals case always means bottom is > doc
-                // (because we set bottomOrd to the lower bound in
-                // setBottom):
-                return 1;
-            } else {
-                return -1;
-            }
-        }
-
-        @Override
-        public void copy(int slot, int doc) {
-            final long ord = readerOrds.getOrd(doc);
-            ords[slot] = ord;
-            if (ord == 0) {
-                values[slot] = null;
-            } else {
-                assert ord > 0;
-                if (values[slot] == null) {
-                    values[slot] = new BytesRef();
-                }
-                termsIndex.getValueScratchByOrd(ord, values[slot]);
-            }
-            readerGen[slot] = currentReaderGen;
-        }
+        assert (ord & 1) == 0;
+        return ord;
     }
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        final int docBase = context.docBase;
         termsIndex = indexFieldData.load(context).getBytesValues();
+        assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
+        if (missingValue == null) {
+            missingOrd = 0;
+        } else {
+            missingOrd = ordInCurrentReader(termsIndex, missingValue);
+            assert consistentInsertedOrd(termsIndex, missingOrd, missingValue);
+        }
         FieldComparator<BytesRef> perSegComp = null;
         assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
         if (termsIndex.isMultiValued()) {
-            perSegComp = new MultiAnyOrdComparator(termsIndex);
-        } else {
-            final Ordinals.Docs docToOrd = termsIndex.ordinals();
-            if (docToOrd.ordinals().hasSingleArrayBackingStorage()) {
-                Object ordsStorage = docToOrd.ordinals().getBackingStorage();
-                if (ordsStorage instanceof byte[]) {
-                    perSegComp = new ByteOrdComparator((byte[]) ordsStorage, termsIndex, docBase);
-                } else if (ordsStorage instanceof short[]) {
-                    perSegComp = new ShortOrdComparator((short[]) ordsStorage, termsIndex, docBase);
-                } else if (ordsStorage instanceof int[]) {
-                    perSegComp = new IntOrdComparator((int[]) ordsStorage, termsIndex, docBase);
+            perSegComp = new PerSegmentComparator(termsIndex) {
+                @Override
+                protected long getOrd(int doc) {
+                    return getRelevantOrd(readerOrds, doc, sortMode);
                 }
-            }
-            // Don't specialize the long[] case since it's not
-            // possible, ie, worse case is MAX_INT-1 docs with
-            // every one having a unique value.
-
-            // TODO: ES - should we optimize for the PackedInts.Reader case as well?
-            if (perSegComp == null) {
-                perSegComp = new AnyOrdComparator(indexFieldData, termsIndex, docBase);
-            }
+            };
+        } else {
+            perSegComp = new PerSegmentComparator(termsIndex);
         }
         currentReaderGen++;
         if (bottomSlot != -1) {
@@ -415,32 +308,29 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     @Override
     public void setBottom(final int bottom) {
         bottomSlot = bottom;
+        final BytesRef bottomValue = values[bottomSlot];
 
-        bottomValue = values[bottomSlot];
-        if (currentReaderGen == readerGen[bottomSlot]) {
+        if (bottomValue == null) {
+            bottomOrd = 0;
+        } else if (currentReaderGen == readerGen[bottomSlot]) {
             bottomOrd = ords[bottomSlot];
-            bottomSameReader = true;
         } else {
-            if (bottomValue == null) {
-                // 0 ord is null for all segments
-                assert ords[bottomSlot] == 0;
-                bottomOrd = 0;
-                bottomSameReader = true;
-                readerGen[bottomSlot] = currentReaderGen;
-            } else {
-                final long index = binarySearch(termsIndex, bottomValue);
-                if (index < 0) {
-                    bottomOrd = -index - 2;
-                    bottomSameReader = false;
-                } else {
-                    bottomOrd = index;
-                    // exact value match
-                    bottomSameReader = true;
-                    readerGen[bottomSlot] = currentReaderGen;
-                    ords[bottomSlot] = bottomOrd;
+            // insert an ord
+            bottomOrd = ordInCurrentReader(termsIndex, bottomValue);
+            if (bottomOrd == missingOrd) {
+                // bottomValue and missingValue and in-between the same field data values -> tie-break
+                // this is why we multiply ords by 4
+                assert missingValue != null;
+                final int cmp = bottomValue.compareTo(missingValue);
+                if (cmp < 0) {
+                    --bottomOrd;
+                } else if (cmp > 0) {
+                    ++bottomOrd;
                 }
             }
+            assert consistentInsertedOrd(termsIndex, bottomOrd, bottomValue);
         }
+        readerGen[bottomSlot] = currentReaderGen;
     }
 
     @Override
@@ -454,7 +344,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     final protected static long binarySearch(BytesValues.WithOrdinals a, BytesRef key, long low, long high) {
         assert a.getValueByOrd(high) == null | a.getValueByOrd(high) != null; // make sure we actually can get these values
-        assert a.getValueByOrd(low) == null | a.getValueByOrd(low) != null;
+        assert low == high + 1 || a.getValueByOrd(low) == null | a.getValueByOrd(low) != null;
         while (low <= high) {
             long mid = (low + high) >>> 1;
             BytesRef midVal = a.getValueByOrd(mid);
@@ -473,65 +363,6 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
                 return mid;
         }
         return -(low + 1);
-    }
-
-
-    class MultiAnyOrdComparator extends PerSegmentComparator {
-
-        private final BytesValues.WithOrdinals termsIndex;
-        private final Ordinals.Docs readerOrds;
-
-        private MultiAnyOrdComparator(BytesValues.WithOrdinals termsIndex) {
-            this.termsIndex = termsIndex;
-            this.readerOrds = termsIndex.ordinals();
-        }
-
-        @Override
-        public int compareBottom(int doc) throws IOException {
-            final long docOrd = getRelevantOrd(readerOrds, doc, sortMode);
-            if (bottomSameReader) {
-                // ord is precisely comparable, even in the equal case
-                return LongValuesComparator.compare(bottomOrd, docOrd);
-            } else if (bottomOrd >= docOrd) {
-                // the equals case always means bottom is > doc
-                // (because we set bottomOrd to the lower bound in
-                // setBottom):
-                return 1;
-            } else {
-                return -1;
-            }
-        }
-
-        @Override
-        public void copy(int slot, int doc) throws IOException {
-            final long ord = getRelevantOrd(readerOrds, doc, sortMode);
-            ords[slot] = ord;
-            if (ord == 0) {
-                values[slot] = null;
-            } else {
-                assert ord > 0;
-                if (values[slot] == null) {
-                    values[slot] = new BytesRef();
-                }
-                termsIndex.getValueScratchByOrd(ord, values[slot]);
-            }
-            readerGen[slot] = currentReaderGen;
-        }
-
-        @Override
-        public int compareDocToValue(int doc, BytesRef value) {
-            BytesRef docValue = getRelevantValue(termsIndex, doc, sortMode);
-            if (docValue == null) {
-                if (value == null) {
-                    return 0;
-                }
-                return -1;
-            } else if (value == null) {
-                return 1;
-            }
-            return docValue.compareTo(value);
-        }
-
     }
 
     static BytesRef getRelevantValue(BytesValues.WithOrdinals readerValues, int docId, SortMode sortMode) {

@@ -14,6 +14,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     private String documentType;
     private BytesReference source;
     private BytesReference docSource;
+    private boolean onlyCount;
 
     public PercolateShardRequest() {
     }
@@ -23,6 +24,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
+        this.onlyCount = request.onlyCount();
     }
 
     public String documentType() {
@@ -37,12 +39,17 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         return docSource;
     }
 
+    public boolean onlyCount() {
+        return onlyCount;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         documentType = in.readString();
         source = in.readBytesReference();
         docSource = in.readBytesReference();
+        onlyCount = in.readBoolean();
     }
 
     @Override
@@ -51,6 +58,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         out.writeString(documentType);
         out.writeBytesReference(source);
         out.writeBytesReference(docSource);
+        out.writeBoolean(onlyCount);
     }
 
 }

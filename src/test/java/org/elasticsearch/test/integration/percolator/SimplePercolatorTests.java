@@ -97,6 +97,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(response.getCount(), equalTo(2l));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         logger.info("--> Percolate doc with field1=b c");
@@ -105,6 +106,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(4));
+        assertThat(response.getCount(), equalTo(4l));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         logger.info("--> Percolate doc with field1=d");
@@ -113,6 +115,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject()))
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(response.getCount(), equalTo(1l));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("4"));
 
         logger.info("--> Search dummy doc, percolate queries must not be included");
@@ -877,6 +880,145 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
             assertThat(match.getIndex().string(), equalTo("test2"));
         }
 
+    }
+
+    @Test
+    public void testCountPercolation() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> Add dummy doc");
+        client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "3")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(matchQuery("field1", "b"))
+                        .must(matchQuery("field1", "c"))
+                ).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "4")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Count percolate doc with field1=b");
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
+                .execute().actionGet();
+        assertThat(response.getCount(), equalTo(2l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate doc with field1=c");
+        response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(yamlBuilder().startObject().field("field1", "c").endObject()))
+                .execute().actionGet();
+        assertThat(response.getCount(), equalTo(2l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate doc with field1=b c");
+        response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(smileBuilder().startObject().field("field1", "b c").endObject()))
+                .execute().actionGet();
+        assertThat(response.getCount(), equalTo(4l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate doc with field1=d");
+        response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "d").endObject()))
+                .execute().actionGet();
+        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate non existing doc");
+        try {
+            client().preparePercolate()
+                    .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                    .setGetRequest(Requests.getRequest("test").type("type").id("5"))
+                    .execute().actionGet();
+            fail("Exception should have been thrown");
+        } catch (DocumentMissingException e) {
+        }
+    }
+
+    @Test
+    public void testCountPercolatingExistingDocs() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> Adding docs");
+        client().prepareIndex("test", "type", "1").setSource("field1", "b").execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource("field1", "c").execute().actionGet();
+        client().prepareIndex("test", "type", "3").setSource("field1", "b c").execute().actionGet();
+        client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "3")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(matchQuery("field1", "b"))
+                        .must(matchQuery("field1", "c"))
+                ).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "4")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Count percolate existing doc with id 1");
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setGetRequest(Requests.getRequest("test").type("type").id("1"))
+                .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
+        assertThat(response.getCount(), equalTo(2l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate existing doc with id 2");
+        response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setGetRequest(Requests.getRequest("test").type("type").id("2"))
+                .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
+        assertThat(response.getCount(), equalTo(2l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate existing doc with id 3");
+        response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setGetRequest(Requests.getRequest("test").type("type").id("3"))
+                .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
+        assertThat(response.getCount(), equalTo(4l));
+        assertThat(response.getMatches(), emptyArray());
+
+        logger.info("--> Count percolate existing doc with id 4");
+        response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type").setOnlyCount(true)
+                .setGetRequest(Requests.getRequest("test").type("type").id("4"))
+                .execute().actionGet();
+        assertThat(response.getFailedShards(), equalTo(0));
+        assertThat(response.getSuccessfulShards(), equalTo(5));
+        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getMatches(), emptyArray());
     }
 
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {

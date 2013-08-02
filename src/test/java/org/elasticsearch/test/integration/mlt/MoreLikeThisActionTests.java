@@ -33,7 +33,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -56,9 +56,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
 
         logger.info("Running moreLikeThis");
         SearchResponse mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.getSuccessfulShards(), equalTo(5));
-        assertThat(mltResponse.getFailedShards(), equalTo(0));
-        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(mltResponse, 1l);
     }
 
 
@@ -82,16 +80,16 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
 
         logger.info("Running moreLikeThis on index");
         SearchResponse mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.getHits().totalHits(), equalTo(2l));
+        assertHitCount(mltResponse, 2l);
 
         logger.info("Running moreLikeThis on beta shard");
         mltResponse = client().moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(mltResponse, 1l);
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("3"));
 
         logger.info("Running moreLikeThis on release shard");
         mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).searchIndices("release")).actionGet();
-        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(mltResponse, 1l);
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("2"));
     }
 
@@ -110,8 +108,10 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         SearchResponse searchResponse = client().prepareMoreLikeThis("foo", "bar", "1").execute().actionGet();
+        assertNoFailures(searchResponse);
         assertThat(searchResponse, notNullValue());
         searchResponse = client.prepareMoreLikeThis("foo", "bar", "1").execute().actionGet();
+        assertNoFailures(searchResponse);
         assertThat(searchResponse, notNullValue());
     }
 
@@ -130,6 +130,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
 
         SearchResponse searchResponse = client().prepareMoreLikeThis("foo", "bar", "1").setRouting("2").execute().actionGet();
+        assertNoFailures(searchResponse);
         assertThat(searchResponse, notNullValue());
     }
 
@@ -148,6 +149,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
         SearchResponse searchResponse = client().prepareMoreLikeThis("foo", "bar", "1").setRouting("4000").execute().actionGet();
+        assertNoFailures(searchResponse);
         assertThat(searchResponse, notNullValue());
     }
 
@@ -167,21 +169,18 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
 
         // Implicit list of fields -> ignore numeric fields
         SearchResponse searchResponse = client().prepareMoreLikeThis("test", "type", "1").setMinDocFreq(1).setMinTermFreq(1).execute().actionGet();
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertHitCount(searchResponse, 1l);
 
         // Explicit list of fields including numeric fields -> fail
         assertThrows(client().prepareMoreLikeThis("test", "type", "1").setField("string_value", "int_value"), SearchPhaseExecutionException.class);
 
         // mlt query with no field -> OK
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery().likeText("index").minTermFreq(1).minDocFreq(1)).execute().actionGet();
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertHitCount(searchResponse, 2l);
 
         // mlt query with string fields
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value").likeText("index").minTermFreq(1).minDocFreq(1)).execute().actionGet();
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertHitCount(searchResponse, 2l);
 
         // mlt query with at least a numeric field -> fail by default
         assertThrows(client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index")), SearchPhaseExecutionException.class);
@@ -192,8 +191,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
 
         // mlt query with at least a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).get();
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertHitCount(searchResponse, 2l);
 
         // mlt field query on a numeric field -> failure by default
         assertThrows(client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
@@ -204,8 +202,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
 
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertHitCount(searchResponse, 0l);
     }
 
 }

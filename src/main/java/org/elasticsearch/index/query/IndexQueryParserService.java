@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticSearchException;
@@ -259,10 +258,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     @Nullable
-    public Filter parseInnerFilter(XContentParser parser) throws IOException {
+    public ParsedFilter parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
-        return context.parseInnerFilter();
+        return new ParsedFilter(context.parseInnerFilter(), context.copyNamedFilters());
     }
 
     @Nullable

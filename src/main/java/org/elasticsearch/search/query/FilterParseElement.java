@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -32,9 +31,9 @@ public class FilterParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        Filter filter = context.queryParserService().parseInnerFilter(parser);
+        ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
         if (filter == null) {
-            filter = Queries.MATCH_NO_FILTER;
+            filter = ParsedFilter.EMPTY;
         }
         context.parsedFilter(filter);
     }

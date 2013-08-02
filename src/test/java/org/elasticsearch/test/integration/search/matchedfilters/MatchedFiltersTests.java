@@ -19,20 +19,17 @@
 
 package org.elasticsearch.test.integration.search.matchedfilters;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.orFilter;
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItemInArray;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -40,12 +37,8 @@ import org.junit.Test;
 public class MatchedFiltersTests extends AbstractSharedClusterTest {
 
     @Test
-    public void simpleMatchedFilter() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+    public void simpleMatchedFilterFromFilteredQuery() throws Exception {
+
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -59,8 +52,6 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
                 .field("number", 2)
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareFlush().execute().actionGet();
-
         client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
                 .field("name", "test3")
                 .field("number", 3)
@@ -72,6 +63,8 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
                 .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2"))))
                 .execute().actionGet();
 
+
+        assertThat(searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
@@ -81,7 +74,94 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
                 assertThat(hit.matchedFilters().length, equalTo(1));
                 assertThat(hit.matchedFilters(), hasItemInArray("test2"));
             } else {
-                assert false;
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void simpleMatchedFilterFromTopLevelFilter() throws Exception {
+
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .field("title", "title1")
+                .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .endObject()).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(orFilter(
+                        termFilter("name", "test").filterName("name"),
+                        termFilter("title", "title1").filterName("title")))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedFilters().length, equalTo(2));
+                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+            } else if (hit.id().equals("2") || hit.id().equals("3")) {
+                assertThat(hit.matchedFilters().length, equalTo(1));
+                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
+
+    @Test
+    public void simpleMatchedFilterFromTopLevelFilterAndFilteredQuery() throws Exception {
+
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .field("title", "title1")
+                .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .field("title", "title2")
+                .endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .field("title", "title3")
+                .endObject()).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), termsFilter("title", "title1", "title2", "title3").filterName("title")))
+                        .setFilter(termFilter("name", "test").filterName("name"))
+                        .execute().actionGet();
+
+        assertThat(searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
+                assertThat(hit.matchedFilters().length, equalTo(2));
+                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
             }
         }
     }

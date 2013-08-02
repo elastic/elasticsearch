@@ -254,7 +254,7 @@ public class PercolatorService extends AbstractComponent {
                         if (query != null) {
                             throw new ElasticSearchParseException("Either specify query or filter, not both");
                         }
-                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser);
+                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser).filter();
                         query = new XConstantScoreQuery(filter);
                     }
                 } else if (token == null) {
@@ -323,7 +323,7 @@ public class PercolatorService extends AbstractComponent {
                         if (query != null) {
                             throw new ElasticSearchParseException("Either specify query or filter, not both");
                         }
-                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser);
+                        Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser).filter();
                         query = new XConstantScoreQuery(filter);
                     }
                 } else if (token == null) {

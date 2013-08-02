@@ -59,8 +59,7 @@ public abstract class AbstractBytesIndexFieldData<FD extends AtomicFieldData.Wit
 
     @Override
     public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        // TODO support "missingValue" for sortMissingValue options here...
-        return new BytesRefFieldComparatorSource(this, sortMode);
+        return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
     }
     
     protected TermsEnum filter(Terms terms, AtomicReader reader) throws IOException {

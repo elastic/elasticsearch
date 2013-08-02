@@ -19,49 +19,37 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util._TestUtil;
+import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.junit.Test;
+import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 
-import static org.hamcrest.Matchers.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  */
-public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTests {
-
-    protected String one() {
-        return "1";
-    }
-
-    protected String two() {
-        return "2";
-    }
-
-    protected String three() {
-        return "3";
-    }
-
-    protected String four() {
-        return "4";
-    }
-
-    private String toString(Object value) {
-        if (value instanceof BytesRef) {
-            return ((BytesRef) value).utf8ToString();
-        }
-        return value.toString();
-    }
+public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImplTests {
 
     protected void fillSingleValueAllSet() throws Exception {
         Document d = new Document();
@@ -96,100 +84,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         writer.deleteDocuments(new Term("_id", "1"));
     }
 
-    @Test
-    public void testDeletedDocs() throws Exception {
-        add2SingleValuedDocumentsAndDeleteOneOfThem();
-        IndexFieldData indexFieldData = getForField("value");
-        AtomicReaderContext readerContext = refreshReader();
-        AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
-        BytesValues values = fieldData.getBytesValues();
-        assertThat(fieldData.getNumDocs(), equalTo(2));
-        assertThat(fieldData.getNumberUniqueValues(), equalTo(2l));
-        for (int i = 0; i < fieldData.getNumDocs(); ++i) {
-            assertThat(values.hasValue(i), equalTo(true));
-        }
-    }
-
-    @Test
-    public void testSingleValueAllSet() throws Exception {
-        fillSingleValueAllSet();
-        IndexFieldData indexFieldData = getForField("value");
-        AtomicReaderContext readerContext = refreshReader();
-        AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(fieldData.getNumberUniqueValues(), equalTo(3l));
-        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
-        BytesValues bytesValues = fieldData.getBytesValues();
-
-        assertThat(bytesValues.isMultiValued(), equalTo(false));
-
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(true));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef(one())));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
-        BytesRef bytesRef = new BytesRef();
-        assertThat(bytesValues.getValueScratch(0, bytesRef), equalTo(new BytesRef(two())));
-        assertThat(bytesRef, equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValueScratch(1, bytesRef), equalTo(new BytesRef(one())));
-        assertThat(bytesRef, equalTo(new BytesRef(one())));
-        assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef(three())));
-        assertThat(bytesRef, equalTo(new BytesRef(three())));
-
-
-        BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
-        assertThat(bytesValuesIter.hasNext(), equalTo(true));
-        assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
-
-        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
-        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
-        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
-
-        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        IndexSearcher searcher = new IndexSearcher(readerContext.reader());
-        TopFieldDocs topDocs;
-
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
-        assertThat(topDocs.totalHits, equalTo(3));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
-        assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
-        assertThat(toString(((FieldDoc) topDocs.scoreDocs[1]).fields[0]), equalTo(two()));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
-        assertThat(toString(((FieldDoc) topDocs.scoreDocs[2]).fields[0]), equalTo(three()));
-
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
-        assertThat(topDocs.totalHits, equalTo(3));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
-    }
-    
-    private HashedBytesRef convert(BytesValues values, int doc) {
-        BytesRef ref = new BytesRef();
-        return new HashedBytesRef(ref, values.getValueHashed(doc, ref));
-    }
-
     protected void fillSingleValueWithMissing() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -205,68 +99,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         d.add(new StringField("_id", "3", Field.Store.NO));
         d.add(new StringField("value", "3", Field.Store.NO));
         writer.addDocument(d);
-    }
-
-    @Test
-    public void testSingleValueWithMissing() throws Exception {
-        fillSingleValueWithMissing();
-        IndexFieldData indexFieldData = getForField("value");
-        AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumberUniqueValues(), equalTo(2l));
-        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
-        BytesValues bytesValues = fieldData
-                .getBytesValues();
-
-        assertThat(bytesValues.isMultiValued(), equalTo(false));
-
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(false));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), nullValue());
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
-        BytesRef bytesRef = new BytesRef();
-        assertThat(bytesValues.getValueScratch(0, bytesRef), equalTo(new BytesRef(two())));
-        assertThat(bytesRef, equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValueScratch(1, bytesRef), equalTo(new BytesRef()));
-        assertThat(bytesRef, equalTo(new BytesRef()));
-        assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef(three())));
-        assertThat(bytesRef, equalTo(new BytesRef(three())));
-
-
-        BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
-        assertThat(bytesValuesIter.hasNext(), equalTo(true));
-        assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        bytesValuesIter = bytesValues.getIter(1);
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
-
-        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
-        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
-        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
-
-        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValuesIter = hashedBytesValues.getIter(1);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        // TODO properly support missing....
     }
 
     protected void fillMultiValueAllSet() throws Exception {
@@ -288,78 +120,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         writer.addDocument(d);
     }
 
-    @Test
-    public void testMultiValueAllSet() throws Exception {
-        fillMultiValueAllSet();
-        IndexFieldData indexFieldData = getForField("value");
-        AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-        assertThat(fieldData.getNumberUniqueValues(), equalTo(4l));
-        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
-
-        BytesValues bytesValues = fieldData.getBytesValues();
-
-        assertThat(bytesValues.isMultiValued(), equalTo(true));
-
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(true));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef(one())));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
-        BytesRef bytesRef = new BytesRef();
-        assertThat(bytesValues.getValueScratch(0, bytesRef), equalTo(new BytesRef(two())));
-        assertThat(bytesRef, equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValueScratch(1, bytesRef), equalTo(new BytesRef(one())));
-        assertThat(bytesRef, equalTo(new BytesRef(one())));
-        assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef(three())));
-        assertThat(bytesRef, equalTo(new BytesRef(three())));
-
-
-        BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
-        assertThat(bytesValuesIter.hasNext(), equalTo(true));
-        assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
-        assertThat(bytesValuesIter.hasNext(), equalTo(true));
-        assertThat(bytesValuesIter.next(), equalTo(new BytesRef(four())));
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
-
-        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
-        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
-        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
-
-        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(four())));
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
-        assertThat(topDocs.totalHits, equalTo(3));
-        assertThat(topDocs.scoreDocs.length, equalTo(3));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
-
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
-        assertThat(topDocs.totalHits, equalTo(3));
-        assertThat(topDocs.scoreDocs.length, equalTo(3));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
-    }
-
     protected void fillMultiValueWithMissing() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -378,129 +138,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         writer.addDocument(d);
     }
 
-    @Test
-    public void testMultiValueWithMissing() throws Exception {
-        fillMultiValueWithMissing();
-        IndexFieldData indexFieldData = getForField("value");
-        AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-        assertThat(fieldData.getNumberUniqueValues(), equalTo(3l));
-        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
-
-        BytesValues bytesValues = fieldData.getBytesValues();
-
-        assertThat(bytesValues.isMultiValued(), equalTo(true));
-
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(false));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), nullValue());
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
-        BytesRef bytesRef = new BytesRef();
-        assertThat(bytesValues.getValueScratch(0, bytesRef), equalTo(new BytesRef(two())));
-        assertThat(bytesRef, equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValueScratch(1, bytesRef), equalTo(new BytesRef()));
-        assertThat(bytesRef, equalTo(new BytesRef()));
-        assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef(three())));
-        assertThat(bytesRef, equalTo(new BytesRef(three())));
-
-
-        BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
-        assertThat(bytesValuesIter.hasNext(), equalTo(true));
-        assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
-        assertThat(bytesValuesIter.hasNext(), equalTo(true));
-        assertThat(bytesValuesIter.next(), equalTo(new BytesRef(four())));
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        bytesValuesIter = bytesValues.getIter(1);
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
-
-        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
-        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
-        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
-
-        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(four())));
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValuesIter = hashedBytesValues.getIter(1);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-    }
-
-    public void testMissingValueForAll() throws Exception {
-        fillAllMissing();
-        IndexFieldData indexFieldData = getForField("value");
-        AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThanOrEqualTo(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-        assertThat(fieldData.getNumberUniqueValues(), equalTo(0l));
-        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), equalTo(0l));
-
-        BytesValues bytesValues = fieldData.getBytesValues();
-
-        assertThat(bytesValues.isMultiValued(), equalTo(false));
-
-        assertThat(bytesValues.hasValue(0), equalTo(false));
-        assertThat(bytesValues.hasValue(1), equalTo(false));
-        assertThat(bytesValues.hasValue(2), equalTo(false));
-
-        assertThat(bytesValues.getValue(0), nullValue());
-        assertThat(bytesValues.getValue(1), nullValue());
-        assertThat(bytesValues.getValue(2), nullValue());
-
-        BytesRef bytesRef = new BytesRef();
-        assertThat(bytesValues.getValueScratch(0, bytesRef), equalTo(new BytesRef()));
-        assertThat(bytesRef, equalTo(new BytesRef()));
-        assertThat(bytesValues.getValueScratch(1, bytesRef), equalTo(new BytesRef()));
-        assertThat(bytesRef, equalTo(new BytesRef()));
-        assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef()));
-        assertThat(bytesRef, equalTo(new BytesRef()));
-
-        BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        bytesValuesIter = bytesValues.getIter(1);
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        bytesValuesIter = bytesValues.getIter(2);
-        assertThat(bytesValuesIter.hasNext(), equalTo(false));
-
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(false));
-
-        assertThat(hashedBytesValues.getValue(0), nullValue());
-        assertThat(hashedBytesValues.getValue(1), nullValue());
-        assertThat(hashedBytesValues.getValue(2), nullValue());
-
-        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValuesIter = hashedBytesValues.getIter(1);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValuesIter = hashedBytesValues.getIter(2);
-        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-    }
-
     protected void fillAllMissing() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -513,55 +150,6 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         d = new Document();
         d.add(new StringField("_id", "3", Field.Store.NO));
         writer.addDocument(d);
-    }
-
-    @Test
-    public void testSortMultiValuesFields() throws Exception {
-        fillExtendedMvSet();
-        IndexFieldData indexFieldData = getForField("value");
-
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
-        assertThat(topDocs.totalHits, equalTo(8));
-        assertThat(topDocs.scoreDocs.length, equalTo(8));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
-        assertThat(((FieldDoc) topDocs.scoreDocs[0]).fields[0], equalTo(null));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(5));
-        assertThat(((FieldDoc) topDocs.scoreDocs[1]).fields[0], equalTo(null));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(7));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).utf8ToString(), equalTo("!08"));
-        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).utf8ToString(), equalTo("02"));
-        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("03"));
-        assertThat(topDocs.scoreDocs[5].doc, equalTo(3));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).utf8ToString(), equalTo("04"));
-        assertThat(topDocs.scoreDocs[6].doc, equalTo(4));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0]).utf8ToString(), equalTo("06"));
-        assertThat(topDocs.scoreDocs[7].doc, equalTo(6));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]).utf8ToString(), equalTo("08"));
-
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
-        assertThat(topDocs.totalHits, equalTo(8));
-        assertThat(topDocs.scoreDocs.length, equalTo(8));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(4));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).utf8ToString(), equalTo("08"));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).utf8ToString(), equalTo("06"));
-        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).utf8ToString(), equalTo("04"));
-        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("03"));
-        assertThat(topDocs.scoreDocs[5].doc, equalTo(7));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).utf8ToString(), equalTo("!10"));
-        assertThat(topDocs.scoreDocs[6].doc, equalTo(1));
-        assertThat(((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(null));
-        assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
-        assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
     }
 
     protected void fillExtendedMvSet() throws Exception {
@@ -615,4 +203,224 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         writer.addDocument(d);
     }
 
+    @Repeat(iterations=10)
+    public void testActualMissingValue() throws IOException {
+        testActualMissingValue(false);
+    }
+
+    @Repeat(iterations=10)
+    public void testActualMissingValueReverse() throws IOException {
+        testActualMissingValue(true);
+    }
+
+    public void testActualMissingValue(boolean reverse) throws IOException {
+        // missing value is set to an actual value
+        Document d = new Document();
+        final StringField s = new StringField("value", "", Field.Store.YES);
+        d.add(s);
+        final String[] values = new String[randomIntBetween(2, 30)];
+        for (int i = 1; i < values.length; ++i) {
+            values[i] = _TestUtil.randomUnicodeString(getRandom());
+        }
+        final int numDocs = atLeast(100);
+        for (int i = 0; i < numDocs; ++i) {
+            final String value = RandomPicks.randomFrom(getRandom(), values);
+            if (value == null) {
+                writer.addDocument(new Document());
+            } else {
+                s.setStringValue(value);
+                writer.addDocument(d);
+            }
+            if (randomInt(10) == 0) {
+                writer.commit();
+            }
+        }
+
+        final IndexFieldData indexFieldData = getForField("value");
+        final String missingValue = values[1];
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, SortMode.MIN);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
+        assertEquals(numDocs, topDocs.totalHits);
+        BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
+        for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
+            final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
+            final BytesRef value = new BytesRef(docValue == null ? missingValue : docValue);
+            if (reverse) {
+                assertTrue(previousValue.compareTo(value) >= 0);
+            } else {
+                assertTrue(previousValue.compareTo(value) <= 0);
+            }
+            previousValue = value;
+        }
+        searcher.getIndexReader().close();
+    }
+
+    @Repeat(iterations=3)
+    public void testSortMissingFirst() throws IOException {
+        testSortMissing(true, false);
+    }
+
+    @Repeat(iterations=3)
+    public void testSortMissingFirstReverse() throws IOException {
+        testSortMissing(true, true);
+    }
+
+    @Repeat(iterations=3)
+    public void testSortMissingLast() throws IOException {
+        testSortMissing(false, false);
+    }
+
+    @Repeat(iterations=3)
+    public void testSortMissingLastReverse() throws IOException {
+        testSortMissing(false, true);
+    }
+
+    public void testSortMissing(boolean first, boolean reverse) throws IOException {
+        Document d = new Document();
+        final StringField s = new StringField("value", "", Field.Store.YES);
+        d.add(s);
+        final String[] values = new String[randomIntBetween(2, 10)];
+        for (int i = 1; i < values.length; ++i) {
+            values[i] = _TestUtil.randomUnicodeString(getRandom());
+        }
+        final int numDocs = atLeast(100);
+        for (int i = 0; i < numDocs; ++i) {
+            final String value = RandomPicks.randomFrom(getRandom(), values);
+            if (value == null) {
+                writer.addDocument(new Document());
+            } else {
+                s.setStringValue(value);
+                writer.addDocument(d);
+            }
+            if (randomInt(10) == 0) {
+                writer.commit();
+            }
+        }
+        final IndexFieldData indexFieldData = getForField("value");
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", SortMode.MIN);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
+        assertEquals(numDocs, topDocs.totalHits);
+        BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
+        for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
+            final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
+            if (first && docValue == null) {
+                assertNull(previousValue);
+            } else if (!first && docValue != null) {
+                assertNotNull(previousValue);
+            }
+            final BytesRef value = docValue == null ? null : new BytesRef(docValue);
+            if (previousValue != null && value != null) {
+                if (reverse) {
+                    assertTrue(previousValue.compareTo(value) >= 0);
+                } else {
+                    assertTrue(previousValue.compareTo(value) <= 0);
+                }
+            }
+            previousValue = value;
+        }
+        searcher.getIndexReader().close();
+    }
+
+    @Repeat(iterations=3)
+    public void testNestedSortingMin() throws IOException {
+        testNestedSorting(SortMode.MIN);
+    }
+
+    @Repeat(iterations=3)
+    public void testNestedSortingMax() throws IOException {
+        testNestedSorting(SortMode.MAX);
+    }
+
+    public void testNestedSorting(SortMode sortMode) throws IOException {
+        final String[] values = new String[randomIntBetween(2, 20)];
+        for (int i = 0; i < values.length; ++i) {
+            values[i] = _TestUtil.randomSimpleString(getRandom());
+        }
+        final int numParents = atLeast(100);
+        List<Document> docs = new ArrayList<Document>();
+        final OpenBitSet parents = new OpenBitSet();
+        for (int i = 0; i < numParents; ++i) {
+            docs.clear();
+            final int numChildren = randomInt(4);
+            for (int j = 0; j < numChildren; ++j) {
+                final Document child = new Document();
+                final int numValues = randomInt(3);
+                for (int k = 0; k < numValues; ++k) {
+                    final String value = RandomPicks.randomFrom(getRandom(), values);
+                    child.add(new StringField("text", value, Store.YES));
+                }
+                docs.add(child);
+            }
+            final Document parent = new Document();
+            parent.add(new StringField("type", "parent", Store.YES));
+            final String value = RandomPicks.randomFrom(getRandom(), values);
+            if (value != null) {
+                parent.add(new StringField("text", value, Store.YES));
+            }
+            docs.add(parent);
+            parents.set(parents.prevSetBit(parents.length() - 1) + docs.size());
+            writer.addDocuments(docs);
+            if (randomInt(10) == 0) {
+                writer.commit();
+            }
+        }
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        IndexFieldData<?> fieldData = getForField("text");
+        final BytesRef missingValue;
+        switch (randomInt(4)) {
+        case 0:
+            missingValue = new BytesRef();
+            break;
+        case 1:
+            missingValue = BytesRefFieldComparatorSource.MAX_TERM;
+            break;
+        case 2:
+            missingValue = new BytesRef(RandomPicks.randomFrom(getRandom(), values));
+            break;
+        default:
+            missingValue = new BytesRef(_TestUtil.randomSimpleString(getRandom()));
+            break;
+        }
+        BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode);
+        Filter parentFilter = new TermFilter(new Term("type", "parent"));
+        Filter childFilter = new NotFilter(parentFilter);
+        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new CachingWrapperFilter(parentFilter), ScoreMode.None);
+        Sort sort = new Sort(new SortField("text", nestedComparatorSource));
+        TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
+        assertTrue(topDocs.scoreDocs.length > 0);
+        BytesRef previous = null;
+        for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
+            final int docID = topDocs.scoreDocs[i].doc;
+            assert parents.get(docID);
+            BytesRef cmpValue = null;
+            for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
+                String[] vals = searcher.doc(child).getValues("text");
+                if (vals.length == 0) {
+                    vals = new String[] {missingValue.utf8ToString()};
+                }
+                for (String value : vals) {
+                    final BytesRef bytesValue = new BytesRef(value);
+                    if (cmpValue == null) {
+                        cmpValue = bytesValue;
+                    } else if (sortMode == SortMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
+                        cmpValue = bytesValue;
+                    } else if (sortMode == SortMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
+                        cmpValue = bytesValue;
+                    }
+                }
+            }
+            if (cmpValue == null) {
+                cmpValue = missingValue;
+            }
+            if (previous != null) {
+                assertNotNull(cmpValue);
+                assertTrue(previous.utf8ToString() + "   /   " + cmpValue.utf8ToString(), previous.compareTo(cmpValue) <= 0);
+            }
+            previous = cmpValue;
+        }
+        searcher.getIndexReader().close();
+    }
 }

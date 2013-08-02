@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,27 +19,24 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.search.FieldComparator;
 
-/**
- * Base FieldComparator class for number fields.
- */
-// This is right now only used for sorting number based fields inside nested objects
-public abstract class NumberComparatorBase<T> extends NestedWrappableComparator<T> {
+/** Base comparator which allows for nested sorting. */
+public abstract class NestedWrappableComparator<T> extends FieldComparator<T> {
 
     /**
-     * Adds numeric value at the specified doc to the specified slot.
+     * Assigns the underlying missing value to the specified slot, if the actual implementation supports missing value.
      *
-     * @param slot  The specified slot
-     * @param doc   The specified doc
+     * @param slot The slot to assign the the missing value to.
      */
-    public abstract void add(int slot, int doc);
+    public abstract void missing(int slot);
 
     /**
-     * Divides the value at the specified slot with the specified divisor.
+     * Compares the missing value to the bottom.
      *
-     * @param slot      The specified slot
-     * @param divisor   The specified divisor
+     * @return any N < 0 if the bottom value is not competitive with the missing value, any N > 0 if the
+     * bottom value is competitive with the missing value and 0 if they are equal.
      */
-    public abstract void divide(int slot, int divisor);
+    public abstract int compareBottomMissing();
 
 }

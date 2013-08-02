@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Tests for all integer types (byte, short, int, long).
  */
-public class LongFieldDataTests extends NumericFieldDataTests {
+public class LongFieldDataTests extends AbstractNumericFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {

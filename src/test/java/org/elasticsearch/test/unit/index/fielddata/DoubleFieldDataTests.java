@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 
 /**
  */
-public class DoubleFieldDataTests extends NumericFieldDataTests {
+public class DoubleFieldDataTests extends AbstractNumericFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {

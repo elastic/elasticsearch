@@ -87,6 +87,14 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         return this;
     }
 
+    /**
+     * Whether only to return total count and don't keep track of the matches (Count percolation).
+     */
+    public PercolateRequestBuilder setOnlyCount(boolean onlyCount) {
+        request.onlyCount(onlyCount);
+        return this;
+    }
+
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;
         return this;

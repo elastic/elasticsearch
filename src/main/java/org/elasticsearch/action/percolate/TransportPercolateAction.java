@@ -154,22 +154,35 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis);
         }
 
-        int size = 0;
-        for (PercolateShardResponse response : shardResults) {
-            size += response.matches().length;
-        }
-
-        List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(size);
-        for (PercolateShardResponse response : shardResults) {
-            Text index = new StringText(response.getIndex());
-            for (Text id : response.matches()) {
-                finalMatches.add(new PercolateResponse.Match(id, index));
+        if (request.onlyCount()) {
+            long finalCount = 0;
+            for (PercolateShardResponse shardResponse : shardResults) {
+                finalCount += shardResponse.count();
             }
-        }
+            return new PercolateResponse(
+                    shardsResponses.length(), successfulShards, failedShards, shardFailures, finalCount, tookInMillis
+            );
+        } else {
+            long finalCount = 0;
+            for (PercolateShardResponse response : shardResults) {
+                finalCount += response.count();
+            }
 
-        return new PercolateResponse(
-                shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches.toArray(new PercolateResponse.Match[size]), tookInMillis
-        );
+            // Serializing more than Integer.MAX_VALUE seems insane to me...
+            int size = (int) finalCount;
+            // Use a custom impl of AbstractBigArray for Object[]?
+            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(size);
+            for (PercolateShardResponse response : shardResults) {
+                Text index = new StringText(response.getIndex());
+                for (Text id : response.matches()) {
+                    finalMatches.add(new PercolateResponse.Match(id, index));
+                }
+            }
+
+            return new PercolateResponse(
+                    shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches.toArray(new PercolateResponse.Match[size]), finalCount, tookInMillis
+            );
+        }
     }
 
     @Override
@@ -196,7 +209,11 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     @Override
     protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
         try {
-            return percolatorService.percolate(request);
+            if (request.onlyCount()) {
+                return percolatorService.countPercolate(request);
+            } else {
+                return percolatorService.matchPercolate(request);
+            }
         } catch (Throwable t) {
             logger.trace("[{}][{}] failed to percolate", t, request.index(), request.shardId());
             ShardId shardId = new ShardId(request.index(), request.shardId());

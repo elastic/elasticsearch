@@ -25,53 +25,27 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  */
-final class QueryCollector extends Collector {
+abstract class QueryCollector extends Collector {
 
-    private final IndexFieldData uidFieldData;
-    private final IndexSearcher searcher;
-    private final List<Text> matches;
-    private final ConcurrentMap<Text, Query> queries;
-    private final ESLogger logger;
+    final IndexFieldData uidFieldData;
+    final IndexSearcher searcher;
+    final ConcurrentMap<Text, Query> queries;
+    final ESLogger logger;
 
-    private final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+    final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
-    private BytesValues values;
+    BytesValues values;
 
-    QueryCollector(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, List<Text> matches) {
+    QueryCollector(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData) {
         this.logger = logger;
         this.queries = queries;
         this.searcher = searcher;
-        this.matches = matches;
         // TODO: when we move to a UID level mapping def on the index level, we can use that one, now, its per type, and we can't easily choose one
         this.uidFieldData = fieldData.getForField(new FieldMapper.Names(UidFieldMapper.NAME), new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")));
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-    }
-
-    @Override
-    public void collect(int doc) throws IOException {
-        BytesRef uid = values.getValue(doc);
-        if (uid == null) {
-            return;
-        }
-        Text id = new BytesText(Uid.idFromUid(uid));
-        Query query = queries.get(id);
-        if (query == null) {
-            // log???
-            return;
-        }
-        // run the query
-        try {
-            collector.reset();
-            searcher.search(query, collector);
-            if (collector.exists()) {
-                matches.add(id);
-            }
-        } catch (IOException e) {
-            logger.warn("[" + id + "] failed to execute query", e);
-        }
     }
 
     @Override
@@ -84,4 +58,87 @@ final class QueryCollector extends Collector {
     public boolean acceptsDocsOutOfOrder() {
         return true;
     }
+
+
+    static Match match(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, List<Text> matches) {
+        return new Match(logger, queries, searcher, fieldData, matches);
+    }
+
+    static Count count(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData) {
+        return new Count(logger, queries, searcher, fieldData);
+    }
+
+    final static class Match extends QueryCollector {
+
+        private final List<Text> matches;
+
+        Match(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, List<Text> matches) {
+            super(logger, queries, searcher, fieldData);
+            this.matches = matches;
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            BytesRef uid = values.getValue(doc);
+            if (uid == null) {
+                return;
+            }
+            Text id = new BytesText(Uid.idFromUid(uid));
+            Query query = queries.get(id);
+            if (query == null) {
+                // log???
+                return;
+            }
+            // run the query
+            try {
+                collector.reset();
+                searcher.search(query, collector);
+                if (collector.exists()) {
+                    matches.add(id);
+                }
+            } catch (IOException e) {
+                logger.warn("[" + id + "] failed to execute query", e);
+            }
+        }
+
+    }
+
+    final static class Count extends QueryCollector {
+
+        private long counter = 0;
+
+        Count(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData) {
+            super(logger, queries, searcher, fieldData);
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            BytesRef uid = values.getValue(doc);
+            if (uid == null) {
+                return;
+            }
+            Text id = new BytesText(Uid.idFromUid(uid));
+            Query query = queries.get(id);
+            if (query == null) {
+                // log???
+                return;
+            }
+            // run the query
+            try {
+                collector.reset();
+                searcher.search(query, collector);
+                if (collector.exists()) {
+                    counter++;
+                }
+            } catch (IOException e) {
+                logger.warn("[" + id + "] failed to execute query", e);
+            }
+        }
+
+        long counter() {
+            return counter;
+        }
+
+    }
+
 }

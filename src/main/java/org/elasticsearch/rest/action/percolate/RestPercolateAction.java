@@ -51,16 +51,23 @@ public class RestPercolateAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate", new RestPercolateExistingDocHandler());
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate", new RestPercolateExistingDocHandler());
+
+        RestPercolateExistingDocHandler existingDocHandler = new RestPercolateExistingDocHandler();
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate", existingDocHandler);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate", existingDocHandler);
+
+        RestCountPercolateDocHandler countHandler = new RestCountPercolateDocHandler();
+        controller.registerHandler(GET, "/{index}/{type}/_percolate/count", countHandler);
+        controller.registerHandler(POST, "/{index}/{type}/_percolate/count", countHandler);
+
+        RestCountPercolateExistingDocHandler countExistingDocHandler = new RestCountPercolateExistingDocHandler();
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
     }
 
-    @Override
-    public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
-        String[] indices = RestActions.splitIndices(restRequest.param("index"));
-        String type = restRequest.param("type");
-
-        PercolateRequest percolateRequest = new PercolateRequest(indices, type);
+    void parseDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel) {
+        percolateRequest.indices(RestActions.splitIndices(restRequest.param("index")));
+        percolateRequest.documentType(restRequest.param("type"));
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
         percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
@@ -73,7 +80,36 @@ public class RestPercolateAction extends BaseRestHandler {
         executePercolate(percolateRequest, restRequest, restChannel);
     }
 
-    void executePercolate(PercolateRequest percolateRequest, final RestRequest restRequest, final RestChannel restChannel) {
+    void parseExistingDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel) {
+        String index = restRequest.param("index");
+        String type = restRequest.param("type");
+        percolateRequest.indices(RestActions.splitIndices(restRequest.param("percolate_index", index)));
+        percolateRequest.documentType(restRequest.param("percolate_type", type));
+
+        GetRequest getRequest = new GetRequest(index, type,
+                restRequest.param("id"));
+        getRequest.routing(restRequest.param("routing"));
+        getRequest.preference(restRequest.param("preference"));
+        getRequest.refresh(restRequest.paramAsBoolean("refresh", getRequest.refresh()));
+        getRequest.realtime(restRequest.paramAsBooleanOptional("realtime", null));
+        getRequest.version(RestActions.parseVersion(restRequest));
+        getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
+
+        percolateRequest.getRequest(getRequest);
+        percolateRequest.routing(restRequest.param("percolate_routing"));
+        percolateRequest.preference(restRequest.param("percolate_preference"));
+        percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
+
+        percolateRequest.routing(restRequest.param("percolate_routing"));
+        percolateRequest.preference(restRequest.param("percolate_preference"));
+
+        if (restRequest.hasParam("ignore_indices")) {
+            percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
+        }
+        executePercolate(percolateRequest, restRequest, restChannel);
+    }
+
+    void executePercolate(final PercolateRequest percolateRequest, final RestRequest restRequest, final RestChannel restChannel) {
         // we just send a response, no need to fork
         percolateRequest.listenerThreaded(false);
         client.percolate(percolateRequest, new ActionListener<PercolateResponse>() {
@@ -102,21 +138,24 @@ public class RestPercolateAction extends BaseRestHandler {
                     }
                     builder.endObject();
 
-                    builder.startArray(Fields.MATCHES);
-                    boolean justIds = "ids".equals(restRequest.param("percolate_format"));
-                    if (justIds) {
-                        for (PercolateResponse.Match match : response) {
-                            builder.value(match.id());
+                    builder.field(Fields.TOTAL, response.getCount());
+                    if (!percolateRequest.onlyCount()) {
+                        builder.startArray(Fields.MATCHES);
+                        boolean justIds = "ids".equals(restRequest.param("percolate_format"));
+                        if (justIds) {
+                            for (PercolateResponse.Match match : response) {
+                                builder.value(match.id());
+                            }
+                        } else {
+                            for (PercolateResponse.Match match : response) {
+                                builder.startObject();
+                                builder.field(Fields._INDEX, match.getIndex());
+                                builder.field(Fields._ID, match.getId());
+                                builder.endObject();
+                            }
                         }
-                    } else {
-                        for (PercolateResponse.Match match : response) {
-                            builder.startObject();
-                            builder.field(Fields._INDEX, match.getIndex());
-                            builder.field(Fields._ID, match.getId());
-                            builder.endObject();
-                        }
+                        builder.endArray();
                     }
-                    builder.endArray();
 
                     builder.endObject();
 
@@ -137,38 +176,40 @@ public class RestPercolateAction extends BaseRestHandler {
         });
     }
 
-    class RestPercolateExistingDocHandler implements RestHandler {
+    @Override
+    public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
+        PercolateRequest percolateRequest = new PercolateRequest();
+        parseDocPercolate(percolateRequest, restRequest, restChannel);
+    }
+
+    final class RestCountPercolateDocHandler implements RestHandler {
 
         @Override
         public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
-            String index = restRequest.param("index");
-            String type = restRequest.param("type");
+            PercolateRequest percolateRequest = new PercolateRequest();
+            percolateRequest.onlyCount(true);
+            parseDocPercolate(percolateRequest, restRequest, restChannel);
+        }
 
-            GetRequest getRequest = new GetRequest(index, type,
-                    restRequest.param("id"));
-            getRequest.routing(restRequest.param("routing"));
-            getRequest.preference(restRequest.param("preference"));
-            getRequest.refresh(restRequest.paramAsBoolean("refresh", getRequest.refresh()));
-            getRequest.realtime(restRequest.paramAsBooleanOptional("realtime", null));
-            getRequest.version(RestActions.parseVersion(restRequest));
-            getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
+    }
 
-            PercolateRequest percolateRequest = new PercolateRequest(
-                    RestActions.splitIndices(restRequest.param("percolate_index", index)),
-                    restRequest.param("percolate_type", type)
-            );
-            percolateRequest.getRequest(getRequest);
-            percolateRequest.routing(restRequest.param("percolate_routing"));
-            percolateRequest.preference(restRequest.param("percolate_preference"));
-            percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
+    final class RestPercolateExistingDocHandler implements RestHandler {
 
-            percolateRequest.routing(restRequest.param("percolate_routing"));
-            percolateRequest.preference(restRequest.param("percolate_preference"));
+        @Override
+        public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
+            PercolateRequest percolateRequest = new PercolateRequest();
+            parseExistingDocPercolate(percolateRequest, restRequest, restChannel);
+        }
 
-            if (restRequest.hasParam("ignore_indices")) {
-                percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
-            }
-            executePercolate(percolateRequest, restRequest, restChannel);
+    }
+
+    final class RestCountPercolateExistingDocHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(RestRequest restRequest, RestChannel restChannel) {
+            PercolateRequest percolateRequest = new PercolateRequest();
+            percolateRequest.onlyCount(true);
+            parseExistingDocPercolate(percolateRequest, restRequest, restChannel);
         }
 
     }

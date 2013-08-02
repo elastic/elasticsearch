@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.percolator.QueryCollector.*;
 
 /**
  */
@@ -83,7 +84,79 @@ public class PercolatorService extends AbstractComponent {
         };
     }
 
-    public PercolateShardResponse percolate(PercolateShardRequest request) {
+    public PercolateShardResponse matchPercolate(final PercolateShardRequest request) {
+        return innerPercolate(request, new PercolateAction() {
+            @Override
+            public PercolateShardResponse doPercolateAction(PercolateContext context) {
+                List<Text> matches = new ArrayList<Text>();
+                if (context.query == null) {
+                    Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+                    for (Map.Entry<Text, Query> entry : context.percolateQueries.entrySet()) {
+                        collector.reset();
+                        try {
+                            context.searcher.search(entry.getValue(), collector);
+                        } catch (IOException e) {
+                            logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                        }
+
+                        if (collector.exists()) {
+                            matches.add(entry.getKey());
+                        }
+                    }
+                } else {
+                    Engine.Searcher percolatorSearcher = context.indexShard.searcher();
+                    try {
+                        percolatorSearcher.searcher().search(
+                                context.query, match(logger, context.percolateQueries, context.searcher, context.fieldDataService, matches)
+                        );
+                    } catch (IOException e) {
+                        logger.warn("failed to execute", e);
+                    } finally {
+                        percolatorSearcher.release();
+                    }
+                }
+                return new PercolateShardResponse(matches.toArray(new Text[matches.size()]), request.index(), request.shardId());
+            }
+        });
+    }
+
+    public PercolateShardResponse countPercolate(final PercolateShardRequest request) {
+        return innerPercolate(request, new PercolateAction() {
+            @Override
+            public PercolateShardResponse doPercolateAction(PercolateContext context) {
+                long count = 0;
+                if (context.query == null) {
+                    Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+                    for (Map.Entry<Text, Query> entry : context.percolateQueries.entrySet()) {
+                        collector.reset();
+                        try {
+                            context.searcher.search(entry.getValue(), collector);
+                        } catch (IOException e) {
+                            logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                        }
+
+                        if (collector.exists()) {
+                            count++;
+                        }
+                    }
+                } else {
+                    Engine.Searcher percolatorSearcher = context.indexShard.searcher();
+                    try {
+                        Count countCollector = count(logger, context.percolateQueries, context.searcher, context.fieldDataService);
+                        percolatorSearcher.searcher().search(context.query, countCollector);
+                        count = countCollector.counter();
+                    } catch (IOException e) {
+                        logger.warn("failed to execute", e);
+                    } finally {
+                        percolatorSearcher.release();
+                    }
+                }
+                return new PercolateShardResponse(count, request.index(), request.shardId());
+            }
+        });
+    }
+
+    private PercolateShardResponse innerPercolate(PercolateShardRequest request, PercolateAction action) {
         IndexService percolateIndexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
 
@@ -91,22 +164,22 @@ public class PercolatorService extends AbstractComponent {
         shardPercolateService.prePercolate();
         long startTime = System.nanoTime();
         try {
-            ConcurrentMap<Text, Query> percolateQueries = indexShard.percolateRegistry().percolateQueries();
-            if (percolateQueries.isEmpty()) {
+            final PercolateContext context = new PercolateContext();
+            context.indexShard = indexShard;
+            context.percolateQueries = indexShard.percolateRegistry().percolateQueries();
+            if (context.percolateQueries.isEmpty()) {
                 return new PercolateShardResponse(StringText.EMPTY_ARRAY, request.index(), request.shardId());
             }
 
             ParsedDocument parsedDocument;
-            Query query;
             if (request.docSource() != null && request.docSource().length() != 0) {
                 parsedDocument = parseFetchedDoc(request.docSource(), percolateIndexService, request.documentType());
-                query = parseQueryOrFilter(percolateIndexService, request.source());
+                context.query = parseQueryOrFilter(percolateIndexService, request.source());
             } else {
                 Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.source());
                 parsedDocument = parseResult.v1();
-                query = parseResult.v2();
+                context.query = parseResult.v2();
             }
-
 
             // first, parse the source doc into a MemoryIndex
             final MemoryIndex memoryIndex = cache.get();
@@ -131,44 +204,16 @@ public class PercolatorService extends AbstractComponent {
                     }
                 }
 
-                final IndexSearcher searcher = memoryIndex.createSearcher();
-                List<Text> matches = new ArrayList<Text>();
-
-                IndexFieldDataService fieldDataService = percolateIndexService.fieldData();
+                context.searcher = memoryIndex.createSearcher();
+                context.fieldDataService = percolateIndexService.fieldData();
                 IndexCache indexCache = percolateIndexService.cache();
                 try {
-                    if (query == null) {
-                        Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-                        for (Map.Entry<Text, Query> entry : percolateQueries.entrySet()) {
-                            collector.reset();
-                            try {
-                                searcher.search(entry.getValue(), collector);
-                            } catch (IOException e) {
-                                logger.warn("[" + entry.getKey() + "] failed to execute query", e);
-                            }
-
-                            if (collector.exists()) {
-                                matches.add(entry.getKey());
-                            }
-                        }
-                    } else {
-                        Engine.Searcher percolatorSearcher = indexShard.searcher();
-                        try {
-                            percolatorSearcher.searcher().search(
-                                    query, new QueryCollector(logger, percolateQueries, searcher, fieldDataService, matches)
-                            );
-                        } catch (IOException e) {
-                            logger.warn("failed to execute", e);
-                        } finally {
-                            percolatorSearcher.release();
-                        }
-                    }
+                    return action.doPercolateAction(context);
                 } finally {
                     // explicitly clear the reader, since we can only register on callback on SegmentReader
-                    indexCache.clear(searcher.getIndexReader());
-                    fieldDataService.clear(searcher.getIndexReader());
+                    indexCache.clear(context.searcher.getIndexReader());
+                    context.fieldDataService.clear(context.searcher.getIndexReader());
                 }
-                return new PercolateShardResponse(matches.toArray(new Text[matches.size()]), request.index(), request.shardId());
             } finally {
                 memoryIndex.reset();
             }
@@ -298,6 +343,22 @@ public class PercolatorService extends AbstractComponent {
 
     public void close() {
         cache.close();
+    }
+
+    interface PercolateAction {
+
+        PercolateShardResponse doPercolateAction(PercolateContext context);
+
+    }
+
+    class PercolateContext {
+
+        Query query;
+        ConcurrentMap<Text, Query> percolateQueries;
+        IndexSearcher searcher;
+        IndexShard indexShard;
+        IndexFieldDataService fieldDataService;
+
     }
 
     public static final class Constants {

@@ -37,13 +37,24 @@ import java.util.List;
  */
 public class PercolateResponse extends BroadcastOperationResponse implements Iterable<PercolateResponse.Match> {
 
+    private static final Match[] EMPTY = new Match[0];
+
     private long tookInMillis;
     private Match[] matches;
+    private long count;
 
-    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, Match[] matches, long tookInMillis) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, Match[] matches, long count, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
         this.matches = matches;
+        this.count = count;
+    }
+
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long count, long tookInMillis) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
+        this.tookInMillis = tookInMillis;
+        this.matches = EMPTY;
+        this.count = count;
     }
 
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis) {
@@ -76,6 +87,10 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         return this.matches;
     }
 
+    public long getCount() {
+        return count;
+    }
+
     @Override
     public Iterator<Match> iterator() {
         return Arrays.asList(matches).iterator();
@@ -85,6 +100,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         tookInMillis = in.readVLong();
+        count = in.readVLong();
         int size = in.readVInt();
         matches = new Match[size];
         for (int i = 0; i < size; i++) {
@@ -97,6 +113,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(tookInMillis);
+        out.writeVLong(count);
         out.writeVInt(matches.length);
         for (Match match : matches) {
             match.writeTo(out);

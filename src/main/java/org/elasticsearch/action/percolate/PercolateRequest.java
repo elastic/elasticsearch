@@ -48,6 +48,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     private String routing;
     private String preference;
     private GetRequest getRequest;
+    private boolean onlyCount;
 
     private BytesReference source;
     private boolean unsafe;
@@ -58,7 +59,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     // to hold it temporarily in an easy way
     long startTime;
 
-    PercolateRequest() {
+    public PercolateRequest() {
     }
 
     public PercolateRequest(String[] indices, String documentType) {
@@ -73,6 +74,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         this.preference = request.preference();
         this.source = request.source;
         this.docSource = docSource;
+        this.onlyCount = request.onlyCount;
+        this.startTime = request.startTime;
     }
 
     public String documentType() {
@@ -174,6 +177,14 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return this;
     }
 
+    public boolean onlyCount() {
+        return onlyCount;
+    }
+
+    public void onlyCount(boolean onlyCount) {
+        this.onlyCount = onlyCount;
+    }
+
     BytesReference docSource() {
         return docSource;
     }
@@ -210,6 +221,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
             getRequest = new GetRequest(null);
             getRequest.readFrom(in);
         }
+        onlyCount = in.readBoolean();
     }
 
     @Override
@@ -227,5 +239,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         } else {
             out.writeBoolean(false);
         }
+        out.writeBoolean(onlyCount);
     }
 }

@@ -56,13 +56,25 @@ public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
 
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
-        return !context.parsedQuery().namedFilters().isEmpty();
+        return !context.parsedQuery().namedFilters().isEmpty()
+                || (context.parsedFilter() !=null && !context.parsedFilter().namedFilters().isEmpty());
     }
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
-        for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
+
+        addMatchedFilters(hitContext, context.parsedQuery().namedFilters(), matchedFilters);
+
+        if (context.parsedFilter() != null) {
+            addMatchedFilters(hitContext, context.parsedFilter().namedFilters(), matchedFilters);
+        }
+
+        hitContext.hit().matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
+    }
+
+    private void addMatchedFilters(HitContext hitContext, ImmutableMap<String, Filter> namedFilters, List<String> matchedFilters) {
+        for (Map.Entry<String, Filter> entry : namedFilters.entrySet()) {
             String name = entry.getKey();
             Filter filter = entry.getValue();
             try {
@@ -77,6 +89,5 @@ public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
                 // ignore
             }
         }
-        hitContext.hit().matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
     }
 }

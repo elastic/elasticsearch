@@ -161,7 +161,7 @@ public class SortParseElement implements SearchParseElement {
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
-                                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
+                                    nestedFilter = context.queryParserService().parseInnerFilter(parser).filter();
                                 } else {
                                     throw new ElasticSearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }

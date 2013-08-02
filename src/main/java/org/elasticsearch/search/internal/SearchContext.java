@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.service.IndexService;
@@ -159,7 +160,7 @@ public class SearchContext implements Releasable {
 
     private Query query;
 
-    private Filter filter;
+    private ParsedFilter filter;
 
     private Filter aliasFilter;
 
@@ -476,12 +477,12 @@ public class SearchContext implements Releasable {
         return this.trackScores;
     }
 
-    public SearchContext parsedFilter(Filter filter) {
+    public SearchContext parsedFilter(ParsedFilter filter) {
         this.filter = filter;
         return this;
     }
 
-    public Filter parsedFilter() {
+    public ParsedFilter parsedFilter() {
         return this.filter;
     }
 

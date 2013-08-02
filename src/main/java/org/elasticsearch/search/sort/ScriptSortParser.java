@@ -67,7 +67,7 @@ public class ScriptSortParser implements SortParser {
                 if ("params".equals(currentName)) {
                     params = parser.map();
                 } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
+                    nestedFilter = context.queryParserService().parseInnerFilter(parser).filter();
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {

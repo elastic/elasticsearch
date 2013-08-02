@@ -58,7 +58,7 @@ public class FilterFacetParser extends AbstractComponent implements FacetParser 
 
     @Override
     public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
-        Filter facetFilter = context.queryParserService().parseInnerFilter(parser);
+        Filter facetFilter = context.queryParserService().parseInnerFilter(parser).filter();
         return new FilterFacetExecutor(facetFilter);
     }
 }

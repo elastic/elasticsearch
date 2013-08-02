@@ -139,7 +139,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
-                collector = new FilteredCollector(collector, searchContext.parsedFilter());
+                collector = new FilteredCollector(collector, searchContext.parsedFilter().filter());
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
                 collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));

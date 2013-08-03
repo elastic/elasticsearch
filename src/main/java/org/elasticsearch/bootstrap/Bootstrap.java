@@ -37,6 +37,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.RandomAccessFile;
 import java.util.Locale;
 import java.util.Set;
@@ -151,9 +152,9 @@ public class Bootstrap {
                 if (fPidFile.getParentFile() != null) {
                     FileSystemUtils.mkdirs(fPidFile.getParentFile());
                 }
-                RandomAccessFile rafPidFile = new RandomAccessFile(fPidFile, "rw");
-                rafPidFile.writeBytes(Long.toString(JvmInfo.jvmInfo().pid()));
-                rafPidFile.close();
+                FileOutputStream outputStream = new FileOutputStream(fPidFile);
+                outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes());
+                outputStream.close();
 
                 fPidFile.deleteOnExit();
             } catch (Exception e) {

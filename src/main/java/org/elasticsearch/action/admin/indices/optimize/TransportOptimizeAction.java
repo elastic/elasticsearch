@@ -73,11 +73,6 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
-    @Override
     protected OptimizeResponse newResponse(OptimizeRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;

@@ -93,17 +93,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract GroupShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
-    /**
-     * Should non active routing shard state be ignore or not.
-     */
-    protected boolean ignoreNonActiveExceptions() {
-        return false;
-    }
-
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
@@ -328,11 +317,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         void setFailure(ShardIterator shardIt, int shardIndex, Throwable t) {
-            if (!accumulateExceptions()) {
-                return;
-            }
-
-            if (ignoreNonActiveExceptions() && TransportActions.isShardNotAvailableException(t)) {
+            // we don't aggregate shard failures on non active shards (but do keep the header counts right)
+            if (TransportActions.isShardNotAvailableException(t)) {
                 return;
             }
 

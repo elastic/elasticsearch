@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -29,5 +30,10 @@ public class IndexShardMissingException extends IndexShardException {
 
     public IndexShardMissingException(ShardId shardId) {
         super(shardId, "missing");
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.NOT_FOUND;
     }
 }

@@ -72,11 +72,6 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
-    @Override
     protected FlushResponse newResponse(FlushRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;

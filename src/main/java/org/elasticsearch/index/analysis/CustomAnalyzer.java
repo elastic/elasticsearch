@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 
 import java.io.Reader;
+import java.util.Arrays;
 
 /**
  *
@@ -96,5 +97,35 @@ public final class CustomAnalyzer extends Analyzer {
             }
         }
         return reader;
+    }
+    
+    public CustomAnalyzer copyWithoutShingleFilter() {
+        int[] tokenFiltersToRemove = new int[tokenFilters.length];
+        Arrays.fill(tokenFiltersToRemove, -1);
+        int removeIndex = 0;
+        int i;
+        for (i = 0; i < tokenFilters.length; i++) {
+            TokenFilterFactory tokenFilterFactory = tokenFilters[i];
+            if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
+                tokenFiltersToRemove[removeIndex++] = i;
+            } else if (tokenFilterFactory instanceof ShingleTokenFilterFactory.Factory) {
+                tokenFiltersToRemove[removeIndex++] = i;
+            }
+        }
+        if (removeIndex == 0) {
+            // Nothing to remove, just return this analyzer
+            return this;
+        }
+        TokenFilterFactory[] newTokenFilters = new TokenFilterFactory[tokenFilters.length - removeIndex + 1];
+        removeIndex = 0;
+        int newIndex = 0;
+        for (i = 0; i < tokenFilters.length; i++) {
+            if (i == tokenFiltersToRemove[removeIndex]) {
+                removeIndex++;
+            } else {
+                newTokenFilters[newIndex++] = tokenFilters[i];
+            }
+        }
+        return new CustomAnalyzer(tokenizerFactory, charFilters, newTokenFilters, positionIncrementGap, offsetGap);
     }
 }

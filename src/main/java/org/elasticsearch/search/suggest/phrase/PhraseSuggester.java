@@ -19,23 +19,26 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
-import java.io.IOException;
-import java.util.List;
-
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.SuggestContextParser;
-import org.elasticsearch.search.suggest.SuggestUtils;
-import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option.Change;
+import org.elasticsearch.search.suggest.*;
+import org.elasticsearch.search.suggest.SuggestUtils.Token;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
@@ -69,13 +72,30 @@ public final class PhraseSuggester implements Suggester<PhraseSuggestionContext>
                 suggestion.getShardSize(), indexReader,wordScorer , separator, suggestion.confidence(), suggestion.gramSize());
         
         UnicodeUtil.UTF8toUTF16(suggestion.getText(), spare);
+
+        Analyzer noShinglesAnalyzer = SuggestUtils.copyWithoutShingleFilterFactory(suggestion.getAnalyzer());
+        BytesRef byteSpare = new BytesRef();
+        List<Token> textTokensForDiff = SuggestUtils.collectTokenList(
+                noShinglesAnalyzer.tokenStream(suggestion.getField(), new FastCharArrayReader(spare.chars, spare.offset, spare.length)),
+                byteSpare, spare);
         
         Suggestion.Entry<Option> resultEntry = new Suggestion.Entry<Option>(new StringText(spare.toString()), 0, spare.length);
-        BytesRef byteSpare = new BytesRef();
         for (Correction correction : corrections) {
             UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare), spare);
             Text phrase = new StringText(spare.toString());
-            resultEntry.addOption(new Suggestion.Entry.Option(phrase, (float) (correction.score)));
+            List<Token> suggestionTokensForDiff = SuggestUtils.collectTokenList(
+                    noShinglesAnalyzer.tokenStream(suggestion.getField(), new FastCharArrayReader(spare.chars, spare.offset, spare.length)),
+                    byteSpare, spare);
+            List<Change> changes = new ArrayList<Change>();
+            // The length of the lists should be the same size but lets just make sure.
+            for (int i = 0; i < Math.min(textTokensForDiff.size(), suggestionTokensForDiff.size()); i++) {
+                Token textToken = textTokensForDiff.get(i);
+                Token suggestionToken = suggestionTokensForDiff.get(i);
+                if (!textToken.getText().equals(suggestionToken.getText())) {
+                    changes.add(new Change(textToken.getText(), suggestionToken.getText(), textToken.getFrom(), textToken.getTo()));
+                }
+            }
+            resultEntry.addOption(new Suggestion.Entry.Option(phrase, (float) (correction.score), changes));
         }
         final Suggestion<Entry<Option>> response = new Suggestion<Entry<Option>>(name, suggestion.getSize());
         response.addTerm(resultEntry);

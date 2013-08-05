@@ -497,12 +497,19 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                     static final XContentBuilderString TEXT = new XContentBuilderString("text");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
-
+                    static final XContentBuilderString CHANGES = new XContentBuilderString("changes");
                 }
 
                 private Text text;
                 private float score;
+                private List<Change> changes;
 
+                public Option(Text text, float score, List<Change> changes) {
+                    this.text = text;
+                    this.score = score;
+                    this.changes = changes;
+                }
+                
                 public Option(Text text, float score) {
                     this.text = text;
                     this.score = score;
@@ -530,16 +537,34 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     this.score = score;
                 }
 
+                /**
+                 * @return The changes from the original text if a changeAnalyzer was provided.
+                 */
+                public List<Change> getChanges() {
+                    return changes;
+                }
+
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
                     score = in.readFloat();
+                    int changesSize = in.readVInt();
+                    changes = new ArrayList<Change>(changesSize);
+                    for (int i = 0; i < changesSize; i++) {
+                        Change change = new Change();
+                        change.readFrom(in);
+                        changes.add(change);
+                    }
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
                     out.writeFloat(score);
+                    out.writeVInt(changes.size());
+                    for (Change change: changes) {
+                        change.writeTo(out);
+                    }
                 }
 
                 @Override
@@ -553,6 +578,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.field(Fields.TEXT, text);
                     builder.field(Fields.SCORE, score);
+                    builder.field(Fields.CHANGES, changes);
                     return builder;
                 }
                 
@@ -573,6 +599,90 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public int hashCode() {
                     return text.hashCode();
+                }
+                
+                public static class Change implements Streamable, ToXContent {
+                    static class Fields {
+                        static final XContentBuilderString WAS = new XContentBuilderString("text");
+                        static final XContentBuilderString IS = new XContentBuilderString("is");
+                        static final XContentBuilderString FROM = new XContentBuilderString("from");
+                        static final XContentBuilderString TO = new XContentBuilderString("to");
+                    }
+
+                    private Text was;
+                    private Text is;
+                    private int from;
+                    private int to;
+                    
+                    public Change(Text was, Text is, int from, int to) {
+                        this.was = was;
+                        this.is = is;
+                        this.from = from;
+                        this.to = to;
+                    }
+                    
+                    public Change() {
+                    }
+
+                    /**
+                     * @return the token from the original suggestion request
+                     */
+                    public Text getWas() {
+                        return was;
+                    }
+
+                    /**
+                     * @return the suggested new token
+                     */
+                    public Text getIs() {
+                        return is;
+                    }
+
+                    /**
+                     * @return the start index in the original suggestion text of the changed token
+                     */
+                    public int getFrom() {
+                        return from;
+                    }
+
+                    /**
+                     * @return the end index in the original suggestion text of the changed token
+                     */
+                    public int getTo() {
+                        return to;
+                    }
+
+                    @Override
+                    public void readFrom(StreamInput in) throws IOException {
+                        was = in.readText();
+                        is = in.readText();
+                        from = in.readVInt();
+                        to = in.readVInt();
+                    }
+                    
+                    @Override
+                    public void writeTo(StreamOutput out) throws IOException {
+                        out.writeText(was);
+                        out.writeText(is);
+                        out.writeVInt(from);
+                        out.writeVInt(to);
+                    }
+
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        builder.startObject();
+                        innerToXContent(builder, params);
+                        builder.endObject();
+                        return builder;
+                    }
+                    
+                    protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+                        builder.field(Fields.WAS, was);
+                        builder.field(Fields.IS, is);
+                        builder.field(Fields.FROM, from);
+                        builder.field(Fields.TO, to);
+                        return builder;
+                    }
                 }
             }
         }

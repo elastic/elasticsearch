@@ -18,31 +18,20 @@
  */
 package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
-import java.util.Comparator;
-import java.util.Locale;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.search.spell.DirectSpellChecker;
-import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
-import org.apache.lucene.search.spell.NGramDistance;
-import org.apache.lucene.search.spell.StringDistance;
-import org.apache.lucene.search.spell.SuggestMode;
-import org.apache.lucene.search.spell.SuggestWord;
-import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
-import org.apache.lucene.search.spell.SuggestWordQueue;
+import org.apache.lucene.search.spell.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.io.FastCharArrayReader;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -50,6 +39,12 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 public final class SuggestUtils {
     public static Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
@@ -161,6 +156,41 @@ public final class SuggestUtils {
         consumer.end();
         stream.close();
         return numTokens;
+    }
+    
+    public static class Token {
+        private final Text text;
+        private final int from;
+        private final int to;
+        
+        public Token(Text text, int from, int to) {
+            this.text = text;
+            this.from = from;
+            this.to = to;
+        }
+        public Text getText() {
+            return text;
+        }
+        public int getFrom() {
+            return from;
+        }
+        public int getTo() {
+            return to;
+        }
+    }
+    
+    public static List<Token> collectTokenList(TokenStream stream, final BytesRef bytesSpare,
+            final CharsRef charsSpare) throws IOException {
+        final List<Token> result = new ArrayList<Token>();
+        analyze(stream, new TokenConsumer() {
+            @Override
+            public void nextToken() throws IOException {
+                this.fillBytesRef(bytesSpare);
+                UnicodeUtil.UTF8toUTF16(bytesSpare, charsSpare);
+                result.add(new Token(new StringText(charsSpare.toString()), offsetAttr.startOffset(), offsetAttr.endOffset()));
+            }
+        });
+        return result;
     }
     
     public static SuggestMode resolveSuggestMode(String suggestMode) {
@@ -293,5 +323,15 @@ public final class SuggestUtils {
             }
         }
         return null;
+    }
+    
+    public static Analyzer copyWithoutShingleFilterFactory(Analyzer analyzer) {
+        if (analyzer instanceof NamedAnalyzer) {
+            analyzer = ((NamedAnalyzer)analyzer).analyzer();
+        }
+        if (analyzer instanceof CustomAnalyzer) {
+            analyzer = ((CustomAnalyzer) analyzer).copyWithoutShingleFilter();
+        }
+        return analyzer;
     }
 }

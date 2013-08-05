@@ -30,7 +30,6 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -38,9 +37,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+
 
 /**
  *
@@ -69,7 +70,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
@@ -99,7 +100,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
@@ -336,7 +337,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setQuery(customFiltersScoreQuery(fuzzyQuery("field", "value"))
                         .add(FilterBuilders.idsFilter("type").addIds("1"), 3))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
     }
@@ -360,7 +361,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
@@ -380,7 +381,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
@@ -401,7 +402,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(8.0f));
@@ -415,7 +416,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3"))); // could be both depending on the order of the docs internally (lucene order)
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(5.0f));
@@ -429,7 +430,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(5.0f));
@@ -446,7 +447,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(5.0f));
@@ -466,7 +467,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(15.0f));
@@ -486,7 +487,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(searchResponse.getHits().getAt(0).explanation().getValue()));
@@ -507,7 +508,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .setExplain(true)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(searchResponse.getHits().getAt(0).explanation().getValue()));

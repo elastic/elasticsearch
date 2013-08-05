@@ -49,8 +49,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
 import static org.hamcrest.Matchers.*;
+
 
 /**
  *
@@ -277,7 +279,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                                     atLeastExpected = type1.get();
                                     response = client().preparePercolate().setIndices("index").setDocumentType("type")
                                             .setSource(onlyField1Doc).execute().actionGet();
-                                    assertThat(response.getShardFailures(), emptyArray());
+                                    assertNoFailures(response);
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                                     assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
                                     break;
@@ -285,7 +287,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                                     atLeastExpected = type2.get();
                                     response = client().preparePercolate().setIndices("index").setDocumentType("type")
                                             .setSource(onlyField2Doc).execute().actionGet();
-                                    assertThat(response.getShardFailures(), emptyArray());
+                                    assertNoFailures(response);
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                                     assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
                                     break;
@@ -293,7 +295,7 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
                                     atLeastExpected = type3.get();
                                     response = client().preparePercolate().setIndices("index").setDocumentType("type")
                                             .setSource(field1AndField2Doc).execute().actionGet();
-                                    assertThat(response.getShardFailures(), emptyArray());
+                                    assertNoFailures(response);
                                     assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                                     assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
                                     break;

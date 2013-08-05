@@ -552,7 +552,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.scriptSort("\u0027\u0027", "string")).setSize(10)
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
     }
     
     @Test
@@ -596,7 +596,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
@@ -609,7 +609,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
@@ -623,7 +623,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
@@ -637,7 +637,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
@@ -680,7 +680,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
         assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
@@ -693,7 +693,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
         assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
@@ -778,7 +778,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
@@ -790,7 +790,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing("_last"))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
@@ -802,7 +802,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing("_first"))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));

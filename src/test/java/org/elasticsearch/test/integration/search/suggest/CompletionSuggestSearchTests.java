@@ -45,6 +45,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
@@ -346,8 +347,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     }
 
     private void assertSuggestions(SuggestResponse suggestResponse, boolean suggestionOrderStrict, String name, String... suggestions) {
-        assertThat(suggestResponse.getFailedShards(), is(0));
-
+        assertNoFailures(suggestResponse);
         assertThat(suggestResponse.getSuggest().getSuggestion(name), is(notNullValue()));
         Suggest.Suggestion<Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option>> suggestion = suggestResponse.getSuggest().getSuggestion(name);
 

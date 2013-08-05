@@ -76,11 +76,6 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         return new IndicesSegmentsRequest();
     }
 
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
     /**
      * Segments goes across *all* active shards.
      */

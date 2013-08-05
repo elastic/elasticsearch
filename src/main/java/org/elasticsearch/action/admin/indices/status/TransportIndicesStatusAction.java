@@ -85,11 +85,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return new IndicesStatusRequest();
     }
 
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
     /**
      * Status goes across *all* shards.
      */

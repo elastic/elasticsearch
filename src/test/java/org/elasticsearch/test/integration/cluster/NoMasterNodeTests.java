@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.cluster;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -60,13 +61,17 @@ public class NoMasterNodeTests extends AbstractNodesTests {
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
 
-        Node node = startNode("node1", settings);
+        final Node node = startNode("node1", settings);
         // start a second node, create an index, and then shut it down so we have no master block
         Node node2 = startNode("node2", settings);
         node.client().admin().indices().prepareCreate("test").execute().actionGet();
         node2.close();
-
-        Thread.sleep(200);
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                ClusterState state = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+            }
+        });
 
         ClusterState state = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));

@@ -193,6 +193,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         public void removed(String type) {
             if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
                 disableRealTimePercolator();
+                clear();
             }
         }
 

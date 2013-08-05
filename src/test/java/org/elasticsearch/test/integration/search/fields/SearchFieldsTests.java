@@ -41,7 +41,7 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -147,7 +147,7 @@ public class SearchFieldsTests extends AbstractSharedClusterTest {
                 .addScriptField("date1", "doc['date'].date.millis")
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
+        assertNoFailures(response);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));

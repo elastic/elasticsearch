@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.indexlifecycle;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -35,14 +36,16 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
-import static org.apache.lucene.util.LuceneTestCase.Slow;
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
+
 
 /**
  *
@@ -117,6 +120,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node1, node2);
         routingNodeEntry1 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(RELOCATING), equalTo(0));
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
@@ -152,6 +156,8 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node1, node2, node3);
+
         routingNodeEntry1 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node1);
         routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         RoutingNode routingNodeEntry3 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node3);
@@ -188,6 +194,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node3, node2);
         routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         routingNodeEntry3 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node3);
 
@@ -206,6 +213,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node3, node2);
         routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         assertThat(routingNodeEntry2.shards().isEmpty(), equalTo(true));
 
@@ -246,6 +254,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node1);
         RoutingNode routingNodeEntry1 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
@@ -276,10 +285,10 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node1, node2);
         routingNodeEntry1 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(RELOCATING), equalTo(0));
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), anyOf(equalTo(6), equalTo(5)));
-
         RoutingNode routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         assertThat(routingNodeEntry2.numberOfShardsWithState(INITIALIZING), equalTo(0));
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(6)));
@@ -311,6 +320,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node1, node2, node3);
         routingNodeEntry1 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node1);
         routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         RoutingNode routingNodeEntry3 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node3);
@@ -349,6 +359,8 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node3, node2);
+
         routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         routingNodeEntry3 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node3);
 
@@ -368,10 +380,17 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
+        assertNodesPresent(clusterState.readOnlyRoutingNodes().nodesToShards(), node3, node2);
+
         routingNodeEntry2 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node2);
         assertThat(routingNodeEntry2.shards().isEmpty(), equalTo(true));
 
         routingNodeEntry3 = clusterState.readOnlyRoutingNodes().nodesToShards().get(node3);
         assertThat(routingNodeEntry3.shards().isEmpty(), equalTo(true));
+    }
+
+    private void assertNodesPresent(Map<String, ?> nodesToShards, String...nodes) {
+        Set<String> keySet = nodesToShards.keySet();
+        assertThat(keySet, containsInAnyOrder(nodes));
     }
 }

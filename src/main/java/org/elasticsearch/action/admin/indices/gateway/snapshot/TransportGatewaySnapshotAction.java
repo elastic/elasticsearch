@@ -71,11 +71,6 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
-    @Override
     protected GatewaySnapshotResponse newResponse(GatewaySnapshotRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;

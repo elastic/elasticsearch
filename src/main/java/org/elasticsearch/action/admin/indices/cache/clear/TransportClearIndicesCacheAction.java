@@ -79,11 +79,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
-    @Override
     protected ClearIndicesCacheResponse newResponse(ClearIndicesCacheRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;

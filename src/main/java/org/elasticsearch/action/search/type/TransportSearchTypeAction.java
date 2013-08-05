@@ -249,9 +249,8 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             addShardFailure(shardIndex, t);
 
             if (totalOps.incrementAndGet() == expectedTotalOps) {
-                // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {
-                    if (t != null) {
+                    if (t != null && !TransportActions.isShardNotAvailableException(t)) {
                         if (shard != null) {
                             logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
                         } else {
@@ -285,9 +284,8 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     performFirstPhase(shardIndex, shardIt, nextShard);
                 } else {
                     // no more shards active, add a failure
-                    // e is null when there is no next active....
                     if (logger.isDebugEnabled()) {
-                        if (t != null) {
+                        if (t != null && !TransportActions.isShardNotAvailableException(t)) {
                             if (shard != null) {
                                 logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
                             } else {
@@ -320,6 +318,11 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         protected final void addShardFailure(final int shardIndex, Throwable t) {
+            // we don't aggregate shard failures on non active shards (but do keep the header counts right)
+            if (TransportActions.isShardNotAvailableException(t)) {
+                return;
+            }
+
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) {
                 synchronized (shardFailuresMutex) {

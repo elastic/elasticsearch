@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.rest.RestStatus;
+
 /**
  *
  */
@@ -38,5 +40,10 @@ public class IllegalIndexShardStateException extends IndexShardException {
 
     public IndexShardState currentState() {
         return currentState;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.NOT_FOUND;
     }
 }

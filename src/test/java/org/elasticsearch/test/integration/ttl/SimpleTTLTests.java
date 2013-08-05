@@ -67,39 +67,57 @@ public class SimpleTTLTests extends AbstractNodesTests {
                         .endObject())
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");
         // Index one doc without routing, one doc with routing, one doc with not TTL and no default and one doc with default TTL
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTTL(providedTTLValue).setRefresh(true).execute().actionGet();
+        long now = System.currentTimeMillis();
         client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1").setTTL(providedTTLValue).setRouting("routing").setRefresh(true).execute().actionGet();
         client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").execute().actionGet();
         client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").execute().actionGet();
-        long now = System.currentTimeMillis();
 
         // realtime get check
-        long now1 = System.currentTimeMillis();
+        long currentTime = System.currentTimeMillis();
         GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        long ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl0, greaterThan(0L));
-        assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
+        long ttl0;
+        if (getResponse.isExists()) {
+            ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
+            assertThat(ttl0, greaterThan(0L));
+            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+        } else {
+            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+        }
         // verify the ttl is still decreasing when going to the replica
-        now1 = System.currentTimeMillis();
+        currentTime = System.currentTimeMillis();
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl0, greaterThan(0L));
-        assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
+        if (getResponse.isExists()) {
+            ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
+            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+        } else {
+            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+        }
         // non realtime get (stored)
-        now1 = System.currentTimeMillis();
+        currentTime = System.currentTimeMillis();
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl0, greaterThan(0L));
-        assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
+        if (getResponse.isExists()) {
+            ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
+            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+        } else {
+            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+        }
         // non realtime get going the replica
-        now1 = System.currentTimeMillis();
+        currentTime = System.currentTimeMillis();
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl0, greaterThan(0L));
-        assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
+        if (getResponse.isExists()) {
+            ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
+            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+        } else {
+            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+        }
 
         // no TTL provided so no TTL fetched
         getResponse = client().prepareGet("test", "type1", "no_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
@@ -111,9 +129,9 @@ public class SimpleTTLTests extends AbstractNodesTests {
 
         // make sure the purger has done its job for all indexed docs that are expired
         long shouldBeExpiredDate = now + providedTTLValue + purgeInterval + 2000;
-        now1 = System.currentTimeMillis();
-        if (shouldBeExpiredDate - now1 > 0) {
-            Thread.sleep(shouldBeExpiredDate - now1);
+        currentTime = System.currentTimeMillis();
+        if (shouldBeExpiredDate - currentTime > 0) {
+            Thread.sleep(shouldBeExpiredDate - currentTime);
         }
 
         // We can't assume that after waiting for ttl + purgeInterval (waitTime) that the document have actually been deleted.

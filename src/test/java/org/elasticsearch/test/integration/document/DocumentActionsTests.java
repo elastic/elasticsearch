@@ -19,21 +19,7 @@
 
 package org.elasticsearch.test.integration.document;
 
-import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.countRequest;
-import static org.elasticsearch.client.Requests.getRequest;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.io.IOException;
-import java.util.Map;
-
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -54,7 +40,14 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
+import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -186,7 +179,7 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         for (int i = 0; i < 5; i++) {
             // test successful
             CountResponse countResponse = client().prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures()==null?0:countResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(countResponse);
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));

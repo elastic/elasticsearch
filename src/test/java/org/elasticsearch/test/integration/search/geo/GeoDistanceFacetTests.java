@@ -19,16 +19,6 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.facet.FacetBuilders.geoDistanceFacet;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-
-import java.util.Arrays;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -36,6 +26,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacet;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.facet.FacetBuilders.geoDistanceFacet;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -248,7 +244,7 @@ public class GeoDistanceFacetTests extends AbstractSharedClusterTest {
                 )
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         GeoDistanceFacet facet = searchResponse.getFacets().facet("geo1");

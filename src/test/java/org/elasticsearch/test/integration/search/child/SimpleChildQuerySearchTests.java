@@ -43,6 +43,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -85,7 +86,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                         )
                 )
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
@@ -99,7 +100,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 )
                         )
                 ).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
 
@@ -113,7 +114,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 )
                         )
                 ).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("gc1"));
 
@@ -124,7 +125,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 termQuery("p_field", "p_value1")
                         )
                 ).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
 
@@ -135,7 +136,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 termQuery("c_field", "c_value1")
                         )
                 ).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("gc1"));
     }
@@ -195,7 +196,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(idsQuery("child").ids("c1"))
                 .addFields("_parent")
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
@@ -206,7 +207,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(termQuery("child._parent", "p1"))
                 .addFields("_parent")
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -218,7 +219,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(termQuery("_parent", "p1"))
                 .addFields("_parent")
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -230,7 +231,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(queryString("_parent:p1"))
                 .addFields("_parent")
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -244,7 +245,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(topChildrenQuery("child", termQuery("c_field", "yellow")))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -261,7 +262,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -281,13 +282,13 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -296,7 +297,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // HAS CHILD FILTER
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -313,7 +314,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -321,14 +322,14 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
         // HAS PARENT FILTER
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value2")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c3"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c4"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value1")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
@@ -336,14 +337,14 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
         // HAS PARENT QUERY
         searchResponse = client().prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "p_value2"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c3"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c4"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "p_value1"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
@@ -382,13 +383,13 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(queryFilter(topChildrenQuery("child", matchAllQuery())).cache(true)))
                     .execute().actionGet();
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
             searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(queryFilter(hasChildQuery("child", matchAllQuery()).scoreType("max")).cache(true)))
                     .execute().actionGet();
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
             searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(queryFilter(hasParentQuery("parent", matchAllQuery()).scoreType("score")).cache(true)))
                     .execute().actionGet();
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
         }
     }
 
@@ -442,7 +443,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                     .setSize(numChildDocsPerParent)
                     .execute().actionGet();
 
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
             assertThat(searchResponse.getFailedShards(), equalTo(0));
             Set<String> childIds = parentToChildrenEntry.getValue();
             assertThat(searchResponse.getHits().totalHits(), equalTo((long) childIds.size()));
@@ -488,7 +489,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // TOP CHILDREN QUERY
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -505,7 +506,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -514,19 +515,19 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // HAS CHILD QUERY
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -535,19 +536,19 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // HAS CHILD FILTER
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -587,7 +588,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // TOP CHILDREN QUERY
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -604,7 +605,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -613,19 +614,19 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // HAS CHILD QUERY
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -634,19 +635,19 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         // HAS CHILD FILTER
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -689,7 +690,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 .global(true)
                 )
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
@@ -744,7 +745,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1\""));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -756,14 +757,14 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -797,17 +798,17 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*")))))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*")))))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*")))))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
     }
 
     @Test
@@ -833,7 +834,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*")))))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
     }
 
     @Test
@@ -876,7 +877,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(topChildrenQuery("child", termQuery("c_field1", "p3")))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p3"));
@@ -884,7 +885,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(topChildrenQuery("child", termQuery("c_field2", "even")))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
@@ -921,14 +922,14 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", matchAllQuery())))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery())))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
@@ -1270,7 +1271,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", termFilter("c_field", 1))))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
@@ -1278,7 +1279,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), hasParentFilter("parent", termFilter("p_field", 1))))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
@@ -1324,7 +1325,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                     .addSort("p_field", SortOrder.ASC)
                     .setSize(5)
                     .execute().actionGet();
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(10L));
             assertThat(searchResponse.getHits().hits()[0].id(), equalTo("p000"));
             assertThat(searchResponse.getHits().hits()[1].id(), equalTo("p001"));
@@ -1337,7 +1338,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                     .addSort("c_field", SortOrder.ASC)
                     .setSize(5)
                     .execute().actionGet();
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(500L));
             assertThat(searchResponse.getHits().hits()[0].id(), equalTo("c000"));
             assertThat(searchResponse.getHits().hits()[1].id(), equalTo("c001"));
@@ -1350,7 +1351,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                     .addSort("p_field", SortOrder.ASC)
                     .setSize(5)
                     .execute().actionGet();
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(10L));
             assertThat(searchResponse.getHits().hits()[0].id(), equalTo("p000"));
             assertThat(searchResponse.getHits().hits()[1].id(), equalTo("p001"));
@@ -1389,7 +1390,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).scoreType("sum"))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -1402,7 +1403,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 .must(hasParentQuery("parent", termQuery("p_field", "p_value2")).scoreType("score"))
                 )
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c3"));
@@ -1420,7 +1421,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).scoreType("sum"))
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
@@ -1433,7 +1434,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 .must(hasParentQuery("parent", termQuery("p_field", "p_value2")).scoreType("score"))
                 )
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), Matchers.anyOf(equalTo("c3"), equalTo("c4")));
@@ -1469,7 +1470,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(hasChildQuery("child", matchAllQuery()).scoreType("sum"))
                 .setMinScore(2) // Score needs to be above 2.0!
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));

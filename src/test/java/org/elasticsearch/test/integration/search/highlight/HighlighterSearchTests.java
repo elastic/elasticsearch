@@ -40,7 +40,6 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -50,6 +49,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -402,7 +402,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
         assertThat(search.getHits().hits().length, equalTo(5));
@@ -416,7 +416,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("attachments.body", -1, 0)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
         assertThat(search.getHits().hits().length, equalTo(5));
@@ -452,7 +452,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
         assertThat(search.getHits().hits().length, equalTo(5));
@@ -466,7 +466,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("attachments.body", -1, 2)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
         assertThat(search.getHits().hits().length, equalTo(5));
@@ -558,7 +558,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .field(new HighlightBuilder.Field("field2").preTags("<field2>").postTags("</field2>")));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <global>test</global>"));
@@ -581,7 +581,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field*").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
@@ -604,7 +604,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
@@ -616,7 +616,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
@@ -628,7 +628,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -640,7 +640,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -652,7 +652,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -664,7 +664,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
     }
@@ -685,7 +685,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
@@ -697,7 +697,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
@@ -710,7 +710,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
@@ -723,7 +723,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
@@ -845,7 +845,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("title", 30, 1, 10)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
         assertThat(search.getHits().hits().length, equalTo(5));
@@ -876,7 +876,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
@@ -909,7 +909,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         assertThat(search.getHits().totalHits(), equalTo(5l));
         assertThat(search.getHits().hits().length, equalTo(5));
@@ -949,7 +949,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title.key").fragments()[0].string(), equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
@@ -977,7 +977,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         SearchHit hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
@@ -988,7 +988,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title.key").fragments()[0].string(), equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
@@ -1015,7 +1015,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         SearchHit hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
@@ -1026,7 +1026,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title.key").fragments()[0].string(), equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
@@ -1053,7 +1053,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         SearchHit hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
@@ -1064,7 +1064,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title.key").fragments()[0].string(), equalTo("<em>this</em> <em>is</em> <em>a</em> <em>test</em>"));
@@ -1090,7 +1090,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertNoFailures(search);
 
         search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
@@ -1146,7 +1146,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
@@ -1168,7 +1168,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
 
         SearchResponse searchResponse = client().search(
                 searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
@@ -1193,7 +1193,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
@@ -1213,7 +1213,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
 
         SearchResponse searchResponse = client().search(
                 searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
@@ -1255,7 +1255,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field0").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
@@ -1267,7 +1267,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"));
@@ -1287,7 +1287,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field3").fragments()[0].string(),
@@ -1298,7 +1298,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field4").fragments()[0].string(),
@@ -1311,7 +1311,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field4").fragments()[0].string(),

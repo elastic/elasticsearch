@@ -36,18 +36,18 @@ public class FunctionScoreQuery extends Query {
 
     Query subQuery;
     final ScoreFunction function;
-    Float maxBoost = new Float(Float.MAX_VALUE);
+    float maxBoost = Float.MAX_VALUE;
 
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
     }
 
-    public void setMaxBoost(Float maxBoost) {
+    public void setMaxBoost(float maxBoost) {
         this.maxBoost = maxBoost;
     }
 
-    public Float getMaxBoost() {
+    public float getMaxBoost() {
         return this.maxBoost;
     }
 
@@ -62,8 +62,9 @@ public class FunctionScoreQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = subQuery.rewrite(reader);
-        if (newQ == subQuery)
+        if (newQ == subQuery){
             return this;
+        }
         FunctionScoreQuery bq = (FunctionScoreQuery) this.clone();
         bq.subQuery = newQ;
         return bq;
@@ -136,9 +137,9 @@ public class FunctionScoreQuery extends Query {
         private final float subQueryBoost;
         private final Scorer scorer;
         private final ScoreFunction function;
-        private final Float maxBoost;
+        private final float maxBoost;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, Float maxBoost)
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost)
                 throws IOException {
             super(w);
             this.subQueryBoost = w.getQuery().getBoost();
@@ -164,8 +165,8 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            float factor = function.score(scorer.docID(), scorer.score());
-            return subQueryBoost * (maxBoost < factor ? maxBoost : factor);
+            float factor = (float)function.score(scorer.docID(), scorer.score());
+            return subQueryBoost * Math.min(maxBoost, factor);
         }
 
         @Override

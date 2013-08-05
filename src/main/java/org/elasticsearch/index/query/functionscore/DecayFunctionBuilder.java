@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
 
     public void setParameters(String fieldName, String reference, String scale, String scaleWeight) {
         if(this.fieldName != null ) {
-            throw new ElasticSearchException("Parameters in distance function were already set!");
+            throw new ElasticSearchIllegalStateException("Can not set parameters of decay function more than once.");
         }
         this.fieldName = fieldName;
         this.reference = reference;

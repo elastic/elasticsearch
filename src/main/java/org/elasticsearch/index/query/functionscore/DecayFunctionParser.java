@@ -352,7 +352,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             }
             if (userSuppliedScaleWeight <= 0.0 || userSuppliedScaleWeight >= 1.0) {
                 throw new ElasticSearchIllegalArgumentException(FunctionScoreQueryParser.NAME
-                        + " : scale_weight must be in the range ]0.0, 1.0[.");
+                        + " : scale_weight must be in the range [0..1].");
             }
             this.scale = func.processScale(userSuppiedScale, userSuppliedScaleWeight);
             this.func = func;
@@ -360,13 +360,13 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         public float score(int docId, float subQueryScore) {
-            return subQueryScore * factor(docId);
+            return (float) (subQueryScore * factor(docId));
         }
 
         @Override
-        public float factor(int docId) {
+        public double factor(int docId) {
             double value = distance(docId);
-            return (float) func.evaluate(value, scale);
+            return func.evaluate(value, scale);
         }
 
         /**
@@ -384,9 +384,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         public Explanation explainScore(int docId, Explanation subQueryExpl) {
             ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue(score(docId, subQueryExpl.getValue()));
+            ce.setValue((float)score(docId, subQueryExpl.getValue()));
             ce.setMatch(true);
-            ce.setDescription("subQueryScore*Function for field " + getFieldName() + ":");
+            ce.setDescription("subQueryScore * Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
         }
@@ -394,9 +394,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         public Explanation explainFactor(int docId) {
             ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue(factor(docId));
+            ce.setValue((float)factor(docId));
             ce.setMatch(true);
-            ce.setDescription("subQueryScore*Function for field " + getFieldName() + ":");
+            ce.setDescription("subQueryScore * Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
         }

@@ -53,7 +53,7 @@ public class ScriptScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public float factor(int docId) {
+    public double factor(int docId) {
         // just the factor, so don't provide _score
         script.setNextDocId(docId);
         return script.runAsFloat();
@@ -67,8 +67,8 @@ public class ScriptScoreFunction implements ScoreFunction {
             script.setNextScore(subQueryExpl.getValue());
             exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
         } else {
-            float score = score(docId, subQueryExpl.getValue());
-            exp = new Explanation(score, "script score function: composed of:");
+            double score = score(docId, subQueryExpl.getValue());
+            exp = new Explanation((float)score, "script score function: composed of:");
             exp.addDetail(subQueryExpl);
         }
         return exp;
@@ -76,7 +76,7 @@ public class ScriptScoreFunction implements ScoreFunction {
 
     @Override
     public Explanation explainFactor(int docId) {
-        return new Explanation(factor(docId), "scriptFactor");
+        return new Explanation((float)factor(docId), "script_factor");
     }
 
     @Override

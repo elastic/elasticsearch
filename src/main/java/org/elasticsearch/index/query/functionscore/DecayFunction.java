@@ -44,9 +44,9 @@ public interface DecayFunction {
      * function
      * 
      * @param scale
-     *            : the raw scale value given by the user
+     *            the raw scale value given by the user
      * @param value
-     *            : the value which decay function should take once the distance
+     *            the value which decay function should take once the distance
      *            reaches this scale
      * */
     public double processScale(double scale, double value);

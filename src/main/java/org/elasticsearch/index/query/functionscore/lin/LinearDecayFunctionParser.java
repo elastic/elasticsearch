@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 
 public class LinearDecayFunctionParser extends DecayFunctionParser {
 
-    public static final String[] NAMES = { "lin" };
+    public static final String[] NAMES = { "linear" };
 
     @Override
     public String[] getNames() {

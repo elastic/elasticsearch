@@ -31,7 +31,7 @@ public interface ScoreFunction {
 
     float score(int docId, float subQueryScore);
 
-    float factor(int docId);
+    double factor(int docId);
 
     Explanation explainScore(int docId, Explanation subQueryExpl);
 

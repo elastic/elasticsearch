@@ -7,7 +7,7 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 
 public class CustomDistanceScoreParser extends DecayFunctionParser {
 
-    public static final String[] NAMES = {"linear_mult"};
+    public static final String[] NAMES = {"linear_mult", "linearMult"};
 
     @Override
     public String[] getNames() {

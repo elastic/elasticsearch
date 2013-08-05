@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.*;
 import org.elasticsearch.Version;
@@ -96,7 +97,14 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
     public List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = Lists.newArrayList();
 
-        DescribeInstancesResult descInstances = client.describeInstances(new DescribeInstancesRequest());
+        DescribeInstancesResult descInstances;
+        try {
+            descInstances = client.describeInstances(new DescribeInstancesRequest());
+        } catch (AmazonClientException e) {
+            logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
+            logger.debug("Full exception:", e);
+            return discoNodes;
+        }
 
         logger.trace("building dynamic unicast discovery nodes...");
         for (Reservation reservation : descInstances.getReservations()) {

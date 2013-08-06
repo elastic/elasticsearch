@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.indices.IndexMissingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -146,7 +147,15 @@ public class IndicesFilterParser implements FilterParser {
     }
 
     protected boolean matchesIndices(String currentIndex, String... indices) {
-        String[] concreteIndices = clusterService.state().metaData().concreteIndices(indices, IgnoreIndices.MISSING, true);
+        final String[] concreteIndices;
+        try {
+            concreteIndices = clusterService.state().metaData().concreteIndices(indices, IgnoreIndices.MISSING, true);
+        } catch(IndexMissingException e) {
+            //Although we use IgnoreIndices.MISSING, according to MetaData#concreteIndices contract,
+            // we get IndexMissing either when we have a single index that is missing or when all indices are missing
+            return false;
+        }
+
         for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, currentIndex)) {
                 return true;

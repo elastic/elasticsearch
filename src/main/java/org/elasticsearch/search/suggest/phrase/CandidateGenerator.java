@@ -32,14 +32,18 @@ public abstract class CandidateGenerator {
     public abstract long frequency(BytesRef term) throws IOException;
 
     public CandidateSet drawCandidates(BytesRef term) throws IOException {
-        CandidateSet set = new CandidateSet(Candidate.EMPTY,  createCandidate(term));
+        CandidateSet set = new CandidateSet(Candidate.EMPTY, createCandidate(term, true));
         return drawCandidates(set);
     }
     
-    public Candidate createCandidate(BytesRef term) throws IOException {
-        return createCandidate(term, frequency(term), 1.0);
+    public Candidate createCandidate(BytesRef term, boolean userInput) throws IOException {
+        return createCandidate(term, frequency(term), 1.0, userInput);
     }
-    public abstract Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException;
+    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
+        return createCandidate(term, frequency, channelScore, false);
+    }
+
+    public abstract Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException;
 
     public abstract CandidateSet drawCandidates(CandidateSet set) throws IOException;
 

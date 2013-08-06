@@ -93,7 +93,7 @@ public final class NoisyChannelSpellChecker {
                     if (currentSet != null) {
                         candidateSetsList.add(currentSet);
                     }
-                    currentSet = new CandidateSet(Candidate.EMPTY, generator.createCandidate(BytesRef.deepCopyOf(term)));
+                    currentSet = new CandidateSet(Candidate.EMPTY, generator.createCandidate(BytesRef.deepCopyOf(term), true));
                 }
             }
             

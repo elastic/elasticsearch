@@ -43,8 +43,8 @@ public class BoostScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public double score(int docId, double subQueryScore) {
-        return subQueryScore * (double) boost;
+    public double score(int docId, float subQueryScore) {
+        return subQueryScore * boost;
     }
 
     @Override

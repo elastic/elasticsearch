@@ -165,8 +165,8 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            float factor = toFloat(function.score(scorer.docID(), scorer.score()));
-            return subQueryBoost * Math.min(maxBoost, factor);
+            double factor = function.score(scorer.docID(), scorer.score());
+            return toFloat(subQueryBoost * Math.min(maxBoost, factor));
         }
 
         @Override

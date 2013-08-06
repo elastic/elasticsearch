@@ -359,7 +359,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         @Override
-        public double score(int docId, double subQueryScore) {
+        public double score(int docId, float subQueryScore) {
             return (subQueryScore * factor(docId));
         }
 

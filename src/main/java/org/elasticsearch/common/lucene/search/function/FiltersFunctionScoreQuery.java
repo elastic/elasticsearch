@@ -164,11 +164,11 @@ public class FiltersFunctionScoreQuery extends Query {
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
-                        float factor = functionExplanation.getValue();
+                        double factor = functionExplanation.getValue();
                         if (factor > maxBoost) {
                             factor = maxBoost;
                         }
-                        float sc = getBoost() * factor;
+                        float sc = toFloat(getBoost() * factor);
                         Explanation filterExplanation = new ComplexExplanation(true, sc, "custom score, product of:");
                         filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         filterExplanation.addDetail(functionExplanation);
@@ -186,21 +186,21 @@ public class FiltersFunctionScoreQuery extends Query {
                 int count = 0;
                 float total = 0;
                 float multiply = 1;
-                float max = Float.NEGATIVE_INFINITY;
-                float min = Float.POSITIVE_INFINITY;
+                double max = Double.NEGATIVE_INFINITY;
+                double min = Double.POSITIVE_INFINITY;
                 ArrayList<Explanation> filtersExplanations = new ArrayList<Explanation>();
                 for (FilterFunction filterFunction : filterFunctions) {
                     Bits docSet = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                     if (docSet.get(doc)) {
                         filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
-                        float factor = functionExplanation.getValue();
+                        double factor = functionExplanation.getValue();
                         count++;
                         total += factor;
                         multiply *= factor;
                         max = Math.max(factor, max);
                         min = Math.min(factor, min);
-                        Explanation res = new ComplexExplanation(true, factor, "custom score, product of:");
+                        Explanation res = new ComplexExplanation(true, toFloat(factor), "custom score, product of:");
                         res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         res.addDetail(functionExplanation);
                         res.addDetail(new Explanation(getBoost(), "queryBoost"));
@@ -208,7 +208,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
                 if (count > 0) {
-                    float factor = 0;
+                    double factor = 0;
                     switch (scoreMode) {
                         case Avg:
                             factor = total / count;
@@ -230,7 +230,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     if (factor > maxBoost) {
                         factor = maxBoost;
                     }
-                    float sc = factor * subQueryExpl.getValue() * getBoost();
+                    float sc = toFloat(factor * subQueryExpl.getValue() * getBoost());
                     Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
                     res.addDetail(subQueryExpl);
                     for (Explanation explanation : filtersExplanations) {
@@ -341,7 +341,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 factor = maxBoost;
             }
             float score = scorer.score();
-            return (float)(subQueryBoost * score * factor);
+            return toFloat(subQueryBoost * score * factor);
         }
 
         @Override
@@ -380,6 +380,11 @@ public class FiltersFunctionScoreQuery extends Query {
 
     public int hashCode() {
         return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
+    }
+    
+    public static float toFloat(double input) {
+        assert Double.compare(((float) input), input) == 0 || (Math.abs(((float) input) - input) <= 0.001);
+        return (float) input;
     }
 }
 

@@ -33,7 +33,6 @@ public class BoostScoreFunction implements ScoreFunction {
         this.boost = boost;
     }
 
-
     public float getBoost() {
         return boost;
     }
@@ -44,7 +43,7 @@ public class BoostScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public float score(int docId, float subQueryScore) {
+    public double score(int docId, float subQueryScore) {
         return subQueryScore * boost;
     }
 
@@ -68,12 +67,15 @@ public class BoostScoreFunction implements ScoreFunction {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
 
         BoostScoreFunction that = (BoostScoreFunction) o;
 
-        if (Float.compare(that.boost, boost) != 0) return false;
+        if (Float.compare(that.boost, boost) != 0)
+            return false;
 
         return true;
     }

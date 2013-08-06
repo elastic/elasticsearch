@@ -35,6 +35,8 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -174,7 +176,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
             public boolean apply(Object input) {
                 return client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount() == 0;
             }
-        });
+        }, 1, TimeUnit.MINUTES);
         assertHitCount(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet(), 0l);
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")

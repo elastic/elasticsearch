@@ -29,7 +29,7 @@ public interface ScoreFunction {
 
     void setNextReader(AtomicReaderContext context);
 
-    float score(int docId, float subQueryScore);
+    double score(int docId, float subQueryScore);
 
     double factor(int docId);
 

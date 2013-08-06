@@ -50,7 +50,6 @@ if [ -n $USER ] && [ -z $ES_USER ] ; then
 fi
 
 checkJava() {
-	set +e
     if [ -x "$JAVA_HOME/bin/java" ]; then
         JAVA="$JAVA_HOME/bin/java"
     else
@@ -61,7 +60,6 @@ checkJava() {
         echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
         exit 1
     fi
-	set -e
 }
 
 start() {

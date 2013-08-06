@@ -21,7 +21,9 @@ package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryPercolatorTests extends AbstractNodesTests {
@@ -151,9 +154,14 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
         assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        DeleteIndexResponse actionGet = client.admin().indices().prepareDelete("test").execute().actionGet();
-        assertThat(actionGet.isAcknowledged(), equalTo(true));
-        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete("test").execute().actionGet();
+        assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
+        // The refresh on the _percolator index that that is triggered by deleting index 'test' might not have happened, therefore executing refresh explicitly:
+        // (we return success even if the refresh failed, the delete_by_query and removal of the mapping does need to succeed)
+        RefreshResponse refreshResponse = client.admin().indices().prepareRefresh("_percolator").execute().actionGet();
+        assertNoFailures(refreshResponse);
+        CreateIndexResponse createIndexResponse = client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));

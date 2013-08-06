@@ -218,7 +218,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
-                    } catch (Exception e1) {
+                    } catch (Throwable e1) {
                         logger.warn("Failed to send response for " + transportAction, e1);
                     }
                 }
@@ -520,7 +520,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             try {
                 PrimaryResponse<Response, ReplicaRequest> response = shardOperationOnPrimary(clusterState, new PrimaryOperationRequest(primaryShardId, request));
                 performReplicas(response);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     primaryOperationStarted.set(false);
@@ -691,7 +691,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         public void run() {
                             try {
                                 shardOperationOnReplica(shardRequest);
-                            } catch (Exception e) {
+                            } catch (Throwable e) {
                                 if (!ignoreReplicaException(e)) {
                                     logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
                                     shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
@@ -705,7 +705,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 } else {
                     try {
                         shardOperationOnReplica(shardRequest);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         if (!ignoreReplicaException(e)) {
                             logger.warn("Failed to perform " + transportAction + " on replica" + shardIt.shardId(), e);
                             shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");

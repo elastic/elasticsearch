@@ -1,5 +1,6 @@
 package org.elasticsearch.test.integration.document;
 
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -12,6 +13,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
+
+import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
@@ -368,4 +371,57 @@ public class BulkTests extends AbstractSharedClusterTest {
         assertThat(hits[0].getId(), equalTo("child1"));
 
     }
+
+    @Test
+    public void testFailingVersionedUpdatedOnBulk() throws Exception {
+        createIndex("test");
+        client().prepareIndex("test", "type", "1").setSource("field", "1").get();
+        final BulkResponse[] responses = new BulkResponse[30];
+        Thread[] threads = new Thread[responses.length];
+
+        for (int j = 0; j < 1000; j++) {
+            final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
+
+            for (int i = 0; i < responses.length; i++) {
+                final int threadID = i;
+                threads[threadID] = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            cyclicBarrier.await();
+                        } catch (Exception e) {
+                            return;
+                        }
+                        BulkRequestBuilder requestBuilder = client().prepareBulk();
+                        requestBuilder.add(client().prepareUpdate("test", "type", "1").setDoc("field", threadID));
+                        responses[threadID] = requestBuilder.get();
+
+                    }
+                });
+                threads[threadID].start();
+
+            }
+
+            for (int i = 0; i < threads.length; i++) {
+                threads[i].join();
+            }
+
+            for (BulkResponse response : responses) {
+                for (BulkItemResponse itemResponse : response) {
+                    if (itemResponse.isFailed()) {
+                        assertThat("\"" + itemResponse.getFailureMessage() + "\" is not a version issue",
+                                itemResponse.getFailureMessage().contains("version conflict"), equalTo(true));
+
+                        return; // found what we wanted see Cases #3448
+                    }
+
+                }
+            }
+        }
+
+
+        fail("Failed to induce a version conflict");
+
+    }
+
 }

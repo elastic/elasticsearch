@@ -117,7 +117,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets the number of retries of a version conflict occurs because the document was updated between
-     * getting it and updating it. Defaults to 1.
+     * getting it and updating it. Defaults to 0.
      */
     public UpdateRequestBuilder setRetryOnConflict(int retryOnConflict) {
         request.retryOnConflict(retryOnConflict);

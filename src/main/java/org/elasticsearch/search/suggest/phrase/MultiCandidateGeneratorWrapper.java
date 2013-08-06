@@ -72,8 +72,8 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         return set;
     }
     @Override
-    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
-        return candidateGenerator[0].createCandidate(term, frequency, channelScore);
+    public Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException {
+        return candidateGenerator[0].createCandidate(term, frequency, channelScore, userInput);
     }
 
 }

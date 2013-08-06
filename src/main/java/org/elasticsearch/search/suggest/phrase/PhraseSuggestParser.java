@@ -105,8 +105,27 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 } else {
                     throw new ElasticSearchIllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
                 }
-            } else if (token == Token.START_OBJECT && "smoothing".equals(fieldName)) {
-                parseSmoothingModel(parser, suggestion, fieldName);
+            } else if (token == Token.START_OBJECT) {
+                if ("smoothing".equals(fieldName)) {
+                    parseSmoothingModel(parser, suggestion, fieldName);
+                } else if ("highlight".equals(fieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("pre_tag".equals(fieldName) || "preTag".equals(fieldName)) {
+                                suggestion.setPreTag(parser.bytes());
+                            } else if ("post_tag".equals(fieldName) || "postTag".equals(fieldName)) {
+                                suggestion.setPostTag(parser.bytes());
+                            } else {
+                                throw new ElasticSearchIllegalArgumentException(
+                                    "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
+                            }
+                        }
+                    }
+                } else {
+                    throw new ElasticSearchIllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
+                }
             } else {
                 throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
             }

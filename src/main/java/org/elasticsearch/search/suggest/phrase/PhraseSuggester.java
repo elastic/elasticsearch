@@ -73,9 +73,14 @@ public final class PhraseSuggester implements Suggester<PhraseSuggestionContext>
         Suggestion.Entry<Option> resultEntry = new Suggestion.Entry<Option>(new StringText(spare.toString()), 0, spare.length);
         BytesRef byteSpare = new BytesRef();
         for (Correction correction : corrections) {
-            UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare), spare);
+            UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
             Text phrase = new StringText(spare.toString());
-            resultEntry.addOption(new Suggestion.Entry.Option(phrase, (float) (correction.score)));
+            Text highlighted = null;
+            if (suggestion.getPreTag() != null) {
+                UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()), spare);
+                highlighted = new StringText(spare.toString());
+            }
+            resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
         }
         final Suggestion<Entry<Option>> response = new Suggestion<Entry<Option>>(name, suggestion.getSize());
         response.addTerm(resultEntry);

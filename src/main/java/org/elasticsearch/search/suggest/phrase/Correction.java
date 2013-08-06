@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.util.Arrays;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
+
+import java.util.Arrays;
 //TODO public for tests
 public final class Correction {
 
@@ -41,15 +41,33 @@ public final class Correction {
     }
 
     public BytesRef join(BytesRef separator) {
-        return join(separator, new BytesRef());
+        return join(separator, null, null);
     }
 
-    public BytesRef join(BytesRef separator, BytesRef result) {
+    public BytesRef join(BytesRef separator, BytesRef preTag, BytesRef postTag) {
+        return join(separator, new BytesRef(), preTag, postTag);
+    }
+
+    public BytesRef join(BytesRef separator, BytesRef result, BytesRef preTag, BytesRef postTag) {
         BytesRef[] toJoin = new BytesRef[this.candidates.length];
         int len = separator.length * this.candidates.length - 1;
         for (int i = 0; i < toJoin.length; i++) {
-            toJoin[i] = candidates[i].term;
-            len += toJoin[i].length;    
+            Candidate candidate = candidates[i];
+            if (preTag == null || candidate.userInput) {
+                toJoin[i] = candidate.term;
+            } else {
+                final int maxLen = preTag.length + postTag.length + candidate.term.length;
+                final BytesRef highlighted = new BytesRef(maxLen);// just allocate once
+                if (i == 0 || candidates[i-1].userInput) {
+                    highlighted.append(preTag);
+                }
+                highlighted.append(candidate.term);
+                if (toJoin.length == i + 1 || candidates[i+1].userInput) {
+                    highlighted.append(postTag);
+                }
+                toJoin[i] = highlighted;
+            }
+            len += toJoin[i].length;
         }
         result.offset = 0;
         result.grow(len);

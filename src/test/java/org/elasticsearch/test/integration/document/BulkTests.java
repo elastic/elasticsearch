@@ -337,10 +337,13 @@ public class BulkTests extends AbstractSharedClusterTest {
         }
     }
 
-    //Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+    /*
+    Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+     */
     @Test
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
+                .addMapping("parent", "{\"parent\":{}}")
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -372,9 +375,13 @@ public class BulkTests extends AbstractSharedClusterTest {
         assertSearchHits(searchResponse, "child1");
     }
 
+    /*
+    Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+     */
     @Test
     public void testBulkUpdateUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
+                .addMapping("parent", "{\"parent\":{}}")
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();

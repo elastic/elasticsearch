@@ -22,11 +22,13 @@ package org.elasticsearch.test.integration.percolator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -45,6 +47,7 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -1041,30 +1044,37 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(response.getCount(), equalTo(2l));
 
         client().admin().indices().prepareDeleteMapping("test1").setType("_percolator").execute().actionGet();
-        // To verify that the type is really deleted from all the node
-        SearchResponse searchResponse;
-        do {
-            searchResponse = client().prepareSearch("test1").setTypes("_percolator").execute().actionGet();
-        } while (searchResponse.getHits().totalHits() != 0);
-
+        percolatorTypeRemoved("test1");
         response = client().preparePercolate()
                 .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
+        assertNoFailures(response);
         assertThat(response.getCount(), equalTo(1l));
 
         client().admin().indices().prepareDeleteMapping("test2").setType("_percolator").execute().actionGet();
-        // To verify that the type is really deleted from all the node
-        do {
-            searchResponse = client().prepareSearch("test2").setTypes("_percolator").execute().actionGet();
-        } while (searchResponse.getHits().totalHits() != 0);
+        percolatorTypeRemoved("test2");
 
         // Percolate api should return 0 matches, because all _percolate types have been removed.
         response = client().preparePercolate()
                 .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
+        assertNoFailures(response);
         assertThat(response.getCount(), equalTo(0l));
+    }
+
+    private void percolatorTypeRemoved(String index) {
+        my_goto: while (true) {
+            for (Client client : clients()) {
+                TypesExistsResponse existsResponse =
+                        client.admin().indices().prepareTypesExists(index).setTypes("_percolator").execute().actionGet();
+                if (existsResponse.isExists()) {
+                    continue my_goto;
+                }
+            }
+            break;
+        }
     }
 
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {

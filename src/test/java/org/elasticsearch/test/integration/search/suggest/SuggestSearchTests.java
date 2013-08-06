@@ -50,7 +50,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -592,6 +591,24 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
+        // Ask for highlighting
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
+                    realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
+                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                    .maxErrors(0.5f)
+                    .size(1)
+                    .highlight("<em>", "</em>"));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getHighlighted().string(), equalTo("<em>xorr</em> the <em>god</em> jewel"));
+
         
         // pass in a correct phrase
         searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",

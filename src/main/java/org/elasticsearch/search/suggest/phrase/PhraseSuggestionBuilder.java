@@ -44,6 +44,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private SmoothingModel model;
     private Boolean forceUnigrams;
     private Integer tokenLimit;
+    private String preTag;
+    private String postTag;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -147,6 +149,19 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
 
+    /**
+     * Setup highlighting for suggestions.  If this is called a highlight field
+     * is returned with suggestions wrapping changed tokens with preTag and postTag.
+     */
+    public PhraseSuggestionBuilder highlight(String preTag, String postTag) {
+        if (preTag == null || postTag == null) {
+            throw new ElasticSearchIllegalArgumentException("Pre and post tag must not be null.");
+        }
+        this.preTag = preTag;
+        this.postTag = postTag;
+        return this;
+    }
+
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (realWordErrorLikelihood != null) {
@@ -183,6 +198,12 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         if (model != null) {
             builder.startObject("smoothing");
             model.toXContent(builder, params);
+            builder.endObject();
+        }
+        if (preTag != null) {
+            builder.startObject("highlight");
+            builder.field("pre_tag", preTag);
+            builder.field("post_tag", postTag);
             builder.endObject();
         }
         return builder;

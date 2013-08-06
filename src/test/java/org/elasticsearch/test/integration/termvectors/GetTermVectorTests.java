@@ -69,6 +69,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     public void streamTest() throws Exception {
 
         TermVectorResponse outResponse = new TermVectorResponse("a", "b", "c");
+        outResponse.setExists(true);
         writeStandardTermVector(outResponse);
 
         // write
@@ -84,6 +85,22 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
 
         // see if correct
         checkIfStandardTermVector(inResponse);
+        
+        outResponse = new TermVectorResponse("a", "b", "c");
+        writeEmptyTermVector(outResponse);
+        // write
+        outBuffer = new ByteArrayOutputStream();
+        out = new OutputStreamStreamOutput(outBuffer);
+        outResponse.writeTo(out);
+
+        // read
+        esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        esBuffer = new InputStreamStreamInput(esInBuffer);
+        inResponse = new TermVectorResponse("a", "b", "c");
+        inResponse.readFrom(esBuffer);
+        assertTrue(inResponse.isExists());
+        
+
 
     }
 
@@ -93,6 +110,36 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
         assertThat(fields.terms("title"), Matchers.notNullValue());
         assertThat(fields.terms("desc"), Matchers.notNullValue());
         assertThat(fields.size(), equalTo(2));
+    }
+    
+    private void writeEmptyTermVector(TermVectorResponse outResponse) throws IOException {
+
+        Directory dir = FSDirectory.open(new File("/tmp/foo"));
+        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
+        conf.setOpenMode(OpenMode.CREATE);
+        IndexWriter writer = new IndexWriter(dir, conf);
+        FieldType type = new FieldType(TextField.TYPE_STORED);
+        type.setStoreTermVectorOffsets(true);
+        type.setStoreTermVectorPayloads(false);
+        type.setStoreTermVectorPositions(true);
+        type.setStoreTermVectors(true);
+        type.freeze();
+        Document d = new Document();
+        d.add(new Field("id", "abc", StringField.TYPE_STORED));
+        
+        writer.updateDocument(new Term("id", "abc"), d);
+        writer.commit();
+        writer.close();
+        DirectoryReader dr = DirectoryReader.open(dir);
+        IndexSearcher s = new IndexSearcher(dr);
+        TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
+        ScoreDoc[] scoreDocs = search.scoreDocs;
+        int doc = scoreDocs[0].doc;
+        Fields fields = dr.getTermVectors(doc);
+        EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
+        outResponse.setFields(fields, null, flags, fields);
+        outResponse.setExists(true);
+
     }
 
     private void writeStandardTermVector(TermVectorResponse outResponse) throws IOException {
@@ -246,11 +293,54 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
             ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest("test", "type1", "" + i));
             TermVectorResponse actionGet = termVector.actionGet();
             assertThat(actionGet, Matchers.notNullValue());
-            assertThat(actionGet.documentExists(), Matchers.equalTo(false));
+            assertThat(actionGet.isExists(), Matchers.equalTo(false));
 
         }
 
     }
+    
+    @Test
+    public void testExistingFieldWithNoTermVectorsNoNPE() throws Exception {
+
+        run(addMapping(prepareCreate("test"), "type1", new Object[] { "existingfield", "type", "string", "term_vector",
+                "with_positions_offsets_payloads" }));
+
+        ensureYellow();
+        // when indexing a field that simply has a question mark, the term
+        // vectors will be null
+        client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
+        refresh();
+        String[] selectedFields = { "existingfield" };
+        ActionFuture<TermVectorResponse> termVector = client().termVector(
+                new TermVectorRequest("test", "type1", "0").selectedFields(selectedFields));
+        // lets see if the null term vectors are caught...
+        termVector.actionGet();
+        TermVectorResponse actionGet = termVector.actionGet();
+        assertThat(actionGet.isExists(), Matchers.equalTo(true));
+
+    }
+    
+    @Test
+    public void testExistingFieldButNotInDocNPE() throws Exception {
+
+        run(addMapping(prepareCreate("test"), "type1", new Object[] { "existingfield", "type", "string", "term_vector",
+                "with_positions_offsets_payloads" }));
+
+        ensureYellow();
+        // when indexing a field that simply has a question mark, the term
+        // vectors will be null
+        client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
+        refresh();
+        String[] selectedFields = { "existingfield" };
+        ActionFuture<TermVectorResponse> termVector = client().termVector(
+                new TermVectorRequest("test", "type1", "0").selectedFields(selectedFields));
+        // lets see if the null term vectors are caught...
+        TermVectorResponse actionGet = termVector.actionGet();
+        assertThat(actionGet.isExists(), Matchers.equalTo(true));
+
+    }
+    
+
 
     @Test
     public void testSimpleTermVectors() throws ElasticSearchException, IOException {
@@ -278,7 +368,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
             TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i)).setPayloads(true)
                     .setOffsets(true).setPositions(true).setSelectedFields();
             TermVectorResponse response = resp.execute().actionGet();
-            assertThat("doc id: " + i + " doesn't exists but should", response.documentExists(), equalTo(true));
+            assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
             assertThat(fields.size(), equalTo(1));
             Terms terms = fields.terms("field");
@@ -387,7 +477,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
             TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i))
                     .setPayloads(isPayloadRequested).setOffsets(isOffsetRequested).setPositions(isPositionsRequested).setSelectedFields();
             TermVectorResponse response = resp.execute().actionGet();
-            assertThat(infoString + "doc id: " + i + " doesn't exists but should", response.documentExists(), equalTo(true));
+            assertThat(infoString + "doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
             assertThat(fields.size(), equalTo(ft.storeTermVectors() ? 1 : 0));
             if (ft.storeTermVectors()) {

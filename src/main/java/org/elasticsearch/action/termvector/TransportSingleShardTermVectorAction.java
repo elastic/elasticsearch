@@ -19,10 +19,6 @@
 
 package org.elasticsearch.action.termvector;
 
-import java.util.List;
-
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -35,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -108,11 +103,11 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
-
             if (docIdAndVersion != null) {
                 termVectorResponse.setFields(docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId), request.selectedFields(),
                         request.getFlags(), topLevelFields);
                 termVectorResponse.setDocVersion(docIdAndVersion.version);
+                termVectorResponse.setExists(true);
             } else {
                 
             }

@@ -142,6 +142,19 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         assertThat(corrections[2].join(space).utf8ToString(), equalTo("xorn the god jewel"));
         assertThat(corrections[3].join(space).utf8ToString(), equalTo("xorr the got jewel"));
         
+        // Test some of the highlighting corner cases
+        suggester = new NoisyChannelSpellChecker(0.85);
+        wordScorer = new LaplaceScorer(ir, "body_ngram", 0.85d, new BytesRef(" "), 0.5f);
+        corrections = suggester.getCorrections(wrapper, new BytesRef("Xor teh Got-Jewel"), generator, 4f, 4, ir, "body", wordScorer, 1, 2);
+        assertThat(corrections.length, equalTo(4));
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("xorr the god jewel"));
+        assertThat(corrections[1].join(space).utf8ToString(), equalTo("xor the god jewel"));
+        assertThat(corrections[2].join(space).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(space).utf8ToString(), equalTo("xor teh god jewel"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorr the god</em> jewel"));
+        assertThat(corrections[1].join(space, preTag, postTag).utf8ToString(), equalTo("xor <em>the god</em> jewel"));
+        assertThat(corrections[2].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorn the god</em> jewel"));
+        assertThat(corrections[3].join(space, preTag, postTag).utf8ToString(), equalTo("xor teh <em>god</em> jewel"));
 
         // test synonyms
         
@@ -169,12 +182,12 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         wordScorer = new LaplaceScorer(ir, "body_ngram", 0.85d, new BytesRef(" "), 0.5f);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usa"), generator, 2, 4, ir, "body", wordScorer, 1, 2);
         assertThat(corrections[0].join(space).utf8ToString(), equalTo("captain america"));
-        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>captain</em> <em>america</em>"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>captain america</em>"));
         
         generator = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.85, 10, null, analyzer);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usw"), generator, 2, 4, ir, "body", wordScorer, 1, 2);
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
-        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>captain</em> <em>america</em>"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>captain america</em>"));
 
         // Make sure that user supplied text is not marked as highlighted in the presence of a synonym filter
         generator = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.85, 10, null, analyzer);

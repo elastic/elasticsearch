@@ -57,9 +57,13 @@ public final class Correction {
                 toJoin[i] = candidate.term;
             } else {
                 BytesRef highlighted = new BytesRef();
-                highlighted.append(preTag);
+                if (i == 0 || candidates[i-1].userInput) {
+                    highlighted.append(preTag);
+                }
                 highlighted.append(candidate.term);
-                highlighted.append(postTag);
+                if (toJoin.length == i + 1 || candidates[i+1].userInput) {
+                    highlighted.append(postTag);
+                }
                 toJoin[i] = highlighted;
             }
             len += toJoin[i].length;

@@ -1,6 +1,5 @@
 package org.elasticsearch.test.integration.document;
 
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -9,17 +8,18 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -341,22 +341,17 @@ public class BulkTests extends AbstractSharedClusterTest {
     @Test
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 1)
-                ).addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
+                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         BulkRequestBuilder builder = client().prepareBulk();
 
+        byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
+                "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addParent = ("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
-                "{\"field1\" : \"value1\"}\n").getBytes("utf-8");
-
-        byte[] addChild = ("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"parent\" : \"parent1\"}}\n" +
-                "{\"doc\" : { \"field1\" : \"value1\"}, \"doc_as_upsert\" : \"true\"}\n").getBytes("utf-8");
+        byte[] addChild = new BytesArray("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"parent\" : \"parent1\"}}\n" +
+                "{\"doc\" : { \"field1\" : \"value1\"}, \"doc_as_upsert\" : \"true\"}\n").array();
 
         builder.add(addParent, 0, addParent.length, false);
         builder.add(addChild, 0, addChild.length, false);
@@ -373,33 +368,24 @@ public class BulkTests extends AbstractSharedClusterTest {
                 .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
                 .get();
 
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        assertThat(hits.length, equalTo(1));
-        assertThat(hits[0].getId(), equalTo("child1"));
-
+        assertNoFailures(searchResponse);
+        assertSearchHits(searchResponse, "child1");
     }
-
 
     @Test
     public void testBulkUpdateUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 1)
-                ).addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
+                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         BulkRequestBuilder builder = client().prepareBulk();
 
+        byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
+                "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addParent = ("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
-                "{\"field1\" : \"value1\"}\n").getBytes("utf-8");
-
-        byte[] addChild = ("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
-                "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\"}}\n").getBytes("utf-8");
+        byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
+                "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\"}}\n").array();
 
         builder.add(addParent, 0, addParent.length, false);
         builder.add(addChild, 0, addChild.length, false);
@@ -415,11 +401,8 @@ public class BulkTests extends AbstractSharedClusterTest {
                 .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
                 .get();
 
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        assertThat(hits.length, equalTo(1));
-        assertThat(hits[0].getId(), equalTo("child1"));
-
+        assertNoFailures(searchResponse);
+        assertSearchHits(searchResponse, "child1");
     }
 
     @Test

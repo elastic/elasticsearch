@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.percolator;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -167,7 +168,13 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertHitCount(client.prepareSearch("_percolator").setQuery(matchAllQuery()).execute().actionGet(), 0l);
+
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                return client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount() == 0;
+            }
+        });
         assertHitCount(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet(), 0l);
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")

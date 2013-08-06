@@ -340,8 +340,8 @@ public class FiltersFunctionScoreQuery extends Query {
             if (factor > maxBoost) {
                 factor = maxBoost;
             }
-            float score = scorer.score();
-            return (float)(subQueryBoost * score * factor);
+            double score = scorer.score();
+            return (float)(subQueryBoost * toFloat(score) * toFloat(factor));
         }
 
         @Override
@@ -380,6 +380,11 @@ public class FiltersFunctionScoreQuery extends Query {
 
     public int hashCode() {
         return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
+    }
+    
+    public static float toFloat(double input) {
+        assert Double.compare(((float) input), input) == 0 || (Math.abs(((float) input) - input) <= 0.001);
+        return (float) input;
     }
 }
 

@@ -62,7 +62,7 @@ public class FunctionScoreQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = subQuery.rewrite(reader);
-        if (newQ == subQuery){
+        if (newQ == subQuery) {
             return this;
         }
         FunctionScoreQuery bq = (FunctionScoreQuery) this.clone();
@@ -165,7 +165,7 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            float factor = (float)function.score(scorer.docID(), scorer.score());
+            float factor = toFloat(function.score(scorer.docID(), scorer.score()));
             return subQueryBoost * Math.min(maxBoost, factor);
         }
 
@@ -198,4 +198,10 @@ public class FunctionScoreQuery extends Query {
     public int hashCode() {
         return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }
+
+    public static float toFloat(double input) {
+        assert Double.compare(((float) input), input) == 0 || (Math.abs(((float) input) - input) <= 0.001);
+        return (float) input;
+    }
+
 }

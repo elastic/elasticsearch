@@ -46,10 +46,10 @@ public class ScriptScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public float score(int docId, float subQueryScore) {
+    public double score(int docId, double subQueryScore) {
         script.setNextDocId(docId);
-        script.setNextScore(subQueryScore);
-        return script.runAsFloat();
+        script.setNextScore((float)subQueryScore);
+        return script.runAsDouble();
     }
 
     @Override

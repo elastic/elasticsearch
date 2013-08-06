@@ -1,5 +1,6 @@
 package org.elasticsearch.test.integration.document;
 
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -14,6 +15,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
+
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
@@ -417,4 +421,46 @@ public class BulkTests extends AbstractSharedClusterTest {
         assertThat(hits[0].getId(), equalTo("child1"));
 
     }
+
+    @Test
+    public void testFailingVersionedUpdatedOnBulk() throws Exception {
+        createIndex("test");
+        index("test","type","1","field","1");
+        final BulkResponse[] responses = new BulkResponse[30];
+        final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
+        Thread[] threads = new Thread[responses.length];
+
+
+        for (int i=0;i<responses.length;i++) {
+            final int threadID = i;
+            threads[threadID] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        cyclicBarrier.await();
+                    } catch (Exception e) {
+                        return;
+                    }
+                    BulkRequestBuilder requestBuilder = client().prepareBulk();
+                    requestBuilder.add(client().prepareUpdate("test", "type", "1").setVersion(1).setDoc("field", threadID));
+                    responses[threadID]=requestBuilder.get();
+
+                }
+            });
+            threads[threadID].start();
+
+        }
+
+        for (int i=0;i < threads.length; i++) {
+            threads[i].join();
+        }
+
+        int successes = 0;
+        for (BulkResponse response : responses) {
+            if (!response.hasFailures()) successes ++;
+        }
+
+        assertThat(successes, equalTo(1));
+    }
+
 }

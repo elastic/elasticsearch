@@ -496,6 +496,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
             GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
             assertThat(response.getId(), equalTo(Integer.toString(i)));
+            assertThat(response.isExists(), equalTo(true));
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
             assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));
         }

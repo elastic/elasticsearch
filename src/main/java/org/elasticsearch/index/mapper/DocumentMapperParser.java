@@ -242,6 +242,10 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             throw new MapperParsingException("failed to parse mapping definition", e);
         }
 
+        if (root.keySet().size() == 0) {
+            throw new MapperParsingException("malformed mapping definition: no JSON root object found");
+        }
+
         // we always assume the first and single key is the mapping type root
         if (root.keySet().size() != 1) {
             throw new MapperParsingException("mapping must have the `type` as the root object");

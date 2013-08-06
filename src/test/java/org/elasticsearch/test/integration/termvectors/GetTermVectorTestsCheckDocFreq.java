@@ -122,7 +122,7 @@ public class GetTermVectorTestsCheckDocFreq extends AbstractSharedClusterTest {
         TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i)).setPayloads(true).setOffsets(true)
                 .setPositions(true).setTermStatistics(true).setFieldStatistics(false).setSelectedFields();
         TermVectorResponse response = resp.execute().actionGet();
-        assertThat("doc id: " + i + " doesn't exists but should", response.documentExists(), equalTo(true));
+        assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
@@ -181,7 +181,7 @@ public class GetTermVectorTestsCheckDocFreq extends AbstractSharedClusterTest {
                 .setPositions(true).setTermStatistics(false).setFieldStatistics(true).setSelectedFields();
         assertThat(resp.request().termStatistics(), equalTo(false));
         TermVectorResponse response = resp.execute().actionGet();
-        assertThat("doc id: " + i + " doesn't exists but should", response.documentExists(), equalTo(true));
+        assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
@@ -238,7 +238,7 @@ public class GetTermVectorTestsCheckDocFreq extends AbstractSharedClusterTest {
                 .setPositions(true).setFieldStatistics(true).setTermStatistics(true).setSelectedFields();
         assertThat(resp.request().fieldStatistics(), equalTo(true));
         TermVectorResponse response = resp.execute().actionGet();
-        assertThat("doc id: " + i + " doesn't exists but should", response.documentExists(), equalTo(true));
+        assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");

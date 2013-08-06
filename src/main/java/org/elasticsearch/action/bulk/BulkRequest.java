@@ -340,9 +340,30 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                                 .create(true)
                                 .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
                     } else if ("update".equals(action)) {
-                        internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
-                                .source(data.slice(from, nextMarker - from)), payload);
+                                .source(data.slice(from, nextMarker - from));
+
+                        IndexRequest upsertRequest = updateRequest.upsertRequest();
+                        if (upsertRequest != null) {
+                            upsertRequest.routing(routing);
+                            upsertRequest.parent(parent); // order is important, set it after routing, so it will set the routing
+                            upsertRequest.timestamp(timestamp);
+                            upsertRequest.ttl(ttl);
+                            upsertRequest.version(version);
+                            upsertRequest.versionType(versionType);
+                        }
+                        IndexRequest doc = updateRequest.doc();
+                        if (doc != null) {
+                            doc.routing(routing);
+                            doc.parent(parent); // order is important, set it after routing, so it will set the routing
+                            doc.timestamp(timestamp);
+                            doc.ttl(ttl);
+                            doc.version(version);
+                            doc.versionType(versionType);
+                        }
+
+                        internalAdd(updateRequest, payload);
                     }
                     // move pointers
                     from = nextMarker + 1;

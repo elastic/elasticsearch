@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.percolator;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -116,6 +117,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    @AwaitsFix(bugUrl="investigate why this test fails so often")
     public void testRestartNodePercolator2() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1");

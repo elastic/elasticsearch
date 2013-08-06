@@ -1687,6 +1687,149 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testIndicesQueryMissingIndices() throws IOException {
+        createIndex("index1");
+        createIndex("index2");
+        ensureGreen();
+
+        client().prepareIndex("index1", "type1", "1").setSource("field", "match").get();
+        client().prepareIndex("index1", "type1", "2").setSource("field", "no_match").get();
+        client().prepareIndex("index2", "type1", "10").setSource("field", "match").get();
+        client().prepareIndex("index2", "type1", "20").setSource("field", "no_match").get();
+        client().prepareIndex("index3", "type1", "100").setSource("field", "match").get();
+        client().prepareIndex("index3", "type1", "200").setSource("field", "no_match").get();
+        refresh();
+
+        //all indices are missing
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+                indicesQuery(termQuery("field", "missing"), "test1", "test2", "test3")
+                        .noMatchQuery(termQuery("field", "match"))).get();
+
+        assertHitCount(searchResponse, 3l);
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            if ("index1".equals(hit.index())) {
+                assertThat(hit, hasId("1"));
+            } else if ("index2".equals(hit.index())) {
+                assertThat(hit, hasId("10"));
+            } else if ("index3".equals(hit.index())) {
+                assertThat(hit, hasId("100"));
+            } else {
+                fail("Returned documents should belong to either index1, index2 or index3");
+            }
+        }
+
+        //only one index specified, which is missing
+        searchResponse = client().prepareSearch().setQuery(
+                indicesQuery(termQuery("field", "missing"), "test1")
+                        .noMatchQuery(termQuery("field", "match"))).get();
+
+        assertHitCount(searchResponse, 3l);
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            if ("index1".equals(hit.index())) {
+                assertThat(hit, hasId("1"));
+            } else if ("index2".equals(hit.index())) {
+                assertThat(hit, hasId("10"));
+            } else if ("index3".equals(hit.index())) {
+                assertThat(hit, hasId("100"));
+            } else {
+                fail("Returned documents should belong to either index1, index2 or index3");
+            }
+        }
+
+        //more than one index specified, one of them is missing
+        searchResponse = client().prepareSearch().setQuery(
+                indicesQuery(termQuery("field", "missing"), "index1", "test1")
+                        .noMatchQuery(termQuery("field", "match"))).get();
+
+        assertHitCount(searchResponse, 2l);
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            if ("index2".equals(hit.index())) {
+                assertThat(hit, hasId("10"));
+            } else if ("index3".equals(hit.index())) {
+                assertThat(hit, hasId("100"));
+            } else {
+                fail("Returned documents should belong to either index2 or index3");
+            }
+        }
+    }
+
+    @Test
+    public void testIndicesFilterMissingIndices() throws IOException {
+        createIndex("index1");
+        createIndex("index2");
+        ensureGreen();
+
+        client().prepareIndex("index1", "type1", "1").setSource("field", "match").get();
+        client().prepareIndex("index1", "type1", "2").setSource("field", "no_match").get();
+        client().prepareIndex("index2", "type1", "10").setSource("field", "match").get();
+        client().prepareIndex("index2", "type1", "20").setSource("field", "no_match").get();
+        client().prepareIndex("index3", "type1", "100").setSource("field", "match").get();
+        client().prepareIndex("index3", "type1", "200").setSource("field", "no_match").get();
+        refresh();
+
+        //all indices are missing
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+                filteredQuery(matchAllQuery(),
+                        indicesFilter(termFilter("field", "missing"), "test1", "test2", "test3")
+                                .noMatchFilter(termFilter("field", "match")))).get();
+
+        assertHitCount(searchResponse, 3l);
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            if ("index1".equals(hit.index())) {
+                assertThat(hit, hasId("1"));
+            } else if ("index2".equals(hit.index())) {
+                assertThat(hit, hasId("10"));
+            } else if ("index3".equals(hit.index())) {
+                assertThat(hit, hasId("100"));
+            } else {
+                fail("Returned documents should belong to either index1, index2 or index3");
+            }
+        }
+
+        //only one index specified, which is missing
+        searchResponse = client().prepareSearch().setQuery(
+                filteredQuery(matchAllQuery(),
+                        indicesFilter(termFilter("field", "missing"), "test1")
+                                .noMatchFilter(termFilter("field", "match")))).get();
+
+        assertHitCount(searchResponse, 3l);
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            if ("index1".equals(hit.index())) {
+                assertThat(hit, hasId("1"));
+            } else if ("index2".equals(hit.index())) {
+                assertThat(hit, hasId("10"));
+            } else if ("index3".equals(hit.index())) {
+                assertThat(hit, hasId("100"));
+            } else {
+                fail("Returned documents should belong to either index1, index2 or index3");
+            }
+        }
+
+        //more than one index specified, one of them is missing
+        searchResponse = client().prepareSearch().setQuery(
+                filteredQuery(matchAllQuery(),
+                        indicesFilter(termFilter("field", "missing"), "index1", "test1")
+                                .noMatchFilter(termFilter("field", "match")))).get();
+
+        assertHitCount(searchResponse, 2l);
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            if ("index2".equals(hit.index())) {
+                assertThat(hit, hasId("10"));
+            } else if ("index3".equals(hit.index())) {
+                assertThat(hit, hasId("100"));
+            } else {
+                fail("Returned documents should belong to either index2 or index3");
+            }
+        }
+    }
+
+    @Test
     public void testMinScore() {
         createIndex("test");
         ensureGreen();

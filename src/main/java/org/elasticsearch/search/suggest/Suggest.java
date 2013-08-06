@@ -496,16 +496,23 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 static class Fields {
 
                     static final XContentBuilderString TEXT = new XContentBuilderString("text");
+                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
 
                 }
 
                 private Text text;
+                private Text highlighted;
                 private float score;
 
-                public Option(Text text, float score) {
+                public Option(Text text, Text highlighted, float score) {
                     this.text = text;
+                    this.highlighted = highlighted;
                     this.score = score;
+                }
+
+                public Option(Text text, float score) {
+                    this(text, null, score);
                 }
 
                 public Option() {
@@ -516,6 +523,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                  */
                 public Text getText() {
                     return text;
+                }
+
+                /**
+                 * @return Copy of suggested text with changes from user supplied text highlighted.
+                 */
+                public Text getHighlighted() {
+                    return highlighted;
                 }
 
                 /**
@@ -533,12 +547,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
+                    highlighted = in.readOptionalText();
                     score = in.readFloat();
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
+                    out.writeOptionalText(highlighted);
                     out.writeFloat(score);
                 }
 
@@ -552,6 +568,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.field(Fields.TEXT, text);
+                    if (highlighted != null) {
+                        builder.field(Fields.HIGHLIGHTED, highlighted);
+                    }
                     builder.field(Fields.SCORE, score);
                     return builder;
                 }

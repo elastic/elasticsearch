@@ -126,7 +126,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         for (int i = 0; i < suggestSimilar.length; i++) {
             SuggestWord suggestWord = suggestSimilar[i];
             BytesRef candidate = new BytesRef(suggestWord.string);
-            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score, score(suggestWord.freq, suggestWord.score, dictSize)), spare, byteSpare, candidates);
+            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score, score(suggestWord.freq, suggestWord.score, dictSize), false), spare, byteSpare, candidates);
         }
         set.addCandidates(candidates);
         return set;
@@ -160,9 +160,9 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                     if (posIncAttr.getPositionIncrement() > 0 && result.bytesEquals(candidate.term))  {
                         BytesRef term = BytesRef.deepCopyOf(result);    
                         long freq = frequency(term);
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize)));
+                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     } else {
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize)));
+                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     }
                 }
             }, spare);
@@ -213,17 +213,20 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         public final double stringDistance;
         public final long frequency;
         public final double score;
+        public final boolean userInput;
 
-        public Candidate(BytesRef term, long frequency, double stringDistance, double score) {
+        public Candidate(BytesRef term, long frequency, double stringDistance, double score, boolean userInput) {
             this.frequency = frequency;
             this.term = term;
             this.stringDistance = stringDistance;
             this.score = score;
+            this.userInput = userInput;
         }
 
         @Override
         public String toString() {
-            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", frequency=" + frequency + "]";
+            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", frequency=" + frequency + 
+                    (userInput ? ", userInput" : "" ) + "]";
         }
 
         @Override
@@ -253,8 +256,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     @Override
-    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
-        return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize));
+    public Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException {
+        return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize), userInput);
     }
 
 }

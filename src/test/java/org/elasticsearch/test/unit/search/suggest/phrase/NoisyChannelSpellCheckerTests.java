@@ -17,7 +17,16 @@ package org.elasticsearch.test.unit.search.suggest.phrase;
  * specific language governing permissions and limitations
  * under the License.
  */
-import com.google.common.base.Charsets;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
@@ -40,16 +49,23 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.search.suggest.phrase.*;
+import org.elasticsearch.search.suggest.phrase.CandidateGenerator;
+import org.elasticsearch.search.suggest.phrase.Correction;
+import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
+import org.elasticsearch.search.suggest.phrase.LaplaceScorer;
+import org.elasticsearch.search.suggest.phrase.LinearInterpoatingScorer;
+import org.elasticsearch.search.suggest.phrase.MultiCandidateGeneratorWrapper;
+import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker;
+import org.elasticsearch.search.suggest.phrase.StupidBackoffScorer;
+import org.elasticsearch.search.suggest.phrase.WordScorer;
 import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.hamcrest.Matchers.equalTo;
+import com.google.common.base.Charsets;
 public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
+    private final BytesRef space = new BytesRef(" ");
+    private final BytesRef preTag = new BytesRef("<em>");
+    private final BytesRef postTag = new BytesRef("</em>");
 
     @Test
     public void testMarvelHeros() throws IOException {
@@ -98,28 +114,47 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         DirectCandidateGenerator generator = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.95, 5);
         Correction[] corrections = suggester.getCorrections(wrapper, new BytesRef("american ame"), generator, 1, 1, ir, "body", wordScorer, 1, 2);
         assertThat(corrections.length, equalTo(1));
-        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("american ace"));
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("american ace"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("american <em>ace</em>"));
         
         corrections = suggester.getCorrections(wrapper, new BytesRef("american ame"), generator, 1, 1, ir, "body", wordScorer, 0, 1);
         assertThat(corrections.length, equalTo(1));
-        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("american ame"));
-        
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("american ame"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("american ame"));
+
         suggester = new NoisyChannelSpellChecker(0.85);
         wordScorer = new LaplaceScorer(ir, "body_ngram", 0.85d, new BytesRef(" "), 0.5f);
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 0.5f, 4, ir, "body", wordScorer, 0, 2);
         assertThat(corrections.length, equalTo(4));
-        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("xorr the god jewel"));
+        assertThat(corrections[1].join(space).utf8ToString(), equalTo("xor the god jewel"));
+        assertThat(corrections[2].join(space).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(space).utf8ToString(), equalTo("xorr the got jewel"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorr</em> the <em>god</em> jewel"));
+        assertThat(corrections[1].join(space, preTag, postTag).utf8ToString(), equalTo("xor the <em>god</em> jewel"));
+        assertThat(corrections[2].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorn</em> the <em>god</em> jewel"));
+        assertThat(corrections[3].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorr</em> the got jewel"));
         
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 0.5f, 4, ir, "body", wordScorer, 1, 2);
         assertThat(corrections.length, equalTo(4));
-        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("xorr the god jewel"));
+        assertThat(corrections[1].join(space).utf8ToString(), equalTo("xor the god jewel"));
+        assertThat(corrections[2].join(space).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(space).utf8ToString(), equalTo("xorr the got jewel"));
         
+        // Test some of the highlighting corner cases
+        suggester = new NoisyChannelSpellChecker(0.85);
+        wordScorer = new LaplaceScorer(ir, "body_ngram", 0.85d, new BytesRef(" "), 0.5f);
+        corrections = suggester.getCorrections(wrapper, new BytesRef("Xor teh Got-Jewel"), generator, 4f, 4, ir, "body", wordScorer, 1, 2);
+        assertThat(corrections.length, equalTo(4));
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("xorr the god jewel"));
+        assertThat(corrections[1].join(space).utf8ToString(), equalTo("xor the god jewel"));
+        assertThat(corrections[2].join(space).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(space).utf8ToString(), equalTo("xor teh god jewel"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorr the god</em> jewel"));
+        assertThat(corrections[1].join(space, preTag, postTag).utf8ToString(), equalTo("xor <em>the god</em> jewel"));
+        assertThat(corrections[2].join(space, preTag, postTag).utf8ToString(), equalTo("<em>xorn the god</em> jewel"));
+        assertThat(corrections[3].join(space, preTag, postTag).utf8ToString(), equalTo("xor teh <em>god</em> jewel"));
 
         // test synonyms
         
@@ -146,11 +181,19 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         suggester = new NoisyChannelSpellChecker(0.85);
         wordScorer = new LaplaceScorer(ir, "body_ngram", 0.85d, new BytesRef(" "), 0.5f);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usa"), generator, 2, 4, ir, "body", wordScorer, 1, 2);
-        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
+        assertThat(corrections[0].join(space).utf8ToString(), equalTo("captain america"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>captain america</em>"));
         
         generator = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.85, 10, null, analyzer);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usw"), generator, 2, 4, ir, "body", wordScorer, 1, 2);
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("<em>captain america</em>"));
+
+        // Make sure that user supplied text is not marked as highlighted in the presence of a synonym filter
+        generator = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.85, 10, null, analyzer);
+        corrections = suggester.getCorrections(analyzer, new BytesRef("captain usw"), generator, 2, 4, ir, "body", wordScorer, 1, 2);
+        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
+        assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("captain <em>america</em>"));
     }
     
     @Test

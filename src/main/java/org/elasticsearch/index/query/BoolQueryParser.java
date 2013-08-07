@@ -60,7 +60,7 @@ public class BoolQueryParser implements QueryParser {
         String minimumShouldMatch = null;
 
         List<BooleanClause> clauses = newArrayList();
-
+        boolean adjustPureNegative = true;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -119,6 +119,8 @@ public class BoolQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
+                } else if ("adjust_pure_negative".equals(currentFieldName) || "adjustPureNegative".equals(currentFieldName)) {
+                    adjustPureNegative = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
@@ -135,6 +137,6 @@ public class BoolQueryParser implements QueryParser {
         }
         query.setBoost(boost);
         Queries.applyMinimumShouldMatch(query, minimumShouldMatch);
-        return optimizeQuery(fixNegativeQueryIfNeeded(query));
+        return optimizeQuery(adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query);
     }
 }

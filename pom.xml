@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-mapper-attachments</artifactId>
-    <version>1.8.0-SNAPSHOT</version>
+    <version>1.8.0</version>
     <packaging>jar</packaging>
     <description>Mapper Attachments Type for ElasticSearch</description>
     <inceptionYear>2009</inceptionYear>

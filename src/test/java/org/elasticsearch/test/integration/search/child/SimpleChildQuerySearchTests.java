@@ -46,6 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -1514,7 +1515,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
     @Test
     // See also issue: https://github.com/elasticsearch/elasticsearch/issues/3203
     public void testHasChildQueryWithMinimumScore() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -1533,7 +1533,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").execute().actionGet();
         client().prepareIndex("test", "child", "c4").setSource("c_field", "x").setParent("p2").execute().actionGet();
         client().prepareIndex("test", "child", "c5").setSource("c_field", "x").setParent("p2").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery()).scoreType("sum"))
@@ -1544,6 +1544,53 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(3.0f));
+    }
+
+    @Test
+    public void testParentFieldFilter() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 1)
+                                .put("index.refresh_interval", -1)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        SearchResponse response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 0l);
+
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "value").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "value").setParent("p1")
+                .execute().actionGet();
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 0l);
+        refresh();
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 1l);
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "parent#p1")))
+                .execute().actionGet();
+        assertHitCount(response, 1l);
+
+        client().prepareIndex("test", "parent2", "p1").setSource("p_field", "value")
+                .setRefresh(true).execute().actionGet();
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 1l);
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "parent#p1")))
+                .execute().actionGet();
+        assertHitCount(response, 1l);
     }
 
 }

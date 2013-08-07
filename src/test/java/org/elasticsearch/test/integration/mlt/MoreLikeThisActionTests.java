@@ -58,6 +58,27 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         SearchResponse mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
         assertHitCount(mltResponse, 1l);
     }
+    
+    
+    @Test
+    public void testSimpleMoreLikeOnLongField() throws Exception {
+        logger.info("Creating index test");
+        createIndex("test");
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580l).endObject())).actionGet();
+        client().index(indexRequest("test").type("type2").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
+        client().index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject())).actionGet();
+
+
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        logger.info("Running moreLikeThis");
+        SearchResponse mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        assertHitCount(mltResponse, 0l);
+    }
 
 
     @Test

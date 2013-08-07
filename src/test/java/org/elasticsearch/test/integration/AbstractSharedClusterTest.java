@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -143,7 +144,8 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public static void wipeIndices(String... names) {
         try {
-            client().admin().indices().prepareDelete(names).execute().actionGet();
+            final DeleteIndexResponse actionGet = client().admin().indices().prepareDelete(names).execute().actionGet();
+            assertThat("Delete Index failed - not acked", actionGet.isAcknowledged(), equalTo(true));
         } catch (IndexMissingException e) {
             // ignore
         }

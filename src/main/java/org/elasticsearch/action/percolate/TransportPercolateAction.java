@@ -159,6 +159,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             for (PercolateShardResponse shardResponse : shardResults) {
                 finalCount += shardResponse.count();
             }
+
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures, finalCount, tookInMillis
             );
@@ -168,19 +169,29 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                 finalCount += response.count();
             }
 
-            // Serializing more than Integer.MAX_VALUE seems insane to me...
-            int size = (int) finalCount;
+            int requestedSize = shardResults.get(0).requestedSize();
+            boolean limit = shardResults.get(0).limit();
+            if (limit) {
+                requestedSize = (int) Math.min(requestedSize, finalCount);
+            } else {
+                // Serializing more than Integer.MAX_VALUE seems insane to me...
+                requestedSize = (int) finalCount;
+            }
+
             // Use a custom impl of AbstractBigArray for Object[]?
-            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(size);
-            for (PercolateShardResponse response : shardResults) {
+            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize);
+            outer: for (PercolateShardResponse response : shardResults) {
                 Text index = new StringText(response.getIndex());
                 for (Text id : response.matches()) {
                     finalMatches.add(new PercolateResponse.Match(id, index));
+                    if (requestedSize != 0 && finalMatches.size() == requestedSize) {
+                        break outer;
+                    }
                 }
             }
 
             return new PercolateResponse(
-                    shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches.toArray(new PercolateResponse.Match[size]), finalCount, tookInMillis
+                    shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches.toArray(new PercolateResponse.Match[requestedSize]), finalCount, tookInMillis
             );
         }
     }

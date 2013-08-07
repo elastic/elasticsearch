@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -37,6 +38,8 @@ public class PercolateSourceBuilder implements ToXContent {
     private DocBuilder docBuilder;
     private QueryBuilder queryBuilder;
     private FilterBuilder filterBuilder;
+    private Integer size;
+    private Boolean shortCircuit;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {
@@ -49,24 +52,32 @@ public class PercolateSourceBuilder implements ToXContent {
         return docBuilder;
     }
 
-    public void setDoc(DocBuilder docBuilder) {
+    public PercolateSourceBuilder setDoc(DocBuilder docBuilder) {
         this.docBuilder = docBuilder;
+        return this;
     }
 
     public QueryBuilder getQueryBuilder() {
         return queryBuilder;
     }
 
-    public void setQueryBuilder(QueryBuilder queryBuilder) {
+    public PercolateSourceBuilder setQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
+        return this;
     }
 
     public FilterBuilder getFilterBuilder() {
         return filterBuilder;
     }
 
-    public void setFilterBuilder(FilterBuilder filterBuilder) {
+    public PercolateSourceBuilder setFilterBuilder(FilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
+        return this;
+    }
+
+    public PercolateSourceBuilder setSize(int size) {
+        this.size = size;
+        return this;
     }
 
     public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
@@ -93,6 +104,9 @@ public class PercolateSourceBuilder implements ToXContent {
             builder.field("filter");
             filterBuilder.toXContent(builder, params);
         }
+        if (size != null) {
+            builder.field("size", size);
+        }
         builder.endObject();
         return builder;
     }
@@ -107,6 +121,13 @@ public class PercolateSourceBuilder implements ToXContent {
 
         public DocBuilder setDoc(BytesReference doc) {
             this.doc = doc;
+            return this;
+        }
+
+        public DocBuilder setDoc(String field, Object value) {
+            Map<String, Object> values = new HashMap<String, Object>(2);
+            values.put(field, value);
+            setDoc(values);
             return this;
         }
 

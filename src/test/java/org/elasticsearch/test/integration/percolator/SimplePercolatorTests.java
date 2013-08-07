@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
@@ -46,6 +47,7 @@ import org.junit.Test;
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
@@ -466,10 +468,12 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
+        PercolateSourceBuilder sourceBuilder = new PercolateSourceBuilder()
+                .setDoc(docBuilder().setDoc(jsonBuilder().startObject().startObject("type1").field("field1", "value2").endObject().endObject()))
+                .setQueryBuilder(termQuery("color", "red"));
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
-                .setSource(jsonBuilder().startObject().startObject("doc").startObject("type1").field("field1", "value2").endObject().endObject()
-                        .field("query", termQuery("color", "red")).endObject())
+                .setSource(sourceBuilder)
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("susu"));
@@ -1074,6 +1078,99 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 }
             }
             break;
+        }
+    }
+
+    public void testPercolateSizingWithQueryAndFilter() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        int numLevels = randomIntBetween(1, 25);
+        long numQueriesPerLevel = randomIntBetween(10, 250);
+        long totalQueries = numLevels * numQueriesPerLevel;
+        logger.info("--> register " + totalQueries +" queries");
+        for (int level = 1; level <= numLevels; level++) {
+            for (int query = 1; query <= numQueriesPerLevel; query++) {
+                client().prepareIndex("my-index", "_percolator", level + "-" + query)
+                        .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", level).endObject())
+                        .execute().actionGet();
+            }
+        }
+
+        boolean onlyCount = randomBoolean();
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("my-index").setDocumentType("my-type")
+                .setOnlyCount(onlyCount)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(totalQueries));
+        if (!onlyCount) {
+            assertThat(response.getMatches().length, equalTo((int) totalQueries));
+        }
+
+        int size = randomIntBetween(0, (int) totalQueries - 1);
+        response = client().preparePercolate()
+                .setIndices("my-index").setDocumentType("my-type")
+                .setOnlyCount(onlyCount)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setSize(size)
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(totalQueries));
+        if (!onlyCount) {
+            assertThat(response.getMatches().length, equalTo(size));
+        }
+
+        // The query / filter capabilities are NOT in realtime
+        client().admin().indices().prepareRefresh("my-index").execute().actionGet();
+
+        int runs = randomIntBetween(3, 16);
+        for (int i = 0; i < runs; i++) {
+            onlyCount = randomBoolean();
+            response = client().preparePercolate()
+                    .setIndices("my-index").setDocumentType("my-type")
+                    .setOnlyCount(onlyCount)
+                    .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
+                    .execute().actionGet();
+            assertNoFailures(response);
+            assertThat(response.getCount(), equalTo(numQueriesPerLevel));
+            if (!onlyCount) {
+                assertThat(response.getMatches().length, equalTo((int) numQueriesPerLevel));
+            }
+        }
+
+        for (int i = 0; i < runs; i++) {
+            onlyCount = randomBoolean();
+            response = client().preparePercolate()
+                    .setIndices("my-index").setDocumentType("my-type")
+                    .setOnlyCount(onlyCount)
+                    .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                    .setPercolateFilter(termFilter("level", 1 + randomInt(numLevels - 1)))
+                    .execute().actionGet();
+            assertNoFailures(response);
+            assertThat(response.getCount(), equalTo(numQueriesPerLevel));
+            if (!onlyCount) {
+                assertThat(response.getMatches().length, equalTo((int) numQueriesPerLevel));
+            }
+        }
+
+        for (int i = 0; i < runs; i++) {
+            onlyCount = randomBoolean();
+            size = randomIntBetween(0, (int) numQueriesPerLevel - 1);
+            response = client().preparePercolate()
+                    .setIndices("my-index").setDocumentType("my-type")
+                    .setOnlyCount(onlyCount)
+                    .setSize(size)
+                    .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                    .setPercolateFilter(termFilter("level", 1 + randomInt(numLevels - 1)))
+                    .execute().actionGet();
+            assertNoFailures(response);
+            assertThat(response.getCount(), equalTo(numQueriesPerLevel));
+            if (!onlyCount) {
+                assertThat(response.getMatches().length, equalTo(size));
+            }
         }
     }
 

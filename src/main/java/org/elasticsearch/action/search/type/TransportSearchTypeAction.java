@@ -144,7 +144,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     }
                 } else {
                     // really, no shards active in this group
-                    onFirstPhaseResult(shardIndex, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+                    onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 }
             }
             // we have local operations, perform them now
@@ -202,11 +202,11 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         void performFirstPhase(final int shardIndex, final ShardIterator shardIt, final ShardRouting shard) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, but just for safety)
-                onFirstPhaseResult(shardIndex, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+                onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                DiscoveryNode node = nodes.get(shard.currentNodeId());
+                final DiscoveryNode node = nodes.get(shard.currentNodeId());
                 if (node == null) {
-                    onFirstPhaseResult(shardIndex, shard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+                    onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
                     sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime), new SearchServiceListener<FirstResult>() {
@@ -217,7 +217,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
                         @Override
                         public void onFailure(Throwable t) {
-                            onFirstPhaseResult(shardIndex, shard, shardIt, t);
+                            onFirstPhaseResult(shardIndex, shard, node.id(), shardIt, t);
                         }
                     });
                 }
@@ -243,10 +243,11 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        void onFirstPhaseResult(final int shardIndex, @Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
+        void onFirstPhaseResult(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId, final ShardIterator shardIt, Throwable t) {
             // we always add the shard failure for a specific shard instance
             // we do make sure to clean it on a successful response from a shard
-            addShardFailure(shardIndex, t);
+            SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId().getIndex(), shardIt.shardId().getId());
+            addShardFailure(shardIndex, shardTarget, t);
 
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 if (logger.isDebugEnabled()) {
@@ -317,7 +318,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             return failures;
         }
 
-        protected final void addShardFailure(final int shardIndex, Throwable t) {
+        protected final void addShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Throwable t) {
             // we don't aggregate shard failures on non active shards (but do keep the header counts right)
             if (TransportActions.isShardNotAvailableException(t)) {
                 return;
@@ -333,12 +334,12 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
             ShardSearchFailure failure = shardFailures.get(shardIndex);
             if (failure == null) {
-                shardFailures.set(shardIndex, new ShardSearchFailure(t));
+                shardFailures.set(shardIndex, new ShardSearchFailure(t, shardTarget));
             } else {
                 // the failure is already present, try and not override it with an exception that is less meaningless
                 // for example, getting illegal shard state
                 if (TransportActions.isReadOverrideException(t)) {
-                    shardFailures.set(shardIndex, new ShardSearchFailure(t));
+                    shardFailures.set(shardIndex, new ShardSearchFailure(t, shardTarget));
                 }
             }
         }

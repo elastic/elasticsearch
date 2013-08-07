@@ -147,7 +147,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
                     }
-                    AsyncAction.this.addShardFailure(shardIndex, t);
+                    AsyncAction.this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

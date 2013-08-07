@@ -1556,14 +1556,19 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 .put("index.refresh_interval", -1)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child2").setSource(jsonBuilder().startObject().startObject("child")
+                .startObject("_parent").field("type", "parent2").endObject()
+                .endObject().endObject()).execute().actionGet();
 
+        // test term filter
         SearchResponse response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "p1")))
                 .execute().actionGet();
         assertHitCount(response, 0l);
 
+        client().prepareIndex("test", "some_type", "1").setSource("field", "value").execute().actionGet();
         client().prepareIndex("test", "parent", "p1").setSource("p_field", "value").execute().actionGet();
         client().prepareIndex("test", "child", "c1").setSource("c_field", "value").setParent("p1")
                 .execute().actionGet();
@@ -1591,6 +1596,31 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("_parent", "parent#p1")))
                 .execute().actionGet();
         assertHitCount(response, 1l);
+
+        // test terms filter
+        client().prepareIndex("test", "child2", "c1").setSource("c_field", "value").setParent("p1")
+                .execute().actionGet();
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 1l);
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "parent#p1")))
+                .execute().actionGet();
+        assertHitCount(response, 1l);
+
+        refresh();
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 2l);
+
+        refresh();
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "p1", "p1")))
+                .execute().actionGet();
+        assertHitCount(response, 2l);
+
+        response = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "parent#p1", "parent2#p1")))
+                .execute().actionGet();
+        assertHitCount(response, 2l);
     }
 
 }

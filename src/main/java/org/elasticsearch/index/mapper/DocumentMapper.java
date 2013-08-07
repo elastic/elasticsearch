@@ -162,7 +162,10 @@ public class DocumentMapper implements ToXContent {
                     idFieldMapper = new IdFieldMapper(fieldType);
                 }
             }
+            // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
+            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
             this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
+            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper());
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
@@ -171,10 +174,8 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
             this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper());
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper());
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
             // don't add parent field, by default its "null"
         }
 

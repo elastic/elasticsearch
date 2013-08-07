@@ -160,6 +160,14 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         return this;
     }
 
+    /**
+     * Limits the maximum number of percolate query matches to be returned.
+     */
+    public PercolateRequestBuilder setSize(int size) {
+        sourceBuilder().setSize(size);
+        return this;
+    }
+
     private PercolateSourceBuilder sourceBuilder() {
         if (sourceBuilder == null) {
             sourceBuilder = new PercolateSourceBuilder();

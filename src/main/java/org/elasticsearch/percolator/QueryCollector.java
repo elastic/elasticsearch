@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
@@ -60,8 +61,8 @@ abstract class QueryCollector extends Collector {
     }
 
 
-    static Match match(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, List<Text> matches) {
-        return new Match(logger, queries, searcher, fieldData, matches);
+    static Match match(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, PercolatorService.PercolateContext context) {
+        return new Match(logger, queries, searcher, fieldData, context);
     }
 
     static Count count(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData) {
@@ -70,11 +71,15 @@ abstract class QueryCollector extends Collector {
 
     final static class Match extends QueryCollector {
 
-        private final List<Text> matches;
+        private final List<Text> matches = new ArrayList<Text>();
+        private final boolean limit;
+        private final int size;
+        private long counter = 0;
 
-        Match(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, List<Text> matches) {
+        Match(ESLogger logger, ConcurrentMap<Text, Query> queries, IndexSearcher searcher, IndexFieldDataService fieldData, PercolatorService.PercolateContext context) {
             super(logger, queries, searcher, fieldData);
-            this.matches = matches;
+            this.limit = context.limit;
+            this.size = context.size;
         }
 
         @Override
@@ -94,11 +99,24 @@ abstract class QueryCollector extends Collector {
                 collector.reset();
                 searcher.search(query, collector);
                 if (collector.exists()) {
-                    matches.add(id);
+                    if (!limit) {
+                        matches.add(id);
+                    } else if (counter < size) {
+                        matches.add(id);
+                    }
+                    counter++;
                 }
             } catch (IOException e) {
                 logger.warn("[" + id + "] failed to execute query", e);
             }
+        }
+
+        long counter() {
+            return counter;
+        }
+
+        List<Text> matches() {
+            return matches;
         }
 
     }

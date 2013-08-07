@@ -137,7 +137,7 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
         try {
-            mapper = MapperTestUtils.newParser().parse(null, getRandom().nextBoolean() ? null : "", defaultMapping);
+            mapper = MapperTestUtils.newParser().parse(null, null, defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             assert false;

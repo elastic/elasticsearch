@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.search.function.ScoreCombiner.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
@@ -329,12 +330,13 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      * This is the base class for scoring a single field.
      * 
      * */
-    public static abstract class AbstractDistanceScoreFunction implements ScoreFunction {
+    public static abstract class AbstractDistanceScoreFunction extends ScoreFunction {
 
         private final double scale;
         private final DecayFunction func;
 
         public AbstractDistanceScoreFunction(double userSuppiedScale, double userSuppliedScaleWeight, DecayFunction func) {
+            super(CombineFunction.MULT);
             if (userSuppiedScale <= 0.0) {
                 throw new ElasticSearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
             }
@@ -348,11 +350,6 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         public double score(int docId, float subQueryScore) {
-            return (subQueryScore * factor(docId));
-        }
-
-        @Override
-        public double factor(int docId) {
             double value = distance(docId);
             return func.evaluate(value, scale);
         }
@@ -372,19 +369,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         public Explanation explainScore(int docId, Explanation subQueryExpl) {
             ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue((float) score(docId, subQueryExpl.getValue()));
+            ce.setValue(CombineFunction.toFloat(score(docId, subQueryExpl.getValue())));
             ce.setMatch(true);
-            ce.setDescription("subQueryScore * Function for field " + getFieldName() + ":");
-            ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
-            return ce;
-        }
-
-        @Override
-        public Explanation explainFactor(int docId) {
-            ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue((float) factor(docId));
-            ce.setMatch(true);
-            ce.setDescription("subQueryScore * Function for field " + getFieldName() + ":");
+            ce.setDescription("Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
         }

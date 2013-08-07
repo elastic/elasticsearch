@@ -21,15 +21,17 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.lucene.search.function.ScoreCombiner.CombineFunction;
 
 /**
  *
  */
-public class BoostScoreFunction implements ScoreFunction {
+public class BoostScoreFunction extends ScoreFunction {
 
     private final float boost;
 
     public BoostScoreFunction(float boost) {
+        super(CombineFunction.MULT);
         this.boost = boost;
     }
 
@@ -41,28 +43,17 @@ public class BoostScoreFunction implements ScoreFunction {
     public void setNextReader(AtomicReaderContext context) {
         // nothing to do here...
     }
-
+    
     @Override
     public double score(int docId, float subQueryScore) {
-        return subQueryScore * boost;
-    }
-
-    @Override
-    public double factor(int docId) {
         return boost;
     }
 
     @Override
     public Explanation explainScore(int docId, Explanation subQueryExpl) {
-        Explanation exp = new Explanation(boost * subQueryExpl.getValue(), "static boost function: product of:");
-        exp.addDetail(subQueryExpl);
+        Explanation exp = new Explanation(boost, "static boost factor");
         exp.addDetail(new Explanation(boost, "boostFactor"));
         return exp;
-    }
-
-    @Override
-    public Explanation explainFactor(int docId) {
-        return new Explanation(boost, "boostFactor");
     }
 
     @Override

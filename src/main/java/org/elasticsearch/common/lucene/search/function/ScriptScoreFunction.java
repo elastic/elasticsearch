@@ -21,20 +21,23 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.lucene.search.function.ScoreCombiner.CombineFunction;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.util.Map;
 
-public class ScriptScoreFunction implements ScoreFunction {
+public class ScriptScoreFunction extends ScoreFunction {
 
     private final String sScript;
 
     private final Map<String, Object> params;
 
     private final SearchScript script;
+    
 
     public ScriptScoreFunction(String sScript, Map<String, Object> params, SearchScript script) {
+        super(CombineFunction.PLAIN);
         this.sScript = sScript;
         this.params = params;
         this.script = script;
@@ -53,13 +56,6 @@ public class ScriptScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public double factor(int docId) {
-        // just the factor, so don't provide _score
-        script.setNextDocId(docId);
-        return script.runAsFloat();
-    }
-
-    @Override
     public Explanation explainScore(int docId, Explanation subQueryExpl) {
         Explanation exp;
         if (script instanceof ExplainableSearchScript) {
@@ -68,19 +64,15 @@ public class ScriptScoreFunction implements ScoreFunction {
             exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
         } else {
             double score = score(docId, subQueryExpl.getValue());
-            exp = new Explanation((float)score, "script score function: composed of:");
+            exp = new Explanation(CombineFunction.toFloat(score), "script score function: composed of:");
             exp.addDetail(subQueryExpl);
         }
         return exp;
     }
 
     @Override
-    public Explanation explainFactor(int docId) {
-        return new Explanation((float)factor(docId), "script_factor");
-    }
-
-    @Override
     public String toString() {
         return "script[" + sScript + "], params [" + params + "]";
     }
+
 }

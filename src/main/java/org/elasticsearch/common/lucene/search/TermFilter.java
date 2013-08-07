@@ -24,6 +24,8 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.Version;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
@@ -31,6 +33,11 @@ import java.io.IOException;
  * A simple filter for a specific term.
  */
 public class TermFilter extends Filter {
+
+    static {
+        // Remove this class and TermsFilterTests when upgrading to Lucene 4.5
+        assert Lucene.VERSION == Version.LUCENE_44;
+    }
 
     private final Term term;
 

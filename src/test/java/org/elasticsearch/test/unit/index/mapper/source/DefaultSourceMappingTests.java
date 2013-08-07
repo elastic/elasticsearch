@@ -28,18 +28,18 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.elasticsearch.test.unit.index.mapper.MapperTestUtils;
 import org.junit.Test;
 
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class DefaultSourceMappingTests {
+public class DefaultSourceMappingTests extends ElasticsearchTestCase {
 
     @Test
     public void testNoFormat() throws Exception {
@@ -136,17 +136,25 @@ public class DefaultSourceMappingTests {
         DocumentMapper mapper = MapperTestUtils.newParser().parse("my_type", null, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-
         try {
-            mapper = MapperTestUtils.newParser().parse(null, null, defaultMapping);
+            mapper = MapperTestUtils.newParser().parse(null, getRandom().nextBoolean() ? null : "", defaultMapping);
             assertThat(mapper.type(), equalTo("my_type"));
             assertThat(mapper.sourceMapper().enabled(), equalTo(false));
             assert false;
         } catch (MapperParsingException e) {
             // all is well
         }
+        try {
+            mapper = MapperTestUtils.newParser().parse(null, "{}", defaultMapping);
+            assertThat(mapper.type(), equalTo("my_type"));
+            assertThat(mapper.sourceMapper().enabled(), equalTo(false));
+            assert false;
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), equalTo("malformed mapping no root object found"));
+            // all is well
+        }
     }
-
+    
     @Test
     public void testDefaultMappingAndWithMappingOverride() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)

@@ -37,12 +37,18 @@ public class FunctionScoreQuery extends Query {
     Query subQuery;
     final ScoreFunction function;
     float maxBoost = Float.MAX_VALUE;
-
+    CombineFunction combineFunction;
+    
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
+        this.combineFunction = function.getDefaultScoreCombiner();
     }
 
+    public void setCombineFunction(CombineFunction combineFunction) {
+        this.combineFunction = combineFunction;
+    }
+    
     public void setMaxBoost(float maxBoost) {
         this.maxBoost = maxBoost;
     }
@@ -112,7 +118,7 @@ public class FunctionScoreQuery extends Query {
                 return null;
             }
             function.setNextReader(context);
-            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost);
+            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction);
         }
 
         @Override
@@ -121,14 +127,9 @@ public class FunctionScoreQuery extends Query {
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
-
             function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
-            float sc = getBoost() * functionExplanation.getValue();
-            Explanation res = new ComplexExplanation(true, sc, "function score, product of:");
-            res.addDetail(functionExplanation);
-            res.addDetail(new Explanation(getBoost(), "queryBoost"));
-            return res;
+            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
         }
     }
 
@@ -138,14 +139,16 @@ public class FunctionScoreQuery extends Query {
         private final Scorer scorer;
         private final ScoreFunction function;
         private final float maxBoost;
+        private final CombineFunction scoreCombiner;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost)
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner)
                 throws IOException {
             super(w);
             this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
             this.function = function;
             this.maxBoost = maxBoost;
+            this.scoreCombiner = scoreCombiner;
         }
 
         @Override
@@ -165,8 +168,8 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            double factor = function.score(scorer.docID(), scorer.score());
-            return toFloat(subQueryBoost * Math.min(maxBoost, factor));
+            return scoreCombiner.combine(subQueryBoost, scorer.score(),
+                    function.score(scorer.docID(), scorer.score()), maxBoost);
         }
 
         @Override
@@ -182,7 +185,7 @@ public class FunctionScoreQuery extends Query {
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("custom score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
+        sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
@@ -198,15 +201,4 @@ public class FunctionScoreQuery extends Query {
     public int hashCode() {
         return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }
-
-    public static float toFloat(double input) {
-        assert deviation(input) <= 0.001 : "input " + input + " out of float scope for function score deviation: " + deviation(input);
-        return (float) input;
-    }
-    
-    private static double deviation(double input) { // only with assert!
-        float floatVersion = (float)input;
-        return Double.compare(floatVersion, input) == 0 || input == 0.0d ? 0 : 1.d-(floatVersion) / input;
-    }
-
 }

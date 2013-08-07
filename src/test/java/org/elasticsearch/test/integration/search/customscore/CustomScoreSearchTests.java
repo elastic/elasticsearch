@@ -84,15 +84,15 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertNotNull(explanation);
         assertThat(explanation.isMatch(), equalTo(true));
         assertThat(explanation.getValue(), equalTo(3f));
-        assertThat(explanation.getDescription(), equalTo("function score, score mode [first]"));
+        assertThat(explanation.getDescription(), equalTo("function score, product of:"));
 
-        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails().length, equalTo(3));
         assertThat(explanation.getDetails()[0].isMatch(), equalTo(true));
         assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
         assertThat(explanation.getDetails()[0].getDetails().length, equalTo(2));
         assertThat(explanation.getDetails()[1].isMatch(), equalTo(true));
         assertThat(explanation.getDetails()[1].getValue(), equalTo(3f));
-        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(3));
+        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(2));
 
         // Same query but with boost
         searchResponse = client().prepareSearch("test")
@@ -114,17 +114,17 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertNotNull(explanation);
         assertThat(explanation.isMatch(), equalTo(true));
         assertThat(explanation.getValue(), equalTo(6f));
-        assertThat(explanation.getDescription(), equalTo("function score, score mode [first]"));
+        assertThat(explanation.getDescription(), equalTo("function score, product of:"));
 
-        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails().length, equalTo(3));
         assertThat(explanation.getDetails()[0].isMatch(), equalTo(true));
         assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
         assertThat(explanation.getDetails()[0].getDetails().length, equalTo(2));
         assertThat(explanation.getDetails()[1].isMatch(), equalTo(true));
-        assertThat(explanation.getDetails()[1].getValue(), equalTo(6f));
-        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(3));
-        assertThat(explanation.getDetails()[1].getDetails()[2].getDescription(), equalTo("queryBoost"));
-        assertThat(explanation.getDetails()[1].getDetails()[2].getValue(), equalTo(2f));
+        assertThat(explanation.getDetails()[1].getValue(), equalTo(3f));
+        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[2].getDescription(), equalTo("queryBoost"));
+        assertThat(explanation.getDetails()[2].getValue(), equalTo(2f));
     }
 
 
@@ -157,15 +157,14 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertNotNull(explanation);
         assertThat(explanation.isMatch(), equalTo(true));
         assertThat(explanation.getValue(), equalTo(3f));
-        assertThat(explanation.getDescription(), equalTo("function score, score mode [first]"));
-
-        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDescription(), equalTo("function score, product of:"));
+        assertThat(explanation.getDetails().length, equalTo(3));
         assertThat(explanation.getDetails()[0].isMatch(), equalTo(true));
         assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
         assertThat(explanation.getDetails()[0].getDetails().length, equalTo(2));
         assertThat(explanation.getDetails()[1].isMatch(), equalTo(true));
         assertThat(explanation.getDetails()[1].getValue(), equalTo(3f));
-        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(3));
+        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(2));
 
         // Same query but with boost
         searchResponse = client().prepareSearch("test")
@@ -183,17 +182,17 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertNotNull(explanation);
         assertThat(explanation.isMatch(), equalTo(true));
         assertThat(explanation.getValue(), equalTo(6f));
-        assertThat(explanation.getDescription(), equalTo("function score, score mode [first]"));
+        assertThat(explanation.getDescription(), equalTo("function score, product of:"));
 
-        assertThat(explanation.getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails().length, equalTo(3));
         assertThat(explanation.getDetails()[0].isMatch(), equalTo(true));
         assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
         assertThat(explanation.getDetails()[0].getDetails().length, equalTo(2));
         assertThat(explanation.getDetails()[1].isMatch(), equalTo(true));
-        assertThat(explanation.getDetails()[1].getValue(), equalTo(6f));
-        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(3));
-        assertThat(explanation.getDetails()[1].getDetails()[2].getDescription(), equalTo("queryBoost"));
-        assertThat(explanation.getDetails()[1].getDetails()[2].getValue(), equalTo(2f));
+        assertThat(explanation.getDetails()[1].getValue(), equalTo(3f));
+        assertThat(explanation.getDetails()[1].getDetails().length, equalTo(2));
+        assertThat(explanation.getDetails()[2].getDescription(), equalTo("queryBoost"));
+        assertThat(explanation.getDetails()[2].getValue(), equalTo(2f));
     }
 
     @Test

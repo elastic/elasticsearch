@@ -55,10 +55,16 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     }
 
     public ShardSearchFailure(Throwable t) {
+        this(t, null);
+    }
+
+    public ShardSearchFailure(Throwable t, @Nullable SearchShardTarget shardTarget) {
         this.failure = t;
         Throwable actual = ExceptionsHelper.unwrapCause(t);
         if (actual != null && actual instanceof SearchException) {
             this.shardTarget = ((SearchException) actual).shard();
+        } else if (shardTarget != null) {
+            this.shardTarget = shardTarget;
         }
         if (actual != null && actual instanceof ElasticSearchException) {
             status = ((ElasticSearchException) actual).status();

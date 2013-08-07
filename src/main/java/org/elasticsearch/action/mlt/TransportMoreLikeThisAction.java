@@ -183,6 +183,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                     // exclude myself
                     Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
+                    boolBuilder.adjustPureNegative(false);
                 } catch (Throwable e) {
                     listener.onFailure(e);
                     return;

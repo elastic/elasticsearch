@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,6 +42,8 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     private Boolean disableCoord;
 
     private String minimumShouldMatch;
+    
+    private Boolean adjustPureNegative;
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents.
@@ -119,6 +122,16 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     public boolean hasClauses() {
         return !mustClauses.isEmpty() || !mustNotClauses.isEmpty() || !shouldClauses.isEmpty();
     }
+    
+    /**
+     * If a boolean query contains only negative ("must not") clauses should the
+     * BooleanQuery be enhanced with a {@link MatchAllDocsQuery} in order to act
+     * as a pure exclude. The default is <code>true</code>.
+     */
+    public BoolQueryBuilder adjustPureNegative(boolean adjustPureNegative) {
+        this.adjustPureNegative = adjustPureNegative;
+        return this;
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -134,6 +147,9 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         }
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
+        }
+        if (adjustPureNegative != null) {
+            builder.field("adjust_pure_negative", adjustPureNegative);
         }
         builder.endObject();
     }

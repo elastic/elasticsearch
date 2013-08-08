@@ -24,13 +24,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
@@ -72,8 +72,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Starting sever1");
         startNode("server1", settings);
 
-        ClusterService clusterService1 = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class);
-        String node1 = clusterService1.state().nodes().localNodeId();
+        final String node1 = getLocalNodeId("server1");
 
         wipeIndices(client());
 
@@ -102,8 +101,8 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        ClusterService clusterService2 = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class);
-        String node2 = clusterService2.state().nodes().localNodeId();
+        final String node2 = getLocalNodeId("server2");
+
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client("server1").admin().cluster().prepareReroute().execute().actionGet();
@@ -138,8 +137,8 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
 
-        ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
-        String node3 = clusterService3.state().nodes().localNodeId();
+        final String node3 = getLocalNodeId("server3");
+
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client("server1").admin().cluster().prepareReroute().execute().actionGet();
@@ -221,6 +220,13 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(routingNodeEntry3.shards().isEmpty(), equalTo(true));
     }
 
+    private String getLocalNodeId(String name) {
+        assert node(name) != null : "no node for name: " + name;
+        Discovery discovery = ((InternalNode) node(name)).injector().getInstance(Discovery.class);
+        String nodeId = discovery.localNode().getId();
+        assertThat(nodeId, not(nullValue()));
+        return nodeId;
+    }
     @Slow
     @Test
     public void testIndexLifecycleActionsWith11Shards0Backup() throws Exception {
@@ -235,9 +241,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Starting server1");
         startNode("server1", settings);
 
-        ClusterService clusterService1 = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class);
-        String node1 = clusterService1.state().nodes().localNodeId();
-
+        final String node1 = getLocalNodeId("server1");
         wipeIndices(client());
 
         logger.info("Creating index [test]");
@@ -267,8 +271,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        ClusterService clusterService2 = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class);
-        String node2 = clusterService2.state().nodes().localNodeId();
+        final String node2 = getLocalNodeId("server2");
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client("server1").admin().cluster().prepareReroute().execute().actionGet();
@@ -302,9 +305,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
-        String node3 = clusterService3.state().nodes().localNodeId();
-
+        final String node3 = getLocalNodeId("server3");
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client("server1").admin().cluster().prepareReroute().execute().actionGet();
 

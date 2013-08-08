@@ -100,9 +100,7 @@ public class PercolatorService extends AbstractComponent {
                         }
 
                         if (collector.exists()) {
-                            if (!context.limit) {
-                                matches.add(entry.getKey());
-                            } else if (count < context.size) {
+                            if (!context.limit || count < context.size) {
                                 matches.add(entry.getKey());
                             }
                             count++;

@@ -34,6 +34,7 @@ public class HighlightModule extends AbstractModule {
     public HighlightModule() {
         registerHighlighter(FastVectorHighlighter.class);
         registerHighlighter(PlainHighlighter.class);
+        registerHighlighter(PostingsHighlighter.class);
     }
 
     public void registerHighlighter(Class<? extends Highlighter> clazz) {

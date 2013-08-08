@@ -99,9 +99,7 @@ abstract class QueryCollector extends Collector {
                 collector.reset();
                 searcher.search(query, collector);
                 if (collector.exists()) {
-                    if (!limit) {
-                        matches.add(id);
-                    } else if (counter < size) {
+                    if (!limit || counter < size) {
                         matches.add(id);
                     }
                     counter++;

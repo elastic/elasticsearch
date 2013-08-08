@@ -3,6 +3,7 @@ package org.elasticsearch.test.integration.percolator;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -15,6 +16,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
 import static org.hamcrest.Matchers.*;
 
@@ -69,6 +71,19 @@ public class TTLPercolatorTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()
         ).execute().actionGet();
+        assertNoFailures(percolateResponse);
+        if (percolateResponse.getMatches().length == 0) {
+            // OK, ttl + purgeInterval has passed (slow machine or many other tests were running at the same time
+            GetResponse getResponse = client.prepareGet("test", "_percolator", "kuku").execute().actionGet();
+            assertThat(getResponse.isExists(), equalTo(false));
+            IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+                    .clear().setIndexing(true)
+                    .execute().actionGet();
+            long currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
+            assertThat(currentDeleteCount, equalTo(2l));
+            return;
+        }
+
         assertThat(convertFromTextArray(percolateResponse.getMatches(), "test"), arrayContaining("kuku"));
         long timeSpent = System.currentTimeMillis() - now;
         long waitTime = ttl + purgeInterval - timeSpent;
@@ -101,6 +116,7 @@ public class TTLPercolatorTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()
         ).execute().actionGet();
+        assertNoFailures(percolateResponse);
         assertThat(percolateResponse.getMatches(), emptyArray());
     }
 

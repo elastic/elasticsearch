@@ -190,7 +190,7 @@ public class HighlightBuilder implements ToXContent {
 
     /**
      * Set type of highlighter to use. Supported types
-     * are <tt>highlighter</tt> and <tt>fast-vector-highlighter</tt>.
+     * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> and <tt>postings-highlighter</tt>.
      */
     public HighlightBuilder highlighterType(String highlighterType) {
         this.highlighterType = highlighterType;
@@ -420,7 +420,7 @@ public class HighlightBuilder implements ToXContent {
 
         /**
          * Set type of highlighter to use. Supported types
-         * are <tt>highlighter</tt> and <tt>fast-vector-highlighter</tt>.
+         * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> nad <tt>postings-highlighter</tt>.
          * This overrides global settings set by {@link HighlightBuilder#highlighterType(String)}.
          */
         public Field highlighterType(String highlighterType) {

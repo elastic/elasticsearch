@@ -19,9 +19,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -70,7 +68,7 @@ public class FastVectorHighlighter implements Highlighter {
             throw new ElasticSearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
-        Encoder encoder = field.encoder().equals("html") ? Encoders.HTML : Encoders.DEFAULT;
+        Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
             hitContext.cache().put(CACHE_KEY, new HighlighterEntry());
@@ -184,10 +182,5 @@ public class FastVectorHighlighter implements Highlighter {
         public FieldQuery noFieldMatchFieldQuery;
         public FieldQuery fieldMatchFieldQuery;
         public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
-    }
-
-    private static class Encoders {
-        public static Encoder DEFAULT = new DefaultEncoder();
-        public static Encoder HTML = new SimpleHTMLEncoder();
     }
 }

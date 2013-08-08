@@ -1,0 +1,237 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
+package org.elasticsearch.search.highlight;
+
+import com.google.common.collect.Maps;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.Encoder;
+import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
+import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
+import org.apache.lucene.search.postingshighlight.Snippet;
+import org.apache.lucene.search.postingshighlight.WholeBreakIterator;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.text.BreakIterator;
+import java.util.*;
+
+public class PostingsHighlighter implements Highlighter {
+
+    private static final String CACHE_KEY = "highlight-postings";
+
+    @Override
+    public String[] names() {
+        return new String[]{"postings", "postings-highlighter"};
+    }
+
+    @Override
+    public HighlightField highlight(HighlighterContext highlighterContext) {
+
+        FieldMapper<?> fieldMapper = highlighterContext.mapper;
+        SearchContextHighlight.Field field = highlighterContext.field;
+        if (fieldMapper.fieldType().indexOptions() != FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+            throw new ElasticSearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
+        }
+
+        SearchContext context = highlighterContext.context;
+        FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
+
+        if (!hitContext.cache().containsKey(CACHE_KEY)) {
+            Query query;
+            try {
+                query = rewrite(context.query());
+            } catch (IOException e) {
+                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            }
+            SortedSet<Term> queryTerms = extractTerms(query);
+            hitContext.cache().put(CACHE_KEY, new HighlighterEntry(queryTerms));
+        }
+
+        HighlighterEntry highlighterEntry = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
+        MapperHighlighterEntry mapperHighlighterEntry = highlighterEntry.mappers.get(fieldMapper);
+
+        if (mapperHighlighterEntry == null) {
+            Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
+            CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.preTags()[0], field.postTags()[0], encoder);
+            BytesRef[] filteredQueryTerms = filterTerms(highlighterEntry.queryTerms, highlighterContext.fieldName, field.requireFieldMatch());
+            mapperHighlighterEntry = new MapperHighlighterEntry(passageFormatter, filteredQueryTerms);
+        }
+
+        //we merge back multiple values into a single value using the paragraph separator, unless we have to highlight every single value separately (number_of_fragments=0).
+        boolean mergeValues = field.numberOfFragments() != 0;
+        List<Snippet> snippets = new ArrayList<Snippet>();
+        int numberOfFragments;
+
+        try {
+            //we manually load the field values (from source if needed)
+            List<Object> textsToHighlight = HighlightUtils.loadFieldValues(fieldMapper, context, hitContext);
+            CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(mapperHighlighterEntry.passageFormatter, textsToHighlight, mergeValues, Integer.MAX_VALUE-1, field.noMatchSize());
+
+             if (field.numberOfFragments() == 0) {
+                highlighter.setBreakIterator(new WholeBreakIterator());
+                numberOfFragments = 1; //1 per value since we highlight per value
+            } else {
+                numberOfFragments = field.numberOfFragments();
+            }
+
+            //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
+            int values = mergeValues ? 1 : textsToHighlight.size();
+            for (int i = 0; i < values; i++) {
+                Snippet[] fieldSnippets = highlighter.highlightDoc(highlighterContext.fieldName, mapperHighlighterEntry.filteredQueryTerms, new IndexSearcher(hitContext.reader()), hitContext.docId(), numberOfFragments);
+                if (fieldSnippets != null) {
+                    for (Snippet fieldSnippet : fieldSnippets) {
+                        if (Strings.hasText(fieldSnippet.getText())) {
+                            snippets.add(fieldSnippet);
+                        }
+                    }
+                }
+            }
+
+        } catch(IOException e) {
+            throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+        }
+
+        snippets = filterSnippets(snippets, field.numberOfFragments());
+
+        if (field.scoreOrdered()) {
+            //let's sort the snippets by score if needed
+            CollectionUtil.introSort(snippets, new Comparator<Snippet>() {
+                public int compare(Snippet o1, Snippet o2) {
+                    return (int) Math.signum(o2.getScore() - o1.getScore());
+                }
+            });
+        }
+
+        String[] fragments = new String[snippets.size()];
+        for (int i = 0; i < fragments.length; i++) {
+            fragments[i] = snippets.get(i).getText();
+        }
+
+        if (fragments.length > 0) {
+            return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
+        }
+
+        return null;
+    }
+
+    private static final IndexReader EMPTY_INDEXREADER = new MultiReader();
+
+    private static Query rewrite(Query original) throws IOException {
+        Query query = original;
+        for (Query rewrittenQuery = query.rewrite(EMPTY_INDEXREADER); rewrittenQuery != query;
+             rewrittenQuery = query.rewrite(EMPTY_INDEXREADER)) {
+            query = rewrittenQuery;
+        }
+        return query;
+    }
+
+    private static SortedSet<Term> extractTerms(Query query) {
+        SortedSet<Term> queryTerms = new TreeSet<Term>();
+        query.extractTerms(queryTerms);
+        return queryTerms;
+    }
+
+    private static BytesRef[] filterTerms(SortedSet<Term> queryTerms, String field, boolean requireFieldMatch) {
+        SortedSet<Term> fieldTerms;
+        if (requireFieldMatch) {
+            Term floor = new Term(field, "");
+            Term ceiling = new Term(field, UnicodeUtil.BIG_TERM);
+            fieldTerms = queryTerms.subSet(floor, ceiling);
+        } else {
+            fieldTerms = queryTerms;
+        }
+
+        BytesRef terms[] = new BytesRef[fieldTerms.size()];
+        int termUpto = 0;
+        for(Term term : fieldTerms) {
+            terms[termUpto++] = term.bytes();
+        }
+
+        return terms;
+    }
+
+    private static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {
+
+        //We need to filter the snippets as due to no_match_size we could have
+        //either highlighted snippets together non highlighted ones
+        //We don't want to mix those up
+        List<Snippet> filteredSnippets = new ArrayList<Snippet>(snippets.size());
+        for (Snippet snippet : snippets) {
+            if (snippet.isHighlighted()) {
+                filteredSnippets.add(snippet);
+            }
+        }
+
+        //if there's at least one highlighted snippet, we return all the highlighted ones
+        //otherwise we return the first non highlighted one if available
+        if (filteredSnippets.size() == 0) {
+            if (snippets.size() > 0) {
+                Snippet snippet = snippets.get(0);
+                //if we did discrete per value highlighting using whole break iterator (as number_of_fragments was 0)
+                //we need to obtain the first sentence of the first value
+                if (numberOfFragments == 0) {
+                    BreakIterator bi = BreakIterator.getSentenceInstance(Locale.ROOT);
+                    String text = snippet.getText();
+                    bi.setText(text);
+                    int next = bi.next();
+                    if (next != BreakIterator.DONE) {
+                        String newText = text.substring(0, next).trim();
+                        snippet = new Snippet(newText, snippet.getScore(), snippet.isHighlighted());
+                    }
+                }
+                filteredSnippets.add(snippet);
+            }
+        }
+
+        return filteredSnippets;
+    }
+
+    private static class HighlighterEntry {
+        final SortedSet<Term> queryTerms;
+        Map<FieldMapper<?>, MapperHighlighterEntry> mappers = Maps.newHashMap();
+
+        private HighlighterEntry(SortedSet<Term> queryTerms) {
+            this.queryTerms = queryTerms;
+        }
+    }
+
+    private static class MapperHighlighterEntry {
+        final CustomPassageFormatter passageFormatter;
+        final BytesRef[] filteredQueryTerms;
+
+        private MapperHighlighterEntry(CustomPassageFormatter passageFormatter, BytesRef[] filteredQueryTerms) {
+            this.passageFormatter = passageFormatter;
+            this.filteredQueryTerms = filteredQueryTerms;
+        }
+    }
+}

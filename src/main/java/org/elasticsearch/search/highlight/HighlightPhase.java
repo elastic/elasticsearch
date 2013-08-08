@@ -22,6 +22,7 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -46,7 +47,7 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
-    private Highlighters highlighters;
+    private final Highlighters highlighters;
 
     @Inject
     public HighlightPhase(Settings settings, Highlighters highlighters) {
@@ -93,7 +94,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                 if (field.highlighterType() == null) {
                     boolean useFastVectorHighlighter = fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
-                    field.highlighterType(useFastVectorHighlighter ? "fvh" : "plain");
+                    if (useFastVectorHighlighter) {
+                        field.highlighterType("fvh");
+                    } else if (fieldMapper.fieldType().indexOptions() == FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                        field.highlighterType("postings");
+                    } else {
+                        field.highlighterType("plain");
+                    }
                 }
 
                 Highlighter highlighter = highlighters.get(field.highlighterType());

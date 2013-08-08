@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -31,12 +29,10 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +58,7 @@ public class PlainHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper<?> mapper = highlighterContext.mapper;
 
-        Encoder encoder = field.encoder().equals("html") ? Encoders.HTML : Encoders.DEFAULT;
+        Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
             Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter> mappers = Maps.newHashMap();
@@ -97,31 +93,14 @@ public class PlainHighlighter implements Highlighter {
             cache.put(mapper, entry);
         }
 
-        List<Object> textsToHighlight;
-        if (mapper.fieldType().stored()) {
-            try {
-                CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);
-                hitContext.reader().document(hitContext.docId(), fieldVisitor);
-                textsToHighlight = fieldVisitor.fields().get(mapper.names().indexName());
-                if (textsToHighlight == null) {
-                    // Can happen if the document doesn't have the field to highlight
-                    textsToHighlight = ImmutableList.of();
-                }
-            } catch (Exception e) {
-                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
-            }
-        } else {
-            SearchLookup lookup = context.lookup();
-            lookup.setNextReader(hitContext.readerContext());
-            lookup.setNextDocId(hitContext.docId());
-            textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
-        }
-        assert textsToHighlight != null;
-
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<TextFragment>();
+        List<Object> textsToHighlight;
+
         try {
+            textsToHighlight = HighlightUtils.loadFieldValues(mapper, context, hitContext);
+
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
                 Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
@@ -185,7 +164,7 @@ public class PlainHighlighter implements Highlighter {
         return null;
     }
 
-    private int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {
+    private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {
         try {
             if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
                 // Can't split on term boundaries without offsets
@@ -210,10 +189,5 @@ public class PlainHighlighter implements Highlighter {
             tokenStream.end();
             tokenStream.close();
         }
-    }
-
-    private static class Encoders {
-        public static Encoder DEFAULT = new DefaultEncoder();
-        public static Encoder HTML = new SimpleHTMLEncoder();
     }
 }

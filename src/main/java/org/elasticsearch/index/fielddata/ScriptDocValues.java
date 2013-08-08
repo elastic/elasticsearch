@@ -70,7 +70,7 @@ public abstract class ScriptDocValues {
 
     }
 
-    public final static class Strings extends ScriptDocValues {
+    public static class Strings extends ScriptDocValues {
 
         private final BytesValues values;
         private final CharsRef spare = new CharsRef();

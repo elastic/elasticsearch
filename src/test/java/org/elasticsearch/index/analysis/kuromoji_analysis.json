@@ -8,7 +8,6 @@
                 },
                 "kuromoji_pos" : {
                     "type": "kuromoji_part_of_speech",
-                    "enable_position_increment" : "false",
                     "stoptags" : ["#  verb-main:", "動詞-自立"]
                 },
                 "kuromoji_ks" : {

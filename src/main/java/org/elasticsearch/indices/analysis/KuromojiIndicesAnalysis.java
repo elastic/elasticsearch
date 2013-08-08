@@ -18,17 +18,11 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import java.io.Reader;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
-import org.apache.lucene.analysis.ja.JapaneseBaseFormFilter;
-import org.apache.lucene.analysis.ja.JapaneseKatakanaStemFilter;
-import org.apache.lucene.analysis.ja.JapanesePartOfSpeechStopFilter;
-import org.apache.lucene.analysis.ja.JapaneseReadingFormFilter;
-import org.apache.lucene.analysis.ja.JapaneseTokenizer;
+import org.apache.lucene.analysis.ja.*;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +30,8 @@ import org.elasticsearch.index.analysis.PreBuiltTokenFilterFactoryFactory;
 import org.elasticsearch.index.analysis.PreBuiltTokenizerFactoryFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+
+import java.io.Reader;
 
 /**
  * Registers indices level analysis components so, if not explicitly configured,
@@ -85,7 +81,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
-                        return new JapanesePartOfSpeechStopFilter(false,
+                        return new JapanesePartOfSpeechStopFilter(Version.LUCENE_44,
                                 tokenStream, JapaneseAnalyzer
                                         .getDefaultStopTags());
                     }

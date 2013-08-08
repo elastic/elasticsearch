@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ja.JapanesePartOfSpeechStopFilter;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,6 @@ import java.util.Set;
 
 public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactory {
 
-    private final boolean enablePositionIncrements;
     private final Set<String> stopTags = new HashSet<String>();
 
     @Inject
@@ -44,12 +44,11 @@ public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactor
         if (wordList != null) {
             stopTags.addAll(wordList);
         }
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new JapanesePartOfSpeechStopFilter(enablePositionIncrements, tokenStream, stopTags);
+        return new JapanesePartOfSpeechStopFilter(Version.LUCENE_44, tokenStream, stopTags);
     }
 
 }

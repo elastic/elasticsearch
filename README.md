@@ -3,12 +3,14 @@ Phonetic Analysis for ElasticSearch
 
 The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-phonetic/1.5.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-phonetic/1.6.0`.
 
     -----------------------------------------------
     | Phonetic Analysis Plugin | ElasticSearch    |
     -----------------------------------------------
-    | 1.6.0-SNAPSHOT (master)  | 0.90.3 -> master |
+    | 1.7.0-SNAPSHOT (master)  | 0.90.3 -> master |
+    -----------------------------------------------
+    | 1.6.0                    | 0.90.3 -> master |
     -----------------------------------------------
     | 1.5.0                    | 0.90.1 -> 0.90.2 |
     -----------------------------------------------

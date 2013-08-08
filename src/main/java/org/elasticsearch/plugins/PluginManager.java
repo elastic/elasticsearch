@@ -28,10 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -39,6 +35,11 @@ import java.net.URL;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
@@ -306,6 +307,11 @@ public class PluginManager {
             }
         }
     }
+    
+    private static final int EXIT_CODE_OK = 0;
+    private static final int EXIT_CODE_CMD_USAGE = 64;
+    private static final int EXIT_CODE_IO_ERROR = 74;
+    private static final int EXIT_CODE_ERROR = 70;
 
     public static void main(String[] args) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
@@ -351,46 +357,63 @@ public class PluginManager {
                 } else {
                     displayHelp("Command [" + args[c] + "] unknown.");
                     // Unknown command. We break...
-                    System.exit(1);
+                    System.exit(EXIT_CODE_CMD_USAGE);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             displayHelp("Error while parsing options: " + e.getClass().getSimpleName() +
                     ": " + e.getMessage());
-            System.exit(1);
+            System.exit(EXIT_CODE_CMD_USAGE);
         }
 
         if (action > ACTION.NONE) {
+            int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
             PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
-
             switch (action) {
                 case ACTION.INSTALL:
                     try {
                         System.out.println("-> Installing " + pluginName + "...");
                         pluginManager.downloadAndExtract(pluginName, verbose);
+                        exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {
+                        exitCode = EXIT_CODE_IO_ERROR;
                         System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
+                        exitCode = EXIT_CODE_ERROR;
                         displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
                                 ": " + e.getMessage());
-                        System.exit(1);
                     }
                     break;
                 case ACTION.REMOVE:
                     try {
                         System.out.println("-> Removing " + pluginName + " ");
                         pluginManager.removePlugin(pluginName);
+                        exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {
+                        exitCode = EXIT_CODE_IO_ERROR;
                         System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
+                        exitCode = EXIT_CODE_ERROR;
                         displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
                                 ": " + e.getMessage());
                     }
                     break;
                 case ACTION.LIST:
-                    pluginManager.listInstalledPlugins();
+                    try {
+                        pluginManager.listInstalledPlugins();
+                        exitCode = EXIT_CODE_OK;
+                    } catch (Throwable e) {
+                        displayHelp("Error while listing plugins, reason: " + e.getClass().getSimpleName() +
+                                ": " + e.getMessage());
+                    }
                     break;
+                    
+                default:
+                    System.out.println("Unknown Action [" + action + "]");
+                    exitCode = EXIT_CODE_ERROR;
+
             }
+            System.exit(exitCode); // exit here!
         }
     }
 

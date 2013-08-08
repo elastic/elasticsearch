@@ -91,6 +91,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private volatile int termIndexInterval;
     private volatile int termIndexDivisor;
     private volatile int indexConcurrency;
+    private volatile boolean compoundOnFlush = true;
+
     private long gcDeletesInMillis;
     private volatile boolean enableGcDeletes = true;
     private volatile String codecName;
@@ -183,7 +185,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.analysisService = analysisService;
         this.similarityService = similarityService;
         this.codecService = codecService;
-
+        this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
         this.versionMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
@@ -1292,6 +1294,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
             config.setCodec(codecService.codec(codecName));
+            config.setUseCompoundFile(this.compoundOnFlush);
             indexWriter = new IndexWriter(store.directory(), config);
         } catch (IOException e) {
             safeClose(indexWriter);
@@ -1303,10 +1306,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
     public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
+    public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
 
     class ApplySettings implements IndexSettingsService.Listener {
+
         @Override
         public void onRefreshSettings(Settings settings) {
             long gcDeletesInMillis = settings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
@@ -1315,6 +1320,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 RobinEngine.this.gcDeletesInMillis = gcDeletesInMillis;
             }
 
+            final boolean compoundOnFlush = settings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, RobinEngine.this.compoundOnFlush);
+            if (compoundOnFlush != RobinEngine.this.compoundOnFlush) {
+                logger.info("updating {} from [{}] to [{}]", RobinEngine.INDEX_COMPOUND_ON_FLUSH, RobinEngine.this.compoundOnFlush, compoundOnFlush);
+                RobinEngine.this.compoundOnFlush = compoundOnFlush;
+                indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
+            }
+            
             int termIndexInterval = settings.getAsInt(INDEX_TERM_INDEX_INTERVAL, RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt(INDEX_TERM_INDEX_DIVISOR, RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);

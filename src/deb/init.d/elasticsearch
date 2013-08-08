@@ -19,8 +19,6 @@
 # Description:       Starts elasticsearch using start-stop-daemon
 ### END INIT INFO
 
-set -e
-
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
 NAME=elasticsearch
 DESC="ElasticSearch Server"
@@ -113,7 +111,6 @@ export ES_JAVA_OPTS
 test -x $DAEMON || exit 0
 
 checkJava() {
-	set +e
 	if [ -x "$JAVA_HOME/bin/java" ]; then
 		JAVA="$JAVA_HOME/bin/java"
 	else
@@ -124,7 +121,6 @@ checkJava() {
 		echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
 		exit 1
 	fi
-	set -e
 }
 
 case "$1" in
@@ -138,43 +134,32 @@ case "$1" in
 
 	log_daemon_msg "Starting $DESC"
 
-	set +e
-	start-stop-daemon --status --pidfile "$PID_FILE" >/dev/null
-	if [ "$?" != "0" ]; then
-		# Prepare environment
-		mkdir -p "$LOG_DIR" "$DATA_DIR" "$WORK_DIR" && chown "$ES_USER":"$ES_GROUP" "$LOG_DIR" "$DATA_DIR" "$WORK_DIR"
-		touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"
-
-		if [ -n "$MAX_OPEN_FILES" ]; then
-			ulimit -n $MAX_OPEN_FILES
-		fi
-
-		if [ -n "$MAX_LOCKED_MEMORY" ]; then
-			ulimit -l $MAX_LOCKED_MEMORY
-		fi
-
-		# Start Daemon
-		start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
-
-		sleep 1
-		start-stop-daemon --status --pidfile "$PID_FILE" >/dev/null
-		if [ "$?" != "0" ]; then
-			if [ -f "$PID_FILE" ]; then
-				rm -f "$PID_FILE"
-			fi
-			log_end_msg 1
-		else
-			log_end_msg 0
-		fi
-	else
-	    log_progress_msg "(already running)"
-	    log_end_msg 0
+	pid=$( pidofproc -p $PID_FILE elasticsearch)
+	if [ -n "$pid" ] ; then
+		log_begin_msg "Already running."
+		log_end_msg 0
+		exit 0
 	fi
+
+	# Prepare environment
+	mkdir -p "$LOG_DIR" "$DATA_DIR" "$WORK_DIR" && chown "$ES_USER":"$ES_GROUP" "$LOG_DIR" "$DATA_DIR" "$WORK_DIR"
+	touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"
+
+	if [ -n "$MAX_OPEN_FILES" ]; then
+		ulimit -n $MAX_OPEN_FILES
+	fi
+
+	if [ -n "$MAX_LOCKED_MEMORY" ]; then
+		ulimit -l $MAX_LOCKED_MEMORY
+	fi
+
+	# Start Daemon
+	start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
+	log_end_msg $?
 	;;		
   stop)
 	log_daemon_msg "Stopping $DESC"
 
-	set +e
 	if [ -f "$PID_FILE" ]; then 
 		start-stop-daemon --stop --pidfile "$PID_FILE" \
 			--user "$ES_USER" \
@@ -191,23 +176,9 @@ case "$1" in
 		log_progress_msg "(not running)"
 	fi
 	log_end_msg 0
-	set -e
 	;;
   status)
-	set +e
-	start-stop-daemon --status --pidfile "$PID_FILE" >/dev/null 2>&1
-	if [ "$?" != "0" ]; then
-		if [ -f "$PID_FILE" ]; then
-		    log_success_msg "$DESC is not running, but pid file exists."
-			exit 1
-		else
-		    log_success_msg "$DESC is not running."
-			exit 3
-		fi
-	else
-		log_success_msg "$DESC is running with pid `cat $PID_FILE`"
-	fi
-	set -e
+	status_of_proc -p $PID_FILE elasticsearch elasticsearch && exit 0 || exit $?
     ;;
   restart|force-reload)
 	if [ -f "$PID_FILE" ]; then

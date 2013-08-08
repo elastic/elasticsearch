@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.unit.index.engine;
+package org.elasticsearch.test.unit.index.engine.robin;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
@@ -30,12 +30,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.robin.RobinEngine;
+import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
@@ -44,13 +51,16 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.elasticsearch.test.unit.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
+import org.elasticsearch.test.unit.index.engine.EngineSearcherTotalHitsMatcher;
 import org.elasticsearch.test.unit.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -69,13 +79,12 @@ import java.util.concurrent.Future;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public abstract class AbstractSimpleEngineTests {
+public class RobinEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -87,16 +96,28 @@ public abstract class AbstractSimpleEngineTests {
     protected Engine engine;
     protected Engine replicaEngine;
 
+    private IndexSettingsService engineSettingsService;
+
+    private IndexSettingsService replicaSettingsService;
+    
+    private Settings defaultSettings;
+    
+
     @Before
     public void setUp() throws Exception {
+        defaultSettings = ImmutableSettings.builder()
+                .put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .build(); // TODO randomize more settings
         threadPool = new ThreadPool();
         store = createStore();
         store.deleteContent();
         storeReplica = createStoreReplica();
         storeReplica.deleteContent();
-        engine = createEngine(store, createTranslog());
+        engineSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
+        engine = createEngine(engineSettingsService, store, createTranslog());
         engine.start();
-        replicaEngine = createEngine(storeReplica, createTranslogReplica());
+        replicaSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
+        replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
         replicaEngine.start();
     }
 
@@ -164,8 +185,10 @@ public abstract class AbstractSimpleEngineTests {
         return new SerialMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
     }
 
-    protected abstract Engine createEngine(Store store, Translog translog);
-
+    protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog) {
+        return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), createMergeScheduler(),
+                new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+    }
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
     protected static final BytesReference B_2 = new BytesArray(new byte[]{2});
     protected static final BytesReference B_3 = new BytesArray(new byte[]{3});
@@ -174,6 +197,7 @@ public abstract class AbstractSimpleEngineTests {
     public void testSegments() throws Exception {
         List<Segment> segments = engine.segments();
         assertThat(segments.isEmpty(), equalTo(true));
+        final boolean defaultCompound = defaultSettings.getAsBoolean(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
@@ -189,6 +213,7 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
         engine.flush(new Engine.Flush());
 
@@ -198,7 +223,9 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-
+        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        
+        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, false).build());
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
@@ -211,11 +238,15 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+
 
         assertThat(segments.get(1).isCommitted(), equalTo(false));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+        assertThat(segments.get(1).isCompound(), equalTo(false));
+
 
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
         engine.refresh(new Engine.Refresh(true));
@@ -227,13 +258,41 @@ public abstract class AbstractSimpleEngineTests {
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(1));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
         assertThat(segments.get(1).isCommitted(), equalTo(false));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-    }
+        assertThat(segments.get(1).isCompound(), equalTo(false));
+        
+        engineSettingsService.refreshSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH,  true).build());
+        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
+        engine.create(new Engine.Create(null, newUid("4"), doc4));
+        engine.refresh(new Engine.Refresh(true));
+        
+        segments = engine.segments();
+        assertThat(segments.size(), equalTo(3));
+        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+        assertThat(segments.get(0).isCommitted(), equalTo(true));
+        assertThat(segments.get(0).isSearch(), equalTo(true));
+        assertThat(segments.get(0).getNumDocs(), equalTo(1));
+        assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
+        assertThat(segments.get(1).isCommitted(), equalTo(false));
+        assertThat(segments.get(1).isSearch(), equalTo(true));
+        assertThat(segments.get(1).getNumDocs(), equalTo(1));
+        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+        assertThat(segments.get(1).isCompound(), equalTo(false));
+        
+        assertThat(segments.get(2).isCommitted(), equalTo(false));
+        assertThat(segments.get(2).isSearch(), equalTo(true));
+        assertThat(segments.get(2).getNumDocs(), equalTo(1));
+        assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
+        assertThat(segments.get(2).isCompound(), equalTo(true));
+    }
+    
     @Test
     public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = engine.searcher();

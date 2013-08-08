@@ -83,7 +83,7 @@ public class SimpleTTLTests extends AbstractNodesTests {
         long ttl0;
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(0L));
+            assertThat(ttl0, greaterThan(-purgeInterval));
             assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
         } else {
             assertTrue((providedTTLValue - (currentTime - now)) < 0);

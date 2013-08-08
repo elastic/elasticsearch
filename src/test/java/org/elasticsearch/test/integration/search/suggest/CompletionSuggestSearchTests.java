@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.search.suggest.Suggest;
@@ -53,7 +54,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     private static final String INDEX = "test";
     private static final String TYPE = "testType";
     private static final String FIELD = "testField";
-
+    
     @Test
     public void testSimple() throws Exception{
         createIndexAndMapping();
@@ -289,10 +290,18 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testThatUpgradeToMultiFieldWorks() throws Exception {
-        client().admin().indices().prepareDelete().get();
         Settings.Builder settingsBuilder = createDefaultSettings();
-
-        client().admin().indices().prepareCreate(INDEX).setSettings(settingsBuilder).get();
+        final XContentBuilder mapping =  jsonBuilder()
+                .startObject()
+                .startObject(TYPE)
+                    .startObject("properties")
+                        .startObject(FIELD)
+                           .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
         ensureYellow();
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
 

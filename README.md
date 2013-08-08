@@ -3,12 +3,14 @@ ICU Analysis for ElasticSearch
 
 The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-icu/1.10.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-icu/1.11.0`.
 
     -----------------------------------------------
     | ICU Analysis Plugin      | ElasticSearch    |
     -----------------------------------------------
-    | 1.11.0-SNAPSHOT (master) | 0.90.3 -> master |
+    | 1.12.0-SNAPSHOT (master) | 0.90.3 -> master |
+    -----------------------------------------------
+    | 1.11.0                   | 0.90.3 -> master |
     -----------------------------------------------
     | 1.10.0                   | 0.90.1 -> 0.90.2 |
     -----------------------------------------------

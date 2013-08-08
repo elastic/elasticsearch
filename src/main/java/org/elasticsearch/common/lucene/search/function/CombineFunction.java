@@ -30,7 +30,7 @@ public enum CombineFunction {
         }
 
         @Override
-        public String toString() {
+        public String getName() {
             return "mult";
         }
 
@@ -54,7 +54,7 @@ public enum CombineFunction {
         }
 
         @Override
-        public String toString() {
+        public String getName() {
             return "plain";
         }
 
@@ -73,6 +73,8 @@ public enum CombineFunction {
     };
 
     public abstract float combine(double queryBoost, double queryScore, double funcScore, double maxBoost);
+    
+    public abstract String getName();
 
     public static float toFloat(double input) {
         assert deviation(input) <= 0.001 : "input " + input + " out of float scope for function score deviation: " + deviation(input);

@@ -79,18 +79,20 @@ public class FiltersFunctionScoreQuery extends Query {
     final ScoreMode scoreMode;
     final float maxBoost;
 
-    // TODO: We might want to expose the way the subQueryScore is altered
-    // (multiplied or added, etc) later.
-    protected final CombineFunction scoreCombiner;
+    protected CombineFunction combineFunction;
 
     public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
         this.maxBoost = maxBoost;
-        scoreCombiner = CombineFunction.MULT;
+        combineFunction = CombineFunction.MULT;
     }
 
+    public FiltersFunctionScoreQuery setCombineFunction(CombineFunction combineFunction){
+        this.combineFunction = combineFunction;
+        return this;
+    }
     public Query getSubQuery() {
         return subQuery;
     }
@@ -157,7 +159,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 filterFunction.function.setNextReader(context);
                 docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
-            return new CustomBoostFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, scoreCombiner);
+            return new CustomBoostFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction);
         }
 
         @Override
@@ -235,7 +237,7 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterExplanations.size(); i++) {
                 factorExplanaition.addDetail(filterExplanations.get(i));
             }
-            return scoreCombiner.explain(getBoost(), subQueryExpl, factorExplanaition, maxBoost);
+            return combineFunction.explain(getBoost(), subQueryExpl, factorExplanaition, maxBoost);
         }
     }
 

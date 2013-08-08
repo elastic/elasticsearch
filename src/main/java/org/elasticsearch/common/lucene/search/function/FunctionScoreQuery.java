@@ -37,16 +37,16 @@ public class FunctionScoreQuery extends Query {
     Query subQuery;
     final ScoreFunction function;
     float maxBoost = Float.MAX_VALUE;
-    CombineFunction scoreCombiner;
+    CombineFunction combineFunction;
     
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
-        this.scoreCombiner = function.getDefaultScoreCombiner();
+        this.combineFunction = function.getDefaultScoreCombiner();
     }
 
-    public void setScoreCombiner(CombineFunction scoreCombiner) {
-        this.scoreCombiner = scoreCombiner;
+    public void setCombineFunction(CombineFunction combineFunction) {
+        this.combineFunction = combineFunction;
     }
     
     public void setMaxBoost(float maxBoost) {
@@ -118,7 +118,7 @@ public class FunctionScoreQuery extends Query {
                 return null;
             }
             function.setNextReader(context);
-            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost, scoreCombiner);
+            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction);
         }
 
         @Override
@@ -129,7 +129,7 @@ public class FunctionScoreQuery extends Query {
             }
             function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
-            return scoreCombiner.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
         }
     }
 

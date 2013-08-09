@@ -59,9 +59,10 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         public static final XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
         public static final XContentBuilderString SUM_TTF = new XContentBuilderString("sum_ttf");
 
-        public static final XContentBuilderString POS = new XContentBuilderString("pos");
-        public static final XContentBuilderString START_OFFSET = new XContentBuilderString("start");
-        public static final XContentBuilderString END_OFFSET = new XContentBuilderString("end");
+        public static final XContentBuilderString TOKENS = new XContentBuilderString("tokens");
+        public static final XContentBuilderString POS = new XContentBuilderString("position");
+        public static final XContentBuilderString START_OFFSET = new XContentBuilderString("start_offset");
+        public static final XContentBuilderString END_OFFSET = new XContentBuilderString("end_offset");
         public static final XContentBuilderString PAYLOAD = new XContentBuilderString("payload");
         public static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         public static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
@@ -231,16 +232,27 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
     }
 
     private void buildValues(XContentBuilder builder, Terms curTerms, int termFreq) throws IOException {
-        if (curTerms.hasPositions()) {
-            builder.field(FieldStrings.POS, 0, termFreq, curentPositions);
+        if (!(curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions())) {
+            return;
         }
-        if (curTerms.hasOffsets()) {
-            builder.field(FieldStrings.START_OFFSET, 0, termFreq, currentStartOffset);
-            builder.field(FieldStrings.END_OFFSET, 0, termFreq, currentEndOffset);
+
+        builder.startArray(FieldStrings.TOKENS);
+        for (int i = 0; i < termFreq; i++) {
+            builder.startObject();
+            if (curTerms.hasPositions()) {
+                builder.field(FieldStrings.POS, curentPositions[i]);
+            }
+            if (curTerms.hasOffsets()) {
+                builder.field(FieldStrings.START_OFFSET, currentStartOffset[i]);
+                builder.field(FieldStrings.END_OFFSET, currentEndOffset[i]);
+            }
+            if (curTerms.hasPayloads()) {
+                builder.field(FieldStrings.PAYLOAD, currentPayloads[i]);
+            }
+            builder.endObject();
         }
-        if (curTerms.hasPayloads()) {
-            builder.array(FieldStrings.PAYLOAD, (Object[]) currentPayloads);
-        }
+        builder.endArray();
+
     }
 
     private void initValues(Terms curTerms, DocsAndPositionsEnum posEnum, int termFreq) throws IOException {

@@ -323,6 +323,11 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return client().prepareIndex(index, type).setSource(source).execute().actionGet();
     }
 
+    protected IndexResponse index(String index, String type, String id, Map<String, Object> source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    }
+
+
     protected GetResponse get(String index, String type, String id) {
         return client().prepareGet(index, type, id).execute().actionGet();
     }

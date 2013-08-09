@@ -300,8 +300,8 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
             builder.field(FieldStrings.SUM_TTF, sumTotalTermFrequencies);
             builder.endObject();
         } else if (docCount == -1) { // this should only be -1 if the field
-                                     // statistics were not requested at all. In
-                                     // this case all 3 values should be -1
+            // statistics were not requested at all. In
+            // this case all 3 values should be -1
             assert ((sumDocFreq == -1)) : "docCount was -1 but sumDocFreq ain't!";
             assert ((sumTotalTermFrequencies == -1)) : "docCount was -1 but sumTotalTermFrequencies ain't!";
         } else {
@@ -320,10 +320,11 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
          this.exists = exists;
     }
 
-    public void setFields(Fields fields, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
+    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
         TermVectorWriter tvw = new TermVectorWriter(this);
-        if (fields != null) {
-            tvw.setFields(fields, selectedFields, flags, topLevelFields);
+
+        if (termVectorsByField != null) {
+            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields);
         }
 
     }
@@ -340,6 +341,18 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
     public void setDocVersion(long version) {
         this.docVersion = version;
 
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public String getId() {
+        return id;
     }
 
 }

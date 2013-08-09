@@ -21,6 +21,8 @@ package org.elasticsearch.test.integration.search.sort;
 
 
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -29,7 +31,9 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
@@ -41,6 +45,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -99,6 +105,84 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getMaxScore(), not(equalTo(Float.NaN)));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.getScore(), not(equalTo(Float.NaN)));
+        }
+    }
+    
+    public void testRandomSorting() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
+        int numberOfShards = between(1, 10);
+        Random random = getRandom();
+        prepareCreate("test")
+                .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
+                .addMapping("type",
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                                .startObject("type")
+                                    .startObject("properties")
+                                        .startObject("sparse_bytes")
+                                            .field("type", "string")
+                                            .field("index", "not_analyzed")
+                                        .endObject()
+                                        .startObject("dense_bytes")
+                                            .field("type", "string")
+                                            .field("index", "not_analyzed")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()).execute().actionGet();
+        ensureGreen();
+
+        TreeMap<BytesRef, String> sparseBytes = new TreeMap<BytesRef, String>();
+        TreeMap<BytesRef, String> denseBytes = new TreeMap<BytesRef, String>();
+        int numDocs = atLeast(200);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            String docId = Integer.toString(i);
+            BytesRef ref = null;
+            do {
+                ref = new BytesRef(_TestUtil.randomRealisticUnicodeString(random));
+            } while (denseBytes.containsKey(ref));
+            denseBytes.put(ref, docId);
+            XContentBuilder src = jsonBuilder().startObject().field("dense_bytes", ref.utf8ToString());
+            if (rarely()) {
+                src.field("sparse_bytes", ref.utf8ToString());
+                sparseBytes.put(ref, docId);
+            }
+            src.endObject();
+            builders[i] = client().prepareIndex("test", "type", docId).setSource(src);
+        }
+        indexRandom("test", true, builders);
+        {
+            int size = between(1, denseBytes.size());
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(size)
+                    .addSort("dense_bytes", SortOrder.ASC).execute().actionGet();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo((long) numDocs));
+            assertThat(searchResponse.getHits().hits().length, equalTo(size));
+            Set<Entry<BytesRef, String>> entrySet = denseBytes.entrySet();
+            Iterator<Entry<BytesRef, String>> iterator = entrySet.iterator();
+            for (int i = 0; i < size; i++) {
+                assertThat(iterator.hasNext(), equalTo(true));
+                Entry<BytesRef, String> next = iterator.next();
+                assertThat("pos: " + i, searchResponse.getHits().getAt(i).id(), equalTo(next.getValue()));
+                assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(next.getKey().utf8ToString()));
+            }
+        }
+        if (!sparseBytes.isEmpty()) {
+            int size = between(1, sparseBytes.size());
+            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery())
+                    .setFilter(FilterBuilders.existsFilter("sparse_bytes")).setSize(size).addSort("sparse_bytes", SortOrder.ASC).execute()
+                    .actionGet();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo((long) sparseBytes.size()));
+            assertThat(searchResponse.getHits().hits().length, equalTo(size));
+            Set<Entry<BytesRef, String>> entrySet = sparseBytes.entrySet();
+            Iterator<Entry<BytesRef, String>> iterator = entrySet.iterator();
+            for (int i = 0; i < size; i++) {
+                assertThat(iterator.hasNext(), equalTo(true));
+                Entry<BytesRef, String> next = iterator.next();
+                assertThat(searchResponse.getHits().getAt(i).id(), equalTo(next.getValue()));
+                assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(next.getKey().utf8ToString()));
+            }
         }
     }
     
@@ -267,21 +351,8 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testSimpleSortsSingleShard() throws Exception {
-        testSimpleSorts(1);
-    }
-
-    @Test
-    public void testSimpleSortsTwoShards() throws Exception {
-        testSimpleSorts(2);
-    }
-
-    @Test
-    public void testSimpleSortsThreeShards() throws Exception {
-        testSimpleSorts(3);
-    }
-
-    private void testSimpleSorts(int numberOfShards) throws Exception {
+    public void testSimpleSorts() throws Exception {
+        final int numberOfShards = between(1, 10);
         Random random = getRandom();
         prepareCreate("test")
                 .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))

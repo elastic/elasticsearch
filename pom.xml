@@ -79,6 +79,14 @@
             <version>4.1.1</version>
         </dependency>
 
+        <!-- We need to explicitly set the common codec version since aws-java-sdk pulls the wrong version -->
+        <!-- See https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/29 -->
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.4</version>
+        </dependency>
+
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>

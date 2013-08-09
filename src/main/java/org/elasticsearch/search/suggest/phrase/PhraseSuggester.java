@@ -19,9 +19,6 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
-import java.io.IOException;
-import java.util.List;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.spell.DirectSpellChecker;
@@ -37,7 +34,10 @@ import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 
-public final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
+import java.io.IOException;
+import java.util.List;
+
+public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     
     /*
@@ -49,7 +49,7 @@ public final class PhraseSuggester implements Suggester<PhraseSuggestionContext>
      *   - phonetic filters could be interesting here too for candidate selection
      */
     @Override
-    public Suggestion<? extends Entry<? extends Option>> execute(String name, PhraseSuggestionContext suggestion,
+    public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexReader indexReader, CharsRef spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();

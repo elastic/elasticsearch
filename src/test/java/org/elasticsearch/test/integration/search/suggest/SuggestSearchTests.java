@@ -240,6 +240,9 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type1", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
@@ -1076,6 +1079,53 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(suggest.getSuggestion("simple").getName(), equalTo("simple"));
         assertThat(suggest.getSuggestion("simple").getEntries().size(), equalTo(1));
         assertThat(suggest.getSuggestion("simple").getEntries().get(0).getOptions().size(), equalTo(3));
+    }
+
+    @Test // see #3469
+    public void testEmptyShards() throws IOException, InterruptedException {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", 5).put("index.number_of_replicas", 0);
+        builder.put("index.analysis.analyzer.suggest.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler");
+        builder.put("index.analysis.filter.shingler.type", "shingle");
+        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
+        builder.put("index.analysis.filter.shingler.max_shingle_size", 5);
+        builder.put("index.analysis.filter.shingler.output_unigrams", true);
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "multi_field")
+                .field("path", "just_name")
+                .startObject("fields")
+                .startObject("name")
+                .field("type", "string")
+                .field("analyzer", "suggest")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type2", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type2", "2")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "Just testing the suggestions api").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title").endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+        suggestBuilder.setSuggestText("tetsting sugestion");
+        suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f));
+        SearchResponse searchResponse = suggestBuilder.execute().actionGet();
+
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
     }
 
 }

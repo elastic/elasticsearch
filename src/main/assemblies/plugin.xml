@@ -21,6 +21,7 @@
             <includes>
                 <include>com.amazonaws:aws-java-sdk</include>
                 <include>org.apache.httpcomponents:httpclient</include>
+                <include>commons-codec:commons-codec</include>
             </includes>
         </dependencySet>
     </dependencySets>

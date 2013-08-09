@@ -1,0 +1,10 @@
+# Replace this access_key / secret_key with your own if you want
+# to run tests
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+
+discovery:
+    type: ec2
+

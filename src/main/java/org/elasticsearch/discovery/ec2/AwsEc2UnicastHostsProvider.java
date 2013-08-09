@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.*;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -179,7 +180,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                             // we only limit to 1 addresses, makes no sense to ping 100 ports
                             for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
                                 logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                                discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i]));
+                                discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], Version.CURRENT));
                             }
                         } catch (Exception e) {
                             logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);

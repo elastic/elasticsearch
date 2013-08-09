@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cloud.aws.network;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.Closeables;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
 
@@ -117,7 +117,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
             }
             return null;
         } finally {
-            Closeables.closeQuietly(in);
+            IOUtils.closeWhileHandlingException(in);
         }
     }
 

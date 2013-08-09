@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.search.suggest.term;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.spell.DirectSpellChecker;
@@ -37,10 +33,14 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
-public final class TermSuggester implements Suggester<TermSuggestionContext> {
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
     @Override
-    public TermSuggestion execute(String name, TermSuggestionContext suggestion, IndexReader indexReader, CharsRef spare) throws IOException {
+    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexReader indexReader, CharsRef spare) throws IOException {
         DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(suggestion.getDirectSpellCheckerSettings());
 
         TermSuggestion response = new TermSuggestion(

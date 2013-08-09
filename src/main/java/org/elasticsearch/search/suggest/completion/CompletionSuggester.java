@@ -31,9 +31,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestContextParser;
-import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.*;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 
 import java.io.IOException;
@@ -42,14 +40,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-public class CompletionSuggester implements Suggester<CompletionSuggestionContext> {
+public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
     private static final ScoreComparator scoreComparator = new ScoreComparator();
 
-    @Override
-    public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> execute(String name,
-            CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
 
+    @Override
+    protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
+            CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
         if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
             throw new ElasticSearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
@@ -70,7 +68,7 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
                 Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
                 List<Lookup.LookupResult> lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
                 for (Lookup.LookupResult res : lookupResults) {
-                    
+
                     final String key = res.key.toString();
                     final float score = res.value;
                     final Option value = results.get(key);
@@ -79,8 +77,8 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
                                 : new BytesArray(res.payload));
                         results.put(key, option);
                     } else if (value.getScore() < score) {
-                            value.setScore(score);
-                            value.setPayload(res.payload == null ? null : new BytesArray(res.payload));
+                        value.setScore(score);
+                        value.setPayload(res.payload == null ? null : new BytesArray(res.payload));
                     }
                 }
             }

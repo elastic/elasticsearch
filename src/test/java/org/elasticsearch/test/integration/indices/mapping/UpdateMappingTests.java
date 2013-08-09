@@ -112,7 +112,10 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
     @SuppressWarnings("unchecked")
     @Test
     public void updateDefaultMappingSettings() throws Exception {
-        client().admin().indices().prepareCreate("test").addMapping(MapperService.DEFAULT_MAPPING,
+
+        // TODO: bleskes: move back to combined index and mapping creation (pending bug fix concerning concurrent not-acked mapping requests)
+        createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .field("date_detection", false)
                         .endObject().endObject()

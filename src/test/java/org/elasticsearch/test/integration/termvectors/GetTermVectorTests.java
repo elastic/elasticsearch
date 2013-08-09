@@ -49,25 +49,29 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
-import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.*;
 import java.util.*;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetTermVectorTests extends AbstractSharedClusterTest {
+public class GetTermVectorTests extends AbstractTermVectorTests {
 
     @Test
     public void streamTest() throws Exception {
 
+        //TODO: unit tests rather than integration?
         TermVectorResponse outResponse = new TermVectorResponse("a", "b", "c");
         outResponse.setExists(true);
         writeStandardTermVector(outResponse);
@@ -167,14 +171,14 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields fields = dr.getTermVectors(doc);
+        Fields termVectors = dr.getTermVectors(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
-        outResponse.setFields(fields, null, flags, fields);
+        outResponse.setFields(termVectors, null, flags, termVectors);
 
     }
 
     private Fields buildWithLuceneAndReturnFields(String docId, String[] fields, String[] content, boolean[] withPositions,
-            boolean[] withOffsets, boolean[] withPayloads) throws IOException {
+                                                  boolean[] withOffsets, boolean[] withPayloads) throws IOException {
         assert (fields.length == withPayloads.length);
         assert (content.length == withPayloads.length);
         assert (withPositions.length == withPayloads.length);
@@ -188,6 +192,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
                     protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
                         Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, reader);
                         TokenFilter filter = new LowerCaseFilter(TEST_VERSION_CURRENT, tokenizer);
+
                         filter = new TypeAsPayloadTokenFilter(filter);
                         return new TokenStreamComponents(tokenizer, filter);
                     }
@@ -234,8 +239,11 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     public void testRestRequestParsing() throws Exception {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
+
         TermVectorRequest tvr = new TermVectorRequest(null, null, null);
-        RestTermVectorAction.parseRequest(inputBytes, tvr);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        TermVectorRequest.parseRequest(tvr, parser);
+
         Set<String> fields = tvr.selectedFields();
         assertThat(fields.contains("a"), equalTo(true));
         assertThat(fields.contains("b"), equalTo(true));
@@ -254,7 +262,8 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
 
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorRequest(null, null, null);
-        RestTermVectorAction.parseRequest(inputBytes, tvr);
+        parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        TermVectorRequest.parseRequest(tvr, parser);
         additionalFields = "";
         RestTermVectorAction.addFieldStringsFromParameter(tvr, additionalFields);
         assertThat(tvr.selectedFields(), equalTo(null));
@@ -265,13 +274,14 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testRestRequestParsingThrowsException() throws Exception {
+    public void testRequestParsingThrowsException() throws Exception {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
         TermVectorRequest tvr = new TermVectorRequest(null, null, null);
         boolean threwException = false;
         try {
-            RestTermVectorAction.parseRequest(inputBytes, tvr);
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+            TermVectorRequest.parseRequest(tvr, parser);
         } catch (Exception e) {
             threwException = true;
         }
@@ -282,8 +292,8 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     @Test
     public void testNoSuchDoc() throws Exception {
 
-        run(addMapping(prepareCreate("test"), "type1", new Object[] { "field", "type", "string", "term_vector",
-                "with_positions_offsets_payloads" }));
+        run(addMapping(prepareCreate("test"), "type1", new Object[]{"field", "type", "string", "term_vector",
+                "with_positions_offsets_payloads"}));
 
         ensureYellow();
 
@@ -346,7 +356,7 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     public void testSimpleTermVectors() throws ElasticSearchException, IOException {
 
         run(addMapping(prepareCreate("test"), "type1",
-                new Object[] { "field", "type", "string", "term_vector", "with_positions_offsets_payloads", "analyzer", "tv_test" })
+                new Object[]{"field", "type", "string", "term_vector", "with_positions_offsets_payloads", "analyzer", "tv_test"})
                 .setSettings(
                         ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                                 .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
@@ -354,16 +364,16 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
-                    // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
-                    // 31the34 35lazy39 40dog43
+                            // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
+                            // 31the34 35lazy39 40dog43
                             .endObject()).execute().actionGet();
             refresh();
         }
-        String[] values = { "brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the" };
-        int[] freq = { 1, 1, 1, 1, 1, 1, 1, 2 };
-        int[][] pos = { { 2 }, { 8 }, { 3 }, { 4 }, { 7 }, { 5 }, { 1 }, { 0, 6 } };
-        int[][] startOffset = { { 10 }, { 40 }, { 16 }, { 20 }, { 35 }, { 26 }, { 4 }, { 0, 31 } };
-        int[][] endOffset = { { 15 }, { 43 }, { 19 }, { 25 }, { 39 }, { 30 }, { 9 }, { 3, 34 } };
+        String[] values = {"brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the"};
+        int[] freq = {1, 1, 1, 1, 1, 1, 1, 2};
+        int[][] pos = {{2}, {8}, {3}, {4}, {7}, {5}, {1}, {0, 6}};
+        int[][] startOffset = {{10}, {40}, {16}, {20}, {35}, {26}, {4}, {0, 31}};
+        int[][] endOffset = {{15}, {43}, {19}, {25}, {39}, {30}, {9}, {3, 34}};
         for (int i = 0; i < 10; i++) {
             TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i)).setPayloads(true)
                     .setOffsets(true).setPositions(true).setSelectedFields();
@@ -413,36 +423,36 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
         boolean storePayloads = false;
         boolean storeTermVectors = false;
         switch (config) {
-        case 0: {
-            // do nothing
-        }
-        case 1: {
-            storeTermVectors = true;
-        }
-        case 2: {
-            storeTermVectors = true;
-            storePositions = true;
-        }
-        case 3: {
-            storeTermVectors = true;
-            storeOffsets = true;
-        }
-        case 4: {
-            storeTermVectors = true;
-            storePositions = true;
-            storeOffsets = true;
-        }
-        case 5: {
-            storeTermVectors = true;
-            storePositions = true;
-            storePayloads = true;
-        }
-        case 6: {
-            storeTermVectors = true;
-            storePositions = true;
-            storeOffsets = true;
-            storePayloads = true;
-        }
+            case 0: {
+                // do nothing
+            }
+            case 1: {
+                storeTermVectors = true;
+            }
+            case 2: {
+                storeTermVectors = true;
+                storePositions = true;
+            }
+            case 3: {
+                storeTermVectors = true;
+                storeOffsets = true;
+            }
+            case 4: {
+                storeTermVectors = true;
+                storePositions = true;
+                storeOffsets = true;
+            }
+            case 5: {
+                storeTermVectors = true;
+                storePositions = true;
+                storePayloads = true;
+            }
+            case 6: {
+                storeTermVectors = true;
+                storePositions = true;
+                storeOffsets = true;
+                storePayloads = true;
+            }
         }
         ft.setStoreTermVectors(storeTermVectors);
         ft.setStoreTermVectorOffsets(storeOffsets);
@@ -451,23 +461,23 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
 
         String optionString = AbstractFieldMapper.termVectorOptionsToString(ft);
         run(addMapping(prepareCreate("test"), "type1",
-                new Object[] { "field", "type", "string", "term_vector", optionString, "analyzer", "tv_test" }).setSettings(
+                new Object[]{"field", "type", "string", "term_vector", optionString, "analyzer", "tv_test"}).setSettings(
                 ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureYellow();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
-                    // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
-                    // 31the34 35lazy39 40dog43
+                            // 0the3 4quick9 10brown15 16fox19 20jumps25 26over30
+                            // 31the34 35lazy39 40dog43
                             .endObject()).execute().actionGet();
             refresh();
         }
-        String[] values = { "brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the" };
-        int[] freq = { 1, 1, 1, 1, 1, 1, 1, 2 };
-        int[][] pos = { { 2 }, { 8 }, { 3 }, { 4 }, { 7 }, { 5 }, { 1 }, { 0, 6 } };
-        int[][] startOffset = { { 10 }, { 40 }, { 16 }, { 20 }, { 35 }, { 26 }, { 4 }, { 0, 31 } };
-        int[][] endOffset = { { 15 }, { 43 }, { 19 }, { 25 }, { 39 }, { 30 }, { 9 }, { 3, 34 } };
+        String[] values = {"brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the"};
+        int[] freq = {1, 1, 1, 1, 1, 1, 1, 2};
+        int[][] pos = {{2}, {8}, {3}, {4}, {7}, {5}, {1}, {0, 6}};
+        int[][] startOffset = {{10}, {40}, {16}, {20}, {35}, {26}, {4}, {0, 31}};
+        int[][] endOffset = {{15}, {43}, {19}, {25}, {39}, {30}, {9}, {3, 34}};
 
         boolean isPayloadRequested = random.nextBoolean();
         boolean isOffsetRequested = random.nextBoolean();
@@ -552,147 +562,31 @@ public class GetTermVectorTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testDuellESLucene() throws Exception {
+    public void testDuelESLucene() throws Exception {
+        TestFieldSetting[] testFieldSettings = getFieldSettings();
+        createIndexBasedOnFieldSettings(testFieldSettings, -1);
+        TestDoc[] testDocs = generateTestDocs(5, testFieldSettings);
 
-        String[] fieldNames = { "field_that_should_not_be_requested", "field_with_positions", "field_with_offsets", "field_with_only_tv",
-                "field_with_positions_offsets", "field_with_positions_payloads" };
-        run(addMapping(prepareCreate("test"), "type1",
-                new Object[] { fieldNames[0], "type", "string", "term_vector", "with_positions_offsets" },
-                new Object[] { fieldNames[1], "type", "string", "term_vector", "with_positions" },
-                new Object[] { fieldNames[2], "type", "string", "term_vector", "with_offsets" },
-                new Object[] { fieldNames[3], "type", "string", "store_term_vectors", "yes" },
-                new Object[] { fieldNames[4], "type", "string", "term_vector", "with_positions_offsets" },
-                new Object[] { fieldNames[5], "type", "string", "term_vector", "with_positions_payloads", "analyzer", "tv_test" })
-                .setSettings(
-                        ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.tv_test.tokenizer", "standard")
-                                .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+//        for (int i=0;i<testDocs.length;i++)
+//            logger.info("Doc: {}",testDocs[i]);
+        DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
+        TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
-        ensureYellow();
-        // ginge auc mit XContentBuilder xcb = new XContentBuilder();
-
-        // now, create the same thing with lucene and see if the returned stuff
-        // is the same
-
-        String[] fieldContent = { "the quick shard jumps over the stupid brain", "here is another field",
-                "And yet another field withut any use.", "I am out of ideas on what to type here.",
-                "The last field for which offsets are stored but not positons.",
-                "The last field for which offsets are stored but not positons." };
-
-        boolean[] storeOffsets = { true, false, true, false, true, false };
-        boolean[] storePositions = { true, true, false, false, true, true };
-        boolean[] storePayloads = { false, false, false, false, false, true };
-        Map<String, Object> testSource = new HashMap<String, Object>();
-
-        for (int i = 0; i < fieldNames.length; i++) {
-            testSource.put(fieldNames[i], fieldContent[i]);
-        }
-
-        client().prepareIndex("test", "type1", "1").setSource(testSource).execute().actionGet();
-        refresh();
-
-        String[] selectedFields = { fieldNames[1], fieldNames[2], fieldNames[3], fieldNames[4], fieldNames[5] };
-
-        testForConfig(fieldNames, fieldContent, storeOffsets, storePositions, storePayloads, selectedFields, false, false, false);
-        testForConfig(fieldNames, fieldContent, storeOffsets, storePositions, storePayloads, selectedFields, true, false, false);
-        testForConfig(fieldNames, fieldContent, storeOffsets, storePositions, storePayloads, selectedFields, false, true, false);
-        testForConfig(fieldNames, fieldContent, storeOffsets, storePositions, storePayloads, selectedFields, true, true, false);
-        testForConfig(fieldNames, fieldContent, storeOffsets, storePositions, storePayloads, selectedFields, true, false, true);
-        testForConfig(fieldNames, fieldContent, storeOffsets, storePositions, storePayloads, selectedFields, true, true, true);
-
-    }
-
-    private void testForConfig(String[] fieldNames, String[] fieldContent, boolean[] storeOffsets, boolean[] storePositions,
-            boolean[] storePayloads, String[] selectedFields, boolean withPositions, boolean withOffsets, boolean withPayloads)
-            throws IOException {
-        TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", "1").setPayloads(withPayloads).setOffsets(withOffsets)
-                .setPositions(withPositions).setFieldStatistics(true).setTermStatistics(true).setSelectedFields(selectedFields);
-        TermVectorResponse response = resp.execute().actionGet();
-
-        // build the same with lucene and compare the Fields
-        Fields luceneFields = buildWithLuceneAndReturnFields("1", fieldNames, fieldContent, storePositions, storeOffsets, storePayloads);
-
-        HashMap<String, Boolean> storeOfsetsMap = new HashMap<String, Boolean>();
-        HashMap<String, Boolean> storePositionsMap = new HashMap<String, Boolean>();
-        HashMap<String, Boolean> storePayloadsMap = new HashMap<String, Boolean>();
-        for (int i = 0; i < storePositions.length; i++) {
-            storeOfsetsMap.put(fieldNames[i], storeOffsets[i]);
-            storePositionsMap.put(fieldNames[i], storePositions[i]);
-            storePayloadsMap.put(fieldNames[i], storePayloads[i]);
-        }
-
-        compareLuceneESTermVectorResults(response.getFields(), luceneFields, storePositionsMap, storeOfsetsMap, storePayloadsMap,
-                withPositions, withOffsets, withPayloads, selectedFields);
-
-    }
-
-    private void compareLuceneESTermVectorResults(Fields fields, Fields luceneFields, HashMap<String, Boolean> storePositionsMap,
-            HashMap<String, Boolean> storeOfsetsMap, HashMap<String, Boolean> storePayloadsMap, boolean getPositions, boolean getOffsets,
-            boolean getPayloads, String[] selectedFields) throws IOException {
-        HashSet<String> selectedFieldsMap = new HashSet<String>(Arrays.asList(selectedFields));
-
-        Iterator<String> luceneFieldNames = luceneFields.iterator();
-        assertThat(luceneFields.size(), equalTo(storeOfsetsMap.size()));
-        assertThat(fields.size(), equalTo(selectedFields.length));
-
-        while (luceneFieldNames.hasNext()) {
-            String luceneFieldName = luceneFieldNames.next();
-            if (!selectedFieldsMap.contains(luceneFieldName))
-                continue;
-            Terms esTerms = fields.terms(luceneFieldName);
-            Terms luceneTerms = luceneFields.terms(luceneFieldName);
-            TermsEnum esTermEnum = esTerms.iterator(null);
-            TermsEnum luceneTermEnum = luceneTerms.iterator(null);
-
-            int numTerms = 0;
-
-            while (esTermEnum.next() != null) {
-                luceneTermEnum.next();
-                assertThat(esTermEnum.totalTermFreq(), equalTo(luceneTermEnum.totalTermFreq()));
-                DocsAndPositionsEnum esDocsPosEnum = esTermEnum.docsAndPositions(null, null, 0);
-                DocsAndPositionsEnum luceneDocsPosEnum = luceneTermEnum.docsAndPositions(null, null, 0);
-                if (luceneDocsPosEnum == null) {
-                    assertThat(storeOfsetsMap.get(luceneFieldName), equalTo(false));
-                    assertThat(storePayloadsMap.get(luceneFieldName), equalTo(false));
-                    assertThat(storePositionsMap.get(luceneFieldName), equalTo(false));
+        for (TestConfig test : testConfigs) {
+            try {
+                TermVectorRequestBuilder request = getRequestForConfig(test);
+                if (test.expectedException != null) {
+                    assertThrows(request, test.expectedException);
                     continue;
-
                 }
-                numTerms++;
 
-                assertThat("failed for field: " + luceneFieldName, esTermEnum.term().utf8ToString(), equalTo(luceneTermEnum.term()
-                        .utf8ToString()));
-                esDocsPosEnum.nextDoc();
-                luceneDocsPosEnum.nextDoc();
-
-                int freq = (int) esDocsPosEnum.freq();
-                assertThat(freq, equalTo(luceneDocsPosEnum.freq()));
-                for (int i = 0; i < freq; i++) {
-
-                    int lucenePos = luceneDocsPosEnum.nextPosition();
-                    int esPos = esDocsPosEnum.nextPosition();
-                    if (storePositionsMap.get(luceneFieldName) && getPositions) {
-                        assertThat(luceneFieldName, lucenePos, equalTo(esPos));
-                    } else {
-                        assertThat(esPos, equalTo(-1));
-                    }
-                    if (storeOfsetsMap.get(luceneFieldName) && getOffsets) {
-                        assertThat(luceneDocsPosEnum.startOffset(), equalTo(esDocsPosEnum.startOffset()));
-                        assertThat(luceneDocsPosEnum.endOffset(), equalTo(esDocsPosEnum.endOffset()));
-                    } else {
-                        assertThat(esDocsPosEnum.startOffset(), equalTo(-1));
-                        assertThat(esDocsPosEnum.endOffset(), equalTo(-1));
-                    }
-                    if (storePayloadsMap.get(luceneFieldName) && getPayloads) {
-                        assertThat(luceneFieldName, luceneDocsPosEnum.getPayload(), equalTo(esDocsPosEnum.getPayload()));
-                    } else {
-                        assertThat(esDocsPosEnum.getPayload(), equalTo(null));
-                    }
-
-                }
+                TermVectorResponse response = run(request);
+                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+                validateResponse(response, luceneTermVectors, test);
+            } catch (Throwable t) {
+                throw new Exception("Test exception while running " + test.toString(), t);
             }
-
         }
-
     }
 
     @Test

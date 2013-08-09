@@ -1,15 +1,22 @@
 package org.elasticsearch.test.integration.indices.mapping;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
+import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.*;
 
 public class UpdateMappingTests extends AbstractSharedClusterTest {
 
@@ -99,5 +106,59 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
         //no changes, we return
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
+    }
+
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void updateDefaultMappingSettings() throws Exception {
+        client().admin().indices().prepareCreate("test").addMapping(MapperService.DEFAULT_MAPPING,
+                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                        .field("date_detection", false)
+                        .endObject().endObject()
+        ).get();
+
+        ClusterStateResponse response = client().admin().cluster().prepareState().get();
+
+        Map<String, Object> defaultMapping = response.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+        assertThat(defaultMapping, hasKey("date_detection"));
+
+
+        // now remove it
+        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                        .endObject().endObject()
+        ).get();
+
+        response = client().admin().cluster().prepareState().get();
+        defaultMapping = response.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+        assertThat(defaultMapping, not(hasKey("date_detection")));
+
+        // now test you can change stuff that are normally unchangable
+        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                        .startObject("properties").startObject("f").field("type", "string").field("index", "analyzed").endObject().endObject()
+                        .endObject().endObject()
+        ).get();
+
+
+        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                        .startObject("properties").startObject("f").field("type", "string").field("index", "not_analyzed").endObject().endObject()
+                        .endObject().endObject()
+        ).get();
+        response = client().admin().cluster().prepareState().get();
+        defaultMapping = response.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+        Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
+        assertThat(fieldSettings, hasEntry("index", (Object) "not_analyzed"));
+
+        // but we still validate the _default_ type
+        assertThrows(client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+                        .startObject("properties").startObject("f").field("type", "DOESNT_EXIST").endObject().endObject()
+                        .endObject().endObject()
+        ), MapperParsingException.class);
+
+
     }
 }

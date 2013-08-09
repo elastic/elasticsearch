@@ -31,9 +31,9 @@
 
 # We set path here to use maven target dir
   path:
-      data: ${project.build.testOutputDirectory}/es/data
-      logs: ${project.build.testOutputDirectory}/es/logs
-      work: ${project.build.testOutputDirectory}/es/work
+      data: ${project.build.directory}/es/data
+      logs: ${project.build.directory}/es/logs
+      work: ${project.build.directory}/es/work
 
 # We don't need http layer for tests
   http.enabled: false

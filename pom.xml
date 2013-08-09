@@ -47,7 +47,7 @@ governing permissions and limitations under the License. -->
     </issueManagement>
 
     <properties>
-        <elasticsearch.version>0.90.2</elasticsearch.version>
+        <elasticsearch.version>0.90.3</elasticsearch.version>
         <google.gce.version>v1beta15-rev3-1.15.0-rc</google.gce.version>
         <google.api.version>1.15.0-rc</google.api.version>
     </properties>

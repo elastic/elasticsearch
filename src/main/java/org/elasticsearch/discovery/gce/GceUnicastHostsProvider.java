@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.gce;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -223,7 +224,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
                             logger.trace("adding {}, type {}, image {}, address {}, transport_address {}, status {}", name, type,
                                     image, ip_private, addresses[i], status);
-                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + i, addresses[i]));
+                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + i, addresses[i], Version.CURRENT));
                         }
                     }
                 } catch (Exception e) {

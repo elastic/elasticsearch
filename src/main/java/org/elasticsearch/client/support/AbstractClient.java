@@ -54,10 +54,7 @@ import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvector.TermVectorAction;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -294,7 +291,7 @@ public abstract class AbstractClient implements InternalClient {
     public MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id) {
         return new MoreLikeThisRequestBuilder(this, index, type, id);
     }
-    
+
     @Override
     public ActionFuture<TermVectorResponse> termVector(final TermVectorRequest request) {
         return execute(TermVectorAction.INSTANCE, request);
@@ -308,6 +305,21 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public TermVectorRequestBuilder prepareTermVector(String index, String type, String id) {
         return new TermVectorRequestBuilder(this, index, type, id);
+    }
+
+    @Override
+    public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
+        return execute(MultiTermVectorsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void multiTermVectors(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
+        execute(MultiTermVectorsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public MultiTermVectorsRequestBuilder prepareMultiTermVectors() {
+        return new MultiTermVectorsRequestBuilder(this);
     }
 
     @Override

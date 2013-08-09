@@ -177,7 +177,7 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
             if (requestPayloads) {
                 requested += "payload,";
             }
-            Locale aLocale = new Locale("en","US");
+            Locale aLocale = new Locale("en", "US");
             return String.format(aLocale, "(doc: %s\n requested: %s, fields: %s)",
                     doc, requested, selectedFields == null ? "NULL" : Join.join(",", selectedFields));
         }
@@ -399,7 +399,7 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
                 }
             }
 
-            assertNull(luceneTermEnum.next());
+            assertNull("Es returned terms are done but lucene isn't", luceneTermEnum.next());
 
         }
 

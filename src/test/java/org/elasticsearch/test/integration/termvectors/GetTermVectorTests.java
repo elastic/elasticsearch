@@ -38,6 +38,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
@@ -58,6 +59,11 @@ import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.hamcrest.Matchers;
 import org.junit.Test;
+
+import java.io.*;
+import java.util.*;
+
+import static org.hamcrest.Matchers.equalTo;
 
 import java.io.*;
 import java.util.*;
@@ -150,6 +156,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
         Directory dir = FSDirectory.open(new File("/tmp/foo"));
         IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
+
         conf.setOpenMode(OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);
         FieldType type = new FieldType(TextField.TYPE_STORED);
@@ -192,7 +199,6 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                     protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
                         Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, reader);
                         TokenFilter filter = new LowerCaseFilter(TEST_VERSION_CURRENT, tokenizer);
-
                         filter = new TypeAsPayloadTokenFilter(filter);
                         return new TokenStreamComponents(tokenizer, filter);
                     }
@@ -554,7 +560,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     private String createInfoString(boolean isPositionsRequested, boolean isOffsetRequested, boolean isPayloadRequested,
-            String optionString) {
+                                    String optionString) {
         String ret = "Store config: " + optionString + "\n" + "Requested: pos-"
                 + (isPositionsRequested ? "yes" : "no") + ", offsets-" + (isOffsetRequested ? "yes" : "no") + ", payload- "
                 + (isPayloadRequested ? "yes" : "no") + "\n";

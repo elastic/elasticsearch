@@ -46,9 +46,7 @@ import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -434,7 +432,7 @@ public interface Client {
      * @param listener A listener to be notified of the result
      */
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
-    
+
     /**
      * A more like this action to search for documents that are "like" a specific document.
      *
@@ -444,7 +442,7 @@ public interface Client {
      */
     MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
 
-    
+
     /**
      * An action that returns the term vectors for a specific document.
      *
@@ -470,6 +468,23 @@ public interface Client {
      * @param id    The id of the document
      */
     TermVectorRequestBuilder prepareTermVector(String index, String type, String id);
+
+
+    /**
+     * Multi get term vectors.
+     */
+    ActionFuture<MultiTermVectorsResponse> multiTermVectors(MultiTermVectorsRequest request);
+
+    /**
+     * Multi get term vectors.
+     */
+    void multiTermVectors(MultiTermVectorsRequest request, ActionListener<MultiTermVectorsResponse> listener);
+
+    /**
+     * Multi get term vectors.
+     */
+    MultiTermVectorsRequestBuilder prepareMultiTermVectors();
+
 
     /**
      * Percolates a request returning the matches documents.

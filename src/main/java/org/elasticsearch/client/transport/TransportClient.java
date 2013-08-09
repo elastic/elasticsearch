@@ -45,6 +45,8 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -440,8 +442,23 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
+    public ActionFuture<TermVectorResponse> termVector(TermVectorRequest request) {
+        return internalClient.termVector(request);
+    }
+
+    @Override
     public void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener) {
         internalClient.termVector(request, listener);
+    }
+
+    @Override
+    public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
+        return internalClient.multiTermVectors(request);
+    }
+
+    @Override
+    public void multiTermVectors(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
+        internalClient.multiTermVectors(request, listener);
     }
 
     @Override

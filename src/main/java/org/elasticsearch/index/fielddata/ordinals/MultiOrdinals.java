@@ -132,7 +132,7 @@ public class MultiOrdinals implements Ordinals {
 
         @Override
         public Ordinals ordinals() {
-            return null;
+            return this.ordinals;
         }
 
         @Override

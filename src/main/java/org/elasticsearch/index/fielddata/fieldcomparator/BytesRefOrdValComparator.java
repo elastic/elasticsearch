@@ -381,13 +381,13 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         final int docBase = context.docBase;
         termsIndex = indexFieldData.load(context).getBytesValues();
         FieldComparator<BytesRef> perSegComp = null;
+        assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
         if (termsIndex.isMultiValued()) {
             perSegComp = new MultiAnyOrdComparator(termsIndex);
         } else {
             final Ordinals.Docs docToOrd = termsIndex.ordinals();
-            Object ordsStorage = docToOrd.ordinals().getBackingStorage();
-
             if (docToOrd.ordinals().hasSingleArrayBackingStorage()) {
+                Object ordsStorage = docToOrd.ordinals().getBackingStorage();
                 if (ordsStorage instanceof byte[]) {
                     perSegComp = new ByteOrdComparator((byte[]) ordsStorage, termsIndex, docBase);
                 } else if (ordsStorage instanceof short[]) {

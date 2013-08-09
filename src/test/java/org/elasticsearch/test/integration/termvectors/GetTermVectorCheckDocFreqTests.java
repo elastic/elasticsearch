@@ -25,12 +25,9 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -38,53 +35,13 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetTermVectorTestsCheckDocFreq extends AbstractSharedClusterTest {
+public class GetTermVectorCheckDocFreqTests extends AbstractSharedClusterTest {
 
-    @Test
-    public void streamRequest() throws IOException {
-
-        Random random = getRandom();
-        for (int i = 0; i < 10; i++) {
-            TermVectorRequest request = new TermVectorRequest("index", "type", "id");
-            request.offsets(random.nextBoolean());
-            request.fieldStatistics(random.nextBoolean());
-            request.payloads(random.nextBoolean());
-            request.positions(random.nextBoolean());
-            request.termStatistics(random.nextBoolean());
-            String parent = random.nextBoolean() ? "someParent" : null;
-            request.parent(parent);
-            String pref = random.nextBoolean() ? "somePreference" : null;
-            request.preference(pref);
-
-            // write
-            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            request.writeTo(out);
-
-            // read
-            ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-            InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-            TermVectorRequest req2 = new TermVectorRequest(null, null, null);
-            req2.readFrom(esBuffer);
-
-            assertThat(request.offsets(), equalTo(req2.offsets()));
-            assertThat(request.fieldStatistics(), equalTo(req2.fieldStatistics()));
-            assertThat(request.payloads(), equalTo(req2.payloads()));
-            assertThat(request.positions(), equalTo(req2.positions()));
-            assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
-            assertThat(request.preference(), equalTo(pref));
-            assertThat(request.routing(), equalTo(parent));
-
-        }
-
-    }
+    
 
     @Test
     public void testSimpleTermVectors() throws ElasticSearchException, IOException {

@@ -18,29 +18,25 @@
  */
 package org.elasticsearch.action.termvector;
 
+import org.apache.lucene.index.*;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-
 // package only - this is an internal class!
 final class TermVectorWriter {
     final List<String> fields = new ArrayList<String>();
     final List<Long> fieldOffset = new ArrayList<Long>();
     final BytesStreamOutput output = new BytesStreamOutput(1); // can we somehow
-                                                               // predict the
-                                                               // size here?
+    // predict the
+    // size here?
     private static final String HEADER = "TV";
     private static final int CURRENT_VERSION = -1;
     TermVectorResponse response = null;
@@ -49,33 +45,33 @@ final class TermVectorWriter {
         response = termVectorResponse;
     }
 
-    void setFields(Fields fields, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
+    void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
 
         int numFieldsWritten = 0;
         TermsEnum iterator = null;
         DocsAndPositionsEnum docsAndPosEnum = null;
         DocsEnum docsEnum = null;
         TermsEnum topLevelIterator = null;
-        for (String field : fields) {
+        for (String field : termVectorsByField) {
             if ((selectedFields != null) && (!selectedFields.contains(field))) {
                 continue;
             }
 
-            Terms terms = fields.terms(field);
+            Terms fieldTermVector = termVectorsByField.terms(field);
             Terms topLevelTerms = topLevelFields.terms(field);
 
             topLevelIterator = topLevelTerms.iterator(topLevelIterator);
-            boolean positions = flags.contains(Flag.Positions) && terms.hasPositions();
-            boolean offsets = flags.contains(Flag.Offsets) && terms.hasOffsets();
-            boolean payloads = flags.contains(Flag.Payloads) && terms.hasPayloads();
-            startField(field, terms.size(), positions, offsets, payloads);
+            boolean positions = flags.contains(Flag.Positions) && fieldTermVector.hasPositions();
+            boolean offsets = flags.contains(Flag.Offsets) && fieldTermVector.hasOffsets();
+            boolean payloads = flags.contains(Flag.Payloads) && fieldTermVector.hasPayloads();
+            startField(field, fieldTermVector.size(), positions, offsets, payloads);
             if (flags.contains(Flag.FieldStatistics)) {
                 writeFieldStatistics(topLevelTerms);
             }
-            iterator = terms.iterator(iterator);
+            iterator = fieldTermVector.iterator(iterator);
             final boolean useDocsAndPos = positions || offsets || payloads;
             while (iterator.next() != null) { // iterate all terms of the
-                                              // current field
+                // current field
                 // get the doc frequency
                 BytesRef term = iterator.term();
                 boolean foundTerm = topLevelIterator.seekExact(term, false);
@@ -127,7 +123,7 @@ final class TermVectorWriter {
     }
 
     private DocsAndPositionsEnum writeTermWithDocsAndPos(TermsEnum iterator, DocsAndPositionsEnum docsAndPosEnum, boolean positions,
-            boolean offsets, boolean payloads) throws IOException {
+                                                         boolean offsets, boolean payloads) throws IOException {
         docsAndPosEnum = iterator.docsAndPositions(null, docsAndPosEnum);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
@@ -164,7 +160,7 @@ final class TermVectorWriter {
 
         writePotentiallyNegativeVInt(termFreq);
     }
-    
+
     private void writeOffsets(int startOffset, int endOffset) throws IOException {
         assert (startOffset >= 0);
         assert (endOffset >= 0);

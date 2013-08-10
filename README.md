@@ -5,17 +5,32 @@ The GCE Cloud plugin allows to use GCE API for the unicast discovery mechanism.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-gce/1.1.0`.
 
-    -------------------------------------------------------------
-    |     GCE Cloud Plugin    | Elasticsearch    | Release date |
-    -------------------------------------------------------------
-    | 1.2.0-SNAPSHOT (master) | 0.90 -> master   |              |
-    -------------------------------------------------------------
-    | 1.1.0                   | 0.90.3 -> master | 2013-08-09   |
-    -------------------------------------------------------------
-    | 1.0.0                   | 0.90 -> 0.90.2   | 2013-07-23   |
-    -------------------------------------------------------------
-
-
+<table>
+	<thead>
+		<tr>
+			<td>GCE Cloud Plugin</td>
+			<td>ElasticSearch</td>
+			<td>Release date</td>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td>1.2.0-SNAPSHOT (master)</td>
+			<td>0.90.3 -> master</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>1.1.0</td>
+			<td>0.90.3 -> master</td>
+			<td>2013-08-09</td>
+		</tr>
+		<tr>
+			<td>1.0.0</td>
+			<td>0.90 -> 0.90.2</td>
+			<td>2013-07-23</td>
+		</tr>
+	</tbody>
+</table>
 
 Google Compute Engine Virtual Machine Discovery
 ===============================

@@ -1,5 +1,6 @@
 package org.elasticsearch.test.integration.indices.mapping;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -111,6 +112,7 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    @AwaitsFix(bugUrl="too flaky - bleskes is on it?")
     public void updateDefaultMappingSettings() throws Exception {
 
         // TODO: bleskes: move back to combined index and mapping creation (pending bug fix concerning concurrent not-acked mapping requests)

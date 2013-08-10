@@ -1231,6 +1231,13 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().totalHits(), equalTo(2l));
     }
 
+    @Test
+    public void testEmptyTopLevelFilter() {
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().setFilter("{}").execute().actionGet();
+        assertNoFailures(searchResponse);
+    }
+
     @Test // see #2926
     public void testMustNot() throws ElasticSearchException, IOException {
         client().admin().indices().prepareDelete().execute().actionGet();

@@ -58,7 +58,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -2279,6 +2278,29 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
 
             facet = searchResponse.getFacets().facet("query");
             assertThat(facet.getCount(), equalTo(2l));
+        }
+    }
+
+    @Test // #3479: Null pointer exception for POST mode facets if facet_filter accepts no documents
+    public void testFilterFacetWithFacetFilterPostMode() throws IOException {
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("field", "xxx")
+                .endObject()).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(
+                            termsFacet("facet1").field("field").mode(FacetBuilder.Mode.POST).facetFilter(termFilter("tag", "doesnotexist"))
+                    )
+                    .execute().actionGet();
+
+            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            TermsFacet facet = searchResponse.getFacets().facet("facet1");
+            assertThat(facet.getName(), equalTo("facet1"));
+            assertThat(facet.getEntries().size(), equalTo(0));
         }
     }
 

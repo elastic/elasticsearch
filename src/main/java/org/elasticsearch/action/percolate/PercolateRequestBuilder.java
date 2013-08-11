@@ -176,6 +176,14 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     @Override
+    public PercolateRequest request() {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder);
+        }
+        return request;
+    }
+
+    @Override
     protected void doExecute(ActionListener<PercolateResponse> listener) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);

@@ -41,9 +41,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -487,6 +485,21 @@ public interface Client {
      * Percolates a request returning the matches documents.
      */
     PercolateRequestBuilder preparePercolate();
+
+    /**
+     * Performs multiple percolate requests.
+     */
+    ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request);
+
+    /**
+     * Performs multiple percolate requests.
+     */
+    void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener);
+
+    /**
+     * Performs multiple percolate requests.
+     */
+    MultiPercolateRequestBuilder prepareMultiPercolate();
 
     /**
      * Computes a score explanation for the specified request.

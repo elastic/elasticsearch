@@ -26,6 +26,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +38,7 @@ import java.util.List;
 /**
  *
  */
-public class PercolateResponse extends BroadcastOperationResponse implements Iterable<PercolateResponse.Match> {
+public class PercolateResponse extends BroadcastOperationResponse implements Iterable<PercolateResponse.Match>, ToXContent {
 
     private static final Match[] EMPTY = new Match[0];
 
@@ -94,6 +97,52 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     @Override
     public Iterator<Match> iterator() {
         return Arrays.asList(matches).iterator();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        builder.field(Fields.TOOK, tookInMillis);
+        builder.startObject(Fields._SHARDS);
+        builder.field(Fields.TOTAL, getTotalShards());
+        builder.field(Fields.SUCCESSFUL, getSuccessfulShards());
+        builder.field(Fields.FAILED, getFailedShards());
+        if (getShardFailures().length > 0) {
+            builder.startArray(Fields.FAILURES);
+            for (ShardOperationFailedException shardFailure : getShardFailures()) {
+                builder.startObject();
+                builder.field(Fields.INDEX, shardFailure.index());
+                builder.field(Fields.SHARD, shardFailure.shardId());
+                builder.field(Fields.STATUS, shardFailure.status().getStatus());
+                builder.field(Fields.REASON, shardFailure.reason());
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+
+        builder.field(Fields.TOTAL, count);
+        if (matches.length != 0) {
+            builder.startArray(Fields.MATCHES);
+            boolean justIds = "ids".equals(params.param("percolate_format"));
+            if (justIds) {
+                for (PercolateResponse.Match match : matches) {
+                    builder.value(match.id());
+                }
+            } else {
+                for (PercolateResponse.Match match : matches) {
+                    builder.startObject();
+                    builder.field(Fields._INDEX, match.getIndex());
+                    builder.field(Fields._ID, match.getId());
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+        }
+
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -161,4 +210,21 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             out.writeText(index);
         }
     }
+
+    static final class Fields {
+        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
+        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString INDEX = new XContentBuilderString("index");
+        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+        static final XContentBuilderString REASON = new XContentBuilderString("reason");
+        static final XContentBuilderString TOOK = new XContentBuilderString("took");
+        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+    }
+
 }

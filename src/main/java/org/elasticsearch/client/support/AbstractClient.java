@@ -48,10 +48,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateAction;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -326,6 +323,21 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public PercolateRequestBuilder preparePercolate() {
         return new PercolateRequestBuilder(this);
+    }
+
+    @Override
+    public MultiPercolateRequestBuilder prepareMultiPercolate() {
+        return new MultiPercolateRequestBuilder(this);
+    }
+
+    @Override
+    public void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener) {
+        execute(MultiPercolateAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request) {
+        return execute(MultiPercolateAction.INSTANCE, request);
     }
 
     @Override

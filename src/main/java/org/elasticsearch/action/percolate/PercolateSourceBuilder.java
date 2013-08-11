@@ -39,7 +39,6 @@ public class PercolateSourceBuilder implements ToXContent {
     private QueryBuilder queryBuilder;
     private FilterBuilder filterBuilder;
     private Integer size;
-    private Boolean shortCircuit;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {

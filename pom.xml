@@ -33,8 +33,6 @@
         <lucene.version>4.4.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
-        <tests.failfast>yes</tests.failfast>
-        <tests.maxfailures>1</tests.maxfailures>
     </properties>
 
     <repositories>

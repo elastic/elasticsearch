@@ -62,6 +62,43 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     protected int numberOfNodes() {
         return 4; // why 4?
     }
+    
+    @Test
+    // see #3486
+    public void testHighTermFrequencyDoc() throws ElasticSearchException, IOException {
+        wipeIndex("test");
+        client().admin().indices().prepareCreate("test")
+        .addMapping("test", jsonBuilder()
+                .startObject()
+                    .startObject("test")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "string")
+                                .field("term_vector", "with_positions_offsets")
+                                .field("store", randomBoolean() ? "yes" : "no")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject())
+        .setSettings(ImmutableSettings.settingsBuilder()
+                .put("index.number_of_shards", between(1, 5)))
+        .execute().actionGet();
+        ensureYellow();
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < 6000; i++) {
+            builder.append("abc").append(" ");
+        }
+        client().prepareIndex("test", "test", "1")
+            .setSource(XContentFactory.jsonBuilder()
+                    .startObject()
+                        .field("name", builder.toString())
+                    .endObject())
+            .execute().actionGet();
+        refresh();
+        SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "abc"))).addHighlightedField("name").execute().actionGet();
+        assertHighlight(search, 0, "name", 0, startsWith("<em>abc</em> <em>abc</em> <em>abc</em> <em>abc</em>"));
+    }
+
 
     @Test
     public void testNgramHighlightingWithBrokenPositions() throws ElasticSearchException, IOException {

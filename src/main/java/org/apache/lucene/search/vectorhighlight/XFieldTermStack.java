@@ -114,7 +114,10 @@ public class XFieldTermStack {
       // For weight look here: http://lucene.apache.org/core/3_6_0/api/core/org/apache/lucene/search/DefaultSimilarity.html
       final float weight = ( float ) ( Math.log( numDocs / ( double ) ( reader.docFreq( new Term(fieldName, text) ) + 1 ) ) + 1.0 );
 
-      final int freq = dpEnum.freq();
+      // ES EDIT: added a safety check to limit this to 512 terms everything above might be meaningless anyways
+      // This limit protectes the FVH from running into StackOverflowErrors if super large TF docs are highlighted. 
+      final int freq = Math.min(512, dpEnum.freq()); 
+      
       
       for(int i = 0;i < freq;i++) {
         int pos = dpEnum.nextPosition();

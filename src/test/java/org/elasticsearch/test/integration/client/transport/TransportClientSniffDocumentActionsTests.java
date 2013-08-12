@@ -29,9 +29,10 @@ import org.junit.BeforeClass;
 public class TransportClientSniffDocumentActionsTests extends DocumentActionsTests {
     
     @BeforeClass
-    public static void beforeClass() throws Exception {
+    public static void beforTransportClientSniffDocumentActionsTests() throws Exception {
+        DocumentActionsTests.beforeDocumentActionsTests();
         cluster().setClientFactory(TestCluster.TransportClientFactory.SNIFF_CLIENT_FACTORY);
-        DocumentActionsTests.beforeClass();
+        DocumentActionsTests.beforeDocumentActionsTests();
        
     }
 }

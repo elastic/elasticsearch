@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DocumentActionsTests extends AbstractSharedClusterTest {
     
     @BeforeClass
-    public static void beforeClass() throws Exception {
+    public static void beforeDocumentActionsTests() throws Exception {
         AbstractSharedClusterTest.beforeClass();
         wipeIndices();
         // no indices, check that simple operations fail

@@ -30,8 +30,8 @@ public class TransportClientDocumentActionsTests extends DocumentActionsTests {
 
     
     @BeforeClass
-    public static void beforeClass() throws Exception {
+    public static void beforeTransportClientDocumentActionsTests() throws Exception {
         cluster().setClientFactory(TestCluster.TransportClientFactory.NO_SNIFF_CLIENT_FACTORY);
-        DocumentActionsTests.beforeClass();
+        DocumentActionsTests.beforeDocumentActionsTests();
     }
 }

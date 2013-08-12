@@ -250,7 +250,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 UpdateTask updateTask = (UpdateTask) pending.task;
                 source = updateTask.source;
                 timeInQueue = now - updateTask.addedAt;
-            }  else {
+            } else {
                 source = "unknown";
                 timeInQueue = -1;
             }
@@ -367,10 +367,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we publish here before we send a notification to all the listeners, since if it fails
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
+                    logger.debug("Publishing cluster state version {}", newClusterState.version());
                     discoveryService.publish(newClusterState);
                 }
 
                 // update the current cluster state
+                logger.debug("Updating cluster state version {}: {}", newClusterState.version(), newClusterState);
                 clusterState = newClusterState;
 
                 for (ClusterStateListener listener : priorityClusterStateListeners) {
@@ -406,6 +408,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 sb.append(newClusterState.routingTable().prettyPrint());
                 sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
                 logger.warn(sb.toString(), e);
+                // TODO: do we want to call updateTask.onFailure here?
             }
         }
     }

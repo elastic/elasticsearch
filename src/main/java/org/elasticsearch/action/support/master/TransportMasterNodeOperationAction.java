@@ -141,7 +141,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     @Override
                     public void run() {
                         try {
-                            masterOperation(request, clusterState, listener);
+                            masterOperation(request, clusterService.state(), listener);
                         } catch (Throwable e) {
                             listener.onFailure(e);
                         }

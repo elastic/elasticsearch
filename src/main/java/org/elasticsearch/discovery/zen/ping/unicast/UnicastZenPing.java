@@ -36,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -187,10 +188,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                                 listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
                             } catch (RejectedExecutionException ex) {
                                 logger.debug("Ping execution rejected", ex);
+                            } catch (EsRejectedExecutionException ex) {
+                                logger.debug("Ping execution rejected", ex);
                             }
                         }
                     });
                 } catch (RejectedExecutionException ex)  {
+                    logger.debug("Ping execution rejected", ex);
+                } catch (EsRejectedExecutionException ex) {
                     logger.debug("Ping execution rejected", ex);
                 }
             }

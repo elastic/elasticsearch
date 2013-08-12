@@ -149,6 +149,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
             in.setVersion(request.version);
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+            logger.debug("Received clusterstate version {}", clusterState.version());
             listener.onNewClusterState(clusterState);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

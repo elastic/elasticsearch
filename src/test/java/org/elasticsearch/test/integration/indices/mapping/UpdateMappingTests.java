@@ -1,6 +1,5 @@
 package org.elasticsearch.test.integration.indices.mapping;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -112,52 +111,66 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    @AwaitsFix(bugUrl="too flaky - bleskes is on it?")
     public void updateDefaultMappingSettings() throws Exception {
 
         // TODO: bleskes: move back to combined index and mapping creation (pending bug fix concerning concurrent not-acked mapping requests)
         createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+
+        logger.info("Creating _default_ mappings");
+        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .field("date_detection", false)
                         .endObject().endObject()
         ).get();
+        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        logger.info("DONE: Creating _default_ mappings");
 
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
-
-        Map<String, Object> defaultMapping = response.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        Map<String, Object> defaultMapping = clusterStateResponse.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         assertThat(defaultMapping, hasKey("date_detection"));
 
 
+        logger.info("Emptying _default_ mappings");
         // now remove it
-        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .endObject().endObject()
         ).get();
+        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        logger.info("Done emptying _default_ mappings");
 
-        response = client().admin().cluster().prepareState().get();
-        defaultMapping = response.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+        clusterStateResponse = client().admin().cluster().prepareState().get();
+        defaultMapping = clusterStateResponse.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         assertThat(defaultMapping, not(hasKey("date_detection")));
 
         // now test you can change stuff that are normally unchangable
-        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        logger.info("Creating _default_ mappings with an analyzed field");
+        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .startObject("properties").startObject("f").field("type", "string").field("index", "analyzed").endObject().endObject()
                         .endObject().endObject()
         ).get();
+        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        logger.info("Done creating _default_ mappings with an analyzed field");
 
 
-        client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        logger.info("Changing _default_ mappings field from analyzed to non-analyzed");
+        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .startObject("properties").startObject("f").field("type", "string").field("index", "not_analyzed").endObject().endObject()
                         .endObject().endObject()
         ).get();
-        response = client().admin().cluster().prepareState().get();
-        defaultMapping = response.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        logger.info("Done changing _default_ mappings field from analyzed to non-analyzed");
+
+        clusterStateResponse = client().admin().cluster().prepareState().get();
+        defaultMapping = clusterStateResponse.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
+
         Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
         assertThat(fieldSettings, hasEntry("index", (Object) "not_analyzed"));
 
         // but we still validate the _default_ type
+        logger.info("Confirming _default_ mappings validation");
         assertThrows(client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .startObject("properties").startObject("f").field("type", "DOESNT_EXIST").endObject().endObject()

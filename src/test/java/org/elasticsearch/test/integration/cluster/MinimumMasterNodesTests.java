@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.cluster;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -26,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -37,16 +37,17 @@ import org.junit.Test;
 
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
     @After
     public void cleanAndCloseNodes() throws Exception {
+        super.tearDown();
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
                 node("node" + i).stop();
@@ -118,14 +119,13 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         String nonMasterNodeName = masterNodeName.equals("node1") ? "node2" : "node1";
         logger.info("--> closing master node {}", masterNodeName);
         closeNode(masterNodeName);
-
-        long time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
-            state = client(nonMasterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                break;
+        final String noMasterNode = nonMasterNodeName;
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                ClusterState  state = client(noMasterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
             }
-        }
+        });
         state = client(nonMasterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
@@ -160,13 +160,13 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> closing non master node {}", nonMasterNodeName);
         closeNode(nonMasterNodeName);
 
-        time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
-            state = client(masterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                break;
+        final String masterNode = masterNodeName;
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                ClusterState state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
             }
-        }
+        });
         state = client(masterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
@@ -221,20 +221,19 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         ClusterState state;
 
-        long time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
-            state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                break;
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                ClusterState state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
             }
-        }
-        time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
-            state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                break;
+        });
+        
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                ClusterState state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
             }
-        }
+        });
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
@@ -250,7 +249,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
-        String masterNode = state.nodes().masterNode().name();
+        final String masterNode = state.nodes().masterNode().name();
         LinkedList<String> nonMasterNodes = new LinkedList<String>();
         for (DiscoveryNode node : state.nodes()) {
             if (!node.name().equals(masterNode)) {
@@ -281,19 +280,19 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             closeNode(nodeToShutdown);
         }
 
-        String lastNonMasterNodeUp = nonMasterNodes.removeLast();
+        final String lastNonMasterNodeUp = nonMasterNodes.removeLast();
         logger.info("--> verify that there is no master anymore on remaining nodes");
         // spin here to wait till the state is set
-        time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(20).millis()) {
-            state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            boolean firstNoMasterLock = state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
-            state = client(lastNonMasterNodeUp).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            boolean secondNoMasterLock = state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
-            if (firstNoMasterLock && secondNoMasterLock) {
-                break;
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                ClusterState state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                boolean firstNoMasterLock = state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                state = client(lastNonMasterNodeUp).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                boolean secondNoMasterLock = state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return firstNoMasterLock && secondNoMasterLock;
             }
-        }
+        }, 20, TimeUnit.SECONDS);
+      
         state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
         state = client(lastNonMasterNodeUp).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();

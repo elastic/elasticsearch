@@ -265,7 +265,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 public void run() {
                     try {
                         removeShard(shardId, reason);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("failed to close shard", e);
                     } finally {
                         latch.countDown();

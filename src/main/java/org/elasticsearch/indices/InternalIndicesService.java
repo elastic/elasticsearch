@@ -152,7 +152,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 public void run() {
                     try {
                         removeIndex(index, "shutdown", shardsStopExecutor);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("failed to delete index on stop [" + index + "]", e);
                     } finally {
                         latch.countDown();

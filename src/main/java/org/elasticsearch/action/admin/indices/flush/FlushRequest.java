@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -55,8 +54,6 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
      */
     public FlushRequest(String... indices) {
         super(indices);
-        // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     /**

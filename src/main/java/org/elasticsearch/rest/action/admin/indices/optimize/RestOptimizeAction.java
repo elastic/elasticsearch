@@ -69,7 +69,7 @@ public class RestOptimizeAction extends BaseRestHandler {
             optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
             optimizeRequest.refresh(request.paramAsBoolean("refresh", optimizeRequest.refresh()));
 
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
+            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;

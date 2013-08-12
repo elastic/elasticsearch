@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,8 +60,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     long startTime;
 
     public PercolateRequest() {
-        // we want to do the percolate in parallel on all the local shards
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public PercolateRequest(PercolateRequest request, BytesReference docSource) {

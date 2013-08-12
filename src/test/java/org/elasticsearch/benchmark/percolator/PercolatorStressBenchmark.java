@@ -53,7 +53,7 @@ public class PercolatorStressBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node[] nodes = new Node[2];
+        Node[] nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
         }

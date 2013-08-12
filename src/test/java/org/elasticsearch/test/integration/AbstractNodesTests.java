@@ -33,11 +33,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 @Ignore
@@ -121,6 +123,12 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
             node.close();
         }
 
+    }
+
+    public List<Node> nodes() {
+        synchronized (AbstractNodesTests.class) {
+            return new ArrayList<Node>(nodes.values());
+        }
     }
 
     public Node node(String id) {

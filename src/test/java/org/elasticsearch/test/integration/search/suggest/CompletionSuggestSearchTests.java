@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -332,6 +333,124 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
+
+    @Test
+    public void testThatFuzzySuggesterWorks() throws Exception {
+        createIndexAndMapping("simple", "simple", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Nirvana").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirv").size(10)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "Nirvana");
+
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirw").size(10)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "Nirvana");
+    }
+
+    @Test
+    public void testThatFuzzySuggesterSupportsEditDistances() throws Exception {
+        createIndexAndMapping("simple", "simple", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Nirvana").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        // edit distance 1
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Norw").size(10)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo");
+
+        // edit distance 2
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Norw").size(10).setFuzzyEditDistance(2)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "Nirvana");
+    }
+
+    @Test
+    public void testThatFuzzySuggesterSupportsTranspositions() throws Exception {
+        createIndexAndMapping("simple", "simple", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Nirvana").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriv").size(10).setFuzzyTranspositions(false).setFuzzyEditDistance(1)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo");
+
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriv").size(10).setFuzzyTranspositions(true).setFuzzyEditDistance(1)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "Nirvana");
+    }
+
+    @Test
+    public void testThatFuzzySuggesterSupportsMinPrefixLength() throws Exception {
+        createIndexAndMapping("simple", "simple", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Nirvana").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriva").size(10).setFuzzyMinPrefixLength(6)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo");
+
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nrivan").size(10).setFuzzyMinPrefixLength(6)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "Nirvana");
+    }
+
+    @Test
+    public void testThatFuzzySuggesterSupportsNonPrefixLength() throws Exception {
+        createIndexAndMapping("simple", "simple", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Nirvana").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirw").size(10).setFuzzyNonPrefixLength(4)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo");
+
+        suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirvo").size(10).setFuzzyNonPrefixLength(4)
+        ).execute().actionGet();
+        assertSuggestions(suggestResponse, false, "foo", "Nirvana");
+    }
+
 
     public void assertSuggestions(String suggestion, String ... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);

@@ -271,8 +271,8 @@ public class Completion090PostingsFormat extends PostingsFormat {
             this.lookup = lookup;
         }
 
-        public Lookup getLookup(FieldMapper<?> mapper, boolean exactFirst) {
-            return lookup.getLookup(mapper, exactFirst);
+        public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
+            return lookup.getLookup(mapper, suggestionContext);
         }
     }
 
@@ -327,6 +327,6 @@ public class Completion090PostingsFormat extends PostingsFormat {
     }
 
     public static abstract class LookupFactory {
-        public abstract Lookup getLookup(FieldMapper<?> mapper, boolean exactFirst);
+        public abstract Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext);
     }
 }

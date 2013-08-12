@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -28,6 +29,11 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     private FieldMapper<?> mapper;
+    private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
+    private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
+    private int fuzzyMinPrefixLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
+    private int fuzzyNonPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
+    private boolean fuzzy = false;
 
     public CompletionSuggestionContext(Suggester suggester) {
         super(suggester);
@@ -39,5 +45,45 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     
     public void mapper(FieldMapper<?> mapper) {
         this.mapper = mapper;
+    }
+
+    public void setFuzzyEditDistance(int fuzzyEditDistance) {
+        this.fuzzyEditDistance = fuzzyEditDistance;
+    }
+
+    public int getFuzzyEditDistance() {
+        return fuzzyEditDistance;
+    }
+
+    public void setFuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.fuzzyTranspositions = fuzzyTranspositions;
+    }
+
+    public boolean isFuzzyTranspositions() {
+        return fuzzyTranspositions;
+    }
+
+    public void setFuzzyMinPrefixLength(int fuzzyMinPrefixLength) {
+        this.fuzzyMinPrefixLength = fuzzyMinPrefixLength;
+    }
+
+    public int getFuzzyMinPrefixLength() {
+        return fuzzyMinPrefixLength;
+    }
+
+    public void setFuzzyNonPrefixLength(int fuzzyNonPrefixLength) {
+        this.fuzzyNonPrefixLength = fuzzyNonPrefixLength;
+    }
+
+    public int getFuzzyNonPrefixLength() {
+        return fuzzyNonPrefixLength;
+    }
+
+    public void setFuzzy(boolean fuzzy) {
+        this.fuzzy = fuzzy;
+    }
+
+    public boolean isFuzzy() {
+        return fuzzy;
     }
 }

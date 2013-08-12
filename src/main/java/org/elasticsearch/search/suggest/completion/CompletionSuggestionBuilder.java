@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -34,8 +35,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     }
 
     @Override
-    protected XContentBuilder innerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
-
 }

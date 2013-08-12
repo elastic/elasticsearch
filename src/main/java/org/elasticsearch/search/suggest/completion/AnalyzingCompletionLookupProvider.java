@@ -24,6 +24,7 @@ import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
+import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -57,7 +58,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     private int maxGraphExpansions;
     private boolean hasPayloads;
     private final XAnalyzingSuggester prototype;
-    
+
     public AnalyzingCompletionLookupProvider(boolean preserveSep, boolean exactFirst, boolean preservePositionIncrements, boolean hasPayloads) {
         this.preserveSep = preserveSep;
         this.preservePositionIncrements = preservePositionIncrements;
@@ -212,19 +213,28 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         }
         return new LookupFactory() {
             @Override
-            public Lookup getLookup(FieldMapper<?> mapper, boolean exactFirst) {
+            public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
                 AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().fullName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
-                int flags = exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-                if (analyzingSuggestHolder.preserveSep) {
-                    flags |= XAnalyzingSuggester.PRESERVE_SEP;
+                int flags = analyzingSuggestHolder.preserveSep? XAnalyzingSuggester.PRESERVE_SEP : 0;
+
+                XAnalyzingSuggester suggester;
+                if (suggestionContext.isFuzzy()) {
+                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
+                            analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
+                            suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
+                            suggestionContext.getFuzzyNonPrefixLength(), suggestionContext.getFuzzyMinPrefixLength(),
+                            analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput);
+
+                } else {
+                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
+                            analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
+                            analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
+                            analyzingSuggestHolder.maxAnalyzedPathsForOneInput);
                 }
-                XAnalyzingSuggester suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
-                        analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
-                        analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
-                        analyzingSuggestHolder.maxAnalyzedPathsForOneInput);
                 suggester.setPreservePositionIncrements(analyzingSuggestHolder.preservePositionIncrements);
                 return suggester;
             }
@@ -240,8 +250,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         final int maxAnalyzedPathsForOneInput;
         final FST<Pair<Long, BytesRef>> fst;
 
-        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions, boolean hasPayloads,
-                int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst) {
+        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
+                                      boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst) {
             this.preserveSep = preserveSep;
             this.preservePositionIncrements = preservePositionIncrements;
             this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;

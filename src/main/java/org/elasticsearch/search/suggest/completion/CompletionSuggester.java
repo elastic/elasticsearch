@@ -48,6 +48,7 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
     @Override
     public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> execute(String name,
             CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
+
         CompletionSuggestion completionSuggestionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(suggestionContext.getText()
                 .utf8ToString()), 0, suggestionContext.getText().toString().length());
@@ -65,7 +66,7 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
             Terms terms = atomicReader.fields().terms(fieldName);
             if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
                 Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
-                Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), false);
+                Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
                 List<Lookup.LookupResult> lookupResults = lookup.lookup(prefix, false, suggestionContext.getSize());
                 for (Lookup.LookupResult res : lookupResults) {
                     

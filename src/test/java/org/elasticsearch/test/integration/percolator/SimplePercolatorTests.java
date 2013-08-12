@@ -22,14 +22,12 @@ package org.elasticsearch.test.integration.percolator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -1026,59 +1024,6 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(response.getSuccessfulShards(), equalTo(5));
         assertThat(response.getCount(), equalTo(1l));
         assertThat(response.getMatches(), emptyArray());
-    }
-
-    @Test
-    public void testDeletePercolatorType() throws Exception {
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
-        client().admin().indices().prepareCreate("test2").execute().actionGet();
-        ensureGreen();
-
-        client().prepareIndex("test1", "_percolator", "1")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-                .execute().actionGet();
-        client().prepareIndex("test2", "_percolator", "1")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-                .execute().actionGet();
-
-        PercolateResponse response = client().preparePercolate()
-                .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
-                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
-                .execute().actionGet();
-        assertThat(response.getCount(), equalTo(2l));
-
-        client().admin().indices().prepareDeleteMapping("test1").setType("_percolator").execute().actionGet();
-        percolatorTypeRemoved("test1");
-        response = client().preparePercolate()
-                .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
-                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
-                .execute().actionGet();
-        assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(1l));
-
-        client().admin().indices().prepareDeleteMapping("test2").setType("_percolator").execute().actionGet();
-        percolatorTypeRemoved("test2");
-
-        // Percolate api should return 0 matches, because all _percolate types have been removed.
-        response = client().preparePercolate()
-                .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
-                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
-                .execute().actionGet();
-        assertNoFailures(response);
-        assertThat(response.getCount(), equalTo(0l));
-    }
-
-    private void percolatorTypeRemoved(String index) {
-        my_goto: while (true) {
-            for (Client client : clients()) {
-                TypesExistsResponse existsResponse =
-                        client.admin().indices().prepareTypesExists(index).setTypes("_percolator").execute().actionGet();
-                if (existsResponse.isExists()) {
-                    continue my_goto;
-                }
-            }
-            break;
-        }
     }
 
     public void testPercolateSizingWithQueryAndFilter() throws Exception {

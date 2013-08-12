@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class GetIndexTemplatesRequest extends ClusterInfoRequest<GetIndexTemplatesRequest> {
+public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetIndexTemplatesRequest> {
 
     private String name;
 

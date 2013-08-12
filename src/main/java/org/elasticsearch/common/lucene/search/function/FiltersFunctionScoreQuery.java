@@ -26,14 +26,13 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.function.ScoreCombiner.CombineFunction;
 
 import java.io.IOException;
 import java.util.*;
 
 /**
- * A query that allows for a pluggable boost function / filter. If it matches the filter, it will
- * be boosted by the formula.
+ * A query that allows for a pluggable boost function / filter. If it matches
+ * the filter, it will be boosted by the formula.
  */
 public class FiltersFunctionScoreQuery extends Query {
 
@@ -48,13 +47,17 @@ public class FiltersFunctionScoreQuery extends Query {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             FilterFunction that = (FilterFunction) o;
 
-            if (filter != null ? !filter.equals(that.filter) : that.filter != null) return false;
-            if (function != null ? !function.equals(that.function) : that.function != null) return false;
+            if (filter != null ? !filter.equals(that.filter) : that.filter != null)
+                return false;
+            if (function != null ? !function.equals(that.function) : that.function != null)
+                return false;
 
             return true;
         }
@@ -67,14 +70,17 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    public static enum ScoreMode {First, Avg, Max, Total, Min, Multiply}
+    public static enum ScoreMode {
+        First, Avg, Max, Total, Min, Multiply
+    }
 
     Query subQuery;
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
-    
-    //TODO: We might want to expose the way the subQueryScore is altered (multiplied or added, etc) later. 
+
+    // TODO: We might want to expose the way the subQueryScore is altered
+    // (multiplied or added, etc) later.
     protected final CombineFunction scoreCombiner;
 
     public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost) {
@@ -96,7 +102,8 @@ public class FiltersFunctionScoreQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = subQuery.rewrite(reader);
-        if (newQ == subQuery) return this;
+        if (newQ == subQuery)
+            return this;
         FiltersFunctionScoreQuery bq = (FiltersFunctionScoreQuery) this.clone();
         bq.subQuery = newQ;
         return bq;
@@ -155,15 +162,16 @@ public class FiltersFunctionScoreQuery extends Query {
 
         @Override
         public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
-            
+
             Explanation subQueryExpl = subQueryWeight.explain(context, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
-            //First: Gather explanations for all filters
+            // First: Gather explanations for all filters
             List<ComplexExplanation> filterExplanations = new ArrayList<ComplexExplanation>();
             for (FilterFunction filterFunction : filterFunctions) {
-                Bits docSet = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                Bits docSet = DocIdSets.toSafeBits(context.reader(),
+                        filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
                     filterFunction.function.setNextReader(context);
                     Explanation functionExplanation = filterFunction.function.explainScore(doc, subQueryExpl);
@@ -175,38 +183,45 @@ public class FiltersFunctionScoreQuery extends Query {
                     filterExplanations.add(filterExplanation);
                 }
             }
-            if(filterExplanations.size()==0) {
+            if (filterExplanations.size() == 0) {
                 float sc = getBoost() * subQueryExpl.getValue();
                 Explanation res = new ComplexExplanation(true, sc, "function score, no filter match, product of:");
                 res.addDetail(subQueryExpl);
                 res.addDetail(new Explanation(getBoost(), "queryBoost"));
                 return res;
             }
-            
-            //Second: Compute the factor that would have been computed by the filters
+
+            // Second: Compute the factor that would have been computed by the
+            // filters
             double factor = 1.0;
-            if (scoreMode == ScoreMode.First) {
+            switch (scoreMode) {
+            case First:
+
                 factor = filterExplanations.get(0).getValue();
-            } else if (scoreMode == ScoreMode.Max) {
+                break;
+            case Max:
                 double maxFactor = Double.NEGATIVE_INFINITY;
                 for (int i = 0; i < filterExplanations.size(); i++) {
-                     factor = Math.max(filterExplanations.get(i).getValue(), maxFactor);
+                    factor = Math.max(filterExplanations.get(i).getValue(), maxFactor);
                 }
-            } else if (scoreMode == ScoreMode.Min) {
+                break;
+            case Min:
                 double minFactor = Double.POSITIVE_INFINITY;
                 for (int i = 0; i < filterExplanations.size(); i++) {
                     factor = Math.min(filterExplanations.get(i).getValue(), minFactor);
-               }
-            } else if (scoreMode == ScoreMode.Multiply) {
-                for (int i = 0; i < filterExplanations.size(); i++) {
-                        factor *= filterExplanations.get(i).getValue();
                 }
-            } else { // Avg / Total
+                break;
+            case Multiply:
+                for (int i = 0; i < filterExplanations.size(); i++) {
+                    factor *= filterExplanations.get(i).getValue();
+                }
+                break;
+            default: // Avg / Total
                 double totalFactor = 0.0f;
                 int count = 0;
                 for (int i = 0; i < filterExplanations.size(); i++) {
-                        totalFactor += filterExplanations.get(i).getValue();
-                        count++;
+                    totalFactor += filterExplanations.get(i).getValue();
+                    count++;
                 }
                 if (count != 0) {
                     factor = totalFactor;
@@ -215,14 +230,14 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
             }
-            ComplexExplanation factorExplanaition = new ComplexExplanation(true, CombineFunction.toFloat(factor), "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
-            for(int i=0;i<filterExplanations.size();i++){
+            ComplexExplanation factorExplanaition = new ComplexExplanation(true, CombineFunction.toFloat(factor),
+                    "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
+            for (int i = 0; i < filterExplanations.size(); i++) {
                 factorExplanaition.addDetail(filterExplanations.get(i));
             }
-            return scoreCombiner.explain(getBoost(), subQueryExpl, factorExplanaition, maxBoost);  
+            return scoreCombiner.explain(getBoost(), subQueryExpl, factorExplanaition, maxBoost);
         }
     }
-
 
     static class CustomBoostFactorScorer extends Scorer {
 
@@ -234,8 +249,8 @@ public class FiltersFunctionScoreQuery extends Query {
         private final Bits[] docSets;
         private final CombineFunction scoreCombiner;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode,
-                                        FilterFunction[] filterFunctions, float maxBoost, Bits[] docSets, CombineFunction scoreCombiner) throws IOException {
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
+                float maxBoost, Bits[] docSets, CombineFunction scoreCombiner) throws IOException {
             super(w);
             this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
@@ -329,7 +344,6 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(", functions: [");
@@ -342,7 +356,8 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     public boolean equals(Object o) {
-        if (getClass() != o.getClass()) return false;
+        if (getClass() != o.getClass())
+            return false;
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
         if (this.getBoost() != other.getBoost())
             return false;
@@ -356,4 +371,3 @@ public class FiltersFunctionScoreQuery extends Query {
         return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
     }
 }
-

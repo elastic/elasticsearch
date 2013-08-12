@@ -25,12 +25,13 @@ import org.apache.lucene.search.Explanation;
 /**
  *
  */
-public class RandomScoreFunction implements ScoreFunction {
+public class RandomScoreFunction extends ScoreFunction {
 
     private final PRNG prng;
     private int docBase;
 
     public RandomScoreFunction(long seed) {
+        super(CombineFunction.MULT);
         this.prng = new PRNG(seed);
     }
 
@@ -45,25 +46,13 @@ public class RandomScoreFunction implements ScoreFunction {
     }
 
     @Override
-    public double factor(int docId) {
-        return prng.seed;
-    }
-
-    @Override
     public Explanation explainScore(int docId, Explanation subQueryExpl) {
         Explanation exp = new Explanation();
         exp.setDescription("random score function (seed: " + prng.originalSeed + ")");
         exp.addDetail(subQueryExpl);
         return exp;
     }
-
-    @Override
-    public Explanation explainFactor(int docId) {
-        Explanation exp = new Explanation();
-        exp.setDescription("seed: " + prng.originalSeed + ")");
-        return exp;
-    }
-
+    
     /**
      * Algorithm based on {@link java.util.Random} except this one is not
      * thread safe

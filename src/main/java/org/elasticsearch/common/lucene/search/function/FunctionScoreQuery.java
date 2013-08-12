@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.common.lucene.search.function.ScoreCombiner.CombineFunction;
 
 import java.io.IOException;
 import java.util.Set;

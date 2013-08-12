@@ -47,6 +47,7 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionContext;
 import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -90,7 +91,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         LookupFactory load = provider.load(input);
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
-        Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true), false);
+        Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true), new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
         assertThat(result.get(0).key.toString(), equalTo("Generator - Foo Fighters"));
         assertThat(result.get(0).payload.utf8ToString(), equalTo("id:10"));
@@ -240,7 +241,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         assertThat(reader.leaves().get(0).reader().numDocs(), equalTo(weights.length));
         AtomicReaderContext atomicReaderContext = reader.leaves().get(0);
         Terms luceneTerms = atomicReaderContext.reader().terms(mapper.name());
-        Lookup lookup = ((Completion090PostingsFormat.CompletionTerms) luceneTerms).getLookup(mapper, false);
+        Lookup lookup = ((Completion090PostingsFormat.CompletionTerms) luceneTerms).getLookup(mapper, new CompletionSuggestionContext(null));
         reader.close();
         writer.close();
         dir.close();

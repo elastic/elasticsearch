@@ -48,12 +48,35 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                parseSuggestContext(parser, mapperService, fieldName, suggestion);
-                suggestion.mapper(mapperService.smartNameFieldMapper(suggestion.getField()));
+                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion))  {
+                    if (token == XContentParser.Token.VALUE_BOOLEAN && "fuzzy".equals(fieldName)) {
+                        suggestion.setFuzzy(parser.booleanValue());
+                    }
+                }
+            } else if (token == XContentParser.Token.START_OBJECT && "fuzzy".equals(fieldName)) {
+                suggestion.setFuzzy(true);
+                String fuzzyConfigName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        fuzzyConfigName = parser.currentName();
+                    } else if (token.isValue()) {
+                        if ("edit_distance".equals(fuzzyConfigName) || "editDistance".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyEditDistance(parser.intValue());
+                        } else if ("transpositions".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyTranspositions(parser.booleanValue());
+                        } else if ("min_prefix_len".equals(fuzzyConfigName) || "minPrefixLen".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyMinPrefixLength(parser.intValue());
+                        } else if ("non_prefix_len".equals(fuzzyConfigName) || "non_prefix_len".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyNonPrefixLength(parser.intValue());
+                        }
+                    }
+                }
             } else {
                 throw new ElasticSearchIllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
             }
         }
+        suggestion.mapper(mapperService.smartNameFieldMapper(suggestion.getField()));
+
         return suggestion;
     }
 

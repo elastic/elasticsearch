@@ -58,6 +58,7 @@ public class IndexGatewayTests extends AbstractNodesTests {
 
     @After
     public void closeNodes() throws Exception {
+        tearDown();
         node("server1").stop();
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();

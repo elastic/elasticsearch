@@ -18,43 +18,27 @@
  */
 package org.elasticsearch.test.integration;
 
-import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
-import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneJUnit3MethodProvider;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.junit.listerners.ReproduceInfoPrinter;
-import org.junit.runner.RunWith;
 
 import java.util.concurrent.TimeUnit;
 
-@TestMethodProviders({
-        LuceneJUnit3MethodProvider.class,
-        JUnit4MethodProvider.class
-})
-@Listeners({
-        ReproduceInfoPrinter.class
-})
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchTestCase.ElasticSearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
-@RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
-public abstract class ElasticsearchTestCase extends RandomizedTest {
-
-    public static final Version TEST_VERSION_CURRENT = LuceneTestCase.TEST_VERSION_CURRENT;
+public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
-
-    public static final String SYSPROP_BADAPPLES = "tests.badapples";
 
     public static class ElasticSearchThreadFilter implements ThreadFilter {
         @Override
@@ -67,7 +51,6 @@ public abstract class ElasticsearchTestCase extends RandomizedTest {
     public void awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
-
     
     public void awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
@@ -87,4 +70,4 @@ public abstract class ElasticsearchTestCase extends RandomizedTest {
         
     }
 
-}
+  }

@@ -60,6 +60,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Before
     public void setUp() throws Exception {
+        super.setUp();
         threadPool = new ThreadPool();
         serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
@@ -94,7 +95,8 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        super.tearDown();
         serviceA.close();
         serviceB.close();
         threadPool.shutdown();

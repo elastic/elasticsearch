@@ -27,7 +27,6 @@ import org.junit.After;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -39,7 +38,8 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(1);
 
     @After
-    public void closeNodes() {
+    public void closeNodes() throws Exception {
+        tearDown();
         closeAllNodes();
     }
 

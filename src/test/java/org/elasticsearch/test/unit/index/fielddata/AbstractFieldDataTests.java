@@ -63,6 +63,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     @After
     public void tearDown() throws Exception {
+        super.tearDown();
         if (readerContext != null) {
             readerContext.reader().close();
         }

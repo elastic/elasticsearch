@@ -21,12 +21,10 @@ package org.elasticsearch.action.admin.indices.template.get;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +37,7 @@ import java.util.Map;
 /**
  *
  */
-public class TransportGetIndexTemplatesAction extends TransportClusterInfoAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends TransportMasterNodeOperationAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
     public TransportGetIndexTemplatesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
@@ -67,7 +65,7 @@ public class TransportGetIndexTemplatesAction extends TransportClusterInfoAction
     }
 
     @Override
-    protected void doMasterOperation(final GetIndexTemplatesRequest request, final ClusterState state, final ActionListener<GetIndexTemplatesResponse> listener) throws ElasticSearchException {
+    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) throws ElasticSearchException {
         List<IndexTemplateMetaData> results = Lists.newArrayList();
 
         if (Regex.isSimpleMatchPattern(request.name())) {

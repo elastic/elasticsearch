@@ -112,6 +112,10 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequestBuilder;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -493,6 +497,21 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public PutIndexTemplateRequestBuilder preparePutTemplate(String name) {
         return new PutIndexTemplateRequestBuilder(this, name);
+    }
+
+    @Override
+    public ActionFuture<GetIndexTemplatesResponse> getTemplates(final GetIndexTemplatesRequest request) {
+        return execute(GetIndexTemplatesAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getTemplates(final GetIndexTemplatesRequest request, final ActionListener<GetIndexTemplatesResponse> listener) {
+        execute(GetIndexTemplatesAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String name) {
+        return new GetIndexTemplatesRequestBuilder(this, name);
     }
 
     @Override

@@ -89,6 +89,9 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequestBuilder;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
@@ -635,6 +638,23 @@ public interface IndicesAdminClient {
      * @param name The name of the template.
      */
     DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name);
+
+    /**
+     * Gets index template.
+     */
+    ActionFuture<GetIndexTemplatesResponse> getTemplates(GetIndexTemplatesRequest request);
+
+    /**
+     * Gets an index template.
+     */
+    void getTemplates(GetIndexTemplatesRequest request, ActionListener<GetIndexTemplatesResponse> listener);
+
+    /**
+     * Gets an index template.
+     *
+     * @param name The name of the template.
+     */
+    GetIndexTemplatesRequestBuilder prepareGetTemplates(String name);
 
     /**
      * Validate a query for correctness.

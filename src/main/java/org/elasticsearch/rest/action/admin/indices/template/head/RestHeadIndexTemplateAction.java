@@ -20,10 +20,9 @@ package org.elasticsearch.rest.action.admin.indices.template.head;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
@@ -46,19 +45,12 @@ public class RestHeadIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .filterRoutingTable(true)
-                .filterNodes(true)
-                .filteredIndexTemplates(request.param("name"))
-                .filterOutIndices();
-
-        clusterStateRequest.listenerThreaded(false);
-
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
+        client.admin().indices().getTemplates(getIndexTemplatesRequest, new ActionListener<GetIndexTemplatesResponse>() {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public void onResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
                 try {
-                    boolean templateExists = response.getState().metaData().templates().size() > 0;
+                    boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
 
                     if (templateExists) {
                         channel.sendResponse(new StringRestResponse(OK));

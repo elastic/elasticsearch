@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.indices.template;
 
+import com.google.common.collect.Lists;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,10 +29,11 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -149,5 +152,71 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
         logger.info("--> delete template*");
         admin().indices().prepareDeleteTemplate("template*").execute().actionGet();
         assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
+    }
+
+    @Test
+    public void testThatGetIndexTemplatesWorks() throws Exception {
+        logger.info("--> put template_1");
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> get template template_1");
+        GetIndexTemplatesResponse getTemplate1Response = client().admin().indices().prepareGetTemplates("template_1").execute().actionGet();
+        assertThat(getTemplate1Response.getIndexTemplates(), hasSize(1));
+        assertThat(getTemplate1Response.getIndexTemplates().get(0), is(notNullValue()));
+        assertThat(getTemplate1Response.getIndexTemplates().get(0).getTemplate(), is("te*"));
+        assertThat(getTemplate1Response.getIndexTemplates().get(0).getOrder(), is(0));
+
+        logger.info("--> get non-existing-template");
+        GetIndexTemplatesResponse getTemplate2Response = client().admin().indices().prepareGetTemplates("non-existing-template").execute().actionGet();
+        assertThat(getTemplate2Response.getIndexTemplates(), hasSize(0));
+    }
+
+    @Test
+    public void testThatGetIndexTemplatesWithSimpleRegexWorks() throws Exception {
+        logger.info("--> put template_1");
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> put template_2");
+        client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> put template3");
+        client().admin().indices().preparePutTemplate("template3")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> get template template_*");
+        GetIndexTemplatesResponse getTemplate1Response = client().admin().indices().prepareGetTemplates("template_*").execute().actionGet();
+        assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
+
+        List<String> templateNames = Lists.newArrayList();
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(0).name());
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
+        assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
     }
 }

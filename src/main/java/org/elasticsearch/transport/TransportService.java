@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -315,6 +316,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                             }
                         }
                     } catch (RejectedExecutionException ex) {
+                        logger.debug("Rejected execution on NodeDisconnected", ex);
+                    } catch (EsRejectedExecutionException ex) {
                         logger.debug("Rejected execution on NodeDisconnected", ex);
                     }
                 }

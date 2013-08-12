@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -44,8 +43,6 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
 
     public RefreshRequest(String... indices) {
         super(indices);
-        // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public boolean waitForOperations() {

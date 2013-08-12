@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.optimize;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -67,8 +66,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      */
     public OptimizeRequest(String... indices) {
         super(indices);
-        // we want to do the optimize in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public OptimizeRequest() {

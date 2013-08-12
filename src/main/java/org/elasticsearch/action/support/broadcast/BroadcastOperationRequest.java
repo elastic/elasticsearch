@@ -34,7 +34,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
 
     protected String[] indices;
 
-    private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
+    private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
     private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
 
     protected BroadcastOperationRequest() {

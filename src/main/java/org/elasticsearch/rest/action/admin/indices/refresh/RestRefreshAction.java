@@ -61,7 +61,7 @@ public class RestRefreshAction extends BaseRestHandler {
         if (request.hasParam("ignore_indices")) {
             refreshRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread
             operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;

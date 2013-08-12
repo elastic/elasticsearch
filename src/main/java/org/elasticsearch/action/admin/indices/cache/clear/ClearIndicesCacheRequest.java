@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -44,8 +43,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
 
     public ClearIndicesCacheRequest(String... indices) {
         super(indices);
-        // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public boolean filterCache() {

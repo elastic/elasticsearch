@@ -138,7 +138,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().size();
-                // add the notifications that the store was deleted from *date* nodes
+                // add the notifications that the store was deleted from *data* nodes
                 count += currentState.nodes().dataNodes().size();
                 final AtomicInteger counter = new AtomicInteger(count);
                 final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {

@@ -294,6 +294,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void removeMapping(final RemoveRequest request, final Listener listener) {
         clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.HIGH, new TimeoutClusterStateUpdateTask() {
+
             @Override
             public TimeValue timeout() {
                 return request.masterTimeout;
@@ -342,8 +343,11 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void putMapping(final PutRequest request, final Listener listener) {
-        final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
+
         clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.HIGH, new TimeoutClusterStateUpdateTask() {
+
+            CountDownListener countDownListener; // used to count ack responses before confirming operation is complete
+
             @Override
             public TimeValue timeout() {
                 return request.masterTimeout;
@@ -479,8 +483,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
 
-                    // wait for responses from other nodes if needed
-                    int counter = 0;
+                    // counter the number of nodes participating so we can wait for responses from other nodes if needed
+                    int counter = 1; // this mast node
                     for (String index : request.indices) {
                         IndexRoutingTable indexRoutingTable = updatedState.routingTable().index(index);
                         if (indexRoutingTable != null) {
@@ -488,11 +492,9 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    if (counter == 0) {
-                        notifyOnPostProcess.set(true);
-                        return updatedState;
-                    }
-                    mappingCreatedAction.add(new CountDownListener(counter, listener), request.timeout);
+                    countDownListener = new CountDownListener(counter, listener);
+                    mappingCreatedAction.add(countDownListener, request.timeout);
+
                     return updatedState;
                 } finally {
                     for (String index : indicesToClose) {
@@ -503,8 +505,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (notifyOnPostProcess.get()) {
-                    listener.onResponse(new Response(true));
+                if (countDownListener != null) {
+                    // notify we did stuff on our end.
+                    countDownListener.onNodeMappingCreated(null);
                 }
             }
         });
@@ -594,6 +597,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
         @Override
         public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
+            // response may be null - see clusterStateProcessed implementation in {@link MetaDataMappingService#putMapping}
+
             if (countDown.decrementAndGet() == 0) {
                 mappingCreatedAction.remove(this);
                 if (notified.compareAndSet(false, true)) {

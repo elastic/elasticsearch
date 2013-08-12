@@ -25,17 +25,17 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.Reader;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class UniqueTokenFilterTests {
+public class UniqueTokenFilterTests extends ElasticsearchTestCase {
 
     @Test
     public void simpleTest() throws IOException {

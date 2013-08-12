@@ -106,6 +106,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
     @Before
     public void setUp() throws Exception {
+        super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .build(); // TODO randomize more settings
@@ -124,6 +125,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
     @After
     public void tearDown() throws Exception {
+        super.tearDown();
         replicaEngine.close();
         storeReplica.close();
 

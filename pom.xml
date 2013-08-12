@@ -33,7 +33,8 @@
         <lucene.version>4.4.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
-        <tests.failfast>true</tests.failfast>
+        <tests.failfast>yes</tests.failfast>
+        <tests.maxfailures>1</tests.maxfailures>
     </properties>
 
     <repositories>
@@ -372,6 +373,8 @@
                             <systemProperties>
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.iters>${tests.iters}</tests.iters>
+                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
+                                <tests.failfast>${tests.failfast}</tests.failfast>
                                 <tests.class>${tests.class}</tests.class>
                                 <tests.method>${tests.method}</tests.method>
                                 <tests.nightly>${tests.nightly}</tests.nightly>
@@ -380,6 +383,8 @@
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
                                 <tests.slow>${tests.slow}</tests.slow>
+                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
+                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
                                 <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}

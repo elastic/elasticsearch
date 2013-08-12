@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.Node;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -192,8 +193,20 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
     
     private static volatile AbstractNodesTests testInstance; // this test class only works once per JVM
     
-    @BeforeClass
+    @AfterClass
     public static void tearDownOnce() throws Exception {
+        synchronized (AbstractNodesTests.class) {
+            if (testInstance != null) {
+                testInstance.afterClass();
+                testInstance.closeAllNodes();
+                testInstance = null;
+            }
+        }
+    }
+    
+    
+    @BeforeClass
+    public static void setUpOnce() throws Exception {
         synchronized (AbstractNodesTests.class) {
             if (testInstance != null) {
                 testInstance.afterClass();
@@ -205,6 +218,7 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
     
     @Before
     public final void setUp() throws Exception {
+        super.setUp();
         synchronized (AbstractNodesTests.class) {
             if (testInstance == null) {
                 testInstance = this;

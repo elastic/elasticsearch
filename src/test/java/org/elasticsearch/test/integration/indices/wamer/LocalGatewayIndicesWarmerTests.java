@@ -46,6 +46,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
 
     @After
     public void cleanAndCloseNodes() throws Exception {
+        super.tearDown();
         for (int i = 0; i < 10; i++) {
             if (node("node" + i) != null) {
                 node("node" + i).stop();

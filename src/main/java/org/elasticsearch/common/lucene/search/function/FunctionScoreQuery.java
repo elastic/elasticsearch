@@ -200,8 +200,13 @@ public class FunctionScoreQuery extends Query {
     }
 
     public static float toFloat(double input) {
-        assert Double.compare(((float) input), input) == 0 || (Math.abs(((float) input) - input) <= 0.001) : "input " + input + " out of float scope for function score";
+        assert deviation(input) <= 0.001 : "input " + input + " out of float scope for function score deviation: " + deviation(input);
         return (float) input;
+    }
+    
+    private static double deviation(double input) { // only with assert!
+        float floatVersion = (float)input;
+        return Double.compare(floatVersion, input) == 0 || input == 0.0d ? 0 : 1.d-(floatVersion) / input;
     }
 
 }

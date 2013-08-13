@@ -482,8 +482,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
 
-                    // counter the number of nodes participating so we can wait for responses from other nodes if needed
-                    int counter = 1; // this mast node
+                    int counter = 1; // we want to wait on the master node to apply it on its cluster state
+                    // also wait for nodes that actually have the index created on them to apply the mappings internally
                     for (String index : request.indices) {
                         IndexRoutingTable indexRoutingTable = updatedState.routingTable().index(index);
                         if (indexRoutingTable != null) {
@@ -505,7 +505,7 @@ public class MetaDataMappingService extends AbstractComponent {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (countDownListener != null) {
-                    // notify we did stuff on our end.
+                    // the master has applied it on its cluster state
                     countDownListener.onNodeMappingCreated(null);
                 }
             }

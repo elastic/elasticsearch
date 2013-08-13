@@ -31,7 +31,9 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.client.AdminClient;
@@ -315,8 +317,20 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     // utils
-    protected void index(String index, String type, XContentBuilder source) {
-        client().prepareIndex(index, type).setSource(source).execute().actionGet();
+    protected GetResponse get(String index, String type, String id) {
+        return client().prepareGet(index, type, id).execute().actionGet();
+    }
+
+    protected IndexResponse index(String index, String type, XContentBuilder source) {
+        return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+    }
+
+    protected IndexResponse index(String index, String type, String id, XContentBuilder source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    }
+
+    protected IndexResponse index(String index, String type, String id, String field, Object value) {
+        return client().prepareIndex(index, type, id).setSource(field, value).execute().actionGet();
     }
 
     protected RefreshResponse refresh() {
@@ -381,9 +395,9 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         assertNoFailures(actionGet);
         return actionGet;
     }
-    
+
     // TODO move this into a base class for integration tests
-    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder...builders) throws InterruptedException, ExecutionException {
+    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
         Random random = getRandom();
         List<IndexRequestBuilder> list = Arrays.asList(builders);
         Collections.shuffle(list, random);

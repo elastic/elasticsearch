@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CustomAnalyzerWrapper;
 
 /**
@@ -49,8 +48,6 @@ public class NamedAnalyzer extends CustomAnalyzerWrapper {
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
         // our named analyzer always wrap a non per field analyzer, so no need to have per field analyzer
         super(new GlobalReuseStrategy());
-        // TODO would be nice to pick the reuse start based on the analyzer...
-        assert !(analyzer instanceof AnalyzerWrapper); // this is the only one in Lucene currently that uses PerFieldStrategy, make sure we don't wrap it
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;

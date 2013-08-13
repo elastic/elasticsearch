@@ -67,7 +67,7 @@ public class RestSearchAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         SearchRequest searchRequest;
         try {
-            searchRequest = parseSearchRequest(request);
+            searchRequest = RestSearchAction.parseSearchRequest(request);
             searchRequest.listenerThreaded(false);
             SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
             if (operationThreading != null) {
@@ -117,7 +117,7 @@ public class RestSearchAction extends BaseRestHandler {
         });
     }
 
-    private SearchRequest parseSearchRequest(RestRequest request) {
+    public static SearchRequest parseSearchRequest(RestRequest request) {
         String[] indices = RestActions.splitIndices(request.param("index"));
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
@@ -149,7 +149,7 @@ public class RestSearchAction extends BaseRestHandler {
         return searchRequest;
     }
 
-    private SearchSourceBuilder parseSearchSource(RestRequest request) {
+    public static SearchSourceBuilder parseSearchSource(RestRequest request) {
         SearchSourceBuilder searchSourceBuilder = null;
         String queryString = request.param("q");
         if (queryString != null) {

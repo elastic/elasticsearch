@@ -372,7 +372,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
 
                 // update the current cluster state
-                logger.debug("Updating cluster state version {}: {}", newClusterState.version(), newClusterState);
+                logger.debug("Updating cluster state version {}", newClusterState.version());
                 clusterState = newClusterState;
 
                 for (ClusterStateListener listener : priorityClusterStateListeners) {

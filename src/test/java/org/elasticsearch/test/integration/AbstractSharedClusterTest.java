@@ -105,6 +105,8 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .persistentSettings().getAsMap().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                 .persistentSettings().getAsMap().size(), equalTo(0));
+        wipeIndices(); // wipe after to make sure we fail in the test that didn't ack the delete
+        wipeTemplates();
     }
 
     public static TestCluster cluster() {

@@ -547,7 +547,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     mergeScheduleFuture = null;
                 }
             }
-            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
+            if (logger.isDebugEnabled()) {
+                logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.CLOSED, reason);
+            }
             state = IndexShardState.CLOSED;
         }
     }

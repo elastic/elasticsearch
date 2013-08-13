@@ -102,7 +102,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     }
 
     private void deleteIndex(final Request request, final Listener userListener, Semaphore mdLock) {
-        final DeleteIndexListener listener = new DeleteIndexListener(mdLock, request, userListener);
+        final DeleteIndexListener listener = new DeleteIndexListener(mdLock, userListener);
         clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
 
             @Override
@@ -141,6 +141,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 // add the notifications that the store was deleted from *data* nodes
                 count += currentState.nodes().dataNodes().size();
                 final AtomicInteger counter = new AtomicInteger(count);
+                // this listener will be notified once we get back a notification based on the cluster state change below.
                 final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
                     @Override
                     public void onNodeIndexDeleted(String index, String nodeId) {
@@ -185,13 +186,11 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         private final AtomicBoolean notified = new AtomicBoolean();
         private final Semaphore mdLock;
-        private final Request request;
         private final Listener listener;
-        volatile ScheduledFuture future;
+        volatile ScheduledFuture<?> future;
 
-        private DeleteIndexListener(Semaphore mdLock, Request request, Listener listener) {
+        private DeleteIndexListener(Semaphore mdLock, Listener listener) {
             this.mdLock = mdLock;
-            this.request = request;
             this.listener = listener;
         }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
+import org.junit.Ignore;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -35,7 +36,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 /**
  * Checks that index operation does not create duplicate documents.
  */
-public class ConcurrentIndexingVersioningTest {
+public class ConcurrentIndexingVersioningStressTest {
 
     public static void main(String[] args) throws Exception {
 

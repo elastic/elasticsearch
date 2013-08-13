@@ -29,7 +29,7 @@ import java.util.zip.CRC32;
 /**
  *
  */
-public class ChecksumBenchmarkTest {
+public class ChecksumBenchmark {
 
     public static final int BATCH_SIZE = 16 * 1024;
 

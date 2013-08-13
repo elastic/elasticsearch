@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.unit.common.settings.foo;
 
-/**
- *
- */
-public class FooTest {
+// used in ImmutableSettingsTest
+public class FooTestClass {
 }

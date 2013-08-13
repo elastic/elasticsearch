@@ -53,7 +53,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 /**
  *
  */
-public class EmbeddedPercolatorBenchmarkTest {
+public class EmbeddedPercolatorBenchmark {
 
     private static long NUMBER_OF_ITERATIONS = 100000;
     private static int NUMBER_OF_THREADS = 10;

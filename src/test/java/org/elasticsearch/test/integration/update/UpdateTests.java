@@ -33,14 +33,14 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
 
 public class UpdateTests extends AbstractSharedClusterTest {
 
@@ -446,21 +446,14 @@ public class UpdateTests extends AbstractSharedClusterTest {
 
     @Test
     public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
-        concurrentUpdateWithRetryOnConflict(false);
-    }
-
-    @Test
-    public void testConcurrentUpdateWithRetryOnConflict_bulk() throws Exception {
-        concurrentUpdateWithRetryOnConflict(true);
-    }
-
-    private void concurrentUpdateWithRetryOnConflict(final boolean useBulkApi) throws Exception {
+        final boolean useBulkApi = randomBoolean();
         createIndex();
         ensureGreen();
 
-        int numberOfThreads = 5;
+        int numberOfThreads = between(2,5);
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);
-        final int numberOfUpdatesPerThread = 10000;
+        final int numberOfUpdatesPerThread = between(1000, 10000);
+        final List<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
         for (int i = 0; i < numberOfThreads; i++) {
             Runnable r = new Runnable() {
 
@@ -481,8 +474,8 @@ public class UpdateTests extends AbstractSharedClusterTest {
                                         .execute().actionGet();
                             }
                         }
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                    } catch (Throwable e) {
+                        failures.add(e);
                     } finally {
                         latch.countDown();
                     }
@@ -492,7 +485,10 @@ public class UpdateTests extends AbstractSharedClusterTest {
             new Thread(r).start();
         }
         latch.await();
-
+        for (Throwable throwable : failures) {
+            logger.info("Captured failure on concurrent update:", throwable);
+        }
+        assertThat(failures.size(), equalTo(0));
         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
             GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
             assertThat(response.getId(), equalTo(Integer.toString(i)));

@@ -38,7 +38,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
 
     private String[] indices;
 
-    private TimeValue timeout = timeValueSeconds(10);
+    private TimeValue timeout = timeValueSeconds(60);
 
     DeleteIndexRequest() {
     }

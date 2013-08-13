@@ -151,7 +151,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         logger.debug("[{}][{}] removing shard (disabled block persistence)", index, shardId);
                         try {
                             indexService.removeShard(shardId, "removing shard (disabled block persistence)");
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             logger.warn("[{}] failed to remove shard (disabled block persistence)", e, index);
                         }
                     }
@@ -174,17 +174,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void sendIndexLifecycleEvents(final ClusterChangedEvent event) {
+        String localNodeId = event.state().nodes().localNodeId();
+        assert localNodeId != null;
         for (String index : event.indicesCreated()) {
             try {
-                nodeIndexCreatedAction.nodeIndexCreated(index, event.state().nodes().localNodeId());
-            } catch (Exception e) {
+                nodeIndexCreatedAction.nodeIndexCreated(index, localNodeId);
+            } catch (Throwable e) {
                 logger.debug("failed to send to master index {} created event", e, index);
             }
         }
         for (String index : event.indicesDeleted()) {
             try {
-                nodeIndexDeletedAction.nodeIndexDeleted(index, event.state().nodes().localNodeId());
-            } catch (Exception e) {
+                nodeIndexDeletedAction.nodeIndexDeleted(index, localNodeId);
+            } catch (Throwable e) {
                 logger.debug("failed to send to master index {} deleted event", e, index);
             }
         }
@@ -195,7 +197,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (event.indicesStateChanged()) {
             try {
                 nodeIndicesStateUpdatedAction.nodeIndexStateUpdated(new NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.debug("failed to send to master indices state change event", e);
             }
         }
@@ -212,7 +214,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}][{}] removing shard (index is closed)", index, shardId);
                     try {
                         indexService.removeShard(shardId, "removing shard (index is closed)");
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("[{}] failed to remove shard (index is closed)", e, index);
                     }
                 }
@@ -226,7 +228,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // clean the index
                 try {
                     indicesService.removeIndex(index, "removing index (no shards allocated)");
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("[{}] failed to clean index (no shards of that index are allocated on this node)", e, index);
                 }
             }
@@ -241,7 +243,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 try {
                     indicesService.removeIndex(index, "index no longer part of the metadata");
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to clean index", e);
                 }
                 // clear seen mappings as well
@@ -418,7 +420,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
         }
         return requiresRefresh;
@@ -476,7 +478,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         newAliases.put(alias, indexAliasesService.create(alias, filter));
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.warn("[{}] failed to add alias [{}], filter [{}]", e, index, alias, filter);
             }
         }
@@ -607,7 +609,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         // we are recovering a backup from a primary, so no need to mark it as relocated
                         final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
                         recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService));
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         handleRecoveryFailure(indexService, shardRouting, true, e);
                         break;
                     }
@@ -643,7 +645,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // and that way we handle the edge case where its mark as relocated, and we might need to roll it back...
                     final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
                     recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     handleRecoveryFailure(indexService, shardRouting, true, e);
                 }
             }
@@ -688,7 +690,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         indexService.removeShard(shardRouting.shardId().id(), "ignore recovery: " + reason);
                     } catch (IndexShardMissingException e) {
                         // the node got closed on us, ignore it
-                    } catch (Exception e1) {
+                    } catch (Throwable e1) {
                         logger.warn("[{}][{}] failed to delete shard after ignore recovery", e1, indexService.index().name(), shardRouting.shardId().id());
                     }
                 }
@@ -709,14 +711,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     indexService.removeShard(shardRouting.shardId().id(), "recovery failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
                 } catch (IndexShardMissingException e) {
                     // the node got closed on us, ignore it
-                } catch (Exception e1) {
+                } catch (Throwable e1) {
                     logger.warn("[{}][{}] failed to delete shard after failed startup", e1, indexService.index().name(), shardRouting.shardId().id());
                 }
             }
             if (sendShardFailure) {
                 try {
                     shardStateAction.shardFailed(shardRouting, "Failed to start shard, message [" + detailedMessage(failure) + "]");
-                } catch (Exception e1) {
+                } catch (Throwable e1) {
                     logger.warn("[{}][{}] failed to mark shard as failed after a failed start", e1, indexService.index().name(), shardRouting.id());
                 }
             }
@@ -748,13 +750,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                 indexService.removeShard(shardId.id(), "engine failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
                             } catch (IndexShardMissingException e) {
                                 // the node got closed on us, ignore it
-                            } catch (Exception e1) {
+                            } catch (Throwable e1) {
                                 logger.warn("[{}][{}] failed to delete shard after failed engine", e1, indexService.index().name(), shardId.id());
                             }
                         }
                         try {
                             shardStateAction.shardFailed(fShardRouting, "engine failure, message [" + detailedMessage(failure) + "]");
-                        } catch (Exception e1) {
+                        } catch (Throwable e1) {
                             logger.warn("[{}][{}] failed to mark shard as failed after a failed engine", e1, indexService.index().name(), shardId.id());
                         }
                     }

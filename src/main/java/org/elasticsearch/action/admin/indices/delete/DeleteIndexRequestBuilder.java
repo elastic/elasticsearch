@@ -36,7 +36,7 @@ public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder
 
     /**
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * to <tt>60s</tt>.
      */
     public DeleteIndexRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);

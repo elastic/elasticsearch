@@ -84,7 +84,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return DoubleArrayAtomicFieldData.EMPTY;
+            return DoubleArrayAtomicFieldData.empty(reader.maxDoc());
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigDoubleArrayList values = new BigDoubleArrayList();

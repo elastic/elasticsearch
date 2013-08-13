@@ -103,7 +103,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return PackedArrayAtomicFieldData.EMPTY;
+            return PackedArrayAtomicFieldData.empty(reader.maxDoc());
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         // Lucene encodes numeric data so that the lexicographical (encoded) order matches the integer order so we know the sequence of

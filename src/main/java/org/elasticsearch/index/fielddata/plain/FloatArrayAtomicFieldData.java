@@ -29,7 +29,9 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
  */
 public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
-    public static final FloatArrayAtomicFieldData EMPTY = new Empty();
+    public static FloatArrayAtomicFieldData empty(int numDocs) {
+        return new Empty(numDocs);
+    }
 
     private final int numDocs;
 
@@ -51,8 +53,8 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
     static class Empty extends FloatArrayAtomicFieldData {
 
-        Empty() {
-            super(0);
+        Empty(int numDocs) {
+            super(numDocs);
         }
 
         @Override

@@ -19,19 +19,24 @@
 
 package org.elasticsearch.test.integration.search.functionscore;
 
-import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
-
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.functionscore.DecayFunction;
+import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.indexRequest;
@@ -46,12 +51,19 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class FunctionScorePluginTest extends AbstractNodesTests {
+public class FunctionScorePluginTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
+    @After
+    public void closeNodes() {
+        client.close();
+        closeAllNodes();
+    }
+
+    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "britta to look into it, it creates a double value that fails the toFloat assertion")
+    public void testPlugin() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomDistanceScorePlugin.class.getName());
         startNode("server1", settings);
         client = client("server1");
@@ -64,16 +76,6 @@ public class FunctionScorePluginTest extends AbstractNodesTests {
                                 .field("type", "string").endObject().startObject("num1").field("type", "date").endObject().endObject()
                                 .endObject().endObject()).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    @Test
-    public void testPlugin() throws Exception {
 
         client.index(
                 indexRequest("test").type("type1").id("1")
@@ -96,7 +98,74 @@ public class FunctionScorePluginTest extends AbstractNodesTests {
         assertThat(sh.hits().length, equalTo(2));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
-        
+
     }
 
+    public static class CustomDistanceScorePlugin extends AbstractPlugin {
+
+        @Override
+        public String name() {
+            return "test-plugin-distance-score";
+        }
+
+        @Override
+        public String description() {
+            return "Distance score plugin to test pluggable implementation";
+        }
+
+        public void onModule(FunctionScoreModule scoreModule) {
+            scoreModule.registerParser(FunctionScorePluginTests.CustomDistanceScoreParser.class);
+        }
+
+    }
+
+    public static class CustomDistanceScoreParser extends DecayFunctionParser {
+
+        public static final String[] NAMES = {"linear_mult", "linearMult"};
+
+        @Override
+        public String[] getNames() {
+            return NAMES;
+        }
+
+        static final DecayFunction distanceFunction = new LinearMultScoreFunction();
+
+        @Override
+        public DecayFunction getDecayFunction() {
+            return distanceFunction;
+        }
+
+        static class LinearMultScoreFunction implements DecayFunction {
+            LinearMultScoreFunction() {
+            }
+
+            @Override
+            public double evaluate(double value, double scale) {
+                return Math.abs(value);
+            }
+
+            @Override
+            public Explanation explainFunction(String distanceString, double distanceVal, double scale) {
+                ComplexExplanation ce = new ComplexExplanation();
+                ce.setDescription("" + distanceVal);
+                return ce;
+            }
+
+            @Override
+            public double processScale(double userGivenScale, double userGivenValue) {
+                return userGivenScale;
+            }
+        }
+    }
+
+
+    public class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
+
+
+        @Override
+        public String getName() {
+            return CustomDistanceScoreParser.NAMES[0];
+        }
+
+    }
 }

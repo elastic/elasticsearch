@@ -125,7 +125,7 @@ public class FunctionScoreQuery extends Query {
             function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
             float sc = getBoost() * functionExplanation.getValue();
-            Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
+            Explanation res = new ComplexExplanation(true, sc, "function score, product of:");
             res.addDetail(functionExplanation);
             res.addDetail(new Explanation(getBoost(), "queryBoost"));
             return res;
@@ -200,7 +200,7 @@ public class FunctionScoreQuery extends Query {
     }
 
     public static float toFloat(double input) {
-        assert Double.compare(((float) input), input) == 0 || (Math.abs(((float) input) - input) <= 0.001);
+        assert Double.compare(((float) input), input) == 0 || (Math.abs(((float) input) - input) <= 0.001) : "input " + input + " out of float scope for function score";
         return (float) input;
     }
 

@@ -225,7 +225,8 @@ public abstract class LongValues {
 
         @Override
         public long getValue(int docId) {
-            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty LongValues");
+            // conforms with all other impls when there is no value
+            return 0;
         }
 
         @Override

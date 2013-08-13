@@ -225,7 +225,8 @@ public abstract class DoubleValues {
 
         @Override
         public double getValue(int docId) {
-            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty DoubleValues");
+            // conforms with all other impls when there is no value
+            return 0;
         }
 
         @Override

@@ -46,7 +46,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DecayFunctionScoreTest extends AbstractSharedClusterTest {
+public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDistanceScoreGeoLinGaussExp() throws Exception {

@@ -182,11 +182,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     private final boolean enabled;
 
     private Boolean compress;
-
     private long compressThreshold;
 
     private String[] includes;
-
     private String[] excludes;
 
     private String format;
@@ -405,6 +403,12 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             }
             if (sourceMergeWith.compressThreshold != -1) {
                 this.compressThreshold = sourceMergeWith.compressThreshold;
+            }
+            if (sourceMergeWith.includes != null) {
+                this.includes = sourceMergeWith.includes;
+            }
+            if (sourceMergeWith.excludes != null) {
+                this.excludes = sourceMergeWith.excludes;
             }
         }
     }

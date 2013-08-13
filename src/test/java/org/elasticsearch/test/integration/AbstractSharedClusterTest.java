@@ -325,6 +325,10 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return client().prepareGet(index, type, id).execute().actionGet();
     }
 
+    protected IndexResponse index(String index, String type, String id, XContentBuilder source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    }
+
     protected IndexResponse index(String index, String type, String id, String field, Object value) {
         return client().prepareIndex(index, type, id).setSource(field, value).execute().actionGet();
     }
@@ -391,9 +395,9 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         assertNoFailures(actionGet);
         return actionGet;
     }
-    
+
     // TODO move this into a base class for integration tests
-    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder...builders) throws InterruptedException, ExecutionException {
+    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
         Random random = getRandom();
         List<IndexRequestBuilder> list = Arrays.asList(builders);
         Collections.shuffle(list, random);

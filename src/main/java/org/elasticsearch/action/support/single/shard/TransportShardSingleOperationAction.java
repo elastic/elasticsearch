@@ -120,7 +120,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
 
         public void start() {
-            perform(new NoShardAvailableActionException(shardIt.shardId()));
+            perform(null);
         }
 
         private void onFailure(ShardRouting shardRouting, Throwable e) {
@@ -140,7 +140,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             if (shardRouting == null) {
                 Throwable failure = lastFailure;
                 if (failure == null) {
-                    failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
+                    failure = new NoShardAvailableActionException(shardIt.shardId());
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("{}: failed to execute [{}]", failure, shardIt.shardId(), request);

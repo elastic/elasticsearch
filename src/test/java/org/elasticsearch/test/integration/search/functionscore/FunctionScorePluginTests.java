@@ -21,7 +21,6 @@ package org.elasticsearch.test.integration.search.functionscore;
 
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -62,7 +61,6 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "britta to look into it, it creates a double value that fails the toFloat assertion")
     public void testPlugin() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomDistanceScorePlugin.class.getName());
         startNode("server1", settings);

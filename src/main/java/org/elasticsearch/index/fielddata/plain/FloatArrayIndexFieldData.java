@@ -83,7 +83,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return FloatArrayAtomicFieldData.EMPTY;
+            return FloatArrayAtomicFieldData.empty(reader.maxDoc());
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigFloatArrayList values = new BigFloatArrayList();

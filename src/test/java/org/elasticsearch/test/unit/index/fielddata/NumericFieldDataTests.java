@@ -386,7 +386,7 @@ public abstract class NumericFieldDataTests extends AbstractStringFieldDataTests
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
 
-        assertThat(fieldData.getNumDocs(), equalTo(0));
+        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         // long values
 

@@ -372,8 +372,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
 
                 // update the current cluster state
-                logger.debug("Updating cluster state version {}", newClusterState.version());
                 clusterState = newClusterState;
+                logger.debug("Set cluster state to version {}. Broadcasting to listeners.", newClusterState.version());
 
                 for (ClusterStateListener listener : priorityClusterStateListeners) {
                     listener.clusterChanged(clusterChangedEvent);
@@ -401,7 +401,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
 
-                logger.debug("processing [{}]: done applying updated cluster_state", source);
+                logger.debug("processing [{}]: done applying updated cluster_state (version: {})", source, newClusterState.version());
             } catch (Exception e) {
                 StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());

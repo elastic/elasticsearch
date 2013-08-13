@@ -4,6 +4,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -108,6 +110,68 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
     }
 
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void updateIncludeExclude() throws Exception {
+        createIndexMapped("test", "type", "normal", "long", "exclude", "long", "include", "long");
+
+        logger.info("Index doc 1");
+        index("test", "type", "1", JsonXContent.contentBuilder().startObject()
+                .field("normal", 1).field("exclude", 1).field("include", 1)
+                .endObject()
+        );
+        refresh(); // commit it for later testing.
+
+
+        logger.info("Adding exclude settings");
+        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
+                JsonXContent.contentBuilder().startObject().startObject("type")
+                        .startObject("_source")
+                        .startArray("excludes").value("exclude").endArray()
+                        .endObject().endObject()
+        ).get();
+
+        assertTrue(putResponse.isAcknowledged());
+
+        logger.info("Index doc 2");
+        index("test", "type", "2", JsonXContent.contentBuilder().startObject()
+                .field("normal", 2).field("exclude", 1).field("include", 2)
+                .endObject()
+        );
+
+        GetResponse getResponse = get("test", "type", "2");
+        assertThat(getResponse.getSource(), hasKey("normal"));
+        assertThat(getResponse.getSource(), not(hasKey("exclude")));
+        assertThat(getResponse.getSource(), hasKey("include"));
+
+
+        putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
+                JsonXContent.contentBuilder().startObject().startObject("type")
+                        .startObject("_source")
+                        .startArray("excludes").endArray()
+                        .startArray("includes").value("include").endArray()
+                        .endObject().endObject()
+        ).get();
+        assertTrue(putResponse.isAcknowledged());
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
+        MappingMetaData typeMapping = getMappingsResponse.getMappings().get("test").get("type");
+        assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("includes"));
+        assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), not(hasKey("excludes")));
+
+
+        index("test", "type", "3", JsonXContent.contentBuilder().startObject()
+                .field("normal", 3).field("exclude", 3).field("include", 3)
+                .endObject()
+        );
+
+        getResponse = get("test", "type", "3");
+        assertThat(getResponse.getSource(), not(hasKey("normal")));
+        assertThat(getResponse.getSource(), not(hasKey("exclude")));
+        assertThat(getResponse.getSource(), hasKey("include"));
+
+    }
 
     @SuppressWarnings("unchecked")
     @Test

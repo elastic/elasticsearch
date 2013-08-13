@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -53,25 +52,15 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class DocumentActionsTests extends AbstractSharedClusterTest {
-    
-    @BeforeClass
-    public static void beforeDocumentActionsTests() throws Exception {
-        AbstractSharedClusterTest.beforeClass();
-        wipeIndices();
-        // no indices, check that simple operations fail
-        try {
-            client().prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
-            assert false : "should fail";
-        } catch (Exception e) {
-            // all is well
-        }
-        client().prepareCount().setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
-        cluster().ensureAtLeastNumNodes(2);
+
+    @Override
+    protected int numberOfNodes() {
+        return 2;
     }
 
     protected void createIndex() {
-       wipeIndex(getConcreteIndexName());
-       createIndex(getConcreteIndexName());
+        wipeIndex(getConcreteIndexName());
+        createIndex(getConcreteIndexName());
     }
 
 
@@ -92,7 +81,7 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         logger.info("Refreshing");
         RefreshResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
-        
+
         logger.info("--> index exists?");
         assertThat(indexExists(getConcreteIndexName()), equalTo(true));
         logger.info("--> index exists?, fake index");
@@ -102,7 +91,7 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true).idCache(true)).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
-        
+
         logger.info("Optimizing");
         waitForRelocation(ClusterHealthStatus.GREEN);
         OptimizeResponse optimizeResponse = optimize();
@@ -203,7 +192,7 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
 
             // count with no query is a match all one
             countResponse = client().prepareCount("test").execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures()==null?0:countResponse.getShardFailures().length, equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length, equalTo(0));
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));

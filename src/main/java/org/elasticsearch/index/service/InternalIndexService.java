@@ -296,6 +296,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override
     public synchronized IndexShard createShard(int sShardId) throws ElasticSearchException {
+        /*
+         * TODO: we execute this in parallel but it's a synced method. Yet, we might
+         * be able to serialize the execution via the cluster state in the future. for now we just
+         * keep it synced.
+         */
         if (closed) {
             throw new ElasticSearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
@@ -348,105 +353,92 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override
     public synchronized void removeShard(int shardId, String reason) throws ElasticSearchException {
-        Injector shardInjector;
-        IndexShard indexShard;
-        synchronized (this) {
-            Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
-            shardInjector = tmpShardInjectors.remove(shardId);
-            if (shardInjector == null) {
-                return;
-            }
-            shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
-
-            Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
-            indexShard = tmpShardsMap.remove(shardId);
-            shards = ImmutableMap.copyOf(tmpShardsMap);
+        final Injector shardInjector;
+        final IndexShard indexShard;
+        final ShardId sId = new ShardId(index, shardId);
+        Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
+        shardInjector = tmpShardInjectors.remove(shardId);
+        if (shardInjector == null) {
+            return;
         }
-
-        ShardId sId = new ShardId(index, shardId);
-
+        shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
+        Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
+        indexShard = tmpShardsMap.remove(shardId);
+        shards = ImmutableMap.copyOf(tmpShardsMap);
         indicesLifecycle.beforeIndexShardClosed(sId, indexShard);
-
         for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
             try {
                 shardInjector.getInstance(closeable).close();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.debug("failed to clean plugin shard service [{}]", e, closeable);
             }
         }
-
         try {
             // now we can close the translog service, we need to close it before the we close the shard
             shardInjector.getInstance(TranslogService.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close translog service", e);
             // ignore
         }
-
         // this logic is tricky, we want to close the engine so we rollback the changes done to it
         // and close the shard so no operations are allowed to it
         if (indexShard != null) {
             try {
                 ((InternalIndexShard) indexShard).close(reason);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.debug("failed to close index shard", e);
                 // ignore
             }
         }
         try {
             shardInjector.getInstance(Engine.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close engine", e);
             // ignore
         }
-
         try {
             shardInjector.getInstance(MergePolicyProvider.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close merge policy provider", e);
             // ignore
         }
-
         try {
             shardInjector.getInstance(IndexShardGatewayService.class).snapshotOnClose();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to snapshot index shard gateway on close", e);
             // ignore
         }
-
         try {
             shardInjector.getInstance(IndexShardGatewayService.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close index shard gateway", e);
             // ignore
         }
         try {
             // now we can close the translog
             shardInjector.getInstance(Translog.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close translog", e);
             // ignore
         }
         try {
             // now we can close the translog
             shardInjector.getInstance(PercolatorQueriesRegistry.class).close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to close PercolatorQueriesRegistry", e);
             // ignore
         }
 
         // call this before we close the store, so we can release resources for it
         indicesLifecycle.afterIndexShardClosed(sId);
-
         // if we delete or have no gateway or the store is not persistent, clean the store...
         Store store = shardInjector.getInstance(Store.class);
         // and close it
         try {
             store.close();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.warn("failed to close store on shard deletion", e);
         }
-
         Injectors.close(injector);
     }
 }

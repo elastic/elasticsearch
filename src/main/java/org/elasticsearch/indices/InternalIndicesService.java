@@ -32,7 +32,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
@@ -77,7 +76,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -99,10 +97,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
 
-    private final NodeEnvironment nodeEnv;
-
-    private final ThreadPool threadPool;
-
     private final InternalIndicesLifecycle indicesLifecycle;
 
     private final IndicesAnalysisService indicesAnalysisService;
@@ -120,10 +114,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     private final OldShardsStats oldShardsStats = new OldShardsStats();
 
     @Inject
-    public InternalIndicesService(Settings settings, NodeEnvironment nodeEnv, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
+    public InternalIndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
-        this.nodeEnv = nodeEnv;
-        this.threadPool = threadPool;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indicesAnalysisService = indicesAnalysisService;
         this.indicesStore = indicesStore;
@@ -400,23 +392,20 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override
-    public synchronized void removeIndex(String index, String reason) throws ElasticSearchException {
+    public void removeIndex(String index, String reason) throws ElasticSearchException {
         removeIndex(index, reason, null);
     }
 
-    private void removeIndex(String index, String reason, @Nullable Executor executor) throws ElasticSearchException {
-        Injector indexInjector;
+    private synchronized void removeIndex(String index, String reason, @Nullable Executor executor) throws ElasticSearchException {
         IndexService indexService;
-        synchronized (this) {
-            indexInjector = indicesInjectors.remove(index);
-            if (indexInjector == null) {
-                return;
-            }
-
-            Map<String, IndexService> tmpMap = newHashMap(indices);
-            indexService = tmpMap.remove(index);
-            indices = ImmutableMap.copyOf(tmpMap);
+        Injector indexInjector = indicesInjectors.remove(index);
+        if (indexInjector == null) {
+            return;
         }
+
+        Map<String, IndexService> tmpMap = newHashMap(indices);
+        indexService = tmpMap.remove(index);
+        indices = ImmutableMap.copyOf(tmpMap);
 
         indicesLifecycle.beforeIndexClosed(indexService);
 

@@ -177,7 +177,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, newMetaData)) {
                 try {
                     writeGlobalState("changed", newMetaData, currentMetaData);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     success = false;
                 }
             }
@@ -205,7 +205,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
                 try {
                     writeIndex(writeReason, indexMetaData, currentIndexMetaData);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     success = false;
                 }
             }
@@ -228,7 +228,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     }
                     try {
                         nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }
                 }
@@ -268,7 +268,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 }
                             }
                         }
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("failed to find dangling indices", e);
                     }
                 }
@@ -306,7 +306,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             logger.info("failed to send allocated dangled", e);
                         }
                     });
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to send allocate dangled", e);
                 }
             }
@@ -337,7 +337,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         builder.flush();
 
         String stateFileName = "state-" + indexMetaData.version();
-        Exception lastFailure = null;
+        Throwable lastFailure = null;
         boolean wroteAtLeastOnce = false;
         for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
             File stateLocation = new File(indexLocation, "_state");
@@ -352,7 +352,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 fos.getChannel().force(true);
                 fos.close();
                 wroteAtLeastOnce = true;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 lastFailure = e;
             } finally {
                 IOUtils.closeWhileHandlingException(fos);
@@ -396,7 +396,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         builder.flush();
 
         String globalFileName = "global-" + globalMetaData.version();
-        Exception lastFailure = null;
+        Throwable lastFailure = null;
         boolean wroteAtLeastOnce = false;
         for (File dataLocation : nodeEnv.nodeDataLocations()) {
             File stateLocation = new File(dataLocation, "_state");
@@ -411,7 +411,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 fos.getChannel().force(true);
                 fos.close();
                 wroteAtLeastOnce = true;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 lastFailure = e;
             } finally {
                 IOUtils.closeWhileHandlingException(fos);
@@ -498,7 +498,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             }
                         }
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.debug("[{}]: failed to read [" + stateFile.getAbsolutePath() + "], ignoring...", e, index);
                 }
             }
@@ -543,7 +543,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             }
                         }
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.debug("failed to load global state from [{}]", e, stateFile.getAbsolutePath());
                 }
             }

@@ -426,8 +426,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         ((InternalIndexService) indexService).close(reason, executor);
 
-        //TODO: close percolate queries registry
-//        indexInjector.getInstance(PercolatorService.class).close();
         indexInjector.getInstance(IndexCache.class).close();
         indexInjector.getInstance(IndexFieldDataService.class).clear();
         indexInjector.getInstance(AnalysisService.class).close();

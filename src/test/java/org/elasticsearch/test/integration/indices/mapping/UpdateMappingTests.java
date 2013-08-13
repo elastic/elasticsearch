@@ -177,26 +177,20 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
     @Test
     public void updateDefaultMappingSettings() throws Exception {
 
-        // TODO: bleskes: move back to combined index and mapping creation (pending bug fix concerning concurrent not-acked mapping requests)
-        createIndex("test");
-
-        logger.info("Creating _default_ mappings");
-        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        logger.info("Creating index with _default_ mappings");
+        client().admin().indices().prepareCreate("test").addMapping(MapperService.DEFAULT_MAPPING,
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .field("date_detection", false)
                         .endObject().endObject()
         ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-        logger.info("DONE: Creating _default_ mappings");
 
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         Map<String, Object> defaultMapping = clusterStateResponse.getState().metaData().index("test").getMappings().get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         assertThat(defaultMapping, hasKey("date_detection"));
 
-
         logger.info("Emptying _default_ mappings");
         // now remove it
-        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .endObject().endObject()
         ).get();

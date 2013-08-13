@@ -356,9 +356,11 @@
                             </balancers>
                             <includes>
                                 <include>**/*Tests.class</include>
+                                <include>**/*Test.class</include>
                             </includes>
                             <excludes>
                                 <exclude>**/Abstract*.class</exclude>
+                                <exclude>**/*StressTest.class</exclude>
                             </excludes>
                             <jvmArgs>
                                 <param>-Xmx512m</param>

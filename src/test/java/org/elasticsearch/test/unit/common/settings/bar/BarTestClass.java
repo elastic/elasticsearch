@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.unit.common.settings.bar;
 
-/**
- *
- */
-public class BarTest {
+//used in ImmutableSettingsTest
+public class BarTestClass {
 }

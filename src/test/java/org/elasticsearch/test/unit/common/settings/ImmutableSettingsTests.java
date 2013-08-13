@@ -21,17 +21,17 @@ package org.elasticsearch.test.unit.common.settings;
 
 import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.unit.common.settings.bar.BarTest;
-import org.elasticsearch.test.unit.common.settings.foo.FooTest;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.test.unit.common.settings.bar.BarTestClass;
+import org.elasticsearch.test.unit.common.settings.foo.FooTestClass;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class ImmutableSettingsTests {
+public class ImmutableSettingsTests extends ElasticsearchTestCase{
 
     @Test
     public void testGetAsClass() {
@@ -41,24 +41,24 @@ public class ImmutableSettingsTests {
                 .build();
 
         // Assert that defaultClazz is loaded if setting is not specified
-        assertThat(settings.getAsClass("no.settings", FooTest.class, "org.elasticsearch.test.unit.common.settings.", "Test").getName(),
-                equalTo(FooTest.class.getName()));
+        assertThat(settings.getAsClass("no.settings", FooTestClass.class, "org.elasticsearch.test.unit.common.settings.", "TestClass").getName(),
+                equalTo(FooTestClass.class.getName()));
 
         // Assert that correct class is loaded if setting contain name without package
-        assertThat(settings.getAsClass("test.class", FooTest.class, "org.elasticsearch.test.unit.common.settings.", "Test").getName(),
-                equalTo(BarTest.class.getName()));
+        assertThat(settings.getAsClass("test.class", FooTestClass.class, "org.elasticsearch.test.unit.common.settings.", "TestClass").getName(),
+                equalTo(BarTestClass.class.getName()));
 
         // Assert that class cannot be loaded if wrong packagePrefix is specified
         try {
-            settings.getAsClass("test.class", FooTest.class, "com.example.elasticsearch.test.unit..common.settings.", "Test");
-            assertThat("Class with wrong package name shouldn't be loaded", false);
+            settings.getAsClass("test.class", FooTestClass.class, "com.example.elasticsearch.test.unit..common.settings.", "TestClass");
+            fail("Class with wrong package name shouldn't be loaded");
         } catch (NoClassSettingsException ex) {
             // Ignore
         }
 
         // Assert that package name in settings is getting correctly applied
-        assertThat(settings.getAsClass("test.class.package", FooTest.class, "com.example.elasticsearch.test.unit.common.settings.", "Test").getName(),
-                equalTo(BarTest.class.getName()));
+        assertThat(settings.getAsClass("test.class.package", FooTestClass.class, "com.example.elasticsearch.test.unit.common.settings.", "TestClass").getName(),
+                equalTo(BarTestClass.class.getName()));
 
     }
 

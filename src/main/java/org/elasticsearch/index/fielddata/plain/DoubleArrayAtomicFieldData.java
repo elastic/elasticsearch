@@ -29,7 +29,9 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
  */
 public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData {
 
-    public static final DoubleArrayAtomicFieldData EMPTY = new Empty();
+    public static DoubleArrayAtomicFieldData empty(int numDocs) {
+        return new Empty(numDocs);
+    }
 
     private final int numDocs;
 
@@ -51,8 +53,8 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
     static class Empty extends DoubleArrayAtomicFieldData {
 
-        Empty() {
-            super(0);
+        Empty(int numDocs) {
+            super(numDocs);
         }
 
         @Override

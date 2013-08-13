@@ -79,7 +79,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return GeoPointDoubleArrayAtomicFieldData.EMPTY;
+            return GeoPointDoubleArrayAtomicFieldData.empty(reader.maxDoc());
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigDoubleArrayList lat = new BigDoubleArrayList();

@@ -133,8 +133,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
-        if (!indicesService.changesAllowed())
+        if (!indicesService.changesAllowed()) {
             return;
+        }
 
         if (!lifecycle.started()) {
             return;
@@ -402,7 +403,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;
                 }
-                nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
+                nodeMappingCreatedAction.nodeMappingCreated(
+                        new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId(), event.state().version()));
             } else {
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                 if (!mappingSource.equals(existingMapper.mappingSource())) {
@@ -417,7 +419,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         // this might happen when upgrading from 0.15 to 0.16
                         logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     }
-                    nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
+                    nodeMappingCreatedAction.nodeMappingCreated(
+                            new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId(), event.state().version()));
                 }
             }
         } catch (Throwable e) {
@@ -486,8 +489,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyNewOrUpdatedShards(final ClusterChangedEvent event) throws ElasticSearchException {
-        if (!indicesService.changesAllowed())
+        if (!indicesService.changesAllowed()) {
             return;
+        }
 
         RoutingTable routingTable = event.state().routingTable();
         RoutingNode routingNodes = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());

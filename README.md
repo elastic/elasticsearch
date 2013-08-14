@@ -8,7 +8,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     ------------------------------------------------------
     | Attachment Mapper Plugin | ElasticSearch    | Tika |
     ------------------------------------------------------
-    | 1.9.0-SNAPSHOT (master)  | 0.90.3 -> master | 1.2  |
+    | 1.9.0-SNAPSHOT (master)  | 0.90.3 -> master | 1.4  |
     ------------------------------------------------------
     | 1.8.0                    | 0.90.3 -> master | 1.2  |
     ------------------------------------------------------

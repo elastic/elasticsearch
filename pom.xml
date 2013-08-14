@@ -67,7 +67,7 @@
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers</artifactId>
-            <version>1.2</version>
+            <version>1.4</version>
             <scope>compile</scope>
         </dependency>
 

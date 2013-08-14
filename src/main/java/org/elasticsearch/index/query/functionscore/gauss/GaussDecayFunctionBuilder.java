@@ -24,6 +24,10 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
 public class GaussDecayFunctionBuilder extends DecayFunctionBuilder {
 
+    public GaussDecayFunctionBuilder(String fieldName, Object reference, Object scale) {
+        super(fieldName, reference, scale);
+    }
+
     @Override
     public String getName() {
         return GaussDecayFunctionParser.NAMES[0];

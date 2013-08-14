@@ -23,6 +23,10 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
 public class LinearDecayFunctionBuilder extends DecayFunctionBuilder {
 
+    public LinearDecayFunctionBuilder(String fieldName, Object reference, Object scale) {
+        super(fieldName, reference, scale);
+    }
+
     @Override
     public String getName() {
         return LinearDecayFunctionParser.NAMES[0];

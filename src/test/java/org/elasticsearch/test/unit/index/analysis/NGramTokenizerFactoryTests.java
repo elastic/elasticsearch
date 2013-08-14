@@ -22,17 +22,33 @@ package org.elasticsearch.test.unit.index.analysis;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ngram.*;
+import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 @ThreadLeakScope(Scope.NONE)
 public class NGramTokenizerFactoryTests extends BaseTokenStreamTestCase {
@@ -84,6 +100,137 @@ public class NGramTokenizerFactoryTests extends BaseTokenStreamTestCase {
         settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
         assertTokenStreamContents(new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(" a!$ 9")),
                 new String[] {" a", " a!"});
+    }
+    
+    @Test
+    public void testBackwardsCompatibilityEdgeNgramTokenizer() throws IllegalArgumentException, IllegalAccessException {
+        int iters = atLeast(20);
+        final Index index = new Index("test");
+        final String name = "ngr";
+        for (int i = 0; i < iters; i++) {
+            Version v = randomVersion(random());
+            if (v.onOrAfter(Version.V_0_90_2)) {
+                Builder builder = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit");
+                boolean compatVersion = false;
+                if ((compatVersion = random().nextBoolean())) {
+                    builder.put("version", "4." + random().nextInt(3));
+                    builder.put("side", "back");
+                }
+                Settings settings = builder.build();
+                Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(
+                        "foo bar"));
+                if (compatVersion) {
+                    assertThat(edgeNGramTokenizer, instanceOf(Lucene43EdgeNGramTokenizer.class));
+                } else {
+                    assertThat(edgeNGramTokenizer, instanceOf(EdgeNGramTokenizer.class));
+                }
+
+            } else {
+                Settings settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("side", "back").build();
+                Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(
+                        "foo bar"));
+                assertThat(edgeNGramTokenizer, instanceOf(Lucene43EdgeNGramTokenizer.class));
+            }
+        }
+        Settings settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("side", "back").build();
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        try {
+            new EdgeNGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader("foo bar"));
+            fail("should fail side:back is not supported anymore");
+        } catch (ElasticSearchIllegalArgumentException ex) {
+        }
+        
+    }
+    
+    @Test
+    public void testBackwardsCompatibilityNgramTokenizer() throws IllegalArgumentException, IllegalAccessException {
+        int iters = atLeast(20);
+        for (int i = 0; i < iters; i++) {
+            final Index index = new Index("test");
+            final String name = "ngr";
+            Version v = randomVersion(random());
+            if (v.onOrAfter(Version.V_0_90_2)) {
+                Builder builder = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit");
+                boolean compatVersion = false;
+                if ((compatVersion = random().nextBoolean())) {
+                    builder.put("version", "4." + random().nextInt(3));
+                }
+                Settings settings = builder.build();
+                Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+                Tokenizer nGramTokenizer = new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(
+                        "foo bar"));
+                if (compatVersion) { 
+                    assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
+                } else {
+                    assertThat(nGramTokenizer, instanceOf(NGramTokenizer.class));
+                }
+
+            } else {
+                Settings settings = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3).build();
+                Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+                Tokenizer nGramTokenizer = new NGramTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(
+                        "foo bar"));
+                assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
+            }
+        }
+    }
+    
+    @Test
+    public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws IllegalArgumentException, IllegalAccessException {
+        int iters = atLeast(20);
+        for (int i = 0; i < iters; i++) {
+            final Index index = new Index("test");
+            final String name = "ngr";
+            Version v = randomVersion(random());
+            if (v.onOrAfter(Version.V_0_90_2)) {
+                Builder builder = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3);
+                boolean compatVersion = false;
+                if ((compatVersion = random().nextBoolean())) {
+                    builder.put("version", "4." + random().nextInt(3));
+                }
+                boolean reverse = random().nextBoolean();
+                if (reverse) {
+                    builder.put("side", "back");
+                }
+                Settings settings = builder.build();
+                Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(new MockTokenizer(new StringReader(
+                        "foo bar")));
+                if (compatVersion) { 
+                    assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
+                } else if (reverse && !compatVersion){
+                    assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
+                } else {
+                    assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
+                }
+
+            } else {
+                Builder builder = ImmutableSettings.builder().put("min_gram", 2).put("max_gram", 3);
+                boolean reverse = random().nextBoolean();
+                if (reverse) {
+                    builder.put("side", "back");
+                }
+                Settings settings = builder.build();
+                Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(new MockTokenizer(new StringReader(
+                        "foo bar")));
+                assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
+            }
+        }
+    }
+
+    
+    private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
+        Field[] declaredFields = Version.class.getDeclaredFields();
+        List<Field> versionFields = new ArrayList<Field>();
+        for (Field field : declaredFields) {
+            if ((field.getModifiers() & Modifier.STATIC) != 0 && field.getName().startsWith("V_") && field.getType() == Version.class) {
+                versionFields.add(field);
+            }
+        }
+        return (Version) versionFields.get(random.nextInt(versionFields.size())).get(Version.class);
     }
 
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +46,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     private final int minGram;
     private final int maxGram;
     private final CharMatcher matcher;
+    private org.elasticsearch.Version esVersion;
 
     static final Map<String, CharMatcher> MATCHERS;
 
@@ -94,13 +96,18 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
+        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
     }
 
     @SuppressWarnings("deprecation")
     @Override
     public Tokenizer create(Reader reader) {
-        final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3
-        if (version.onOrAfter(Version.LUCENE_44)) {
+        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+            /*
+             * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
+             * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
+             */
+            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
             if (matcher == null) {
                 return new NGramTokenizer(version, reader, minGram, maxGram);
             } else {

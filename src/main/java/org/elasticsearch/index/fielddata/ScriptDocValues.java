@@ -98,6 +98,18 @@ public abstract class ScriptDocValues {
             return !values.hasValue(docId);
         }
 
+        public BytesValues getInternalValues() {
+            return this.values;
+        }
+
+        public Iter getBytesIter() {
+            return values.getIter(docId);
+        }
+
+        public BytesRef getBytesValue() {
+            return values.getValue(docId);
+        }
+
         public String getValue() {
             final BytesRef value = values.getValue(docId);
             if (value != null) {
@@ -137,9 +149,17 @@ public abstract class ScriptDocValues {
             this.list = new SlicedLongList(values.isMultiValued() ? 10 : 1);
         }
 
+        public LongValues getInternalValues() {
+            return this.values;
+        }
+
         @Override
         public boolean isEmpty() {
             return !values.hasValue(docId);
+        }
+
+        public LongValues.Iter getIter() {
+            return values.getIter(docId);
         }
 
         public long getValue() {
@@ -178,9 +198,17 @@ public abstract class ScriptDocValues {
 
         }
 
+        public DoubleValues getInternalValues() {
+            return this.values;
+        }
+
         @Override
         public boolean isEmpty() {
             return !values.hasValue(docId);
+        }
+
+        public DoubleValues.Iter getIter() {
+            return values.getIter(docId);
         }
 
         public double getValue() {

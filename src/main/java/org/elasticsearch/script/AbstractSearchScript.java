@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.FieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -57,6 +58,27 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
      */
     protected final DocLookup doc() {
         return lookup.doc();
+    }
+
+    /**
+     * Returns field data strings access for the provided field.
+     */
+    protected ScriptDocValues.Strings docFieldStrings(String field) {
+        return (ScriptDocValues.Strings) doc().get(field);
+    }
+
+    /**
+     * Returns field data double (floating point) access for the provided field.
+     */
+    protected ScriptDocValues.Doubles docFieldDoubles(String field) {
+        return (ScriptDocValues.Doubles) doc().get(field);
+    }
+
+    /**
+     * Returns field data long (integers) access for the provided field.
+     */
+    protected ScriptDocValues.Longs docFieldLongs(String field) {
+        return (ScriptDocValues.Longs) doc().get(field);
     }
 
     /**

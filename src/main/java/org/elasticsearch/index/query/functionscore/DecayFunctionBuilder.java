@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -30,45 +29,37 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
     protected static final String REFERNECE = "reference";
     protected static final String SCALE = "scale";
     protected static final String SCALE_WEIGHT = "scale_weight";
-    protected static final String SCALE_DEFAULT = "0.5";
-    
-    private String fieldName;
-    private String reference;
-    private String scale;
-    private String scaleWeight;
 
-    public void setParameters(String fieldName, String reference, String scale, String scaleWeight) {
-        if(this.fieldName != null ) {
-            throw new ElasticSearchIllegalStateException("Can not set parameters of decay function more than once.");
-        }
+    private String fieldName;
+    private Object reference;
+    private Object scale;
+    private double scaleWeight = -1;
+
+    public DecayFunctionBuilder(String fieldName, Object reference, Object scale) {
         this.fieldName = fieldName;
         this.reference = reference;
         this.scale = scale;
+    }
+    public DecayFunctionBuilder setScaleWeight(double scaleWeight) {
+        if(scaleWeight <=0 || scaleWeight >= 1.0) {
+            throw new ElasticSearchIllegalStateException("scale weight parameter must be in range 0..1!");
+        }
         this.scaleWeight = scaleWeight;
+        return this;
     }
-
-    public void setParameters(String fieldName, String reference, String scale) {
-        setParameters(fieldName, reference, scale, SCALE_DEFAULT);
-    }
-
+   
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-            builder.startObject(fieldName);
-            builder.field(REFERNECE, reference);
-            builder.field(SCALE, scale);
+        builder.startObject(fieldName);
+        builder.field(REFERNECE, reference);
+        builder.field(SCALE, scale);
+        if (scaleWeight > 0) {
             builder.field(SCALE_WEIGHT, scaleWeight);
-            builder.endObject();
+        }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
 
-    public void addGeoParams(String fieldName, double lat, double lon, String scale) {
-        addGeoParams(fieldName, lat, lon, scale, SCALE_DEFAULT);
-    }
-
-    public void addGeoParams(String fieldName, double lat, double lon, String scale, String scaleWeight) {
-        String geoLoc = Double.toString(lat) + ", " + Double.toString(lon);
-        setParameters(fieldName, geoLoc, scale, scaleWeight);
-    }
 }

@@ -307,9 +307,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         for (int i = 0; i < numDocs; i++) {
             scores[Integer.parseInt(sh.getAt(i).getId())] = sh.getAt(i).getScore();
         }
-        System.out.println(scores);
         for (int i = 0; i < numDocs - 1; i++) {
-            System.out.println("Doc " + i + " has score " + scores[i + 1]);
             assertThat(scores[i], lessThan(scores[i + 1]));
         }
 

@@ -245,8 +245,6 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
     @Test
     public void updateMappingConcurrently() throws Throwable {
         // Test that we can concurrently update different indexes and types.
-        // NOTE: concurrently updating the mapping of the same type and index can still return before all (relevant) nodes are updated.
-        //       The fix for that tracked on issues #3508
         int shardNo = Math.max(5, numberOfNodes());
 
         prepareCreate("test1").setSettings("index.number_of_shards", shardNo).execute().actionGet();
@@ -263,6 +261,7 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
         for (int j = 0; j < threads.length; j++) {
             threads[j] = new Thread(new Runnable() {
+                @SuppressWarnings("unchecked")
                 @Override
                 public void run() {
                     try {
@@ -276,11 +275,12 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
                             Client client1 = clientArray.get(i % clientArray.size());
                             Client client2 = clientArray.get((i + 1) % clientArray.size());
                             String indexName = i % 2 == 0 ? "test2" : "test1";
-                            String typeName = Thread.currentThread().getName() + "_" + i;
+                            String typeName = "type" + (i % 10);
+                            String fieldName = Thread.currentThread().getName() + "_" + i;
 
                             PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
                                     JsonXContent.contentBuilder().startObject().startObject(typeName)
-                                            .startObject("properties").startObject("f").field("type", "string").endObject().endObject()
+                                            .startObject("properties").startObject(fieldName).field("type", "string").endObject().endObject()
                                             .endObject().endObject()
                             ).get();
 
@@ -288,6 +288,7 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
                             GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                             Map<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
                             assertThat(mappings.keySet(), Matchers.hasItem(typeName));
+                            assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
                         }
                     } catch (Throwable t) {
                         threadException[0] = t;

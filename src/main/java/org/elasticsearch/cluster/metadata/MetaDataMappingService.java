@@ -492,7 +492,11 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    countDownListener = new CountDownListener(counter, request.indices, request.mappingType, listener);
+
+                    // TODO: adding one to the version is based on knowledge on how the parent class will increment the version
+                    //       move this to the base class or add another callback before publishing the new cluster state so we
+                    //       capture it's version.
+                    countDownListener = new CountDownListener(counter, currentState.version() + 1, listener);
                     mappingCreatedAction.add(countDownListener, request.timeout);
 
                     return updatedState;
@@ -589,22 +593,22 @@ public class MetaDataMappingService extends AbstractComponent {
         private final AtomicBoolean notified = new AtomicBoolean();
         private final AtomicInteger countDown;
         private final Listener listener;
-        private final List<String> indices;
-        private final String type;
+        private final long minClusterStateVersion;
 
-        public CountDownListener(int countDown, String[] indices, String type, Listener listener) {
-            this.indices = Arrays.asList(indices);
-            this.type = type;
+        /**
+         * @param countDown              initial counter value
+         * @param minClusterStateVersion the minimum cluster state version for which accept responses
+         * @param listener               listener to call when counter reaches 0.
+         */
+        public CountDownListener(int countDown, long minClusterStateVersion, Listener listener) {
             this.countDown = new AtomicInteger(countDown);
             this.listener = listener;
+            this.minClusterStateVersion = minClusterStateVersion;
         }
 
         @Override
         public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
-            if (indices.indexOf(response.index()) < 0) {
-                return;
-            }
-            if (type != null && !type.equals(response.type())) {
+            if (response.clusterStateVersion() < minClusterStateVersion) {
                 return;
             }
             decrementCounter();

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.recovery;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -123,10 +125,10 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> indexing threads stopped");
 
         logger.info("--> refreshing the index");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndAssert();
         logger.info("--> verifying indexed content");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
+            assertThat("iteration: " + i + " failed", client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
         }
     }
 
@@ -208,10 +210,10 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> indexing threads stopped");
 
         logger.info("--> refreshing the index");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndAssert();
         logger.info("--> verifying indexed content");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
+            assertThat("iteration: " + i + " failed", client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
         }
     }
 
@@ -310,11 +312,17 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForNodes(">=1").execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("--> refreshing the index");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndAssert();
         logger.info("--> verifying indexed content");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndAssert();
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
+            assertThat("iteration: " + i + " failed", client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
         }
+    }
+    
+    private RefreshResponse refreshAndAssert() {
+        RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
     }
 }

@@ -491,7 +491,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    countDownListener = new CountDownListener(counter, listener);
+                    countDownListener = new CountDownListener(counter, request.indices, request.mappingType, listener);
                     mappingCreatedAction.add(countDownListener, request.timeout);
 
                     return updatedState;
@@ -506,7 +506,7 @@ public class MetaDataMappingService extends AbstractComponent {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (countDownListener != null) {
                     // the master has applied it on its cluster state
-                    countDownListener.onNodeMappingCreated(null);
+                    countDownListener.decrementCounter();
                 }
             }
         });
@@ -588,16 +588,29 @@ public class MetaDataMappingService extends AbstractComponent {
         private final AtomicBoolean notified = new AtomicBoolean();
         private final AtomicInteger countDown;
         private final Listener listener;
+        private final List<String> indices;
+        private final String type;
 
-        public CountDownListener(int countDown, Listener listener) {
+        public CountDownListener(int countDown, String[] indices, String type, Listener listener) {
+            this.indices = Arrays.asList(indices);
+            this.type = type;
             this.countDown = new AtomicInteger(countDown);
             this.listener = listener;
         }
 
         @Override
         public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
-            // response may be null - see clusterStateProcessed implementation in {@link MetaDataMappingService#putMapping}
+            if (indices.indexOf(response.index()) < 0) {
+                return;
+            }
+            if (type != null && !type.equals(response.type())) {
+                return;
+            }
+            decrementCounter();
 
+        }
+
+        public void decrementCounter() {
             if (countDown.decrementAndGet() == 0) {
                 mappingCreatedAction.remove(this);
                 if (notified.compareAndSet(false, true)) {

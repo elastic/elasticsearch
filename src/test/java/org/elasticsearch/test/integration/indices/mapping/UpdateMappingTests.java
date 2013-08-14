@@ -5,6 +5,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -13,9 +14,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
@@ -234,6 +239,70 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
                         .endObject().endObject()
         ), MapperParsingException.class);
 
+    }
+
+
+    @Test
+    public void updateMappingConcurrently() throws Throwable {
+        // Test that we can concurrently update different indexes and types.
+        // NOTE: concurrently updating the mapping of the same type and index can still return before all (relevant) nodes are updated.
+        //       The fix for that tracked on issues #3508
+        createIndex("test1");
+        createIndex("test2");
+
+        final Throwable[] threadException = new Throwable[1];
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        Thread[] threads = new Thread[3];
+        final CyclicBarrier barrier = new CyclicBarrier(threads.length);
+        final ArrayList<Client> clientArray = new ArrayList<Client>();
+        for (Client c : clients()) {
+            clientArray.add(c);
+        }
+
+        for (int j = 0; j < threads.length; j++) {
+            threads[j] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        barrier.await();
+
+                        for (int i = 0; i < 100; i++) {
+                            if (stop.get()) {
+                                return;
+                            }
+
+                            Client client1 = clientArray.get(i % clientArray.size());
+                            Client client2 = clientArray.get((i + 1) % clientArray.size());
+                            String indexName = i % 2 == 0 ? "test2" : "test1";
+                            String typeName = Thread.currentThread().getName() + "_" + i;
+
+                            PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
+                                    JsonXContent.contentBuilder().startObject().startObject(typeName)
+                                            .startObject("properties").startObject("f").field("type", "string").endObject().endObject()
+                                            .endObject().endObject()
+                            ).get();
+
+                            assertThat(response.isAcknowledged(), equalTo(true));
+                            GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
+                            Map<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
+                            assertThat(mappings.keySet(), Matchers.hasItem(typeName));
+                        }
+                    } catch (Throwable t) {
+                        threadException[0] = t;
+                        stop.set(true);
+                    }
+                }
+            });
+
+            threads[j].setName("t_" + j);
+            threads[j].start();
+        }
+
+        for (Thread t : threads) t.join();
+
+        if (threadException[0] != null) {
+            throw threadException[0];
+        }
 
     }
 }

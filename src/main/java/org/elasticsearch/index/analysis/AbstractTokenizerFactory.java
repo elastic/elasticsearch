@@ -34,6 +34,7 @@ public abstract class AbstractTokenizerFactory extends AbstractIndexComponent im
 
     protected final Version version;
 
+
     public AbstractTokenizerFactory(Index index, @IndexSettings Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings);
         this.name = name;

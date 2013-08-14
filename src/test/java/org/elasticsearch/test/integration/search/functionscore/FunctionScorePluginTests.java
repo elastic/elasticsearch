@@ -83,8 +83,7 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
 
         client.admin().indices().prepareRefresh().execute().actionGet();
-        DecayFunctionBuilder gfb = new CustomDistanceScoreBuilder();
-        gfb.setParameters("num1", "2013-05-28", "+1d");
+        DecayFunctionBuilder gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
         ActionFuture<SearchResponse> response = client.search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                 searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value")).add(gfb))));
@@ -159,6 +158,10 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
 
     public class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
 
+
+        public CustomDistanceScoreBuilder(String fieldName, Object reference, Object scale) {
+            super(fieldName, reference, scale);
+        }
 
         @Override
         public String getName() {

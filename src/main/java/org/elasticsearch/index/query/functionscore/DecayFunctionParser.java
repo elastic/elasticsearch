@@ -84,12 +84,7 @@ import java.io.IOException;
  * See {@link GaussDecayFunctionBuilder} and {@link GaussDecayFunctionParser}
  * for an example. The parser furthermore needs to be registered in the
  * {@link org.elasticsearch.index.query.functionscore.FunctionScoreModule
- * FunctionScoreModule}. See
- * {@link org.elasticsearch.test.integration.search.functionscore.CustomDistanceScorePlugin
- * CustomDistanceScorePlugin} and
- * {@link org.elasticsearch.test.integration.search.functionscore.CustomDistanceScorePlugin
- * DistanceScorePluginTest DistanceScorePluginTest} for an example on how to
- * write your own function and plugin.
+ * FunctionScoreModule}.
  * 
  * **/
 
@@ -165,28 +160,30 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             NumberFieldMapper<?> mapper) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
-        String scaleString = null;
-        String referenceString = null;
+        double scale = 0;
+        double reference = 0;
         double scaleWeight = 0.5;
+        boolean scaleFound = false;
+        boolean refFound = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 parameterName = parser.currentName();
             } else if (parameterName.equals(DecayFunctionBuilder.SCALE)) {
-                scaleString = parser.text();
+                scale = parser.doubleValue();
+                scaleFound = true;
             } else if (parameterName.equals(DecayFunctionBuilder.SCALE_WEIGHT)) {
                 scaleWeight = parser.doubleValue();
             } else if (parameterName.equals(DecayFunctionBuilder.REFERNECE)) {
-                referenceString = parser.text();
+                reference = parser.doubleValue();
+                refFound = true;
             } else {
                 throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
-        if (scaleString == null || referenceString == null) {
+        if (!scaleFound || !refFound) {
             throw new ElasticSearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.REFERNECE
                     + " must be set for numeric fields.");
         }
-        double reference = mapper.value(referenceString).doubleValue();
-        double scale = mapper.value(scaleString).doubleValue();
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
         return new NumericFieldDataScoreFunction(reference, scale, scaleWeight, getDecayFunction(), numericFieldData);
     }
@@ -375,7 +372,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         public Explanation explainScore(int docId, Explanation subQueryExpl) {
             ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue((float)score(docId, subQueryExpl.getValue()));
+            ce.setValue((float) score(docId, subQueryExpl.getValue()));
             ce.setMatch(true);
             ce.setDescription("subQueryScore * Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
@@ -385,7 +382,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         public Explanation explainFactor(int docId) {
             ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue((float)factor(docId));
+            ce.setValue((float) factor(docId));
             ce.setMatch(true);
             ce.setDescription("subQueryScore * Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));

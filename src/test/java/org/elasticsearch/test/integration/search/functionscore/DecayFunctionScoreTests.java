@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.functionscore;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -86,8 +87,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         refresh();
 
         // Test Gauss
-        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder();
-        fb.addGeoParams("loc", 11, 20, "1000km");
+        List<Float> lonlat = new ArrayList<Float>();
+        lonlat.add(new Float(20));
+        lonlat.add(new Float(11));
+        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder("loc", lonlat, "1000km");
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -106,8 +109,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         // Test Exp
-        fb = new ExponentialDecayFunctionBuilder();
-        fb.addGeoParams("loc", 11, 20, "1000km");
+        fb = new ExponentialDecayFunctionBuilder("loc", lonlat, "1000km");
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -126,8 +128,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         // Test Lin
-        fb = new LinearDecayFunctionBuilder();
-        fb.addGeoParams("loc", 11, 20, "1000km");
+        fb = new LinearDecayFunctionBuilder("loc", lonlat, "1000km");
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -160,8 +161,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-28").endObject())).actionGet();
         refresh();
 
-        DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder();
-        gfb.setParameters("num1", "2013-05-28", "-1d");
+        DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "-1d");
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -176,32 +176,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
+    @Test(expected = ElasticSearchIllegalStateException.class)
     public void testExceptionThrownIfScaleRefNotBetween0And1() throws Exception {
 
-        createIndexMapped("test", "type1", "test", "string", "num1", "date");
-        ensureYellow();
-        client().index(
-                indexRequest("test").type("type1").id("1")
-                        .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
-        client().index(
-                indexRequest("test").type("type1").id("2")
-                        .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-28").endObject())).actionGet();
-        refresh();
-
-        DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder();
-        gfb.setParameters("num1", "2013-05-28", "1d", "-1");
-
-        ActionFuture<SearchResponse> response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(gfb))));
-
-        SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
-        SearchHits sh = sr.getHits();
-        assertThat(sh.hits().length, equalTo(2));
-        assertThat(sh.getAt(0).getId(), equalTo("2"));
-        assertThat(sh.getAt(1).getId(), equalTo("1"));
+        DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "1d").setScaleWeight(100);
 
     }
 
@@ -231,10 +209,8 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         refresh();
 
-        DecayFunctionBuilder gfb1 = new LinearDecayFunctionBuilder();
-        gfb1.setParameters("num1", "2013-05-28", "+3d");
-        DecayFunctionBuilder gfb2 = new LinearDecayFunctionBuilder();
-        gfb2.setParameters("num2", "0.0", "1");
+        DecayFunctionBuilder gfb1 = new LinearDecayFunctionBuilder("num1", "2013-05-28", "+3d");
+        DecayFunctionBuilder gfb2 = new LinearDecayFunctionBuilder("num2", "0.0", "1");
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -282,13 +258,13 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         indexRandom("test", false, builders);
         refresh();
-
-        DecayFunctionBuilder gfb1 = new LinearDecayFunctionBuilder();
-        DecayFunctionBuilder gfb2 = new LinearDecayFunctionBuilder();
-        DecayFunctionBuilder gfb3 = new LinearDecayFunctionBuilder();
-        gfb1.setParameters("date", "2013-05-30", "+15d");
-        gfb2.addGeoParams("geo", 110, 100, "1000km");
-        gfb3.setParameters("num", Integer.toString(numDocs), Integer.toString(numDocs / 2));
+        
+        List<Float> lonlat = new ArrayList<Float>();
+        lonlat.add(new Float(100));
+        lonlat.add(new Float(110));
+        DecayFunctionBuilder gfb1 = new LinearDecayFunctionBuilder("date", "2013-05-30", "+15d");
+        DecayFunctionBuilder gfb2 = new LinearDecayFunctionBuilder("geo", lonlat, "1000km");
+        DecayFunctionBuilder gfb3 = new LinearDecayFunctionBuilder("num", Integer.toString(numDocs), Integer.toString(numDocs / 2));
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -324,8 +300,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                         jsonBuilder().startObject().field("test", "value").startObject("geo").field("lat", 1).field("lon", 2).endObject()
                                 .endObject())).actionGet();
         refresh();
-        DecayFunctionBuilder gfb2 = new LinearDecayFunctionBuilder();
-        gfb2.addGeoParams("type1.geo", 110, 100, "1000km");
+        List<Float> lonlat = new ArrayList<Float>();
+        lonlat.add(new Float(100));
+        lonlat.add(new Float(110));
+        DecayFunctionBuilder gfb2 = new LinearDecayFunctionBuilder("type1.geo", lonlat, "1000km");
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
@@ -345,9 +323,8 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 indexRequest("test").type("type").source(
                         jsonBuilder().startObject().field("test", "value").field("num", Integer.toString(1)).endObject())).actionGet();
         refresh();
-        DecayFunctionBuilder lfb = new LinearDecayFunctionBuilder();
-        //so, we indexed a string field, but now we try to score a num field
-        lfb.setParameters("num", Integer.toString(1), Integer.toString(1 / 2));
+        DecayFunctionBuilder lfb = new LinearDecayFunctionBuilder("num", Integer.toString(1), Integer.toString(1 / 2));
+        // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client()
                 .search(searchRequest()
                         .searchType(SearchType.QUERY_THEN_FETCH)

@@ -283,7 +283,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
                         added = true;
-                        applyBoost(field, q);
+                        applyBoost(mField, q);
                         applySlop(q, slop);
                         disMaxQuery.add(q);
                     }
@@ -297,7 +297,7 @@ public class MapperQueryParser extends QueryParser {
                 for (String mField : fields) {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
-                        applyBoost(field, q);
+                        applyBoost(mField, q);
                         applySlop(q, slop);
                         clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
                     }

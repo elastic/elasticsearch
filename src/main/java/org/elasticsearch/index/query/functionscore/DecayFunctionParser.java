@@ -35,7 +35,6 @@ import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -47,7 +46,6 @@ import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParse
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * This class provides the basic functionality needed for adding a decay
@@ -149,14 +147,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             throw new QueryParsingException(parseContext.index(), "Unknown field [" + fieldName + "]");
         }
 
-        FieldMappers mappers = smartMappers.fieldMappers();
-        List<FieldMapper> allMappers = mappers.mappers();
-        if (allMappers.size() != 1) {
-            throw new QueryParsingException(parseContext.index(), "The field name [" + fieldName
-                    + "] is ambiguous! Please set the full name of the field");
-        }
-        FieldMapper<?> mapper = allMappers.get(0);
-
+        FieldMapper<?> mapper = smartMappers.fieldMappers().mapper();
         // dates and time need special handling
         if (mapper instanceof DateFieldMapper) {
             return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper);

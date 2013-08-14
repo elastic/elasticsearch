@@ -338,31 +338,6 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
     }
 
     @Test(expected = SearchPhaseExecutionException.class)
-    public void testParsingExceptionIfMultipleFieldsWithSameName() throws Exception {
-        createIndexMapped("test", "type", "test", "string", "num", "double");
-        ensureYellow();
-        int numDocs = 2;
-
-        // so, we added a mapping for "type", but now we index "type1".
-        // this will result in two fields "type.num" and "type1.num"
-        client().index(
-                indexRequest("test").type("type1").source(jsonBuilder().startObject().field("test", "value").field("num", 1).endObject()))
-                .actionGet();
-        refresh();
-        DecayFunctionBuilder gfb3 = new LinearDecayFunctionBuilder();
-        gfb3.setParameters("num", Integer.toString(numDocs), Integer.toString(numDocs / 2));
-
-        ActionFuture<SearchResponse> response = client().search(
-                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource()
-                                .explain(true)
-                                .size(numDocs)
-                                .query(functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(), gfb3).scoreMode(
-                                        "multiply"))));
-        response.actionGet();
-    }
-
-    @Test(expected = SearchPhaseExecutionException.class)
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
         createIndexMapped("test", "type", "test", "string", "num", "string");
         ensureYellow();

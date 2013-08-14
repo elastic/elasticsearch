@@ -39,8 +39,11 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
+
+import java.util.*;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -1026,6 +1029,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(response.getMatches(), emptyArray());
     }
 
+    @Test
     public void testPercolateSizingWithQueryAndFilter() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -1115,6 +1119,103 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
             assertThat(response.getCount(), equalTo(numQueriesPerLevel));
             if (!onlyCount) {
                 assertThat(response.getMatches().length, equalTo(size));
+            }
+        }
+    }
+
+    @Test
+    public void testPercolateScoreAndSorting() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 3)
+                        .put("index.number_of_replicas", 1)
+                        .build())
+                .execute().actionGet();
+        ensureGreen();
+
+        // Add a dummy doc, that shouldn't never interfere with percolate operations.
+        client().prepareIndex("my-index", "my-type", "1").setSource("field", "value").execute().actionGet();
+
+        Map<Integer, NavigableSet<Integer>> controlMap = new HashMap<Integer, NavigableSet<Integer>>();
+        long numQueries = randomIntBetween(100, 250);
+        logger.info("--> register " + numQueries +" queries");
+        for (int i = 0; i < numQueries; i++) {
+            int value = randomInt(10);
+            client().prepareIndex("my-index", "_percolator", Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", i).field("field1", value).endObject())
+                    .execute().actionGet();
+            if (!controlMap.containsKey(value)) {
+                controlMap.put(value, new TreeSet<Integer>());
+            }
+            controlMap.get(value).add(i);
+        }
+        refresh();
+
+        // Only retrieve the score
+        int runs = randomInt(27);
+        for (int i = 0; i < runs; i++) {
+            int size = randomIntBetween(1, 50);
+            PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                    .setScore(true)
+                    .setSize(size)
+                    .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                    .execute().actionGet();
+            assertNoFailures(response);
+            assertThat(response.getCount(), equalTo(numQueries));
+            assertThat(response.getMatches().length, equalTo(size));
+            for (int j = 0; j < response.getMatches().length; j++) {
+                String id = response.getMatches()[j].getId().string();
+                assertThat(Integer.valueOf(id), equalTo((int) response.getMatches()[j].getScore()));
+            }
+        }
+
+        // Sort the queries by the score
+        runs = randomInt(27);
+        for (int i = 0; i < runs; i++) {
+            int size = randomIntBetween(1, 10);
+            PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                    .setSort(true)
+                    .setSize(size)
+                    .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                    .execute().actionGet();
+            assertNoFailures(response);
+            assertThat(response.getCount(), equalTo(numQueries));
+            assertThat(response.getMatches().length, equalTo(size));
+
+            int expectedId = (int) (numQueries - 1);
+            for (PercolateResponse.Match match : response) {
+                assertThat(match.getId().string(), equalTo(Integer.toString(expectedId)));
+                assertThat(match.getScore(), equalTo((float) expectedId));
+                assertThat(match.getIndex().string(), equalTo("my-index"));
+                expectedId--;
+            }
+        }
+
+
+        runs = randomInt(27);
+        for (int i = 0; i < runs; i++) {
+            int value = randomInt(10);
+            NavigableSet<Integer> levels = controlMap.get(value);
+            int size = randomIntBetween(1, levels.size());
+            PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                    .setSort(true)
+                    .setSize(size)
+                    .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchQuery("field1", value))
+                            .add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                    .execute().actionGet();
+            assertNoFailures(response);
+
+            assertThat(response.getCount(), equalTo((long) levels.size()));
+            assertThat(response.getMatches().length, equalTo(Math.min(levels.size(), size)));
+            Iterator<Integer> levelIterator = levels.descendingIterator();
+            for (PercolateResponse.Match match : response) {
+                int controlLevel = levelIterator.next();
+                assertThat(match.getId().string(), equalTo(Integer.toString(controlLevel)));
+                assertThat(match.getScore(), equalTo((float) controlLevel));
+                assertThat(match.getIndex().string(), equalTo("my-index"));
             }
         }
     }

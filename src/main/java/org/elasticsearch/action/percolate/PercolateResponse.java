@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,11 +47,15 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     private Match[] matches;
     private long count;
 
-    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, Match[] matches, long count, long tookInMillis) {
+    private boolean hasScores;
+
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures,
+                             Match[] matches, long count, long tookInMillis, boolean hasScores) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
         this.matches = matches;
         this.count = count;
+        this.hasScores = hasScores;
     }
 
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long count, long tookInMillis) {
@@ -58,11 +63,14 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         this.tookInMillis = tookInMillis;
         this.matches = EMPTY;
         this.count = count;
+        this.hasScores = false;
     }
 
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
+        this.matches = EMPTY;
+        this.hasScores = false;
     }
 
     PercolateResponse() {
@@ -104,23 +112,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         builder.startObject();
 
         builder.field(Fields.TOOK, tookInMillis);
-        builder.startObject(Fields._SHARDS);
-        builder.field(Fields.TOTAL, getTotalShards());
-        builder.field(Fields.SUCCESSFUL, getSuccessfulShards());
-        builder.field(Fields.FAILED, getFailedShards());
-        if (getShardFailures().length > 0) {
-            builder.startArray(Fields.FAILURES);
-            for (ShardOperationFailedException shardFailure : getShardFailures()) {
-                builder.startObject();
-                builder.field(Fields.INDEX, shardFailure.index());
-                builder.field(Fields.SHARD, shardFailure.shardId());
-                builder.field(Fields.STATUS, shardFailure.status().getStatus());
-                builder.field(Fields.REASON, shardFailure.reason());
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-        builder.endObject();
+        RestActions.buildBroadcastShardsHeader(builder, this);
 
         builder.field(Fields.TOTAL, count);
         if (matches.length != 0) {
@@ -135,6 +127,9 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
                     builder.startObject();
                     builder.field(Fields._INDEX, match.getIndex());
                     builder.field(Fields._ID, match.getId());
+                    if (hasScores) {
+                        builder.field(Fields._SCORE, match.getScore());
+                    }
                     builder.endObject();
                 }
             }
@@ -156,6 +151,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             matches[i] = new Match();
             matches[i].readFrom(in);
         }
+        hasScores = in.readBoolean();
     }
 
     @Override
@@ -167,64 +163,70 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         for (Match match : matches) {
             match.writeTo(out);
         }
+        out.writeBoolean(hasScores);
     }
 
     public static class Match implements Streamable {
 
-        private Text id;
         private Text index;
+        private Text id;
+        private float score;
 
-        public Match(Text id, Text index) {
+        public Match(Text index, Text id, float score) {
             this.id = id;
+            this.score = score;
             this.index = index;
         }
 
         Match() {
         }
 
-        public Text id() {
-            return id;
-        }
-
         public Text index() {
             return index;
         }
 
-        public Text getId() {
+        public Text id() {
             return id;
         }
 
+        public float score() {
+            return score;
+        }
+
         public Text getIndex() {
-            return index;
+            return index();
+        }
+
+        public Text getId() {
+            return id();
+        }
+
+        public float getScore() {
+            return score();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             id = in.readText();
             index = in.readText();
+            score = in.readFloat();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeText(id);
             out.writeText(index);
+            out.writeFloat(score);
         }
     }
 
     static final class Fields {
-        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
-        static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
     }
 
 }

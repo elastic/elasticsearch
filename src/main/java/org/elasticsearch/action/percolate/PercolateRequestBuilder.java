@@ -95,6 +95,24 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         return this;
     }
 
+    /**
+     * Limits the maximum number of percolate query matches to be returned.
+     */
+    public PercolateRequestBuilder setSize(int size) {
+        sourceBuilder().setSize(size);
+        return this;
+    }
+
+    public PercolateRequestBuilder setSort(boolean sort) {
+        sourceBuilder().setSort(sort);
+        return this;
+    }
+
+    public PercolateRequestBuilder setScore(boolean score) {
+        sourceBuilder().setScore(score);
+        return this;
+    }
+
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;
         return this;
@@ -157,14 +175,6 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
 
     public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
         sourceBuilder().setFilterBuilder(filterBuilder);
-        return this;
-    }
-
-    /**
-     * Limits the maximum number of percolate query matches to be returned.
-     */
-    public PercolateRequestBuilder setSize(int size) {
-        sourceBuilder().setSize(size);
         return this;
     }
 

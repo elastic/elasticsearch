@@ -39,6 +39,8 @@ public class PercolateSourceBuilder implements ToXContent {
     private QueryBuilder queryBuilder;
     private FilterBuilder filterBuilder;
     private Integer size;
+    private Boolean sort;
+    private Boolean score;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {
@@ -79,6 +81,16 @@ public class PercolateSourceBuilder implements ToXContent {
         return this;
     }
 
+    public PercolateSourceBuilder setSort(boolean sort) {
+        this.sort = sort;
+        return this;
+    }
+
+    public PercolateSourceBuilder setScore(boolean score) {
+        this.score = score;
+        return this;
+    }
+
     public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -105,6 +117,12 @@ public class PercolateSourceBuilder implements ToXContent {
         }
         if (size != null) {
             builder.field("size", size);
+        }
+        if (sort != null) {
+            builder.field("sort", sort);
+        }
+        if (score != null) {
+            builder.field("score", score);
         }
         builder.endObject();
         return builder;

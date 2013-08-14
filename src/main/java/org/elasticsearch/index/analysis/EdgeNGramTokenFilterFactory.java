@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ngram.*;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter.Side;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -44,18 +45,25 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final EdgeNGramTokenFilter.Side side;
 
+    private org.elasticsearch.Version esVersion;
+
     @Inject
     public EdgeNGramTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
         this.side = EdgeNGramTokenFilter.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
+        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3
-        if (version.onOrAfter(Version.LUCENE_43)) {
+        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+            /*
+             * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
+             * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
+             */
+            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
             TokenStream result = tokenStream;
             // side=BACK is not supported anymore but applying ReverseStringFilter up-front and after the token filter has the same effect
             if (side == Side.BACK) {

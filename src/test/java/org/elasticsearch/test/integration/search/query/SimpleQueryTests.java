@@ -34,13 +34,13 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -743,6 +743,34 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
+        float boost = 10.0f;
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        indexRandom("test", true,
+            client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
+            client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
+        );
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(queryString("\"phrase match\"").field("important", boost).field("less_important"))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(queryString("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
     }
 
     @Test

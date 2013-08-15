@@ -18,6 +18,7 @@
 
 package org.elasticsearch.percolator;
 
+import gnu.trove.map.hash.TByteObjectHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexableField;
@@ -30,8 +31,10 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -40,6 +43,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.BytesText;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -76,8 +82,11 @@ import static org.elasticsearch.percolator.QueryCollector.*;
  */
 public class PercolatorService extends AbstractComponent {
 
+    public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
+
     private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndicesService indicesService;
+    private final TByteObjectHashMap<PercolatorType> percolatorTypes;
 
     @Inject
     public PercolatorService(Settings settings, IndicesService indicesService) {
@@ -90,6 +99,20 @@ public class PercolatorService extends AbstractComponent {
                 return new ExtendedMemoryIndex(false, maxReuseBytes);
             }
         };
+
+        percolatorTypes = new TByteObjectHashMap<PercolatorType>(6);
+        percolatorTypes.put(countPercolator.id(), countPercolator);
+        percolatorTypes.put(queryCountPercolator.id(), queryCountPercolator);
+        percolatorTypes.put(matchPercolator.id(), matchPercolator);
+        percolatorTypes.put(queryPercolator.id(), queryPercolator);
+        percolatorTypes.put(scoringPercolator.id(), scoringPercolator);
+        percolatorTypes.put(topMatchingPercolator.id(), topMatchingPercolator);
+    }
+
+
+    public ReduceResult reduce(byte percolatorTypeId, List<PercolateShardResponse> shardResults) {
+        PercolatorType percolatorType = percolatorTypes.get(percolatorTypeId);
+        return percolatorType.reduce(shardResults);
     }
 
     public PercolateShardResponse percolate(PercolateShardRequest request) {
@@ -160,6 +183,7 @@ public class PercolatorService extends AbstractComponent {
                         action = matchPercolator;
                     }
                 }
+                context.percolatorTypeId = action.id();
 
                 context.docSearcher = memoryIndex.createSearcher();
                 context.fieldData = percolateIndexService.fieldData();
@@ -282,11 +306,30 @@ public class PercolatorService extends AbstractComponent {
 
     interface PercolatorType {
 
+        // 0x00 is reserved for empty type.
+        byte id();
+
+        ReduceResult reduce(List<PercolateShardResponse> shardResults);
+
         PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context);
 
     }
 
     private final PercolatorType countPercolator = new PercolatorType() {
+
+        @Override
+        public byte id() {
+            return 0x01;
+        }
+
+        @Override
+        public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
+            long finalCount = 0;
+            for (PercolateShardResponse shardResponse : shardResults) {
+                finalCount += shardResponse.count();
+            }
+            return new ReduceResult(finalCount);
+        }
 
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
@@ -312,6 +355,16 @@ public class PercolatorService extends AbstractComponent {
     private final PercolatorType queryCountPercolator = new PercolatorType() {
 
         @Override
+        public byte id() {
+            return 0x02;
+        }
+
+        @Override
+        public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
+            return countPercolator.reduce(shardResults);
+        }
+
+        @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             long count = 0;
             Engine.Searcher percolatorSearcher = context.indexShard.searcher();
@@ -330,6 +383,38 @@ public class PercolatorService extends AbstractComponent {
     };
 
     private final PercolatorType matchPercolator = new PercolatorType() {
+
+        @Override
+        public byte id() {
+            return 0x03;
+        }
+
+        @Override
+        public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
+            long foundMatches = 0;
+            int numMatches = 0;
+            for (PercolateShardResponse response : shardResults) {
+                foundMatches += response.count();
+                numMatches += response.matches().length;
+            }
+            int requestedSize = shardResults.get(0).requestedSize();
+
+            // Use a custom impl of AbstractBigArray for Object[]?
+            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize == 0 ? numMatches : requestedSize);
+            outer: for (PercolateShardResponse response : shardResults) {
+                Text index = new StringText(response.getIndex());
+                for (int i = 0; i < response.matches().length; i++) {
+                    float score = response.scores().length == 0 ? NO_SCORE : response.scores()[i];
+                    Text match = new BytesText(new BytesArray(response.matches()[i]));
+                    finalMatches.add(new PercolateResponse.Match(index, match, score));
+                    if (requestedSize != 0 && finalMatches.size() == requestedSize) {
+                        break outer;
+                    }
+                }
+            }
+            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]));
+        }
+
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             long count = 0;
@@ -356,6 +441,17 @@ public class PercolatorService extends AbstractComponent {
     };
 
     private final PercolatorType queryPercolator = new PercolatorType() {
+
+        @Override
+        public byte id() {
+            return 0x04;
+        }
+
+        @Override
+        public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
+            return matchPercolator.reduce(shardResults);
+        }
+
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             Engine.Searcher percolatorSearcher = context.indexShard.searcher();
@@ -375,6 +471,17 @@ public class PercolatorService extends AbstractComponent {
     };
 
     private final PercolatorType scoringPercolator = new PercolatorType() {
+
+        @Override
+        public byte id() {
+            return 0x05;
+        }
+
+        @Override
+        public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
+            return matchPercolator.reduce(shardResults);
+        }
+
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             Engine.Searcher percolatorSearcher = context.indexShard.searcher();
@@ -395,6 +502,65 @@ public class PercolatorService extends AbstractComponent {
     };
 
     private final PercolatorType topMatchingPercolator = new PercolatorType() {
+
+        @Override
+        public byte id() {
+            return 0x06;
+        }
+
+        @Override
+        public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
+            long foundMatches = 0;
+            for (PercolateShardResponse response : shardResults) {
+                foundMatches += response.count();
+            }
+            int requestedSize = shardResults.get(0).requestedSize();
+
+            // Use a custom impl of AbstractBigArray for Object[]?
+            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize);
+            if (shardResults.size() == 1) {
+                PercolateShardResponse response = shardResults.get(0);
+                Text index = new StringText(response.getIndex());
+                for (int i = 0; i < response.matches().length; i++) {
+                    float score = response.scores().length == 0 ? Float.NaN : response.scores()[i];
+                    Text match = new BytesText(new BytesArray(response.matches()[i]));
+                    finalMatches.add(new PercolateResponse.Match(index, match, score));
+                }
+            } else {
+                int[] slots = new int[shardResults.size()];
+                while (true) {
+                    float lowestScore = Float.NEGATIVE_INFINITY;
+                    int requestIndex = 0;
+                    int itemIndex = 0;
+                    for (int i = 0; i < shardResults.size(); i++) {
+                        int scoreIndex = slots[i];
+                        float[] scores = shardResults.get(i).scores();
+                        if (scoreIndex >= scores.length) {
+                            continue;
+                        }
+
+                        float score = scores[scoreIndex];
+                        int cmp = Float.compare(lowestScore, score);
+                        if (cmp < 0) {
+                            requestIndex = i;
+                            itemIndex = scoreIndex;
+                            lowestScore = score;
+                        }
+                    }
+                    slots[requestIndex]++;
+
+                    PercolateShardResponse shardResponse = shardResults.get(requestIndex);
+                    Text index = new StringText(shardResponse.getIndex());
+                    Text match = new BytesText(new BytesArray(shardResponse.matches()[itemIndex]));
+                    float score = shardResponse.scores()[itemIndex];
+                    finalMatches.add(new PercolateResponse.Match(index, match, score));
+                    if (finalMatches.size() == requestedSize) {
+                        break;
+                    }
+                }
+            }
+            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]));
+        }
 
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
@@ -444,6 +610,7 @@ public class PercolatorService extends AbstractComponent {
         public int size;
         public boolean score;
         public boolean sort;
+        public byte percolatorTypeId;
 
         Query query;
         ConcurrentMap<HashedBytesRef, Query> percolateQueries;
@@ -452,6 +619,30 @@ public class PercolatorService extends AbstractComponent {
         IndexFieldDataService fieldData;
         IndexService percolateIndexService;
 
+    }
+
+    public final static class ReduceResult {
+
+        private final long count;
+        private final PercolateResponse.Match[] matches;
+
+        ReduceResult(long count, PercolateResponse.Match[] matches) {
+            this.count = count;
+            this.matches = matches;
+        }
+
+        public ReduceResult(long count) {
+            this.count = count;
+            this.matches = new PercolateResponse.Match[0];
+        }
+
+        public long count() {
+            return count;
+        }
+
+        public PercolateResponse.Match[] matches() {
+            return matches;
+        }
     }
 
     public static final class Constants {

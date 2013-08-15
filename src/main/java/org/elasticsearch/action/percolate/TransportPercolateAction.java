@@ -33,13 +33,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateException;
@@ -47,7 +43,6 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -131,6 +126,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         List<PercolateShardResponse> shardResults = null;
         List<ShardOperationFailedException> shardFailures = null;
 
+        byte percolatorTypeId = 0x00;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -146,105 +142,23 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                 if (shardResults == null) {
                     shardResults = newArrayList();
                 }
+                if (percolateShardResponse.percolatorTypeId() != 0x00) {
+                    percolatorTypeId = percolateShardResponse.percolatorTypeId();
+                }
                 shardResults.add(percolateShardResponse);
                 successfulShards++;
             }
         }
 
-        long tookInMillis = System.currentTimeMillis() - request.startTime;
-        if (shardResults == null) {
+        if (shardResults == null || percolatorTypeId == 0x00) {
+            long tookInMillis = System.currentTimeMillis() - request.startTime;
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis);
-        }
-
-        if (request.onlyCount()) {
-            long finalCount = 0;
-            for (PercolateShardResponse shardResponse : shardResults) {
-                finalCount += shardResponse.count();
-            }
-
-            return new PercolateResponse(
-                    shardsResponses.length(), successfulShards, failedShards, shardFailures, finalCount, tookInMillis
-            );
         } else {
-            long foundMatches = 0;
-            int numMatches = 0;
-            for (PercolateShardResponse response : shardResults) {
-                foundMatches += response.count();
-                numMatches += response.matches().length;
-            }
-
-            int requestedSize = shardResults.get(0).requestedSize();
-            boolean limit = shardResults.get(0).limit();
-            boolean sort = shardResults.get(0).sort();
-            boolean matchesScored = shardResults.get(0).score();
-            if (limit) {
-                requestedSize = Math.min(requestedSize, numMatches);
-            } else {
-                requestedSize = numMatches;
-            }
-
-            // Use a custom impl of AbstractBigArray for Object[]?
-            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize);
-            if (sort) {
-                if (shardResults.size() == 1) {
-                    PercolateShardResponse response = shardResults.get(0);
-                    Text index = new StringText(response.getIndex());
-                    for (int i = 0; i < response.matches().length; i++) {
-                        float score = response.scores().length == 0 ? Float.NaN : response.scores()[i];
-                        Text match = new BytesText(new BytesArray(response.matches()[i]));
-                        finalMatches.add(new PercolateResponse.Match(index, match, score));
-                    }
-                } else {
-                    int[] slots = new int[shardResults.size()];
-                    while (true) {
-                        float lowestScore = Float.NEGATIVE_INFINITY;
-                        int requestIndex = 0;
-                        int itemIndex = 0;
-                        for (int i = 0; i < shardResults.size(); i++) {
-                            int scoreIndex = slots[i];
-                            float[] scores = shardResults.get(i).scores();
-                            if (scoreIndex >= scores.length) {
-                                continue;
-                            }
-
-                            float score = scores[scoreIndex];
-                            int cmp = Float.compare(lowestScore, score);
-                            if (cmp < 0) {
-                                requestIndex = i;
-                                itemIndex = scoreIndex;
-                                lowestScore = score;
-                            }
-                        }
-                        slots[requestIndex]++;
-
-                        PercolateShardResponse shardResponse = shardResults.get(requestIndex);
-                        Text index = new StringText(shardResponse.getIndex());
-                        Text match = new BytesText(new BytesArray(shardResponse.matches()[itemIndex]));
-                        float score = shardResponse.scores()[itemIndex];
-                        finalMatches.add(new PercolateResponse.Match(index, match, score));
-                        if (finalMatches.size() == requestedSize) {
-                            break;
-                        }
-                    }
-                }
-
-            } else {
-                outer: for (PercolateShardResponse response : shardResults) {
-                    Text index = new StringText(response.getIndex());
-                    for (int i = 0; i < response.matches().length; i++) {
-                        float score = response.scores().length == 0 ? 0f : response.scores()[i];
-                        Text match = new BytesText(new BytesArray(response.matches()[i]));
-                        finalMatches.add(new PercolateResponse.Match(index, match, score));
-                        if (requestedSize != 0 && finalMatches.size() == requestedSize) {
-                            break outer;
-                        }
-                    }
-                }
-            }
-
+            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults);
+            long tookInMillis = System.currentTimeMillis() - request.startTime;
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures,
-                    finalMatches.toArray(new PercolateResponse.Match[requestedSize]), foundMatches, tookInMillis, sort || matchesScored
+                    result.matches(), result.count(), tookInMillis
             );
         }
     }

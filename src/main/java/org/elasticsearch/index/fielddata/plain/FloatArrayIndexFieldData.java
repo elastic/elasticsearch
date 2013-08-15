@@ -23,7 +23,6 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigFloatArrayList;
@@ -66,19 +65,6 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
     }
 
     @Override
-    public FloatArrayAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
-    }
-
-    @Override
     public FloatArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
@@ -118,9 +104,9 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {
-                    return new FloatArrayAtomicFieldData.Single(sValues, maxDoc);
+                    return new FloatArrayAtomicFieldData.Single(sValues, maxDoc, ordinals.getNumOrds());
                 } else {
-                    return new FloatArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set);
+                    return new FloatArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
                 }
             } else {
                 return new FloatArrayAtomicFieldData.WithOrdinals(

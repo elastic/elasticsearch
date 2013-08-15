@@ -23,7 +23,6 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -58,19 +57,6 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
         // because we might have single values? we can dynamically update a flag to reflect that
         // based on the atomic field data loaded
         return false;
-    }
-
-    @Override
-    public GeoPointDoubleArrayAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
     }
 
     @Override
@@ -119,9 +105,9 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc());
+                    return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc(), ordinals.getNumOrds());
                 } else {
-                    return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set);
+                    return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
                 }
             } else {
                 return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(

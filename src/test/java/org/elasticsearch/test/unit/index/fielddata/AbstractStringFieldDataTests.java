@@ -34,7 +34,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -103,8 +102,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         IndexFieldData indexFieldData = getForField("value");
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
+        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
         BytesValues values = fieldData.getBytesValues();
         assertThat(fieldData.getNumDocs(), equalTo(2));
+        assertThat(fieldData.getNumberUniqueValues(), equalTo(2l));
         for (int i = 0; i < fieldData.getNumDocs(); ++i) {
             assertThat(values.hasValue(i), equalTo(true));
         }
@@ -117,6 +118,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(fieldData.getNumberUniqueValues(), equalTo(3l));
+        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
@@ -211,6 +214,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
+        assertThat(fieldData.getNumberUniqueValues(), equalTo(2l));
+        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData
@@ -291,6 +296,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
+        assertThat(fieldData.getNumberUniqueValues(), equalTo(4l));
+        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
 
         BytesValues bytesValues = fieldData.getBytesValues();
 
@@ -379,6 +386,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
+        assertThat(fieldData.getNumberUniqueValues(), equalTo(3l));
+        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), greaterThan(0l));
 
         BytesValues bytesValues = fieldData.getBytesValues();
 
@@ -440,6 +449,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataTest
         assertThat(fieldData.getMemorySizeInBytes(), greaterThanOrEqualTo(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
+        assertThat(fieldData.getNumberUniqueValues(), equalTo(0l));
+        assertThat(indexFieldData.getHighestNumberOfSeenUniqueValues(), equalTo(0l));
 
         BytesValues bytesValues = fieldData.getBytesValues();
 

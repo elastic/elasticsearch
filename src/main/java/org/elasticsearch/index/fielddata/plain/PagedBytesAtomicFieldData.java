@@ -69,6 +69,11 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
+    public long getNumberUniqueValues() {
+        return ordinals.getNumOrds();
+    }
+
+    @Override
     public boolean isValuesOrdered() {
         return true;
     }
@@ -263,6 +268,11 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         @Override
         public int getNumDocs() {
             return ordinals.getNumDocs();
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return 0;
         }
 
         @Override

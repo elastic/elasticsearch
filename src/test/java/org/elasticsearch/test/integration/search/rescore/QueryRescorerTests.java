@@ -24,6 +24,7 @@ package org.elasticsearch.test.integration.search.rescore;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -481,9 +482,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         .queryRescorer(
                                 QueryBuilders.boolQuery()
                                     .disableCoord(true)
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("5.0f")))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("7.0f")))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.0f"))))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.PLAIN.getName()))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("7.0f")).boostMode(CombineFunction.PLAIN.getName()))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.0f")).boostMode(CombineFunction.PLAIN.getName())))
                         .setQueryWeight(primaryWeight)
                         .setRescoreQueryWeight(secondaryWeight);
 
@@ -496,10 +497,10 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         .setPreference("test") // ensure we hit the same shards for tie-breaking
                         .setQuery(QueryBuilders.boolQuery()
                                 .disableCoord(true)
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("2.0f")))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("3.0f")))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).add(new ScriptScoreFunctionBuilder().script("5.0f")))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.2f"))))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("2.0f")).boostMode(CombineFunction.PLAIN.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("3.0f")).boostMode(CombineFunction.PLAIN.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.PLAIN.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.2f")).boostMode(CombineFunction.PLAIN.getName())))
                         .setFrom(0)
                         .setSize(10)
                         .setRescorer(rescoreQuery)

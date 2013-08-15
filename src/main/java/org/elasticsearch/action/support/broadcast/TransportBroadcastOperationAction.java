@@ -142,7 +142,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         public void start() {
             if (shardsIts.size() == 0) {
                 // no shards
-                listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState));
+                try {
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState));
+                } catch (Throwable e) {
+                    listener.onFailure(e);
+                }
             }
             request.beforeStart();
             // count the local operations, and perform the non local ones
@@ -313,7 +317,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         void finishHim() {
-            listener.onResponse(newResponse(request, shardsResponses, clusterState));
+            try {
+                listener.onResponse(newResponse(request, shardsResponses, clusterState));
+            } catch (Throwable e) {
+                listener.onFailure(e);
+            }
         }
 
         void setFailure(ShardIterator shardIt, int shardIndex, Throwable t) {

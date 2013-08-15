@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
@@ -1174,7 +1175,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 QueryBuilders.functionScoreQuery(
                                         matchQuery("c_field2", 0)
                                 ).add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value")
-                        )).scoreType("sum")
+                        ).boostMode(CombineFunction.PLAIN.getName())).scoreType("sum")
                 )
                 .execute().actionGet();
 
@@ -1193,7 +1194,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 QueryBuilders.functionScoreQuery(
                                         matchQuery("c_field2", 0)
                                 ).add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value")
-                        )).scoreType("max")
+                        ).boostMode(CombineFunction.PLAIN.getName())).scoreType("max")
                 )
                 .execute().actionGet();
 
@@ -1212,7 +1213,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 QueryBuilders.functionScoreQuery(
                                         matchQuery("c_field2", 0)
                                 ).add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value")
-                        )).scoreType("avg")
+                        ).boostMode(CombineFunction.PLAIN.getName())).scoreType("avg")
                 )
                 .execute().actionGet();
 
@@ -1231,7 +1232,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 QueryBuilders.functionScoreQuery(
                                         matchQuery("p_field1", "p_value3")
                                 ).add(new ScriptScoreFunctionBuilder().script("doc['p_field2'].value")
-                        )).scoreType("score")
+                        ).boostMode(CombineFunction.PLAIN.getName())).scoreType("score")
                 )
                 .addSort(SortBuilders.fieldSort("c_field3"))
                 .addSort(SortBuilders.scoreSort())

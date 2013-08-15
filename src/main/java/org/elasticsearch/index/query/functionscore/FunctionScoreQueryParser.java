@@ -68,7 +68,7 @@ public class FunctionScoreQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
-        CombineFunction combineFunction = null;
+        CombineFunction combineFunction = CombineFunction.MULT;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

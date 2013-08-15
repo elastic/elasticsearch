@@ -225,7 +225,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                     suggester = new XFuzzySuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
-                            suggestionContext.getFuzzyNonPrefixLength(), suggestionContext.getFuzzyMinPrefixLength(),
+                            suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(),
                             analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                             analyzingSuggestHolder.maxAnalyzedPathsForOneInput);
 

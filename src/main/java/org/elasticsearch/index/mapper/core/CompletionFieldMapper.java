@@ -65,6 +65,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     public static class Fields {
+        public static final String ANALYZER = "analyzer";
         public static final String INDEX_ANALYZER = "index_analyzer";
         public static final String SEARCH_ANALYZER = "search_analyzer";
         public static final String PRESERVE_SEPARATORS = "preserve_separators";
@@ -127,7 +128,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 if (fieldName.equals("type")) {
                     continue;
                 }
-                if (fieldName.equals(Fields.INDEX_ANALYZER) || fieldName.equals("indexAnalyzer")) {
+                if (fieldName.equals("analyzer")) {
+                    builder.indexAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
+                    builder.searchAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
+                } else if (fieldName.equals(Fields.INDEX_ANALYZER) || fieldName.equals("indexAnalyzer")) {
                     builder.indexAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
                 } else if (fieldName.equals(Fields.SEARCH_ANALYZER) || fieldName.equals("searchAnalyzer")) {
                     builder.searchAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
@@ -238,7 +242,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     surfaceForm), weight, payload);
             for (String input : inputs) {
                 context.doc().add(getCompletionField(input, suggestPayload));
-            }    
+            }
         }
     }
     
@@ -271,14 +275,20 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(name())
-            .field(Fields.TYPE, CONTENT_TYPE)
-            .field(Fields.INDEX_ANALYZER, indexAnalyzer.name())
-            .field(Fields.SEARCH_ANALYZER, searchAnalyzer.name())
-            .field(Fields.PAYLOADS, this.payloads)
+        builder.startObject(name())
+            .field(Fields.TYPE, CONTENT_TYPE);
+        if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
+            builder.field(Fields.ANALYZER, indexAnalyzer.name());
+        } else {
+            builder.field(Fields.INDEX_ANALYZER, indexAnalyzer.name())
+                .field(Fields.SEARCH_ANALYZER, searchAnalyzer.name());
+        }
+        builder.field(Fields.PAYLOADS, this.payloads)
             .field(Fields.PRESERVE_SEPARATORS, this.preserveSeparators)
             .field(Fields.PRESERVE_POSITION_INCREMENTS, this.preservePositionIncrements)
         .endObject();
+
+        return builder;
     }
 
     @Override

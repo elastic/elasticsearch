@@ -85,4 +85,28 @@ public class CompletionFieldMapperTests {
         assertThat(Boolean.valueOf(configMap.get("preserve_position_increments").toString()), is(true));
     }
 
+    @Test
+    public void testThatSerializationCombinesToOneAnalyzerFieldIfBothAreEqual() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .field("index_analyzer", "simple")
+                .field("search_analyzer", "simple")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
+
+        CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
+        XContentBuilder builder = jsonBuilder().startObject();
+        completionFieldMapper.toXContent(builder, null).endObject();
+        builder.close();
+        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
+        assertThat(configMap.get("analyzer").toString(), is("simple"));
+    }
+
 }

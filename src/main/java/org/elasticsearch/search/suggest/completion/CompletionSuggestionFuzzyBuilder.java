@@ -36,8 +36,8 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
 
     private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
     private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
-    private int fuzzyMinPrefixLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
-    private int fuzzyNonPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
+    private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
+    private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
 
     public int getFuzzyEditDistance() {
         return fuzzyEditDistance;
@@ -57,21 +57,21 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         return this;
     }
 
-    public int getFuzzyMinPrefixLength() {
-        return fuzzyMinPrefixLength;
+    public int getFuzzyMinLength() {
+        return fuzzyMinLength;
     }
 
-    public CompletionSuggestionFuzzyBuilder setFuzzyMinPrefixLength(int fuzzyMinPrefixLength) {
-        this.fuzzyMinPrefixLength = fuzzyMinPrefixLength;
+    public CompletionSuggestionFuzzyBuilder setFuzzyMinLength(int fuzzyMinLength) {
+        this.fuzzyMinLength = fuzzyMinLength;
         return this;
     }
 
-    public int getFuzzyNonPrefixLength() {
-        return fuzzyNonPrefixLength;
+    public int getFuzzyPrefixLength() {
+        return fuzzyPrefixLength;
     }
 
-    public CompletionSuggestionFuzzyBuilder setFuzzyNonPrefixLength(int fuzzyNonPrefixLength) {
-        this.fuzzyNonPrefixLength = fuzzyNonPrefixLength;
+    public CompletionSuggestionFuzzyBuilder setFuzzyPrefixLength(int fuzzyPrefixLength) {
+        this.fuzzyPrefixLength = fuzzyPrefixLength;
         return this;
     }
 
@@ -85,11 +85,11 @@ public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionB
         if (fuzzyTranspositions != XFuzzySuggester.DEFAULT_TRANSPOSITIONS) {
             builder.field("transpositions", fuzzyTranspositions);
         }
-        if (fuzzyMinPrefixLength != XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH) {
-            builder.field("min_prefix_len", fuzzyMinPrefixLength);
+        if (fuzzyMinLength != XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH) {
+            builder.field("min_length", fuzzyMinLength);
         }
-        if (fuzzyNonPrefixLength != XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX) {
-            builder.field("non_prefix_len", fuzzyNonPrefixLength);
+        if (fuzzyPrefixLength != XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX) {
+            builder.field("prefix_length", fuzzyPrefixLength);
         }
 
         builder.endObject();

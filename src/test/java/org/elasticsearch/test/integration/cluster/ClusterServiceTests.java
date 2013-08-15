@@ -340,13 +340,13 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
 
         @Override
         public void onMaster() {
-            logger.info("on master [" + clusterService.state().nodes().localNode() + "]");
+            logger.info("on master [" + clusterService.localNode() + "]");
             master = true;
         }
 
         @Override
         public void offMaster() {
-            logger.info("off master [" + clusterService.state().nodes().localNode() + "]");
+            logger.info("off master [" + clusterService.localNode() + "]");
             master = false;
         }
 

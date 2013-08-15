@@ -122,7 +122,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     if (indexService == null) {
                                         // temporarily create the index so we have can parse the filter
                                         try {
-                                            indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                                            indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
                                         } catch (Exception e) {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.index());
                                             continue;

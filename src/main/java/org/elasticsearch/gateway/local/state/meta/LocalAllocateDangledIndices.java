@@ -69,7 +69,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;
         }
-        AllocateDangledRequest request = new AllocateDangledRequest(clusterState.nodes().localNode(), indices);
+        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices);
         transportService.sendRequest(masterNode, AllocateDangledRequestHandler.ACTION, request, new TransportResponseHandler<AllocateDangledResponse>() {
             @Override
             public AllocateDangledResponse newInstance() {

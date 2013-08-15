@@ -98,7 +98,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
                 .interval(request.request.interval)
                 .threadElementsSnapshotCount(request.request.snapshots);
         try {
-            return new NodeHotThreads(clusterService.state().nodes().localNode(), hotThreads.detect());
+            return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
         } catch (Exception e) {
             throw new ElasticSearchException("failed to detect hot threads", e);
         }

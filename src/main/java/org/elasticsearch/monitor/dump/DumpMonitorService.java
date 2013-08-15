@@ -114,7 +114,7 @@ public class DumpMonitorService extends AbstractComponent {
             context = newHashMap();
         }
         if (clusterService != null) {
-            context.put("localNode", clusterService.state().nodes().localNode());
+            context.put("localNode", clusterService.localNode());
         }
         return context;
     }

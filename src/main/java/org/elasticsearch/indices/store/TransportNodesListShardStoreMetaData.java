@@ -127,18 +127,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (request.unallocated) {
             IndexService indexService = indicesService.indexService(request.shardId.index().name());
             if (indexService == null) {
-                return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), null);
+                return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
             if (!indexService.hasShard(request.shardId.id())) {
-                return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), null);
+                return new NodeStoreFilesMetaData(clusterService.localNode(), null);
             }
         }
         IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.index().name());
         if (metaData == null) {
-            return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), null);
+            return new NodeStoreFilesMetaData(clusterService.localNode(), null);
         }
         try {
-            return new NodeStoreFilesMetaData(clusterService.state().nodes().localNode(), listStoreMetaData(request.shardId));
+            return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
         } catch (IOException e) {
             throw new ElasticSearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
         }

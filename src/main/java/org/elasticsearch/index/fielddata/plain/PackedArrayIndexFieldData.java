@@ -29,7 +29,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -83,19 +82,6 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         // because we might have single values? we can dynamically update a flag to reflect that
         // based on the atomic field data loaded
         return false;
-    }
-
-    @Override
-    public AtomicNumericFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
     }
 
     @Override
@@ -184,9 +170,9 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
                 }
                 if (set == null) {
-                    return new PackedArrayAtomicFieldData.Single(sValues, minValue, reader.maxDoc());
+                    return new PackedArrayAtomicFieldData.Single(sValues, minValue, reader.maxDoc(), ordinals.getNumOrds());
                 } else {
-                    return new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, reader.maxDoc(), missingValue);
+                    return new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, reader.maxDoc(), missingValue, ordinals.getNumOrds());
                 }
             } else {
                 return new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);

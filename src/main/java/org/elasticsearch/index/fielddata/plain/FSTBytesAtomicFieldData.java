@@ -21,9 +21,11 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.BytesRefFSTEnum;
+import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
+import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.common.util.BigIntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -66,6 +68,11 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     @Override
     public int getNumDocs() {
         return ordinals.getNumDocs();
+    }
+
+    @Override
+    public long getNumberUniqueValues() {
+        return ordinals.getNumOrds();
     }
 
     @Override

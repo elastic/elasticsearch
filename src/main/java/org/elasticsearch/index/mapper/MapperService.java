@@ -174,6 +174,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         } else {
             percolatorMappingSource = "{\n" +
                     "    \"_percolator\":{\n" +
+                    "        \"_id\" : {\"index\": \"not_analyzed\"}," +
                     "        \"properties\" : {\n" +
                     "            \"query\" : {\n" +
                     "                \"type\" : \"object\",\n" +

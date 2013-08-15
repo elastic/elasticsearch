@@ -33,9 +33,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -189,7 +191,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                     Text index = new StringText(response.getIndex());
                     for (int i = 0; i < response.matches().length; i++) {
                         float score = response.scores().length == 0 ? Float.NaN : response.scores()[i];
-                        finalMatches.add(new PercolateResponse.Match(index, response.matches()[i], score));
+                        Text match = new BytesText(new BytesArray(response.matches()[i]));
+                        finalMatches.add(new PercolateResponse.Match(index, match, score));
                     }
                 } else {
                     int[] slots = new int[shardResults.size()];
@@ -216,7 +219,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
                         PercolateShardResponse shardResponse = shardResults.get(requestIndex);
                         Text index = new StringText(shardResponse.getIndex());
-                        Text match = shardResponse.matches()[itemIndex];
+                        Text match = new BytesText(new BytesArray(shardResponse.matches()[itemIndex]));
                         float score = shardResponse.scores()[itemIndex];
                         finalMatches.add(new PercolateResponse.Match(index, match, score));
                         if (finalMatches.size() == requestedSize) {
@@ -230,7 +233,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                     Text index = new StringText(response.getIndex());
                     for (int i = 0; i < response.matches().length; i++) {
                         float score = response.scores().length == 0 ? 0f : response.scores()[i];
-                        finalMatches.add(new PercolateResponse.Match(index, response.matches()[i], score));
+                        Text match = new BytesText(new BytesArray(response.matches()[i]));
+                        finalMatches.add(new PercolateResponse.Match(index, match, score));
                         if (requestedSize != 0 && finalMatches.size() == requestedSize) {
                             break outer;
                         }

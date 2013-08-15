@@ -19,11 +19,10 @@
 
 package org.elasticsearch.action.percolate;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
@@ -32,9 +31,11 @@ import java.io.IOException;
  */
 public class PercolateShardResponse extends BroadcastShardOperationResponse {
 
+    private static final BytesRef[] EMPTY = new BytesRef[0];
+
     private long count;
     private float[] scores;
-    private Text[] matches;
+    private BytesRef[] matches;
 
     // Request fields:
     private boolean limit;
@@ -45,7 +46,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     public PercolateShardResponse() {
     }
 
-    public PercolateShardResponse(Text[] matches, long count, float[] scores, PercolatorService.PercolateContext context, String index, int shardId) {
+    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolatorService.PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = matches;
         this.count = count;
@@ -56,7 +57,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.score = context.score;
     }
 
-    public PercolateShardResponse(Text[] matches, long count, PercolatorService.PercolateContext context, String index, int shardId) {
+    public PercolateShardResponse(BytesRef[] matches, long count, PercolatorService.PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = matches;
         this.scores = new float[0];
@@ -70,7 +71,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     public PercolateShardResponse(long count, PercolatorService.PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.count = count;
-        this.matches = StringText.EMPTY_ARRAY;
+        this.matches = EMPTY;
         this.scores = new float[0];
         this.limit = context.limit;
         this.requestedSize = context.size;
@@ -80,7 +81,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
 
     public PercolateShardResponse(PercolatorService.PercolateContext context, String index, int shardId) {
         super(index, shardId);
-        this.matches = StringText.EMPTY_ARRAY;
+        this.matches = EMPTY;
         this.scores = new float[0];
         this.limit = context.limit;
         this.requestedSize = context.size;
@@ -88,7 +89,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.score = context.score;
     }
 
-    public Text[] matches() {
+    public BytesRef[] matches() {
         return matches;
     }
 
@@ -120,7 +121,10 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         count = in.readVLong();
-        matches = in.readTextArray();
+        matches = new BytesRef[in.readVInt()];
+        for (int i = 0; i < matches.length; i++) {
+            matches[i] = in.readBytesRef();
+        }
         scores = new float[in.readVInt()];
         for (int i = 0; i < scores.length; i++) {
             scores[i] = in.readFloat();
@@ -135,7 +139,10 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(count);
-        out.writeTextArray(matches);
+        out.writeVInt(matches.length);
+        for (BytesRef match : matches) {
+            out.writeBytesRef(match);
+        }
         out.writeVLong(scores.length);
         for (float score : scores) {
             out.writeFloat(score);

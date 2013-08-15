@@ -2,16 +2,14 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -19,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
@@ -49,10 +48,11 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final MapperService mapperService;
     private final IndicesLifecycle indicesLifecycle;
     private final IndexCache indexCache;
+    private final IndexFieldDataService indexFieldDataService;
 
     private final ShardIndexingService indexingService;
 
-    private final ConcurrentMap<Text, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final ConcurrentMap<HashedBytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
@@ -61,19 +61,21 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
-                                     ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService, IndexCache indexCache) {
+                                     ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
+                                     IndexCache indexCache, IndexFieldDataService indexFieldDataService) {
         super(shardId, indexSettings);
         this.queryParserService = queryParserService;
         this.mapperService = mapperService;
         this.indicesLifecycle = indicesLifecycle;
         this.indexingService = indexingService;
         this.indexCache = indexCache;
+        this.indexFieldDataService = indexFieldDataService;
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
     }
 
-    public ConcurrentMap<Text, Query> percolateQueries() {
+    public ConcurrentMap<HashedBytesRef, Query> percolateQueries() {
         return percolateQueries;
     }
 
@@ -102,18 +104,16 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         }
     }
 
-    public void addPercolateQuery(String uidAsString, BytesReference source) {
-        Query query = parsePercolatorDocument(uidAsString, source);
-        BytesText uid = new BytesText(new HashedBytesArray(Strings.toUTF8Bytes(uidAsString)));
-        percolateQueries.put(uid, query);
+    public void addPercolateQuery(String idAsString, BytesReference source) {
+        Query query = parsePercolatorDocument(idAsString, source);
+        percolateQueries.put(new HashedBytesRef(new BytesRef(idAsString)), query);
     }
 
-    public void removePercolateQuery(String uidAsString) {
-        BytesText uid = new BytesText(new HashedBytesArray(Strings.toUTF8Bytes(uidAsString)));
-        percolateQueries.remove(uid);
+    public void removePercolateQuery(String idAsString) {
+        percolateQueries.remove(new HashedBytesRef(idAsString));
     }
 
-    Query parsePercolatorDocument(String uid, BytesReference source) {
+    Query parsePercolatorDocument(String id, BytesReference source) {
         String type = null;
         BytesReference querySource = null;
 
@@ -123,7 +123,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticSearchException("failed to parse query [" + uid + "], not starting with OBJECT");
+                throw new ElasticSearchException("failed to parse query [" + id + "], not starting with OBJECT");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -151,7 +151,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             }
             return parseQuery(type, querySource, null);
         } catch (Exception e) {
-            throw new PercolatorException(shardId().index(), "failed to parse query [" + uid + "]", e);
+            throw new PercolatorException(shardId().index(), "failed to parse query [" + id + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -234,7 +234,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                                     new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.Constants.TYPE_NAME))
                             )
                     );
-                    QueriesLoaderCollector queries = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger);
+                    QueriesLoaderCollector queries = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, indexFieldDataService);
                     searcher.searcher().search(query, queries);
                     percolateQueries.putAll(queries.queries());
                 } finally {

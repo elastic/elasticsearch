@@ -5,16 +5,14 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,12 +23,13 @@ import java.util.concurrent.ConcurrentMap;
  */
 abstract class QueryCollector extends Collector {
 
-    final IndexFieldData uidFieldData;
+    final IndexFieldData idFieldData;
     final IndexSearcher searcher;
-    final ConcurrentMap<Text, Query> queries;
+    final ConcurrentMap<HashedBytesRef, Query> queries;
     final ESLogger logger;
 
     final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+    final HashedBytesRef spare = new HashedBytesRef(new BytesRef());
 
     BytesValues values;
 
@@ -38,8 +37,10 @@ abstract class QueryCollector extends Collector {
         this.logger = logger;
         this.queries = context.percolateQueries;
         this.searcher = context.docSearcher;
-        // TODO: when we move to a UID level mapping def on the index level, we can use that one, now, its per type, and we can't easily choose one
-        this.uidFieldData = context.fieldData.getForField(new FieldMapper.Names(UidFieldMapper.NAME), new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")));
+        this.idFieldData = context.fieldData.getForField(
+                new FieldMapper.Names(IdFieldMapper.NAME),
+                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"))
+        );
     }
 
     @Override
@@ -49,7 +50,7 @@ abstract class QueryCollector extends Collector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
-        values = uidFieldData.load(context).getBytesValues();
+        values = idFieldData.load(context).getBytesValues();
     }
 
     @Override
@@ -76,7 +77,7 @@ abstract class QueryCollector extends Collector {
 
     final static class Match extends QueryCollector {
 
-        private final List<Text> matches = new ArrayList<Text>();
+        private final List<BytesRef> matches = new ArrayList<BytesRef>();
         private final boolean limit;
         private final int size;
         private long counter = 0;
@@ -89,12 +90,8 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            BytesRef uid = values.getValue(doc);
-            if (uid == null) {
-                return;
-            }
-            Text id = new BytesText(Uid.idFromUid(uid));
-            Query query = queries.get(id);
+            spare.hash = values.getValueHashed(doc, spare.bytes);
+            Query query = queries.get(spare);
             if (query == null) {
                 // log???
                 return;
@@ -105,12 +102,12 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     if (!limit || counter < size) {
-                        matches.add(id);
+                        matches.add(values.makeSafe(spare.bytes));
                     }
                     counter++;
                 }
             } catch (IOException e) {
-                logger.warn("[" + id + "] failed to execute query", e);
+                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
             }
         }
 
@@ -118,7 +115,7 @@ abstract class QueryCollector extends Collector {
             return counter;
         }
 
-        List<Text> matches() {
+        List<BytesRef> matches() {
             return matches;
         }
 
@@ -136,12 +133,8 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            BytesRef uid = values.getValue(doc);
-            if (uid == null) {
-                return;
-            }
-            Text id = new BytesText(Uid.idFromUid(uid));
-            Query query = queries.get(id);
+            spare.hash = values.getValueHashed(doc, spare.bytes);
+            Query query = queries.get(spare);
             if (query == null) {
                 // log???
                 return;
@@ -154,7 +147,7 @@ abstract class QueryCollector extends Collector {
                     topDocsCollector.collect(doc);
                 }
             } catch (IOException e) {
-                logger.warn("[" + id + "] failed to execute query", e);
+                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
             }
         }
 
@@ -177,7 +170,7 @@ abstract class QueryCollector extends Collector {
 
     final static class MatchAndScore extends QueryCollector {
 
-        private final List<Text> matches = new ArrayList<Text>();
+        private final List<BytesRef> matches = new ArrayList<BytesRef>();
         // TODO: Use thread local in order to cache the scores lists?
         private final TFloatArrayList scores = new TFloatArrayList();
         private final boolean limit;
@@ -194,12 +187,8 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            BytesRef uid = values.getValue(doc);
-            if (uid == null) {
-                return;
-            }
-            Text id = new BytesText(Uid.idFromUid(uid));
-            Query query = queries.get(id);
+            spare.hash = values.getValueHashed(doc, spare.bytes);
+            Query query = queries.get(spare);
             if (query == null) {
                 // log???
                 return;
@@ -210,13 +199,13 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     if (!limit || counter < size) {
-                        matches.add(id);
+                        matches.add(values.makeSafe(spare.bytes));
                         scores.add(scorer.score());
                     }
                     counter++;
                 }
             } catch (IOException e) {
-                logger.warn("[" + id + "] failed to execute query", e);
+                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
             }
         }
 
@@ -229,7 +218,7 @@ abstract class QueryCollector extends Collector {
             return counter;
         }
 
-        List<Text> matches() {
+        List<BytesRef> matches() {
             return matches;
         }
 
@@ -248,12 +237,8 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            BytesRef uid = values.getValue(doc);
-            if (uid == null) {
-                return;
-            }
-            Text id = new BytesText(Uid.idFromUid(uid));
-            Query query = queries.get(id);
+            spare.hash = values.getValueHashed(doc, spare.bytes);
+            Query query = queries.get(spare);
             if (query == null) {
                 // log???
                 return;
@@ -266,7 +251,7 @@ abstract class QueryCollector extends Collector {
                     counter++;
                 }
             } catch (IOException e) {
-                logger.warn("[" + id + "] failed to execute query", e);
+                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
             }
         }
 

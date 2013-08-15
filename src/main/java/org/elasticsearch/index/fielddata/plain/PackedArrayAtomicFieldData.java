@@ -84,6 +84,11 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return 0;
+        }
+
+        @Override
         public BytesValues getBytesValues() {
             return BytesValues.EMPTY;
         }
@@ -121,6 +126,11 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
                 size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + values.ramBytesUsed() + ordinals.getMemorySizeInBytes();
             }
             return size;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return ordinals.getNumOrds();
         }
 
         @Override
@@ -175,12 +185,14 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         private final PackedInts.Mutable values;
         private final long minValue;
         private final long missingValue;
+        private final long numOrds;
 
-        public SingleSparse(PackedInts.Mutable values, long minValue, int numDocs, long missingValue) {
+        public SingleSparse(PackedInts.Mutable values, long minValue, int numDocs, long missingValue, long numOrds) {
             super(numDocs);
             this.values = values;
             this.minValue = minValue;
             this.missingValue = missingValue;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -191,6 +203,11 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override
@@ -270,15 +287,17 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
 
         private final PackedInts.Mutable values;
         private final long minValue;
+        private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(PackedInts.Mutable values, long minValue, int numDocs) {
+        public Single(PackedInts.Mutable values, long minValue, int numDocs, long numOrds) {
             super(numDocs);
             this.values = values;
             this.minValue = minValue;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -289,6 +308,11 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override

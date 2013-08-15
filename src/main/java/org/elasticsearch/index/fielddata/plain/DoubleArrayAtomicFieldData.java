@@ -78,6 +78,11 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return 0;
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             return 0;
         }
@@ -112,6 +117,11 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public boolean isValuesOrdered() {
             return true;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return ordinals.getNumOrds();
         }
 
         @Override
@@ -173,11 +183,13 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
         private final BigDoubleArrayList values;
         private final FixedBitSet set;
+        private final long numOrds;
 
-        public SingleFixedSet(BigDoubleArrayList values, int numDocs, FixedBitSet set) {
+        public SingleFixedSet(BigDoubleArrayList values, int numDocs, FixedBitSet set, long numOrds) {
             super(numDocs);
             this.values = values;
             this.set = set;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -188,6 +200,11 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override
@@ -260,14 +277,16 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
     public static class Single extends DoubleArrayAtomicFieldData {
 
         private final BigDoubleArrayList values;
+        private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(BigDoubleArrayList values, int numDocs) {
+        public Single(BigDoubleArrayList values, int numDocs, long numOrds) {
             super(numDocs);
             this.values = values;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -278,6 +297,11 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override

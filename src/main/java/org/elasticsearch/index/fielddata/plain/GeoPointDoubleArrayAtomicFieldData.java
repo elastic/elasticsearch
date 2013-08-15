@@ -76,6 +76,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return 0;
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             return 0;
         }
@@ -116,6 +121,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public boolean isValuesOrdered() {
             return true;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return ordinals.getNumOrds();
         }
 
         @Override
@@ -253,12 +263,14 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         private final BigDoubleArrayList lon, lat;
         private final FixedBitSet set;
+        private final long numOrds;
 
-        public SingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, FixedBitSet set) {
+        public SingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, FixedBitSet set, long numOrds) {
             super(numDocs);
             this.lon = lon;
             this.lat = lat;
             this.set = set;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -269,6 +281,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override
@@ -351,11 +368,13 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
     public static class Single extends GeoPointDoubleArrayAtomicFieldData {
 
         private final BigDoubleArrayList lon, lat;
+        private final long numOrds;
 
-        public Single(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs) {
+        public Single(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, long numOrds) {
             super(numDocs);
             this.lon = lon;
             this.lat = lat;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -366,6 +385,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
         }
 
         @Override

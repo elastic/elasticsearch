@@ -73,6 +73,11 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return 0;
+        }
+
+        @Override
         public boolean isValuesOrdered() {
             return false;
         }
@@ -112,6 +117,11 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public boolean isValuesOrdered() {
             return true;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return ordinals.getNumOrds();
         }
 
         @Override
@@ -171,11 +181,13 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
         private final BigFloatArrayList values;
         private final FixedBitSet set;
+        private final long numOrd;
 
-        public SingleFixedSet(BigFloatArrayList values, int numDocs, FixedBitSet set) {
+        public SingleFixedSet(BigFloatArrayList values, int numDocs, FixedBitSet set, long numOrd) {
             super(numDocs);
             this.values = values;
             this.set = set;
+            this.numOrd = numOrd;
         }
 
         @Override
@@ -186,6 +198,11 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrd;
         }
 
         @Override
@@ -260,14 +277,16 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
     public static class Single extends FloatArrayAtomicFieldData {
 
         private final BigFloatArrayList values;
+        private final long numOrd;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(BigFloatArrayList values, int numDocs) {
+        public Single(BigFloatArrayList values, int numDocs, long numOrd) {
             super(numDocs);
             this.values = values;
+            this.numOrd = numOrd;
         }
 
         @Override
@@ -278,6 +297,11 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public boolean isValuesOrdered() {
             return false;
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return numOrd;
         }
 
         @Override

@@ -229,7 +229,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
         private void finishHim() {
             try {
                 innerFinishHim();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to reduce search", failure);

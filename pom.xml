@@ -33,6 +33,7 @@
         <lucene.version>4.4.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
+        <es.logger.level>INFO</es.logger.level>
     </properties>
 
     <repositories>
@@ -389,6 +390,7 @@
                                 <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
                                 <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
                                 </es.action.wait_on_mapping_change>
+                                <es.logger.level>${es.logger.level}</es.logger.level>
                                 <java.awt.headless>true</java.awt.headless>
                             </systemProperties>
                         </configuration>

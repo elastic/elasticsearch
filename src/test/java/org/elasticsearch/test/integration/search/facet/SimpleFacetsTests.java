@@ -433,10 +433,6 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
     public void testDuelByteFieldDataImpl() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("name_concrete")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "concrete_bytes").endObject()
-                 .endObject()
                  .startObject("name_paged")
                     .field("type", "string")
                     .startObject("fielddata").field("format", "paged_bytes").endObject()
@@ -444,10 +440,6 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                  .startObject("name_fst")
                     .field("type", "string")
                     .startObject("fielddata").field("format", "fst").endObject()
-                 .endObject()
-                 .startObject("name_concrete_mv")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "concrete_bytes").endObject()
                  .endObject()
                  .startObject("name_paged_mv")
                     .field("type", "string")
@@ -475,11 +467,9 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
 
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("name_concrete", ""+i)
                     .field("name_paged", ""+i)
                     .field("name_fst", ""+i)
                     .field("filtered", ""+i)
-                    .field("name_concrete_mv", ""+i, ""+Math.min(99, i+1))
                     .field("name_paged_mv", ""+i,""+ Math.min(99, i+1))
                     .field("name_fst_mv", ""+i,""+Math.min(99, i+1))
                     .field("filtered_mv", ""+i,""+Math.min(99, i+1), ""+(100 + i))
@@ -533,12 +523,9 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                      final SearchRequestBuilder facetRequest;
                      int incrementAndGet = count.incrementAndGet();
                      final String field;
-                    switch (incrementAndGet % 3) {
-                    case 2:
-                        field =  "filtered"+postfix;
-                        break;
+                    switch (incrementAndGet % 2) {
                     case 1:
-                        field = "name_concrete"+postfix;
+                        field =  "filtered"+postfix;
                         break;
                     case 0:
                         field = "name_paged"+postfix;

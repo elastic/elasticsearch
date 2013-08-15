@@ -167,7 +167,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         @Override
                         public void onClose() {
                             clusterService.remove(this);
-                            listener.onFailure(new NodeClosedException(nodes.localNode()));
+                            listener.onFailure(new NodeClosedException(clusterService.localNode()));
                         }
 
                         @Override
@@ -222,7 +222,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                             @Override
                             public void onClose() {
                                 clusterService.remove(this);
-                                listener.onFailure(new NodeClosedException(nodes.localNode()));
+                                listener.onFailure(new NodeClosedException(clusterService.localNode()));
                             }
 
                             @Override

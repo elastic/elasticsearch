@@ -37,6 +37,7 @@ public abstract class NodeOperationResponse extends TransportResponse {
     }
 
     protected NodeOperationResponse(DiscoveryNode node) {
+        assert node != null;
         this.node = node;
     }
 

@@ -116,7 +116,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
             throw new ElasticSearchIllegalStateException("Restart is disabled");
         }
         if (!restartRequested.compareAndSet(false, true)) {
-            return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
+            return new NodesRestartResponse.NodeRestartResponse(clusterService.localNode());
         }
         logger.info("Restarting in [{}]", request.delay);
         threadPool.schedule(request.delay, ThreadPool.Names.GENERIC, new Runnable() {
@@ -146,7 +146,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                 }
             }
         });
-        return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
+        return new NodesRestartResponse.NodeRestartResponse(clusterService.localNode());
     }
 
     @Override

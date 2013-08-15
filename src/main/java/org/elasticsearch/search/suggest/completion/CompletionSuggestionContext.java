@@ -31,8 +31,8 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private FieldMapper<?> mapper;
     private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
     private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
-    private int fuzzyMinPrefixLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
-    private int fuzzyNonPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
+    private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
+    private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
     private boolean fuzzy = false;
 
     public CompletionSuggestionContext(Suggester suggester) {
@@ -63,20 +63,20 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         return fuzzyTranspositions;
     }
 
-    public void setFuzzyMinPrefixLength(int fuzzyMinPrefixLength) {
-        this.fuzzyMinPrefixLength = fuzzyMinPrefixLength;
+    public void setFuzzyMinLength(int fuzzyMinPrefixLength) {
+        this.fuzzyMinLength = fuzzyMinPrefixLength;
     }
 
-    public int getFuzzyMinPrefixLength() {
-        return fuzzyMinPrefixLength;
+    public int getFuzzyMinLength() {
+        return fuzzyMinLength;
     }
 
-    public void setFuzzyNonPrefixLength(int fuzzyNonPrefixLength) {
-        this.fuzzyNonPrefixLength = fuzzyNonPrefixLength;
+    public void setFuzzyPrefixLength(int fuzzyNonPrefixLength) {
+        this.fuzzyPrefixLength = fuzzyNonPrefixLength;
     }
 
-    public int getFuzzyNonPrefixLength() {
-        return fuzzyNonPrefixLength;
+    public int getFuzzyPrefixLength() {
+        return fuzzyPrefixLength;
     }
 
     public void setFuzzy(boolean fuzzy) {

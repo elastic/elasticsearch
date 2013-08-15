@@ -418,12 +418,12 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         refresh();
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriva").size(10).setFuzzyMinPrefixLength(6)
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriva").size(10).setFuzzyMinLength(6)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo");
 
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nrivan").size(10).setFuzzyMinPrefixLength(6)
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nrivan").size(10).setFuzzyMinLength(6)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
@@ -441,12 +441,12 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         refresh();
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirw").size(10).setFuzzyNonPrefixLength(4)
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirw").size(10).setFuzzyPrefixLength(4)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo");
 
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirvo").size(10).setFuzzyNonPrefixLength(4)
+                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirvo").size(10).setFuzzyPrefixLength(4)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }

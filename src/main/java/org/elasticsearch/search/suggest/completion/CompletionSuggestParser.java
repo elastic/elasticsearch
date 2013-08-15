@@ -64,10 +64,10 @@ public class CompletionSuggestParser implements SuggestContextParser {
                             suggestion.setFuzzyEditDistance(parser.intValue());
                         } else if ("transpositions".equals(fuzzyConfigName)) {
                             suggestion.setFuzzyTranspositions(parser.booleanValue());
-                        } else if ("min_prefix_len".equals(fuzzyConfigName) || "minPrefixLen".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyMinPrefixLength(parser.intValue());
-                        } else if ("non_prefix_len".equals(fuzzyConfigName) || "non_prefix_len".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyNonPrefixLength(parser.intValue());
+                        } else if ("min_length".equals(fuzzyConfigName) || "minLength".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyMinLength(parser.intValue());
+                        } else if ("prefix_length".equals(fuzzyConfigName) || "prefixLength".equals(fuzzyConfigName)) {
+                            suggestion.setFuzzyPrefixLength(parser.intValue());
                         }
                     }
                 }

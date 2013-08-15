@@ -26,6 +26,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.StringText;
@@ -49,17 +50,17 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
     public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> execute(String name,
             CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
 
-        CompletionSuggestion completionSuggestionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
-        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(suggestionContext.getText()
-                .utf8ToString()), 0, suggestionContext.getText().toString().length());
-        completionSuggestionSuggestion.addTerm(completionSuggestEntry);
-        String fieldName = suggestionContext.getField();
-
         if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
             throw new ElasticSearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-        String prefix = suggestionContext.getText().utf8ToString();
 
+        CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
+        UnicodeUtil.UTF8toUTF16(suggestionContext.getText(), spare);
+
+        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
+        completionSuggestion.addTerm(completionSuggestEntry);
+
+        String fieldName = suggestionContext.getField();
         Map<String, CompletionSuggestion.Entry.Option> results = Maps.newHashMapWithExpectedSize(indexReader.leaves().size() * suggestionContext.getSize());
         for (AtomicReaderContext atomicReaderContext : indexReader.leaves()) {
             AtomicReader atomicReader = atomicReaderContext.reader();
@@ -67,7 +68,7 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
             if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
                 Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
                 Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
-                List<Lookup.LookupResult> lookupResults = lookup.lookup(prefix, false, suggestionContext.getSize());
+                List<Lookup.LookupResult> lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
                 for (Lookup.LookupResult res : lookupResults) {
                     
                     final String key = res.key.toString();
@@ -87,11 +88,12 @@ public class CompletionSuggester implements Suggester<CompletionSuggestionContex
         final List<CompletionSuggestion.Entry.Option> options = new ArrayList<CompletionSuggestion.Entry.Option>(results.values());
         CollectionUtil.introSort(options, scoreComparator);
 
-        for (int i = 0 ; i < Math.min(suggestionContext.getSize(), options.size()) ; i++) {
+        int optionCount = Math.min(suggestionContext.getSize(), options.size());
+        for (int i = 0 ; i < optionCount ; i++) {
             completionSuggestEntry.addOption(options.get(i));
         }
 
-        return completionSuggestionSuggestion;
+        return completionSuggestion;
     }
 
     @Override

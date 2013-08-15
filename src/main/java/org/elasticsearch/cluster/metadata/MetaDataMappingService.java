@@ -491,6 +491,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
+                    logger.debug("Expecting {} mapping created responses for other nodes", counter - 1);
                     countDownListener = new CountDownListener(counter, request.indices, request.mappingType, listener);
                     mappingCreatedAction.add(countDownListener, request.timeout);
 

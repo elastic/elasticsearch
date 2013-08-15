@@ -76,6 +76,8 @@ public class NodeMappingCreatedAction extends AbstractComponent {
 
     public void nodeMappingCreated(final NodeMappingCreatedResponse response) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
+        logger.debug("Sending mapping created for index {}, type {}", response.index, response.type);
+
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new Runnable() {
                 @Override

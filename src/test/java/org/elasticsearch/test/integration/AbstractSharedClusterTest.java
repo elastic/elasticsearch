@@ -100,6 +100,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     @After
     public void after() {
+        logger.info("Cleaning up after test.");
         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
                 .persistentSettings().getAsMap().size(), equalTo(0));

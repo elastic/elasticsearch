@@ -376,7 +376,7 @@ public class MetaDataMappingService extends AbstractComponent {
                             continue;
                         }
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                        IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
+                        IndexService indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
                         indicesToClose.add(indexMetaData.index());
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(request.mappingType)) {

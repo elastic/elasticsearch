@@ -483,7 +483,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     @Override
                     public void onClose() {
                         clusterService.remove(this);
-                        listener.onFailure(new NodeClosedException(clusterState.nodes().localNode()));
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
                     }
 
                     @Override

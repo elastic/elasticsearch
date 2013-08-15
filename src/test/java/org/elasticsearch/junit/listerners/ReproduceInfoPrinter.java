@@ -3,6 +3,9 @@ package org.elasticsearch.junit.listerners;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -14,7 +17,13 @@ import org.junit.runner.notification.RunListener;
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    
+    protected final ESLogger logger = Loggers.getLogger(ElasticsearchTestCase.class);
+
+    @Override
+    public void testStarted(Description description) throws Exception {
+        logger.info("Test {} started", description.getDisplayName());
+    }
+
     @Override
     public void testFailure(Failure failure) throws Exception {
         // Ignore assumptions.
@@ -39,7 +48,7 @@ public class ReproduceInfoPrinter extends RunListener {
             }
             traces.formatThrowable(b, failure.getException());
         }
-        System.out.println(b.toString());
+        logger.error(b.toString());
     }
 
     private static class MavenMessageBuilder extends ReproduceErrorMessageBuilder {

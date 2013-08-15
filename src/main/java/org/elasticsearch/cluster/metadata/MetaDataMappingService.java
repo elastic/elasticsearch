@@ -492,6 +492,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
+                    logger.debug("Expecting {} mapping created responses for other nodes", counter - 1);
 
                     // TODO: adding one to the version is based on knowledge on how the parent class will increment the version
                     //       move this to the base class or add another callback before publishing the new cluster state so we

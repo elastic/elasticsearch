@@ -73,7 +73,6 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuellFieldDataTests.Type>();
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "concrete_bytes")), Type.Bytes);
         typeMap.put(new FieldDataType("byte"), Type.Integer);
         typeMap.put(new FieldDataType("short"), Type.Integer);
         typeMap.put(new FieldDataType("int"), Type.Integer);
@@ -242,7 +241,6 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuellFieldDataTests.Type>();
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "concrete_bytes")), Type.Bytes);
         // TODO add filters
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
         Preprocessor pre = new Preprocessor();

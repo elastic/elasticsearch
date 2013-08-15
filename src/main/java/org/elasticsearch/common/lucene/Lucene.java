@@ -129,7 +129,7 @@ public class Lucene {
         try {
             writer.close();
             return true;
-        } catch (IOException e) {
+        } catch (Throwable e) {
             return false;
         }
     }

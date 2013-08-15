@@ -26,7 +26,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
@@ -77,8 +79,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import static org.elasticsearch.common.lucene.Lucene.safeClose;
 
 /**
  *
@@ -223,7 +223,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     // ignore
                 } catch (FlushNotAllowedEngineException e) {
                     // ignore
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to flush after setting shard to inactive", e);
                 }
             } else {
@@ -284,11 +284,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 } catch (IOException e1) {
                     // ignore
                 } finally {
-                    try {
-                        indexWriter.close();
-                    } catch (IOException e1) {
-                        // ignore
-                    }
+                    IOUtils.closeWhileHandlingException(indexWriter);
                 }
                 throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
             }
@@ -344,7 +340,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         return new GetResult(searcher, docIdAndVersion);
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 searcher.release();
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "failed to load document", e);
@@ -789,7 +785,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     failEngine(e);
                 }
                 throw new RefreshFailedEngineException(shardId, e);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 if (indexWriter == null) {
                     throw new EngineClosedException(shardId, failedEngine);
                 } else if (currentWriter != indexWriter) {
@@ -852,8 +848,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                         SearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
-                        current.close();
-
+                        IOUtils.closeWhileHandlingException(current); // ignore
                         refreshVersioningTable(threadPool.estimatedTimeInMillis());
                     } catch (OutOfMemoryError e) {
                         failEngine(e);
@@ -863,7 +858,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             failEngine(e);
                         }
                         throw new FlushFailedEngineException(shardId, e);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                 } finally {
@@ -900,7 +895,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                                 failEngine(e);
                             }
                             throw new FlushFailedEngineException(shardId, e);
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             translog.revertTransient();
                             throw new FlushFailedEngineException(shardId, e);
                         }
@@ -933,7 +928,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             failEngine(e);
                         }
                         throw new FlushFailedEngineException(shardId, e);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                 } finally {
@@ -948,7 +943,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 SegmentInfos infos = new SegmentInfos();
                 infos.read(store.directory());
                 lastCommittedSegmentInfos = infos;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 if (!closed) {
                     logger.warn("failed to read latest segment infos on flush", e);
                 }
@@ -1003,7 +998,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 failEngine(e);
             }
             throw new OptimizeFailedEngineException(shardId, e);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new OptimizeFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();
@@ -1037,7 +1032,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     failEngine(e);
                 }
                 throw new OptimizeFailedEngineException(shardId, e);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
                 rwl.readLock().unlock();
@@ -1064,7 +1059,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             snapshotIndexCommit = deletionPolicy.snapshot();
             traslogSnapshot = translog.snapshot();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             if (snapshotIndexCommit != null) {
                 snapshotIndexCommit.release();
             }
@@ -1111,14 +1106,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         SnapshotIndexCommit phase1Snapshot;
         try {
             phase1Snapshot = deletionPolicy.snapshot();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             --onGoingRecoveries;
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }
 
         try {
             recoveryHandler.phase1(phase1Snapshot);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             --onGoingRecoveries;
             phase1Snapshot.release();
             if (closed) {
@@ -1130,7 +1125,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         Translog.Snapshot phase2Snapshot;
         try {
             phase2Snapshot = translog.snapshot();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             --onGoingRecoveries;
             phase1Snapshot.release();
             if (closed) {
@@ -1141,7 +1136,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
         try {
             recoveryHandler.phase2(phase2Snapshot);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             --onGoingRecoveries;
             phase1Snapshot.release();
             phase2Snapshot.release();
@@ -1156,7 +1151,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             phase3Snapshot = translog.snapshot(phase2Snapshot);
             recoveryHandler.phase3(phase3Snapshot);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new RecoveryEngineException(shardId, 3, "Execution failed", e);
         } finally {
             --onGoingRecoveries;
@@ -1282,9 +1277,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.versionMap.clear();
         this.failedEngineListeners.clear();
         try {
-            if (searcherManager != null) {
-                searcherManager.close();
-            }
+            IOUtils.closeWhileHandlingException(searcherManager);
             // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
                 try {
@@ -1293,7 +1286,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     // ignore
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("failed to rollback writer on close", e);
         } finally {
             indexWriter = null;
@@ -1336,7 +1329,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private IndexWriter createWriter() throws IOException {
-        IndexWriter indexWriter = null;
         try {
             // release locks when started
             if (IndexWriter.isLocked(store.directory())) {
@@ -1355,13 +1347,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setReaderTermsIndexDivisor(termIndexDivisor);
             config.setMaxThreadStates(indexConcurrency);
             config.setCodec(codecService.codec(codecName));
+            /* We set this timeout to a highish value to work around
+             * the default poll interval in the Lucene lock that is 
+             * 1000ms by default. We might need to poll multiple times
+             * here but with 1s poll this is only executed twice at most
+             * in combination with the default writelock timeout*/
+            config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
-            indexWriter = new IndexWriter(store.directory(), config);
-        } catch (IOException e) {
-            safeClose(indexWriter);
-            throw e;
+            return new IndexWriter(store.directory(), config);
+        } catch (LockObtainFailedException ex) {
+            boolean isLocked = IndexWriter.isLocked(store.directory());
+            logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
+            throw ex;
         }
-        return indexWriter;
     }
 
     public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
@@ -1545,7 +1543,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                                 new SimpleSearcher(newSearcher));
                         warmer.warm(context);
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     if (!closed) {
                         logger.warn("failed to prepare/warm", e);
                     }
@@ -1555,12 +1553,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         currentSearcher.release();
                     }
                     if (newSearcher != null && closeNewSearcher) {
-                        try {
-                            // close the reader since we want decRef the inner readers
-                            newSearcher.getIndexReader().close();
-                        } catch (IOException e) {
-                            // ignore
-                        }
+                        IOUtils.closeWhileHandlingException(newSearcher.getIndexReader()); // ignore
                     }
                 }
             }

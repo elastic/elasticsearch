@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
@@ -47,15 +48,12 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     private Match[] matches;
     private long count;
 
-    private boolean hasScores;
-
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures,
-                             Match[] matches, long count, long tookInMillis, boolean hasScores) {
+                             Match[] matches, long count, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
         this.matches = matches;
         this.count = count;
-        this.hasScores = hasScores;
     }
 
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long count, long tookInMillis) {
@@ -63,14 +61,12 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         this.tookInMillis = tookInMillis;
         this.matches = EMPTY;
         this.count = count;
-        this.hasScores = false;
     }
 
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
         this.matches = EMPTY;
-        this.hasScores = false;
     }
 
     PercolateResponse() {
@@ -127,7 +123,8 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
                     builder.startObject();
                     builder.field(Fields._INDEX, match.getIndex());
                     builder.field(Fields._ID, match.getId());
-                    if (hasScores) {
+                    float score = match.score();
+                    if (score != PercolatorService.NO_SCORE) {
                         builder.field(Fields._SCORE, match.getScore());
                     }
                     builder.endObject();
@@ -151,7 +148,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             matches[i] = new Match();
             matches[i].readFrom(in);
         }
-        hasScores = in.readBoolean();
     }
 
     @Override
@@ -163,7 +159,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         for (Match match : matches) {
             match.writeTo(out);
         }
-        out.writeBoolean(hasScores);
     }
 
     public static class Match implements Streamable {

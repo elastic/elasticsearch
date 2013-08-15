@@ -36,12 +36,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private long count;
     private float[] scores;
     private BytesRef[] matches;
-
-    // Request fields:
-    private boolean limit;
+    private byte percolatorTypeId;
     private int requestedSize;
-    private boolean sort;
-    private boolean score;
 
     public PercolateShardResponse() {
     }
@@ -51,10 +47,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.matches = matches;
         this.count = count;
         this.scores = scores;
-        this.limit = context.limit;
+        this.percolatorTypeId = context.percolatorTypeId;
         this.requestedSize = context.size;
-        this.sort = context.sort;
-        this.score = context.score;
     }
 
     public PercolateShardResponse(BytesRef[] matches, long count, PercolatorService.PercolateContext context, String index, int shardId) {
@@ -62,10 +56,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.matches = matches;
         this.scores = new float[0];
         this.count = count;
-        this.limit = context.limit;
+        this.percolatorTypeId = context.percolatorTypeId;
         this.requestedSize = context.size;
-        this.sort = context.sort;
-        this.score = context.score;
     }
 
     public PercolateShardResponse(long count, PercolatorService.PercolateContext context, String index, int shardId) {
@@ -73,20 +65,15 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.count = count;
         this.matches = EMPTY;
         this.scores = new float[0];
-        this.limit = context.limit;
+        this.percolatorTypeId = context.percolatorTypeId;
         this.requestedSize = context.size;
-        this.sort = context.sort;
-        this.score = context.score;
     }
 
     public PercolateShardResponse(PercolatorService.PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = EMPTY;
         this.scores = new float[0];
-        this.limit = context.limit;
         this.requestedSize = context.size;
-        this.sort = context.sort;
-        this.score = context.score;
     }
 
     public BytesRef[] matches() {
@@ -101,20 +88,12 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         return count;
     }
 
-    public boolean limit() {
-        return limit;
-    }
-
     public int requestedSize() {
         return requestedSize;
     }
 
-    public boolean sort() {
-        return sort;
-    }
-
-    public boolean score() {
-        return score;
+    public byte percolatorTypeId() {
+        return percolatorTypeId;
     }
 
     @Override
@@ -129,10 +108,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         for (int i = 0; i < scores.length; i++) {
             scores[i] = in.readFloat();
         }
-
-        limit = in.readBoolean();
+        percolatorTypeId = in.readByte();
         requestedSize = in.readVInt();
-        sort = in.readBoolean();
     }
 
     @Override
@@ -147,9 +124,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         for (float score : scores) {
             out.writeFloat(score);
         }
-
-        out.writeBoolean(limit);
+        out.writeByte(percolatorTypeId);
         out.writeVLong(requestedSize);
-        out.writeBoolean(sort);
     }
 }

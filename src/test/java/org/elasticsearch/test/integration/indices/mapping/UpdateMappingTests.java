@@ -241,7 +241,6 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
     }
 
-
     @Test
     public void updateMappingConcurrently() throws Throwable {
         // Test that we can concurrently update different indexes and types.
@@ -249,6 +248,10 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
         prepareCreate("test1").setSettings("index.number_of_shards", shardNo).execute().actionGet();
         prepareCreate("test2").setSettings("index.number_of_shards", shardNo).execute().actionGet();
+
+        // This is important. The test assumes all nodes are aware of all indices. Due to initializing shard throttling
+        // not all shards are allocated with the initial create index. Wait for it..
+        ensureYellow();
 
         final Throwable[] threadException = new Throwable[1];
         final AtomicBoolean stop = new AtomicBoolean(false);

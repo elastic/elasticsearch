@@ -1187,7 +1187,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0))
                                         .add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value"))
-                                        .boostMode(CombineFunction.PLAIN.getName())).scoreType("sum")).execute().actionGet();
+                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("sum")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("1"));
@@ -1204,7 +1204,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0))
                                         .add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value"))
-                                        .boostMode(CombineFunction.PLAIN.getName())).scoreType("max")).execute().actionGet();
+                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("max")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -1221,7 +1221,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0))
                                         .add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value"))
-                                        .boostMode(CombineFunction.PLAIN.getName())).scoreType("avg")).execute().actionGet();
+                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("avg")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -1238,7 +1238,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                                 "parent",
                                 QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"))
                                         .add(new ScriptScoreFunctionBuilder().script("doc['p_field2'].value"))
-                                        .boostMode(CombineFunction.PLAIN.getName())).scoreType("score"))
+                                        .boostMode(CombineFunction.REPLACE.getName())).scoreType("score"))
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(7l));

@@ -149,7 +149,7 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query newMatchAllDocsQuery() {
-        return Queries.MATCH_ALL_QUERY;
+        return Queries.newMatchAllQuery();
     }
 
     @Override

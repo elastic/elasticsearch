@@ -63,7 +63,7 @@ public class IndicesQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
-        Query noMatchQuery = Queries.MATCH_ALL_QUERY;
+        Query noMatchQuery = Queries.newMatchAllQuery();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -94,7 +94,7 @@ public class IndicesQueryParser implements QueryParser {
                 } else if ("no_match_query".equals(currentFieldName)) {
                     String type = parser.text();
                     if ("all".equals(type)) {
-                        noMatchQuery = Queries.MATCH_ALL_QUERY;
+                        noMatchQuery = Queries.newMatchAllQuery();
                     } else if ("none".equals(type)) {
                         noMatchQuery = MatchNoDocsQuery.INSTANCE;
                     }

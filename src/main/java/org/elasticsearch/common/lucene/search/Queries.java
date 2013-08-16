@@ -31,10 +31,12 @@ import java.util.regex.Pattern;
  */
 public class Queries {
 
-    // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
-    public final static Query MATCH_ALL_QUERY = new XConstantScoreQuery(new MatchAllDocsFilter());
+    /* In general we should never us a static query instance and share it.
+     * In this case the instance is immutable so that's ok.*/
     public final static Query NO_MATCH_QUERY = MatchNoDocsQuery.INSTANCE;
-
+    
+    private static final Filter MATCH_ALL_DOCS_FILTER = new MatchAllDocsFilter();
+    
     /**
      * A match all docs filter. Note, requires no caching!.
      */
@@ -54,12 +56,20 @@ public class Queries {
         disjuncts = disjunctsX;
     }
 
+    @SuppressWarnings("unchecked")
     public static List<Query> disMaxClauses(DisjunctionMaxQuery query) {
         try {
             return (List<Query>) disjuncts.get(query);
         } catch (IllegalAccessException e) {
             return null;
         }
+    }
+    
+    public static Query newMatchAllQuery() {
+        // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
+        // NEVER cache this XConstantScore Query it's not immutable and based on #3521
+        // some code might set a boost on this query.
+        return new XConstantScoreQuery(MATCH_ALL_DOCS_FILTER);
     }
 
     /**
@@ -103,16 +113,13 @@ public class Queries {
     public static Query fixNegativeQueryIfNeeded(Query q) {
         if (isNegativeQuery(q)) {
             BooleanQuery newBq = (BooleanQuery) q.clone();
-            newBq.add(MATCH_ALL_QUERY, BooleanClause.Occur.MUST);
+            newBq.add(newMatchAllQuery(), BooleanClause.Occur.MUST);
             return newBq;
         }
         return q;
     }
 
     public static boolean isConstantMatchAllQuery(Query query) {
-        if (query == Queries.MATCH_ALL_QUERY) {
-            return true;
-        }
         if (query instanceof XConstantScoreQuery) {
             XConstantScoreQuery scoreQuery = (XConstantScoreQuery) query;
             if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {

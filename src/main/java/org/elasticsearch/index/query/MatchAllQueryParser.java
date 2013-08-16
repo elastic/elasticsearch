@@ -49,7 +49,6 @@ public class MatchAllQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
-        String normsField = null;
         String currentFieldName = null;
 
         XContentParser.Token token;
@@ -59,16 +58,14 @@ public class MatchAllQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("norms_field".equals(currentFieldName) || "normsField".equals(currentFieldName)) {
-                    normsField = parseContext.indexName(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        if (boost == 1.0f && normsField == null) {
-            return Queries.MATCH_ALL_QUERY;
+        if (boost == 1.0f) {
+            return Queries.newMatchAllQuery();
         }
 
         //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality

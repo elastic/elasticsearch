@@ -21,6 +21,8 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
@@ -30,9 +32,11 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.SuggestContextParser;
-import org.elasticsearch.search.suggest.SuggestUtils;
-import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.*;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,41 +56,50 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexReader indexReader, CharsRef spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
-        List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
-        CandidateGenerator[] gens = new CandidateGenerator[generators.size()];
-        for (int i = 0; i < gens.length; i++) {
-            PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
-            DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(generator);
-            gens[i] = new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(), indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter());
-        }
-        
-        
-        final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
-        final BytesRef separator = suggestion.separator();
-        TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
-        WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestion.getField(), realWordErrorLikelihood, separator);
-        Correction[] corrections = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens), suggestion.maxErrors(),
-                suggestion.getShardSize(), indexReader,wordScorer , separator, suggestion.confidence(), suggestion.gramSize());
-        
         UnicodeUtil.UTF8toUTF16(suggestion.getText(), spare);
-        
         Suggestion.Entry<Option> resultEntry = new Suggestion.Entry<Option>(new StringText(spare.toString()), 0, spare.length);
-        BytesRef byteSpare = new BytesRef();
-        for (Correction correction : corrections) {
-            UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
-            Text phrase = new StringText(spare.toString());
-            Text highlighted = null;
-            if (suggestion.getPreTag() != null) {
-                UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()), spare);
-                highlighted = new StringText(spare.toString());
-            }
-            resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
-        }
         final Suggestion<Entry<Option>> response = new Suggestion<Entry<Option>>(name, suggestion.getSize());
         response.addTerm(resultEntry);
+        
+        List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
+        final int numGenerators = generators.size();
+        final List<CandidateGenerator> gens = new ArrayList<CandidateGenerator>(generators.size());
+        for (int i = 0; i < numGenerators; i++) {
+            PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
+            DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(generator);
+            Terms terms = MultiFields.getTerms(indexReader, generator.field());
+            if (terms !=  null) {
+                gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(), 
+                        indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));    
+            }
+        }
+        final String suggestField = suggestion.getField();
+        final Terms suggestTerms = MultiFields.getTerms(indexReader, suggestField);
+        if (gens.size() > 0 && suggestTerms != null) {
+            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
+            final BytesRef separator = suggestion.separator();
+            TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
+            
+            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
+            Correction[] corrections = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
+                    gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
+                    suggestion.getShardSize(), indexReader,wordScorer , separator, suggestion.confidence(), suggestion.gramSize());
+           
+            BytesRef byteSpare = new BytesRef();
+            for (Correction correction : corrections) {
+                UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
+                Text phrase = new StringText(spare.toString());
+                Text highlighted = null;
+                if (suggestion.getPreTag() != null) {
+                    UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()), spare);
+                    highlighted = new StringText(spare.toString());
+                }
+                resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
+            }
+        }
         return response;
     }
-
+    
     @Override
     public String[] names() {
         return new String[] {"phrase"};

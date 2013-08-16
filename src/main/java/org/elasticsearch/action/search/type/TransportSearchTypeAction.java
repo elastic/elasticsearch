@@ -179,12 +179,16 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 if (localAsync) {
-                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            performFirstPhase(fShardIndex, shardIt);
-                                        }
-                                    });
+                                    try {
+                                        threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                performFirstPhase(fShardIndex, shardIt);
+                                            }
+                                        });
+                                    } catch (Throwable t) {
+                                        onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+                                    }
                                 } else {
                                     performFirstPhase(fShardIndex, shardIt);
                                 }

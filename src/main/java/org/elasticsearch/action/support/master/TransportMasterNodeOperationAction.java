@@ -137,16 +137,20 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     }
                 });
             } else {
-                threadPool.executor(executor).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            masterOperation(request, clusterService.state(), listener);
-                        } catch (Throwable e) {
-                            listener.onFailure(e);
+                try {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                masterOperation(request, clusterService.state(), listener);
+                            } catch (Throwable e) {
+                                listener.onFailure(e);
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (Throwable t) {
+                    listener.onFailure(t);
+                }
             }
         } else {
             if (nodes.masterNode() == null) {

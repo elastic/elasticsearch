@@ -124,15 +124,19 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                         final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-                            if (localAsync) {
-                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
-                                    }
-                                });
-                            } else {
-                                executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
+                            try {
+                                if (localAsync) {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
+                                        }
+                                    });
+                                } else {
+                                    executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
+                                }
+                            } catch (Throwable t) {
+                                onQueryFailure(t, querySearchRequest, entry.index, dfsResult, counter);
                             }
                         }
                     }
@@ -153,16 +157,20 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
                 @Override
                 public void onFailure(Throwable t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
-                    }
-                    AsyncAction.this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
-                    successulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        executeFetchPhase();
-                    }
+                    onQueryFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
                 }
             });
+        }
+
+        void onQueryFailure(Throwable t, QuerySearchRequest querySearchRequest, int shardIndex, DfsSearchResult dfsResult, AtomicInteger counter) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
+            }
+            this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
+            successulOps.decrementAndGet();
+            if (counter.decrementAndGet() == 0) {
+                executeFetchPhase();
+            }
         }
 
         void executeFetchPhase() {
@@ -217,15 +225,19 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                         final DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResult.id(), entry.value);
-                            if (localAsync) {
-                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                    }
-                                });
-                            } else {
-                                executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
+                            try {
+                                if (localAsync) {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
+                                        }
+                                    });
+                                } else {
+                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
+                                }
+                            } catch (Throwable t) {
+                                onFetchFailure(t, fetchSearchRequest, entry.index, queryResult.shardTarget(), counter);
                             }
                         }
                     }
@@ -246,16 +258,20 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
                 @Override
                 public void onFailure(Throwable t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
-                    }
-                    AsyncAction.this.addShardFailure(shardIndex, shardTarget, t);
-                    successulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
+                    onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }
             });
+        }
+
+        void onFetchFailure(Throwable t, FetchSearchRequest fetchSearchRequest, int shardIndex, SearchShardTarget shardTarget, AtomicInteger counter) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
+            }
+            this.addShardFailure(shardIndex, shardTarget, t);
+            successulOps.decrementAndGet();
+            if (counter.decrementAndGet() == 0) {
+                finishHim();
+            }
         }
 
         void finishHim() {

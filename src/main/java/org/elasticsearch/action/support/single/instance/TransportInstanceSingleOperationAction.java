@@ -184,20 +184,28 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             request.shardId = shardIt.shardId().id();
             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                 request.beforeLocalFork();
-                threadPool.executor(executor).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            shardOperation(request, listener);
-                        } catch (Exception e) {
-                            if (retryOnFailure(e)) {
-                                retry(fromClusterEvent, null);
-                            } else {
-                                listener.onFailure(e);
+                try {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                shardOperation(request, listener);
+                            } catch (Throwable e) {
+                                if (retryOnFailure(e)) {
+                                    retry(fromClusterEvent, null);
+                                } else {
+                                    listener.onFailure(e);
+                                }
                             }
                         }
+                    });
+                } catch (Throwable e) {
+                    if (retryOnFailure(e)) {
+                        retry(fromClusterEvent, null);
+                    } else {
+                        listener.onFailure(e);
                     }
-                });
+                }
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
                 transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {

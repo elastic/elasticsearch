@@ -176,15 +176,19 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                         final int shardIndex = i;
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
-                            if (localAsync) {
-                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        executeQueryPhase(shardIndex, counter, node, target.v2());
-                                    }
-                                });
-                            } else {
-                                executeQueryPhase(shardIndex, counter, node, target.v2());
+                            try {
+                                if (localAsync) {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            executeQueryPhase(shardIndex, counter, node, target.v2());
+                                        }
+                                    });
+                                } else {
+                                    executeQueryPhase(shardIndex, counter, node, target.v2());
+                                }
+                            } catch (Throwable t) {
+                                onQueryPhaseFailure(shardIndex, counter, target.v2(), t);
                             }
                         }
                     }
@@ -204,16 +208,20 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
                 @Override
                 public void onFailure(Throwable t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] Failed to execute query phase", t, searchId);
-                    }
-                    addShardFailure(shardIndex, new ShardSearchFailure(t));
-                    successfulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        executeFetchPhase();
-                    }
+                    onQueryPhaseFailure(shardIndex, counter, searchId, t);
                 }
             });
+        }
+
+        void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Throwable t) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] Failed to execute query phase", t, searchId);
+            }
+            addShardFailure(shardIndex, new ShardSearchFailure(t));
+            successfulOps.decrementAndGet();
+            if (counter.decrementAndGet() == 0) {
+                executeFetchPhase();
+            }
         }
 
         private void executeFetchPhase() {

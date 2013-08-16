@@ -127,6 +127,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         List<ShardOperationFailedException> shardFailures = null;
 
         byte percolatorTypeId = 0x00;
+        int nonEmptyResponses = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -145,12 +146,15 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                 if (percolateShardResponse.percolatorTypeId() != 0x00) {
                     percolatorTypeId = percolateShardResponse.percolatorTypeId();
                 }
+                if (!percolateShardResponse.isEmpty()) {
+                    nonEmptyResponses++;
+                }
                 shardResults.add(percolateShardResponse);
                 successfulShards++;
             }
         }
 
-        if (shardResults == null || percolatorTypeId == 0x00) {
+        if (shardResults == null || percolatorTypeId == 0x00 || nonEmptyResponses == 0) {
             long tookInMillis = System.currentTimeMillis() - request.startTime;
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis);
         } else {

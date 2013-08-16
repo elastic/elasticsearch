@@ -140,7 +140,11 @@ public class PercolatorService extends AbstractComponent {
             }
 
             if (context.query == null && (context.score || context.sort)) {
-                throw new ElasticSearchIllegalArgumentException("Can't sort or score if no query is specified");
+                throw new ElasticSearchIllegalArgumentException("Can't sort or score if query isn't specified");
+            }
+
+            if (context.sort && !context.limit) {
+                throw new ElasticSearchIllegalArgumentException("Can't sort if size isn't specified");
             }
 
             if (context.size < 0) {
@@ -511,15 +515,25 @@ public class PercolatorService extends AbstractComponent {
         @Override
         public ReduceResult reduce(List<PercolateShardResponse> shardResults) {
             long foundMatches = 0;
-            for (PercolateShardResponse response : shardResults) {
+            int nonEmptyResponses = 0;
+            int firstNonEmptyIndex = 0;
+            for (int i = 0; i < shardResults.size(); i++) {
+                PercolateShardResponse response = shardResults.get(i);
                 foundMatches += response.count();
+                if (response.matches().length != 0) {
+                    if (firstNonEmptyIndex == 0) {
+                        firstNonEmptyIndex = i;
+                    }
+                    nonEmptyResponses++;
+                }
             }
+
             int requestedSize = shardResults.get(0).requestedSize();
 
             // Use a custom impl of AbstractBigArray for Object[]?
             List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize);
-            if (shardResults.size() == 1) {
-                PercolateShardResponse response = shardResults.get(0);
+            if (nonEmptyResponses == 1) {
+                PercolateShardResponse response = shardResults.get(firstNonEmptyIndex);
                 Text index = new StringText(response.getIndex());
                 for (int i = 0; i < response.matches().length; i++) {
                     float score = response.scores().length == 0 ? Float.NaN : response.scores()[i];
@@ -530,8 +544,8 @@ public class PercolatorService extends AbstractComponent {
                 int[] slots = new int[shardResults.size()];
                 while (true) {
                     float lowestScore = Float.NEGATIVE_INFINITY;
-                    int requestIndex = 0;
-                    int itemIndex = 0;
+                    int requestIndex = -1;
+                    int itemIndex = -1;
                     for (int i = 0; i < shardResults.size(); i++) {
                         int scoreIndex = slots[i];
                         float[] scores = shardResults.get(i).scores();
@@ -541,12 +555,19 @@ public class PercolatorService extends AbstractComponent {
 
                         float score = scores[scoreIndex];
                         int cmp = Float.compare(lowestScore, score);
+                        // TODO: Maybe add a tie?
                         if (cmp < 0) {
                             requestIndex = i;
                             itemIndex = scoreIndex;
                             lowestScore = score;
                         }
                     }
+
+                    // This means the shard matches have been exhausted and we should bail
+                    if (requestIndex == -1) {
+                        break;
+                    }
+
                     slots[requestIndex]++;
 
                     PercolateShardResponse shardResponse = shardResults.get(requestIndex);

@@ -41,6 +41,8 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import java.util.ArrayList;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -96,16 +98,15 @@ public class PluginManager {
 
         File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
-        ArrayList<URL> pluginUrls = new ArrayList<URL>(); 
+        ArrayList<URL> pluginURLs = new ArrayList<URL>(); 
 
         // first, try directly from the URL provided
         if (url != null) {
             pluginURLs.add(new URL(url));
         }
-
+        
+        URL pluginUrl;  
         // now, try as a path name...
-        String filterZipName = null;
-
         if (name.indexOf('/') != -1) {
             // github repo
             String[] elements = name.split("/");
@@ -115,7 +116,7 @@ public class PluginManager {
             if (elements.length > 2) {
                 version = elements[2];
             }
-            filterZipName = userName + "-" + repoName;
+
             // the installation file should not include the userName, just the repoName
             name = repoName;
             if (name.startsWith("elasticsearch-")) {
@@ -130,7 +131,7 @@ public class PluginManager {
             pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
             if (version != null) {
-                URL pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
+                pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
                 pluginURLs.add(pluginUrl);
 
                 
@@ -149,14 +150,14 @@ public class PluginManager {
 
             } else {
                 // assume site plugin, download master....
-                URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
+                pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
                 pluginURLs.add(pluginUrl);
             }
 
+            int i = 0;
 
-            for (int i = 0; i < pluginUrls.toArray().length; i++) {
-                pluginUrl = pluginUrls[i];
-
+            while (i < pluginURLs.size()) {
+                pluginUrl = pluginURLs.get(i++);
                 System.out.println("Trying " + pluginUrl.toExternalForm());
                 try {
                     downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
@@ -177,6 +178,18 @@ public class PluginManager {
     public void extract(String name) throws IOException {
         File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
+        String filterZipName = null;
+        if (name.indexOf('/') != -1) {
+            // github repo
+            String[] elements = name.split("/");
+            String userName = elements[0];
+            String repoName = elements[1];
+            String version = null;
+            if (elements.length > 2) {
+                version = elements[2];
+            }
+            filterZipName = userName + "-" + repoName;
+        }
 
         // extract the plugin
         File extractLocation = new File(environment.pluginsFile(), name);

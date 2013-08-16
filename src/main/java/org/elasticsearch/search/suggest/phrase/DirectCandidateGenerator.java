@@ -18,18 +18,8 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
@@ -37,6 +27,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 //TODO public for tests
 public final class DirectCandidateGenerator extends CandidateGenerator {
@@ -58,20 +54,19 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final int numCandidates;
     
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, int numCandidates) throws IOException {
-        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, numCandidates, null, null);
+        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, numCandidates, null, null, MultiFields.getTerms(reader, field));
     }
 
 
-    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter) throws IOException {
+    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter, Terms terms) throws IOException {
+        if (terms == null) {
+            throw new ElasticSearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
+        }
         this.spellchecker = spellchecker;
         this.field = field;
         this.numCandidates = numCandidates;
         this.suggestMode = suggestMode;
         this.reader = reader;
-        Terms terms = MultiFields.getTerms(reader, field);
-        if (terms == null) {
-            throw new ElasticSearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
-        }
         final long dictSize = terms.getSumTotalTermFreq();
         this.useTotalTermFrequency = dictSize != -1;
         this.dictSize =  dictSize == -1 ? reader.maxDoc() : dictSize;

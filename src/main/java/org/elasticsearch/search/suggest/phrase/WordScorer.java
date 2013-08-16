@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
@@ -28,6 +26,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
+
+import java.io.IOException;
 
 //TODO public for tests
 public abstract class WordScorer {
@@ -43,11 +43,15 @@ public abstract class WordScorer {
     private final boolean useTotalTermFreq;
     
     public WordScorer(IndexReader reader, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
+        this(reader, MultiFields.getTerms(reader, field), field, realWordLikelyHood, separator);
+    }
+    
+    public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
         this.field = field;
-        this.terms = MultiFields.getTerms(reader, field);
         if (terms == null) {
             throw new ElasticSearchIllegalArgumentException("Field: [" + field + "] does not exist");
         }
+        this.terms = terms;
         final long vocSize = terms.getSumTotalTermFreq();
         this.vocabluarySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
         this.useTotalTermFreq = vocSize != -1;
@@ -95,7 +99,7 @@ public abstract class WordScorer {
    }
    
    public static interface WordScorerFactory {
-       public WordScorer newScorer(IndexReader reader, String field,
-            double realWordLikelyhood, BytesRef separator) throws IOException;
+       public WordScorer newScorer(IndexReader reader, Terms terms,
+            String field, double realWordLikelyhood, BytesRef separator) throws IOException;
    }
 }

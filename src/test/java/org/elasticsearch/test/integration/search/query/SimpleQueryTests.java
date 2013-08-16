@@ -1570,7 +1570,6 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .execute()
                 .actionGet();
         assertNoFailures(response);
-
     }
 
 }

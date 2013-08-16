@@ -66,6 +66,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.hamcrest.Matchers;
@@ -84,13 +85,12 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.RegexpFlag.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class SimpleIndexQueryParserTests {
+public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
 
     private static Injector injector;
 
@@ -135,6 +135,8 @@ public class SimpleIndexQueryParserTests {
     @AfterClass
     public static void close() {
         injector.getInstance(ThreadPool.class).shutdownNow();
+        queryParser = null;
+        injector = null;
     }
 
     private IndexQueryParserService queryParser() throws IOException {
@@ -301,7 +303,8 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/match_all_empty1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, sameInstance(Queries.MATCH_ALL_QUERY));
+        assertThat(parsedQuery, equalTo(Queries.newMatchAllQuery()));
+        assertThat(parsedQuery, not(sameInstance(Queries.newMatchAllQuery())));
     }
 
     @Test
@@ -309,7 +312,9 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/match_all_empty2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, sameInstance(Queries.MATCH_ALL_QUERY));
+        assertThat(parsedQuery, equalTo(Queries.newMatchAllQuery()));
+        assertThat(parsedQuery, not(sameInstance(Queries.newMatchAllQuery())));
+
     }
 
     @Test

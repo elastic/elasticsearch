@@ -19,7 +19,9 @@
 
 package org.elasticsearch.test.integration.search.query;
 
+import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -29,11 +31,14 @@ import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -111,6 +116,108 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
             assertTrue("wrong exception message " + e.getMessage(), e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
     }
+    
+    @Test // see #3521
+    public void testConstantScoreQuery() throws Exception {
+        Random random = getRandom();
+        createIndex("test");
+        indexRandom("test", true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick"))).get();
+        SearchHits hits = searchResponse.getHits();
+        assertThat(hits.totalHits(), equalTo(2l));
+        for (SearchHit searchHit : hits) {
+            assertThat(searchHit.getScore(), equalTo(1.0f));
+        }
+        
+        searchResponse = client().prepareSearch().setQuery(
+                QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
+                QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat()))).get();
+        hits = searchResponse.getHits();
+        assertThat(hits.totalHits(), equalTo(2l));
+        assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
+        
+        client().prepareSearch().setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat())).get();
+        hits = searchResponse.getHits();
+        assertThat(hits.totalHits(), equalTo(2l));
+        assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
+        
+        searchResponse = client().prepareSearch().setQuery(
+                QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
+                QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat()))))).get();
+        hits = searchResponse.getHits();
+        assertThat(hits.totalHits(), equalTo(2l));
+        assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
+        for (SearchHit searchHit : hits) {
+            assertThat(searchHit.getScore(), equalTo(1.0f));
+        }
+        
+        int num = atLeast(100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "type", "" + i).setSource("f", English.intToEnglish(i));
+        }
+        createIndex("test_1");
+        indexRandom("test_1", true, builders);
+        int queryRounds = atLeast(10);
+        for (int i = 0; i < queryRounds; i++) {
+            MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("f", English.intToEnglish(between(0, num)));
+            searchResponse = client().prepareSearch("test_1").setQuery(matchQuery).setSize(num).get();
+            long totalHits = searchResponse.getHits().totalHits();
+            hits = searchResponse.getHits();
+            for (SearchHit searchHit : hits) {
+                assertThat(searchHit.getScore(), equalTo(1.0f));
+            }
+            if (random.nextBoolean()) {
+                searchResponse = client().prepareSearch("test_1").setQuery(
+                        QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
+                        QueryBuilders.constantScoreQuery(matchQuery).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat())))).setSize(num).get();
+                hits = searchResponse.getHits();    
+            } else {
+                FilterBuilder filter = FilterBuilders.queryFilter(matchQuery);
+                searchResponse = client().prepareSearch("test_1").setQuery(
+                        QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
+                        QueryBuilders.constantScoreQuery(filter).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat())))).setSize(num).get();
+                hits = searchResponse.getHits();
+            }
+            assertThat(hits.totalHits(), equalTo(totalHits));
+            if (totalHits > 1) {
+                float expected = hits.getAt(0).score();
+                for (SearchHit searchHit : hits) {
+                    assertThat(searchHit.getScore(), equalTo(expected));
+                }
+            }
+        }
+    }
+    
+    @Test // see #3521 
+    public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
+        indexRandom("test", true,
+            client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
+            client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
+        );
+        int iters = atLeast(100);
+        for (int i = 0; i < iters; i++) {
+            SearchResponse searchResponse = client().prepareSearch("test")
+                    .setQuery(queryString("*:*^10.0").boost(10.0f))
+                    .execute().actionGet();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+            
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
+                            QueryBuilders.constantScoreQuery(QueryBuilders.matchAllQuery())))
+                    .execute().actionGet();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+            assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(Math.sqrt(2), 0.1));
+            assertThat((double)searchResponse.getHits().getAt(1).score(),closeTo(Math.sqrt(2), 0.1));
+        }
+    }
+
 
     @Test
     public void testCommonTermsQuery() throws Exception {
@@ -772,7 +879,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
     }
-
+    
     @Test
     public void testSpecialRangeSyntaxInQueryString() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();

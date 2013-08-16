@@ -232,7 +232,7 @@ public class SearchContext implements Releasable {
      */
     public void preProcess() {
         if (query() == null) {
-            parsedQuery(ParsedQuery.MATCH_ALL_PARSED_QUERY);
+            parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
         if (queryBoost() != 1.0f) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));

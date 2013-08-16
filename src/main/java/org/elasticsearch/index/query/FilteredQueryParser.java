@@ -51,7 +51,7 @@ public class FilteredQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = Queries.MATCH_ALL_QUERY;
+        Query query = Queries.newMatchAllQuery();
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;

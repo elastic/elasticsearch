@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Builder;
@@ -65,7 +66,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(ImmutableSettings.EMPTY,
                 new HashSet<AllocationDecider>(Arrays.asList(new SameShardAllocationDecider(ImmutableSettings.EMPTY),
-                        randomAllocationDecider))), new ShardsAllocators());
+                        randomAllocationDecider))), new ShardsAllocators(), ClusterInfoService.EMPTY);
         int indices = between(1, 20);
         Builder metaBuilder = newMetaDataBuilder();
         int maxNumReplicas = 1;

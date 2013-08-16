@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -92,6 +93,8 @@ public class RoutingAllocation {
 
     private final AllocationExplanation explanation = new AllocationExplanation();
 
+    private final ClusterInfo clusterInfo;
+
     private Map<ShardId, String> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
@@ -103,10 +106,11 @@ public class RoutingAllocation {
      * @param routingNodes Routing nodes in the current cluster 
      * @param nodes TODO: Documentation
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.nodes = nodes;
+        this.clusterInfo = clusterInfo;
     }
 
     /**
@@ -147,6 +151,10 @@ public class RoutingAllocation {
      */
     public DiscoveryNodes nodes() {
         return nodes;
+    }
+
+    public ClusterInfo clusterInfo() {
+        return clusterInfo;
     }
 
     /**

@@ -93,3 +93,41 @@ The `index.routing.allocation.total_shards_per_node` setting allows to
 control how many total shards for an index will be allocated per node.
 It can be dynamically set on a live index using the update index
 settings API.
+
+[float]
+=== Disk-based Shard Allocation
+In 0.90.4 and later, Elasticsearch con be configured to prevent shard
+allocation on nodes depending on disk usage for the node. This
+functionality is disabled by default, and can be changed either in the
+configuration file, or dynamically using:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "cluster.routing.allocation.disk.threshold_enabled" : true
+    }
+}'
+--------------------------------------------------
+
+Once enabled, Elasticsearch uses two watermarks to decide whether
+shards should be allocated or can remain on the node.
+
+`cluster.routing.allocation.disk.watermark.low` controls the low
+watermark for disk usage. It defaults to 0.70, meaning ES will not
+allocate new shards to nodes once they have more than 70% disk
+used. It can also be set to an absolute byte value (like 500mb) to
+prevent ES from allocating shards if less than the configured amount
+of space is available.
+
+`cluster.routing.allocation.disk.watermark.high` controls the high
+watermark. It defaults to 0.85, meaning ES will attempt to relocate
+shards to another node if the node disk usage rises above 85%. It can
+also be set to an absolute byte value (similar to the low watermark)
+to relocate shards once less than the configured amount of space is
+available on the node.
+
+Both watermark settings can be changed dynamically using the cluster
+settings API. By default, Elasticsearch will retrieve information
+about the disk usage of the nodes every 30 seconds. This can also be
+changed by setting the `cluster.info.update.interval` setting.

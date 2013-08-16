@@ -115,15 +115,19 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                         final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-                            if (localAsync) {
-                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        executeSecondPhase(entry.index, dfsResult, counter, node, querySearchRequest);
-                                    }
-                                });
-                            } else {
-                                executeSecondPhase(entry.index, dfsResult, counter, node, querySearchRequest);
+                            try {
+                                if (localAsync) {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            executeSecondPhase(entry.index, dfsResult, counter, node, querySearchRequest);
+                                        }
+                                    });
+                                } else {
+                                    executeSecondPhase(entry.index, dfsResult, counter, node, querySearchRequest);
+                                }
+                            } catch (Throwable t) {
+                                onSecondPhaseFailure(t, querySearchRequest, entry.index, dfsResult, counter);
                             }
                         }
                     }
@@ -144,16 +148,20 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
                 @Override
                 public void onFailure(Throwable t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
-                    }
-                    AsyncAction.this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
-                    successulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
+                    onSecondPhaseFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
                 }
             });
+        }
+
+        void onSecondPhaseFailure(Throwable t, QuerySearchRequest querySearchRequest, int shardIndex, DfsSearchResult dfsResult, AtomicInteger counter) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
+            }
+            this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
+            successulOps.decrementAndGet();
+            if (counter.decrementAndGet() == 0) {
+                finishHim();
+            }
         }
 
         void finishHim() {

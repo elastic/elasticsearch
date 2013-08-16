@@ -126,15 +126,19 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                         final DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResult.id(), entry.value);
-                            if (localAsync) {
-                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                    }
-                                });
-                            } else {
-                                executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
+                            try {
+                                if (localAsync) {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
+                                        }
+                                    });
+                                } else {
+                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
+                                }
+                            } catch (Throwable t) {
+                                onFetchFailure(t, fetchSearchRequest, entry.index, queryResult.shardTarget(), counter);
                             }
                         }
                     }
@@ -155,16 +159,20 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
                 @Override
                 public void onFailure(Throwable t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
-                    }
-                    AsyncAction.this.addShardFailure(shardIndex, shardTarget, t);
-                    successulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
+                    onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }
             });
+        }
+
+        void onFetchFailure(Throwable t, FetchSearchRequest fetchSearchRequest, int shardIndex, SearchShardTarget shardTarget, AtomicInteger counter) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
+            }
+            this.addShardFailure(shardIndex, shardTarget, t);
+            successulOps.decrementAndGet();
+            if (counter.decrementAndGet() == 0) {
+                finishHim();
+            }
         }
 
         void finishHim() {

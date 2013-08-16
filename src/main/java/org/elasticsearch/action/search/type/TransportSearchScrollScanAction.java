@@ -172,15 +172,19 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                         final int shardIndex = i;
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
-                            if (localAsync) {
-                                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        executePhase(shardIndex, node, target.v2());
-                                    }
-                                });
-                            } else {
-                                executePhase(shardIndex, node, target.v2());
+                            try {
+                                if (localAsync) {
+                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            executePhase(shardIndex, node, target.v2());
+                                        }
+                                    });
+                                } else {
+                                    executePhase(shardIndex, node, target.v2());
+                                }
+                            } catch (Throwable t) {
+                                onPhaseFailure(t, target.v2(), shardIndex);
                             }
                         }
                     }
@@ -202,7 +206,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             }
         }
 
-        private void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
+        void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
             searchService.sendExecuteScan(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override
                 public void onResult(QueryFetchSearchResult result) {
@@ -214,16 +218,20 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
                 @Override
                 public void onFailure(Throwable t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] Failed to execute query phase", t, searchId);
-                    }
-                    addShardFailure(shardIndex, new ShardSearchFailure(t));
-                    successfulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
+                    onPhaseFailure(t, searchId, shardIndex);
                 }
             });
+        }
+
+        void onPhaseFailure(Throwable t, long searchId, int shardIndex) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] Failed to execute query phase", t, searchId);
+            }
+            addShardFailure(shardIndex, new ShardSearchFailure(t));
+            successfulOps.decrementAndGet();
+            if (counter.decrementAndGet() == 0) {
+                finishHim();
+            }
         }
 
         private void finishHim() {

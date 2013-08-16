@@ -142,55 +142,59 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             transportRequestOptions.withCompress(transportCompress());
             for (final String nodeId : nodesIds) {
                 final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
-                if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
-                    threadPool.executor(executor()).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                onOperation(nodeOperation(newNodeRequest(clusterState.nodes().localNodeId(), request)));
-                            } catch (Throwable e) {
-                                onFailure(clusterState.nodes().localNodeId(), e);
-                            }
-                        }
-                    });
-                } else if (nodeId.equals("_master")) {
-                    threadPool.executor(executor()).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                onOperation(nodeOperation(newNodeRequest(clusterState.nodes().masterNodeId(), request)));
-                            } catch (Throwable e) {
-                                onFailure(clusterState.nodes().masterNodeId(), e);
-                            }
-                        }
-                    });
-                } else {
-                    if (node == null) {
-                        onFailure(nodeId, new NoSuchNodeException(nodeId));
-                    } else {
-                        NodeRequest nodeRequest = newNodeRequest(nodeId, request);
-                        transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions, new BaseTransportResponseHandler<NodeResponse>() {
+                try {
+                    if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
+                        threadPool.executor(executor()).execute(new Runnable() {
                             @Override
-                            public NodeResponse newInstance() {
-                                return newNodeResponse();
-                            }
-
-                            @Override
-                            public void handleResponse(NodeResponse response) {
-                                onOperation(response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                onFailure(node.id(), exp);
-                            }
-
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
+                            public void run() {
+                                try {
+                                    onOperation(nodeOperation(newNodeRequest(clusterState.nodes().localNodeId(), request)));
+                                } catch (Throwable e) {
+                                    onFailure(clusterState.nodes().localNodeId(), e);
+                                }
                             }
                         });
+                    } else if (nodeId.equals("_master")) {
+                        threadPool.executor(executor()).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    onOperation(nodeOperation(newNodeRequest(clusterState.nodes().masterNodeId(), request)));
+                                } catch (Throwable e) {
+                                    onFailure(clusterState.nodes().masterNodeId(), e);
+                                }
+                            }
+                        });
+                    } else {
+                        if (node == null) {
+                            onFailure(nodeId, new NoSuchNodeException(nodeId));
+                        } else {
+                            NodeRequest nodeRequest = newNodeRequest(nodeId, request);
+                            transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions, new BaseTransportResponseHandler<NodeResponse>() {
+                                @Override
+                                public NodeResponse newInstance() {
+                                    return newNodeResponse();
+                                }
+
+                                @Override
+                                public void handleResponse(NodeResponse response) {
+                                    onOperation(response);
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    onFailure(node.id(), exp);
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
+                            });
+                        }
                     }
+                } catch (Throwable t) {
+                    onFailure(nodeId, t);
                 }
             }
         }

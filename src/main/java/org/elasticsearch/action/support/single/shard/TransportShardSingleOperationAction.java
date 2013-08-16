@@ -151,26 +151,26 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             }
 
             if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
-                if (request.operationThreaded()) {
-                    request.beforeLocalFork();
-                    threadPool.executor(executor).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                Response response = shardOperation(request, shardRouting.id());
-                                listener.onResponse(response);
-                            } catch (Throwable e) {
-                                onFailure(shardRouting, e);
+                try {
+                    if (request.operationThreaded()) {
+                        request.beforeLocalFork();
+                        threadPool.executor(executor).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    Response response = shardOperation(request, shardRouting.id());
+                                    listener.onResponse(response);
+                                } catch (Throwable e) {
+                                    onFailure(shardRouting, e);
+                                }
                             }
-                        }
-                    });
-                } else {
-                    try {
+                        });
+                    } else {
                         final Response response = shardOperation(request, shardRouting.id());
                         listener.onResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(shardRouting, e);
                     }
+                } catch (Throwable e) {
+                    onFailure(shardRouting, e);
                 }
             } else {
                 DiscoveryNode node = nodes.get(shardRouting.currentNodeId());

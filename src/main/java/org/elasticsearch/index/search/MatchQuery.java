@@ -367,6 +367,6 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
-        return zeroTermsQuery == ZeroTermsQuery.NONE ? MatchNoDocsQuery.INSTANCE : Queries.MATCH_ALL_QUERY;
+        return zeroTermsQuery == ZeroTermsQuery.NONE ? MatchNoDocsQuery.INSTANCE : Queries.newMatchAllQuery();
     }
 }

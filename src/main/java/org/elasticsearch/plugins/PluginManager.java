@@ -87,8 +87,12 @@ public class PluginManager {
             e.printStackTrace();
         }
     }
-
     public void downloadAndExtract(String name, boolean verbose) throws IOException {
+        download(name, verbose);
+        extract(name, verbose);
+    }
+
+    public void download(String name, boolean verbose) throws IOException {
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
 
         if (!environment.pluginsFile().canWrite()) {
@@ -211,6 +215,11 @@ public class PluginManager {
         if (!downloaded) {
             throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
         }
+    }
+
+    public void extract(String name, boolean verbose) throws IOException {
+        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
+
 
         // extract the plugin
         File extractLocation = new File(environment.pluginsFile(), name);

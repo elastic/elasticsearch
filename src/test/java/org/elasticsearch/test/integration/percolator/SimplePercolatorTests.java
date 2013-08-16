@@ -1220,6 +1220,82 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         }
     }
 
+    @Test
+    public void testPercolateSortingWithNoSize() throws Exception {
+        client().admin().indices().prepareCreate("my-index").execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("my-index", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
+                .execute().actionGet();
+        client().prepareIndex("my-index", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 2).endObject())
+                .execute().actionGet();
+        refresh();
+
+        PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                .setSort(true)
+                .setSize(2)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(2l));
+        assertThat(response.getMatches()[0].id().string(), equalTo("2"));
+        assertThat(response.getMatches()[0].score(), equalTo(2f));
+        assertThat(response.getMatches()[1].id().string(), equalTo("1"));
+        assertThat(response.getMatches()[1].score(), equalTo(1f));
+
+        response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                .setSort(true)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .execute().actionGet();
+        assertThat(response.getCount(), equalTo(0l));
+        assertThat(response.getSuccessfulShards(), equalTo(3));
+        assertThat(response.getShardFailures().length, equalTo(2));
+        assertThat(response.getShardFailures()[0].status().getStatus(), equalTo(400));
+        assertThat(response.getShardFailures()[0].reason(), containsString("Can't sort if size isn't specified"));
+        assertThat(response.getShardFailures()[1].status().getStatus(), equalTo(400));
+        assertThat(response.getShardFailures()[1].reason(), containsString("Can't sort if size isn't specified"));
+    }
+
+    @Test
+    public void testPercolateOnEmptyIndex() throws Exception {
+        client().admin().indices().prepareCreate("my-index").execute().actionGet();
+        ensureGreen();
+
+        PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                .setSort(true)
+                .setSize(2)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(0l));
+    }
+
+    @Test
+    public void testPercolateNotEmptyIndexButNoRefresh() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("my-index", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
+                .execute().actionGet();
+
+        PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
+                .setSort(true)
+                .setSize(2)
+                .setPercolateDoc(docBuilder().setDoc("field", "value"))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(0l));
+    }
+
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {
         if (matches.length == 0) {
             return Strings.EMPTY_ARRAY;

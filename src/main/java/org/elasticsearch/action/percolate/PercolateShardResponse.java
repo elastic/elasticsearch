@@ -96,6 +96,10 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         return percolatorTypeId;
     }
 
+    public boolean isEmpty() {
+        return matches.length == 0 && count == 0;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

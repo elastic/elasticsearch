@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -167,7 +168,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
 
         InternalLongTermsFacet first = null;
 
-        TLongIntHashMap aggregated = context.cacheRecycler().popLongIntMap();
+        Recycler.V<TLongIntHashMap> aggregated = context.cacheRecycler().longIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -179,12 +180,12 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(((LongEntry) entry).term, entry.getCount(), entry.getCount());
+                aggregated.v().adjustOrPutValue(((LongEntry) entry).term, entry.getCount(), entry.getCount());
             }
         }
 
         BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TLongIntIterator it = aggregated.iterator(); it.hasNext(); ) {
+        for (TLongIntIterator it = aggregated.v().iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new LongEntry(it.key(), it.value()));
         }
@@ -192,7 +193,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        context.cacheRecycler().pushLongIntMap(aggregated);
+        aggregated.release();
 
         return first;
     }

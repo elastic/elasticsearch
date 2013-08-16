@@ -29,6 +29,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -174,17 +175,17 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
             threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                 @Override
                 public void run() {
-                    THashSet<Object> keys = cacheRecycler.popHashSet();
+                    Recycler.V<THashSet<Object>> keys = cacheRecycler.hashSet(-1);
                     try {
                         for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
-                            keys.add(it.next());
+                            keys.v().add(it.next());
                             it.remove();
                         }
                         cache.cleanUp();
-                        if (!keys.isEmpty()) {
+                        if (!keys.v().isEmpty()) {
                             for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
                                 WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
-                                if (keys.contains(filterCacheKey.readerKey())) {
+                                if (keys.v().contains(filterCacheKey.readerKey())) {
                                     // same as invalidate
                                     it.remove();
                                 }
@@ -192,7 +193,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                         }
                         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, ReaderCleaner.this);
                     } finally {
-                        cacheRecycler.pushHashSet(keys);
+                        keys.release();
                     }
                 }
             });

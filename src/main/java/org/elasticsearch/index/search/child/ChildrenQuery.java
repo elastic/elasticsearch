@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -63,8 +64,8 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     private final int shortCircuitParentDocSet;
 
     private Query rewrittenChildQuery;
-    private TObjectFloatHashMap<HashedBytesArray> uidToScore;
-    private TObjectIntHashMap<HashedBytesArray> uidToCount;
+    private Recycler.V<TObjectFloatHashMap<HashedBytesArray>> uidToScore;
+    private Recycler.V<TObjectIntHashMap<HashedBytesArray>> uidToCount;
 
     public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet) {
         this.searchContext = searchContext;
@@ -128,15 +129,15 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
-        uidToScore = searchContext.cacheRecycler().popObjectFloatMap();
+        uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
         Collector collector;
         switch (scoreType) {
             case AVG:
-                uidToCount = searchContext.cacheRecycler().popObjectIntMap();
-                collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
+                uidToCount = searchContext.cacheRecycler().objectIntMap(-1);
+                collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore.v(), uidToCount.v());
                 break;
             default:
-                collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore);
+                collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore.v());
         }
         Query childQuery;
         if (rewrittenChildQuery == null) {
@@ -148,15 +149,19 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextClear() {
+    public void executionDone() {
         if (uidToScore != null) {
-            searchContext.cacheRecycler().pushObjectFloatMap(uidToScore);
+            uidToScore.release();
         }
         uidToScore = null;
         if (uidToCount != null) {
-            searchContext.cacheRecycler().pushObjectIntMap(uidToCount);
+            uidToCount.release();
         }
         uidToCount = null;
+    }
+
+    @Override
+    public void contextClear() {
     }
 
     @Override
@@ -165,17 +170,17 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             throw new ElasticSearchIllegalStateException("has_child query hasn't executed properly");
         }
 
-        int size = uidToScore.size();
+        int size = uidToScore.v().size();
         if (size == 0) {
             return Queries.NO_MATCH_QUERY.createWeight(searcher);
         }
 
         Filter parentFilter;
         if (size == 1) {
-            BytesRef id = uidToScore.keySet().iterator().next().toBytesRef();
+            BytesRef id = uidToScore.v().keySet().iterator().next().toBytesRef();
             parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
         } else if (size <= shortCircuitParentDocSet) {
-            parentFilter = new ParentIdsFilter(parentType, uidToScore.keySet());
+            parentFilter = new ParentIdsFilter(parentType, uidToScore.v().keySet());
         } else {
             parentFilter = this.parentFilter;
         }
@@ -226,14 +231,15 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             DocIdSetIterator parentsIterator = parentsSet.iterator();
             switch (scoreType) {
                 case AVG:
-                    return new AvgParentScorer(this, idTypeCache, parentsIterator);
+                    return new AvgParentScorer(this, idTypeCache, uidToScore.v(), uidToCount.v(), parentsIterator);
                 default:
-                    return new ParentScorer(this, idTypeCache, parentsIterator);
+                    return new ParentScorer(this, idTypeCache, uidToScore.v(), parentsIterator);
             }
         }
 
         class ParentScorer extends Scorer {
 
+            final TObjectFloatHashMap<HashedBytesArray> uidToScore;
             final IdReaderTypeCache idTypeCache;
             final DocIdSetIterator parentsIterator;
 
@@ -241,10 +247,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             int currentDocId = -1;
             float currentScore;
 
-            ParentScorer(Weight weight, IdReaderTypeCache idTypeCache, DocIdSetIterator parentsIterator) {
+            ParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatHashMap<HashedBytesArray> uidToScore, DocIdSetIterator parentsIterator) {
                 super(weight);
                 this.idTypeCache = idTypeCache;
                 this.parentsIterator = parentsIterator;
+                this.uidToScore = uidToScore;
                 this.remaining = uidToScore.size();
             }
 
@@ -316,9 +323,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         final class AvgParentScorer extends ParentScorer {
 
             HashedBytesArray currentUid;
+            final TObjectIntHashMap<HashedBytesArray> uidToCount;
 
-            AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, DocIdSetIterator parentsIterator) {
-                super(weight, idTypeCache, parentsIterator);
+            AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatHashMap<HashedBytesArray> uidToScore, TObjectIntHashMap<HashedBytesArray> uidToCount, DocIdSetIterator parentsIterator) {
+                super(weight, idTypeCache, uidToScore, parentsIterator);
+                this.uidToCount = uidToCount;
             }
 
             @Override
@@ -395,7 +404,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                         break;
                     case AVG:
                         assert false : "AVG has it's own collector";
-                        
+
                     default:
                         assert false : "Are we missing a score type here? -- " + scoreType;
                         break;

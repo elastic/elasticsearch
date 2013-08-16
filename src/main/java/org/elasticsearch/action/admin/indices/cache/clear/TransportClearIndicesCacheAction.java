@@ -145,7 +145,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             if (request.recycler()) {
                 logger.info("Clear CacheRecycler on index [{}]", service.index());
                 clearedAtLeastOne = true;
-                cacheRecycler.clear();
+                // cacheRecycler.clear();
             }
             if (request.idCache()) {
                 clearedAtLeastOne = true;

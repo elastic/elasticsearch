@@ -29,6 +29,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -49,14 +50,13 @@ import java.util.Set;
  */
 public class TermsDoubleFacetExecutor extends FacetExecutor {
 
-    private CacheRecycler cacheRecycler;
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
 
-    final TDoubleIntHashMap facets;
+    final Recycler.V<TDoubleIntHashMap> facets;
     long missing;
     long total;
 
@@ -67,9 +67,8 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
-        this.cacheRecycler = cacheRecycler;
 
-        this.facets = cacheRecycler.popDoubleIntMap();
+        this.facets = cacheRecycler.doubleIntMap(-1);
 
         if (allTerms) {
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
@@ -79,7 +78,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                     DoubleValues.WithOrdinals valuesWithOrds = (DoubleValues.WithOrdinals) values;
                     Ordinals.Docs ordinals = valuesWithOrds.ordinals();
                     for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
-                        facets.putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
+                        facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
                     }
                 } else {
                     // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
@@ -91,7 +90,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
                             DoubleValues.Iter iter = values.getIter(docId);
                             while (iter.hasNext()) {
-                                facets.putIfAbsent(iter.next(), 0);
+                                facets.v().putIfAbsent(iter.next(), 0);
                             }
                         }
                     } else {
@@ -101,7 +100,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                             }
 
                             double value = values.getValue(docId);
-                            facets.putIfAbsent(value, 0);
+                            facets.v().putIfAbsent(value, 0);
                         }
                     }
                 }
@@ -116,13 +115,13 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (facets.isEmpty()) {
-            cacheRecycler.pushDoubleIntMap(facets);
+        if (facets.v().isEmpty()) {
+            facets.release();
             return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TDoubleIntIterator it = facets.iterator(); it.hasNext(); ) {
+                for (TDoubleIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
                 }
@@ -130,15 +129,15 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = (InternalDoubleTermsFacet.DoubleEntry) ordered.pop();
                 }
-                cacheRecycler.pushDoubleIntMap(facets);
+                facets.release();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), size);
-                for (TDoubleIntIterator it = facets.iterator(); it.hasNext(); ) {
+                for (TDoubleIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
                 }
-                cacheRecycler.pushDoubleIntMap(facets);
+                facets.release();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }
@@ -151,9 +150,9 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
         public Collector() {
             if (script == null && excluded.isEmpty()) {
-                aggregator = new StaticAggregatorValueProc(facets);
+                aggregator = new StaticAggregatorValueProc(facets.v());
             } else {
-                aggregator = new AggregatorValueProc(facets, excluded, script);
+                aggregator = new AggregatorValueProc(facets.v(), excluded, script);
             }
         }
 

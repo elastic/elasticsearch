@@ -19,12 +19,19 @@
 
 package org.elasticsearch.common.util;
 
-/** Utility methods to work with {@link IntArray}s. */
+import java.util.Arrays;
+
+/**
+ * Utility methods to work with {@link IntArray}s.
+ */
 public class IntArrays {
 
-    private IntArrays() {}
+    private IntArrays() {
+    }
 
-    /** Return a {@link IntArray} view over the provided array. */
+    /**
+     * Return a {@link IntArray} view over the provided array.
+     */
     public static IntArray wrap(final int[] array) {
         return new IntArray() {
 
@@ -51,10 +58,17 @@ public class IntArrays {
                 checkIndex(index);
                 return array[(int) index];
             }
+
+            @Override
+            public void clear(int sentinal) {
+                Arrays.fill(array, sentinal);
+            }
         };
     }
 
-    /** Return a newly allocated {@link IntArray} of the given length or more. */
+    /**
+     * Return a newly allocated {@link IntArray} of the given length or more.
+     */
     public static IntArray allocate(long length) {
         if (length <= BigIntArray.DEFAULT_PAGE_SIZE) {
             return wrap(new int[(int) length]);

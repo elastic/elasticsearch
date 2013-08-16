@@ -19,9 +19,10 @@
 
 package org.elasticsearch.search.facet.histogram;
 
+import gnu.trove.iterator.TLongLongIterator;
 import gnu.trove.map.hash.TLongLongHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
@@ -37,20 +38,18 @@ import java.io.IOException;
  */
 public class CountHistogramFacetExecutor extends FacetExecutor {
 
-    private final CacheRecycler cacheRecycler;
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
     final long interval;
 
-    final TLongLongHashMap counts;
+    final Recycler.V<TLongLongHashMap> counts;
 
     public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
-        this.cacheRecycler = context.cacheRecycler();
 
-        this.counts = cacheRecycler.popLongLongMap();
+        this.counts = context.cacheRecycler().longLongMap(-1);
     }
 
     @Override
@@ -60,7 +59,14 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalCountHistogramFacet(facetName, comparatorType, counts, cacheRecycler);
+        InternalCountHistogramFacet.CountEntry[] entries = new InternalCountHistogramFacet.CountEntry[counts.v().size()];
+        int i = 0;
+        for (TLongLongIterator it = counts.v().iterator(); it.hasNext(); ) {
+            it.advance();
+            entries[i++] = new InternalCountHistogramFacet.CountEntry(it.key(), it.value());
+        }
+        counts.release();
+        return new InternalCountHistogramFacet(facetName, comparatorType, entries);
     }
 
     public static long bucket(double value, long interval) {
@@ -73,7 +79,7 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
         private DoubleValues values;
 
         public Collector() {
-            histoProc = new HistogramProc(interval, counts);
+            histoProc = new HistogramProc(interval, counts.v());
         }
 
         @Override

@@ -140,7 +140,7 @@ public class CustomFiltersScoreQueryParser implements QueryParser {
                     } else if ("min".equals(sScoreMode)) {
                         scoreMode = FiltersFunctionScoreQuery.ScoreMode.Min;
                     } else if ("total".equals(sScoreMode)) {
-                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Total;
+                        scoreMode = FiltersFunctionScoreQuery.ScoreMode.Sum;
                     } else if ("multiply".equals(sScoreMode)) {
                         scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
                     } else if ("first".equals(sScoreMode)) {

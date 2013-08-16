@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.index.query.MatchAllFilterBuilder;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
@@ -45,8 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.*;
 
 public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
@@ -148,8 +148,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
     }
-    
-    
+
     @Test
     public void testBoostModeSettingWorks() throws Exception {
 
@@ -169,8 +168,8 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 .setId("2")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 20).endObject()
-                                .endObject()));
+                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 20)
+                                .endObject().endObject()));
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
         indexRandom("test", false, builders);
@@ -184,23 +183,70 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.MULT.getName()))));
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.MULT.getName()))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
-  
+
         // Test Exp
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.PLAIN.getName()))));
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.PLAIN.getName()))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("2"));
         assertThat(sh.getAt(1).getId(), equalTo("1"));
-        
+
+    }
+
+    @Test
+    public void testParseGeoPoint() throws Exception {
+
+        createIndexMapped("test", "type1", "test", "string", "loc", "geo_point");
+        ensureYellow();
+
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        indexBuilders.add(new IndexRequestBuilder(client())
+                .setType("type1")
+                .setId("1")
+                .setIndex("test")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 20).field("lon", 11).endObject()
+                                .endObject()));
+        IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
+
+        indexRandom("test", false, builders);
+        refresh();
+        GeoPoint point = new GeoPoint(20, 11);
+        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder("loc", point, "1000km");
+
+        ActionFuture<SearchResponse> response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.MULT.getName()))));
+        SearchResponse sr = response.actionGet();
+        SearchHits sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
+        float[] coords = {11,20};
+        fb = new GaussDecayFunctionBuilder("loc", coords, "1000km");
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.MULT.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
+        System.out.println();
     }
 
     @Test(expected = SearchPhaseExecutionException.class)
@@ -313,7 +359,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         indexRandom("test", false, builders);
         refresh();
-        
+
         List<Float> lonlat = new ArrayList<Float>();
         lonlat.add(new Float(100));
         lonlat.add(new Float(110));

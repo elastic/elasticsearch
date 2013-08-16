@@ -40,8 +40,10 @@ import org.junit.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -50,6 +52,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -112,7 +115,6 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     
     @Test // see #2729
     public void testSizeOneShard() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 1)
@@ -158,10 +160,72 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(5));
     }
+    
+    @Test
+    public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
+        int numShards = between(1,5);
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", numShards).put("index.number_of_replicas", between(0, 2));
+        builder.put("index.analysis.analyzer.biword.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase");
+        builder.put("index.analysis.filter.shingler.type", "shingle");
+        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
+        builder.put("index.analysis.filter.shingler.max_shingle_size", 3);
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        .startObject("properties")
+        .startObject("name")
+            .field("type", "multi_field")
+            .field("path", "just_name")
+            .startObject("fields")
+                .startObject("name")
+                    .field("type", "string")
+                .endObject()
+                .startObject("name_shingled")
+                    .field("type", "string")
+                    .field("index_analyzer", "biword")
+                    .field("search_analyzer", "standard")
+                .endObject()
+            .endObject()
+        .endObject()
+        .endObject()
+        .endObject().endObject();
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        indexRandom("test", true,
+        client().prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like iced tea").endObject()),
+        client().prepareIndex("test", "type1")
+        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like tea.").endObject()),
+        client().prepareIndex("test", "type1")
+        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like ice cream.").endObject()));
+        Suggest searchSuggest = searchSuggest(client(),
+                "ice tea",
+                phraseSuggestion("did_you_mean").field("name_shingled")
+                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                        .gramSize(3));
+        ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
+        {
+            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            suggestBuilder.setSuggestText("tetsting sugestion");
+            suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("nosuchField")
+                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                    .gramSize(3));
+            assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
+        }
+        {
+            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            suggestBuilder.setSuggestText("tetsting sugestion");
+            suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("nosuchField")
+                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                    .gramSize(3));
+            assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
+        }
+    }
 
     @Test
     public void testSimple() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 5)
@@ -1033,6 +1097,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
             builder.addSuggestion(suggestion);
         }
         SearchResponse actionGet = builder.execute().actionGet();
+        assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
         return actionGet.getSuggest();
     }
     
@@ -1080,7 +1145,66 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(suggest.getSuggestion("simple").getEntries().size(), equalTo(1));
         assertThat(suggest.getSuggestion("simple").getEntries().get(0).getOptions().size(), equalTo(3));
     }
+    
+    @Test // see #3469
+    public void testShardFailures() throws IOException, InterruptedException {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", between(1,5)).put("index.number_of_replicas", between(0,3));
+        builder.put("index.analysis.analyzer.suggest.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler");
+        builder.put("index.analysis.filter.shingler.type", "shingle");
+        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
+        builder.put("index.analysis.filter.shingler.max_shingle_size", 5);
+        builder.put("index.analysis.filter.shingler.output_unigrams", true);
 
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "multi_field")
+                .field("path", "just_name")
+                .startObject("fields")
+                .startObject("name")
+                .field("type", "string")
+                .field("analyzer", "suggest")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type2", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type2", "2")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type2", "3")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type2", "4")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type2", "5")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "Just testing the suggestions api").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title").endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        // When searching on a shard with a non existing mapping, we should fail
+        SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+        suggestBuilder.setSuggestText("tetsting sugestion");
+        suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f));
+        assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
+        // When searching on a shard which does not hold yet any document of an existing type, we should not fail
+        suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+        suggestBuilder.setSuggestText("tetsting sugestion");
+        suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f));
+        SearchResponse searchResponse = suggestBuilder.execute().actionGet();
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+     
+    }
+    
     @Test // see #3469
     public void testEmptyShards() throws IOException, InterruptedException {
         Builder builder = ImmutableSettings.builder();
@@ -1127,5 +1251,4 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         ElasticsearchAssertions.assertNoFailures(searchResponse);
         ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
     }
-
 }

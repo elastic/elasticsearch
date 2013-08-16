@@ -18,26 +18,27 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 
+import java.io.IOException;
+
 public class StupidBackoffScorer extends WordScorer {
     public static final WordScorerFactory FACTORY = new WordScorer.WordScorerFactory() {
         @Override
-        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator) throws IOException {
-            return new StupidBackoffScorer(reader, field, realWordLikelyhood, separator, 0.4f);
+        public WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator) throws IOException {
+            return new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, 0.4f);
         }
     };
 
     private final double discount;
 
-    public StupidBackoffScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator, double discount)
+    public StupidBackoffScorer(IndexReader reader, Terms terms,String field, double realWordLikelyhood, BytesRef separator, double discount)
             throws IOException {
-        super(reader, field, realWordLikelyhood, separator);
+        super(reader, terms, field, realWordLikelyhood, separator);
         this.discount = discount;
     }
 

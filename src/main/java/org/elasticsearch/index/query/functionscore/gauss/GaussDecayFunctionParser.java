@@ -52,8 +52,8 @@ public class GaussDecayFunctionParser extends DecayFunctionParser {
         }
 
         @Override
-        public double processScale(double scale, double value) {
-            return 0.5 * Math.pow(scale, 2.0) / Math.log(value);
+        public double processScale(double scale, double decay) {
+            return 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
     }
 

@@ -344,7 +344,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         indexRandom("test", false, builders);
         refresh();
 
-        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder("num", 0.0, 1.0).setScaleWeight(0.5);
+        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder("num", 0.0, 1.0).setDecay(0.5);
         // function score should return 0.5 for this function
 
         ActionFuture<SearchResponse> response = client().search(
@@ -452,7 +452,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
     @Test(expected = ElasticSearchIllegalStateException.class)
     public void testExceptionThrownIfScaleRefNotBetween0And1() throws Exception {
 
-        DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "1d").setScaleWeight(100);
+        DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "1d").setDecay(100);
 
     }
 

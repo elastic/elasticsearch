@@ -56,8 +56,8 @@ public class ExponentialDecayFunctionParser extends DecayFunctionParser {
         }
 
         @Override
-        public double processScale(double scale, double value) {
-            return Math.log(value) / scale;
+        public double processScale(double scale, double decay) {
+            return Math.log(decay) / scale;
         }
 
     }

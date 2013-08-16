@@ -23,8 +23,8 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
 public class LinearDecayFunctionBuilder extends DecayFunctionBuilder {
 
-    public LinearDecayFunctionBuilder(String fieldName, Object reference, Object scale) {
-        super(fieldName, reference, scale);
+    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale) {
+        super(fieldName, origin, scale);
     }
 
     @Override

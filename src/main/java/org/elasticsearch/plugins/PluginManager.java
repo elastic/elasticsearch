@@ -87,10 +87,6 @@ public class PluginManager {
             e.printStackTrace();
         }
     }
-    public void downloadAndExtract(String name, boolean verbose) throws IOException {
-        download(name, verbose);
-        extract(name, verbose);
-    }
 
     public void download(String name, boolean verbose) throws IOException {
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
@@ -382,7 +378,8 @@ public class PluginManager {
                 case ACTION.INSTALL:
                     try {
                         System.out.println("-> Installing " + pluginName + "...");
-                        pluginManager.downloadAndExtract(pluginName, verbose);
+                        pluginManager.download(pluginName, verbose);
+                        pluginManager.extract(pluginName, verbose);
                         exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {
                         exitCode = EXIT_CODE_IO_ERROR;

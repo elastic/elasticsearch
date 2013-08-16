@@ -166,8 +166,8 @@ public class FunctionScoreQueryParser implements QueryParser {
             return FiltersFunctionScoreQuery.ScoreMode.Max;
         } else if ("min".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.Min;
-        } else if ("total".equals(scoreMode)) {
-            return FiltersFunctionScoreQuery.ScoreMode.Total;
+        } else if ("sum".equals(scoreMode)) {
+            return FiltersFunctionScoreQuery.ScoreMode.Sum;
         } else if ("multiply".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.Multiply;
         } else if ("first".equals(scoreMode)) {

@@ -36,7 +36,7 @@ public class ScriptScoreFunction extends ScoreFunction {
     
 
     public ScriptScoreFunction(String sScript, Map<String, Object> params, SearchScript script) {
-        super(CombineFunction.PLAIN);
+        super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.params = params;
         this.script = script;

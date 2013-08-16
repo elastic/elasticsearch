@@ -195,7 +195,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.PLAIN.getName()))));
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.REPLACE.getName()))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (2)));
@@ -234,7 +234,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
-        float[] coords = {11,20};
+        float[] coords = { 11, 20 };
         fb = new GaussDecayFunctionBuilder("loc", coords, "1000km");
 
         response = client().search(
@@ -247,6 +247,97 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
         System.out.println();
+    }
+
+    @Test
+    public void testCombineModes() throws Exception {
+
+        createIndexMapped("test", "type1", "test", "string", "num", "double");
+        ensureYellow();
+
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId("1").setIndex("test")
+                .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()));
+        IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
+
+        indexRandom("test", false, builders);
+        refresh();
+
+        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder("num", 0.0, 1.0).setScaleWeight(0.5);
+        // function score should return 0.5 for this function
+
+        ActionFuture<SearchResponse> response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boost(2.0f)
+                                        .boostMode(CombineFunction.MULT.getName()))));
+        SearchResponse sr = response.actionGet();
+        SearchHits sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
+        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("test", "value")).add(fb).boost(2.0f)
+                                        .boostMode(CombineFunction.REPLACE.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
+        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boost(2.0f)
+                                        .boostMode(CombineFunction.SUM.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(2.0 * (0.30685282 + 0.5), 1.e-5));
+        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boost(2.0f)
+                                        .boostMode(CombineFunction.AVG.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo((0.30685282 + 0.5), 1.e-5));
+        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boost(2.0f)
+                                        .boostMode(CombineFunction.MIN.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(2.0 * (0.30685282), 1.e-5));
+        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
+
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boost(2.0f)
+                                        .boostMode(CombineFunction.MAX.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
+        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
+
     }
 
     @Test(expected = SearchPhaseExecutionException.class)

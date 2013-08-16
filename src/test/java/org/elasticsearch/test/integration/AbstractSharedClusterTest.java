@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -59,6 +58,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -147,8 +147,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public static void wipeIndices(String... names) {
         try {
-            final DeleteIndexResponse actionGet = client().admin().indices().prepareDelete(names).execute().actionGet();
-            assertThat("Delete Index failed - not acked", actionGet.isAcknowledged(), equalTo(true));
+            assertAcked(client().admin().indices().prepareDelete(names));
         } catch (IndexMissingException e) {
             // ignore
         }
@@ -178,12 +177,12 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     public void createIndex(String... names) {
         for (String name : names) {
             try {
-                prepareCreate(name).setSettings(getSettings()).execute().actionGet();
+                assertAcked(prepareCreate(name).setSettings(getSettings()));
                 continue;
             } catch (IndexAlreadyExistsException ex) {
                 wipeIndex(name);
             }
-            prepareCreate(name).setSettings(getSettings()).execute().actionGet();
+            assertAcked(prepareCreate(name).setSettings(getSettings()));
         }
     }
 

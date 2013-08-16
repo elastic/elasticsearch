@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.text.Text;
@@ -1117,6 +1118,11 @@ public final class XContentBuilder implements BytesStream {
             generator.writeNumber(((Short) value).shortValue());
         } else if (type == Boolean.class) {
             generator.writeBoolean(((Boolean) value).booleanValue());
+        } else if (type == GeoPoint.class) {
+            generator.writeStartObject();
+            generator.writeNumberField("lat", ((GeoPoint) value).lat());
+            generator.writeNumberField("lon", ((GeoPoint) value).lon());
+            generator.writeEndObject();
         } else if (value instanceof Map) {
             writeMap((Map) value);
         } else if (value instanceof Iterable) {

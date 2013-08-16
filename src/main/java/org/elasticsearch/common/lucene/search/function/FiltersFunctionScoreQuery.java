@@ -71,7 +71,7 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     public static enum ScoreMode {
-        First, Avg, Max, Total, Min, Multiply
+        First, Avg, Max, Sum, Min, Multiply
     }
 
     Query subQuery;

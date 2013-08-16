@@ -864,7 +864,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(3).score(), equalTo(1.0f));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery()).scoreMode("total").add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2)).add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3)).add(termFilter("color", "red"), new FactorBuilder().boostFactor(5)))
+                .setQuery(functionScoreQuery(matchAllQuery()).scoreMode("sum").add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2)).add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3)).add(termFilter("color", "red"), new FactorBuilder().boostFactor(5)))
                 .setExplain(true)
                 .execute().actionGet();
 

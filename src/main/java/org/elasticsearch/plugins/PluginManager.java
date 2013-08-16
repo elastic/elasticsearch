@@ -88,7 +88,7 @@ public class PluginManager {
         }
     }
 
-    public void download(String name, boolean verbose, HttpDownloadHelper downloadHelper) throws IOException {
+    public boolean download(String name, boolean verbose, HttpDownloadHelper downloadHelper) throws IOException {
         if (!environment.pluginsFile().canWrite()) {
             System.out.println();
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
@@ -97,14 +97,12 @@ public class PluginManager {
         File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
         // first, try directly from the URL provided
-        boolean downloaded = false;
-
         if (url != null) {
             URL pluginUrl = new URL(url);
             System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
             try {
                 downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                downloaded = true;
+                return true;
             } catch (IOException e) {
                 // ignore
                 if (verbose) {
@@ -115,100 +113,97 @@ public class PluginManager {
 
         // now, try as a path name...
         String filterZipName = null;
-        if (!downloaded) {
-            if (name.indexOf('/') != -1) {
-                // github repo
-                String[] elements = name.split("/");
-                String userName = elements[0];
-                String repoName = elements[1];
-                String version = null;
-                if (elements.length > 2) {
-                    version = elements[2];
-                }
-                filterZipName = userName + "-" + repoName;
-                // the installation file should not include the userName, just the repoName
-                name = repoName;
-                if (name.startsWith("elasticsearch-")) {
-                    // remove elasticsearch- prefix
-                    name = name.substring("elasticsearch-".length());
-                } else if (name.startsWith("es-")) {
-                    // remove es- prefix
-                    name = name.substring("es-".length());
+
+        if (name.indexOf('/') != -1) {
+            // github repo
+            String[] elements = name.split("/");
+            String userName = elements[0];
+            String repoName = elements[1];
+            String version = null;
+            if (elements.length > 2) {
+                version = elements[2];
+            }
+            filterZipName = userName + "-" + repoName;
+            // the installation file should not include the userName, just the repoName
+            name = repoName;
+            if (name.startsWith("elasticsearch-")) {
+                // remove elasticsearch- prefix
+                name = name.substring("elasticsearch-".length());
+            } else if (name.startsWith("es-")) {
+                // remove es- prefix
+                name = name.substring("es-".length());
+            }
+
+            // update the plugin file name to reflect the extracted name
+            pluginFile = new File(environment.pluginsFile(), name + ".zip");
+
+            if (version != null) {
+                URL pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
+                System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                try {
+                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                    return true;
+                } catch (Exception e) {
+                    if (verbose) {
+                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
+                    }
                 }
 
-                // update the plugin file name to reflect the extracted name
-                pluginFile = new File(environment.pluginsFile(), name + ".zip");
+                
+                // try maven, see if its there... (both central and sonatype)
+                pluginUrl = new URL("http://search.maven.org/remotecontent?filepath=" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
+                System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                try {
+                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                    return true;
+                } catch (Exception e) {
+                    if (verbose) {
+                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
+                    }
+                }
 
-                if (version != null) {
-                    URL pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
-                    System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                    try {
-                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                        downloaded = true;
-                    } catch (Exception e) {
-                        if (verbose) {
-                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                        }
+                pluginUrl = new URL("https://oss.sonatype.org/service/local/repositories/releases/content/" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
+                System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
+                try {
+                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                    return true;
+                } catch (Exception e) {
+                    if (verbose) {
+                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
                     }
-                    if (!downloaded) {
-                        // try maven, see if its there... (both central and sonatype)
-                        pluginUrl = new URL("http://search.maven.org/remotecontent?filepath=" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
-                        System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                        try {
-                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                            downloaded = true;
-                        } catch (Exception e) {
-                            if (verbose) {
-                                System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                            }
-                        }
-                        if (!downloaded) {
-                            pluginUrl = new URL("https://oss.sonatype.org/service/local/repositories/releases/content/" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
-                            System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                            try {
-                                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                                downloaded = true;
-                            } catch (Exception e) {
-                                if (verbose) {
-                                    System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                                }
-                            }
-                        }
+                }
+               
+
+                // try it as a site plugin tagged
+                pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
+                System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
+                try {
+                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                    return true;
+                } catch (Exception e1) {
+                    // ignore
+                    if (verbose) {
+                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
                     }
-                    if (!downloaded) {
-                        // try it as a site plugin tagged
-                        pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
-                        System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
-                        try {
-                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                            downloaded = true;
-                        } catch (Exception e1) {
-                            // ignore
-                            if (verbose) {
-                                System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
-                            }
-                        }
-                    }
-                } else {
-                    // assume site plugin, download master....
-                    URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
-                    System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
-                    try {
-                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                        downloaded = true;
-                    } catch (Exception e2) {
-                        // ignore
-                        if (verbose) {
-                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e2));
-                        }
+                }
+            } else {
+                // assume site plugin, download master....
+                URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
+                System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
+                try {
+                    downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                    return true;
+                } catch (Exception e2) {
+                    // ignore
+                    if (verbose) {
+                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e2));
                     }
                 }
             }
         }
 
-        if (!downloaded) {
-            throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
-        }
+
+        throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
     }
 
     public void extract(String name) throws IOException {

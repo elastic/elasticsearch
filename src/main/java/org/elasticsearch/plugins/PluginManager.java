@@ -213,7 +213,7 @@ public class PluginManager {
         }
     }
 
-    public void extract(String name, boolean verbose) throws IOException {
+    public void extract(String name) throws IOException {
         File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
 
@@ -379,7 +379,7 @@ public class PluginManager {
                     try {
                         System.out.println("-> Installing " + pluginName + "...");
                         pluginManager.download(pluginName, verbose);
-                        pluginManager.extract(pluginName, verbose);
+                        pluginManager.extract(pluginName);
                         exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {
                         exitCode = EXIT_CODE_IO_ERROR;

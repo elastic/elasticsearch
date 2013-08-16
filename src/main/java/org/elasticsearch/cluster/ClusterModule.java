@@ -78,5 +78,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(NodeAliasesUpdatedAction.class).asEagerSingleton();
         bind(NodeIndicesStateUpdatedAction.class).asEagerSingleton();
+
+        bind(ClusterInfoService.class).to(InternalClusterInfoService.class).asEagerSingleton();
     }
 }

@@ -60,6 +60,7 @@ public class AllocationDecidersModule extends AbstractModule {
         allocationMultibinder.addBinding().to(DisableAllocationDecider.class);
         allocationMultibinder.addBinding().to(AwarenessAllocationDecider.class);
         allocationMultibinder.addBinding().to(ShardsLimitAllocationDecider.class);
+        allocationMultibinder.addBinding().to(DiskThresholdDecider.class);
         for (Class<? extends AllocationDecider> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);
         }

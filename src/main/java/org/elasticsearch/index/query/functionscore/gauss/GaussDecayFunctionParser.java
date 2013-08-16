@@ -47,7 +47,7 @@ public class GaussDecayFunctionParser extends DecayFunctionParser {
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             ComplexExplanation ce = new ComplexExplanation();
             ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("-exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1*scale + ")");
+            ce.setDescription("-exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
             return ce;
         }
 

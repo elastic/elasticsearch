@@ -56,8 +56,8 @@ public class LinearDecayFunctionParser extends DecayFunctionParser {
         }
 
         @Override
-        public double processScale(double scale, double value) {
-            return scale / (1.0 - value);
+        public double processScale(double scale, double decay) {
+            return scale / (1.0 - decay);
         }
 
     }

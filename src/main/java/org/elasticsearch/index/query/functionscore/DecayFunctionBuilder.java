@@ -28,13 +28,13 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
 
     protected static final String REFERNECE = "reference";
     protected static final String SCALE = "scale";
-    protected static final String SCALE_WEIGHT = "scale_weight";
+    protected static final String DECAY = "decay";
     protected static final String OFFSET = "offset";
 
     private String fieldName;
     private Object reference;
     private Object scale;
-    private double scaleWeight = -1;
+    private double decay = -1;
     private Object offset;
 
     public DecayFunctionBuilder(String fieldName, Object reference, Object scale) {
@@ -43,11 +43,11 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
         this.scale = scale;
     }
 
-    public DecayFunctionBuilder setScaleWeight(double scaleWeight) {
-        if (scaleWeight <= 0 || scaleWeight >= 1.0) {
+    public DecayFunctionBuilder setDecay(double decay) {
+        if (decay <= 0 || decay >= 1.0) {
             throw new ElasticSearchIllegalStateException("scale weight parameter must be in range 0..1!");
         }
-        this.scaleWeight = scaleWeight;
+        this.decay = decay;
         return this;
     }
 
@@ -62,8 +62,8 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
         builder.startObject(fieldName);
         builder.field(REFERNECE, reference);
         builder.field(SCALE, scale);
-        if (scaleWeight > 0) {
-            builder.field(SCALE_WEIGHT, scaleWeight);
+        if (decay > 0) {
+            builder.field(DECAY, decay);
         }
         if (offset != null) {
             builder.field(OFFSET, offset);

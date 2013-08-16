@@ -482,9 +482,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         .queryRescorer(
                                 QueryBuilders.boolQuery()
                                     .disableCoord(true)
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.PLAIN.getName()))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("7.0f")).boostMode(CombineFunction.PLAIN.getName()))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.0f")).boostMode(CombineFunction.PLAIN.getName())))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("7.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.0f")).boostMode(CombineFunction.REPLACE.getName())))
                         .setQueryWeight(primaryWeight)
                         .setRescoreQueryWeight(secondaryWeight);
 
@@ -497,10 +497,10 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         .setPreference("test") // ensure we hit the same shards for tie-breaking
                         .setQuery(QueryBuilders.boolQuery()
                                 .disableCoord(true)
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("2.0f")).boostMode(CombineFunction.PLAIN.getName()))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("3.0f")).boostMode(CombineFunction.PLAIN.getName()))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.PLAIN.getName()))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.2f")).boostMode(CombineFunction.PLAIN.getName())))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("2.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("3.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.2f")).boostMode(CombineFunction.REPLACE.getName())))
                         .setFrom(0)
                         .setSize(10)
                         .setRescorer(rescoreQuery)

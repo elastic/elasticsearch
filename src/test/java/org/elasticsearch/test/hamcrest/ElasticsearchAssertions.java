@@ -121,7 +121,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(SearchResponse searchResponse) {
-        assertThat("Unexpectd ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
     }
 
     public static void assertNoFailures(BroadcastOperationResponse response) {

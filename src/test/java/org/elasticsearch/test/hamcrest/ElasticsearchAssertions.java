@@ -24,6 +24,10 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -44,6 +48,23 @@ import static org.junit.Assert.fail;
  *
  */
 public class ElasticsearchAssertions {
+    
+    
+    public static void assertAcked(DeleteIndexRequestBuilder builder) {
+        assertAcked(builder.get());
+    }
+    
+    public static void assertAcked(CreateIndexRequestBuilder builder) {
+        assertAcked(builder.get());
+    }
+    
+    public static void assertAcked(DeleteIndexResponse response) {
+        assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
+    }
+    
+    public static void assertAcked(CreateIndexResponse response) {
+        assertThat("Create Index failed - not acked", response.isAcknowledged(), equalTo(true));
+    }
 
     /*
      * assertions

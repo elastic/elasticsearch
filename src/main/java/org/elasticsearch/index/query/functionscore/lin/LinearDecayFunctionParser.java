@@ -43,8 +43,8 @@ public class LinearDecayFunctionParser extends DecayFunctionParser {
     final static class LinearDecayScoreFunction implements DecayFunction {
 
         @Override
-        public double evaluate(double value, double scale) {
-            return Math.max(0.0, (scale - Math.abs(value)) / scale);
+        public double evaluate(double value, double scale) { 
+            return Math.max(0.0, (scale - value) / scale);
         }
 
         @Override

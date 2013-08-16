@@ -118,7 +118,7 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
 
     public static class CustomDistanceScoreParser extends DecayFunctionParser {
 
-        public static final String[] NAMES = {"linear_mult", "linearMult"};
+        public static final String[] NAMES = { "linear_mult", "linearMult" };
 
         @Override
         public String[] getNames() {
@@ -138,7 +138,8 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
 
             @Override
             public double evaluate(double value, double scale) {
-                return Math.abs(value);
+                
+                return value;
             }
 
             @Override
@@ -155,9 +156,7 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
         }
     }
 
-
     public class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
-
 
         public CustomDistanceScoreBuilder(String fieldName, Object reference, Object scale) {
             super(fieldName, reference, scale);

@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionP
 import org.elasticsearch.index.query.functionscore.factor.FactorParser;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
 
 import java.util.List;
@@ -42,6 +43,7 @@ public class FunctionScoreModule extends AbstractModule {
         registerParser(GaussDecayFunctionParser.class);
         registerParser(LinearDecayFunctionParser.class);
         registerParser(ExponentialDecayFunctionParser.class);
+        registerParser(RandomScoreFunctionParser.class);
     }
 
     public void registerParser(Class<? extends ScoreFunctionParser> parser) {

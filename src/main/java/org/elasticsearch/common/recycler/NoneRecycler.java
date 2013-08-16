@@ -17,27 +17,47 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.common.recycler;
 
 /**
- * Abstraction of an array of integer values.
  */
-public interface IntArray {
+public class NoneRecycler<T> extends Recycler<T> {
 
-    /**
-     * Get an element given its index.
-     */
-    public abstract int get(long index);
+    public NoneRecycler(C<T> c) {
+        super(c);
+    }
 
-    /**
-     * Set a value at the given index.
-     */
-    public abstract void set(long index, int value);
+    @Override
+    public V<T> obtain(int sizing) {
+        return new NV<T>(c.newInstance(sizing));
+    }
 
-    /**
-     * Increment value at the given index by <code>inc</code> and return the value.
-     */
-    public abstract int increment(long index, int inc);
+    @Override
+    public void close() {
 
-    void clear(int sentinal);
+    }
+
+    public static class NV<T> implements Recycler.V<T> {
+
+        final T value;
+
+        NV(T value) {
+            this.value = value;
+        }
+
+        @Override
+        public T v() {
+            return value;
+        }
+
+        @Override
+        public boolean isRecycled() {
+            return false;
+        }
+
+        @Override
+        public void release() {
+        }
+    }
 }
+

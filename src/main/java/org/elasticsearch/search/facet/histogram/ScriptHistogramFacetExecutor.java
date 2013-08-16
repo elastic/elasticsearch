@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -29,6 +29,8 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,32 +38,32 @@ import java.util.Map;
  */
 public class ScriptHistogramFacetExecutor extends FacetExecutor {
 
-    final CacheRecycler cacheRecycler;
     final SearchScript keyScript;
     final SearchScript valueScript;
     final long interval;
     private final HistogramFacet.ComparatorType comparatorType;
 
-    final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
+    final Recycler.V<ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
     public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.interval = interval > 0 ? interval : 0;
         this.comparatorType = comparatorType;
-        this.cacheRecycler = context.cacheRecycler();
 
-        this.entries = cacheRecycler.popLongObjectMap();
+        this.entries = context.cacheRecycler().longObjectMap(-1);
     }
 
     @Override
     public Collector collector() {
-        return new Collector(entries);
+        return new Collector(entries.v());
     }
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries, cacheRecycler);
+        List<InternalFullHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullHistogramFacet.FullEntry>(entries.v().valueCollection());
+        entries.release();
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
     }
 
     public static long bucket(double value, long interval) {

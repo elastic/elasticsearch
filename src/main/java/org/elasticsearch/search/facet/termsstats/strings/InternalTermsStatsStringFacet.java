@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
@@ -187,13 +188,13 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<Text, StringEntry> map = context.cacheRecycler().popHashMap();
+        Recycler.V<ExtTHashMap<Text, StringEntry>> map = context.cacheRecycler().hashMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 StringEntry stringEntry = (StringEntry) entry;
-                StringEntry current = map.get(stringEntry.getTerm());
+                StringEntry current = map.v().get(stringEntry.getTerm());
                 if (current != null) {
                     current.count += stringEntry.count;
                     current.totalCount += stringEntry.totalCount;
@@ -205,21 +206,21 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                         current.max = stringEntry.max;
                     }
                 } else {
-                    map.put(stringEntry.getTerm(), stringEntry);
+                    map.v().put(stringEntry.getTerm(), stringEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            StringEntry[] entries1 = map.values().toArray(new StringEntry[map.size()]);
+            StringEntry[] entries1 = map.v().values().toArray(new StringEntry[map.v().size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            context.cacheRecycler().pushHashMap(map);
+            map.release();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<StringEntry> ordered = new ArrayList<StringEntry>(map.size());
+            List<StringEntry> ordered = new ArrayList<StringEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 StringEntry value = (StringEntry) values[i];
                 if (value == null) {
@@ -227,7 +228,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            context.cacheRecycler().pushHashMap(map);
+            map.release();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

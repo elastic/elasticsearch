@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
-import org.apache.lucene.util.CollectionUtil;
-
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
@@ -183,13 +183,13 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTDoubleObjectHashMap<DoubleEntry> map = context.cacheRecycler().popDoubleObjectMap();
+        Recycler.V<ExtTDoubleObjectHashMap<DoubleEntry>> map = context.cacheRecycler().doubleObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 DoubleEntry doubleEntry = (DoubleEntry) entry;
-                DoubleEntry current = map.get(doubleEntry.term);
+                DoubleEntry current = map.v().get(doubleEntry.term);
                 if (current != null) {
                     current.count += doubleEntry.count;
                     current.totalCount += doubleEntry.totalCount;
@@ -201,21 +201,21 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                         current.max = doubleEntry.max;
                     }
                 } else {
-                    map.put(doubleEntry.term, doubleEntry);
+                    map.v().put(doubleEntry.term, doubleEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            DoubleEntry[] entries1 = map.values(new DoubleEntry[map.size()]);
+            DoubleEntry[] entries1 = map.v().values(new DoubleEntry[map.v().size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            context.cacheRecycler().pushDoubleObjectMap(map);
+            map.release();
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.size());
+            List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 DoubleEntry value = (DoubleEntry) values[i];
                 if (value == null) {
@@ -223,7 +223,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            context.cacheRecycler().pushDoubleObjectMap(map);
+            map.release();
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

@@ -95,6 +95,8 @@ public class SearchContext implements Releasable {
 
         void contextRewrite(SearchContext searchContext) throws Exception;
 
+        void executionDone();
+
         void contextClear();
     }
 

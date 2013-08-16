@@ -21,80 +21,257 @@ package org.elasticsearch.cache.recycler;
 
 import gnu.trove.map.hash.*;
 import gnu.trove.set.hash.THashSet;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.recycler.QueueRecycler;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.recycler.SoftThreadLocalRecycler;
+import org.elasticsearch.common.recycler.ThreadLocalRecycler;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 
-public interface CacheRecycler {
+@SuppressWarnings("unchecked")
+public class CacheRecycler extends AbstractComponent {
 
-    public abstract void clear();
+    public final Recycler<ExtTHashMap> hashMap;
+    public final Recycler<THashSet> hashSet;
+    public final Recycler<ExtTDoubleObjectHashMap> doubleObjectMap;
+    public final Recycler<ExtTLongObjectHashMap> longObjectMap;
+    public final Recycler<TLongLongHashMap> longLongMap;
+    public final Recycler<TIntIntHashMap> intIntMap;
+    public final Recycler<TFloatIntHashMap> floatIntMap;
+    public final Recycler<TDoubleIntHashMap> doubleIntMap;
+    public final Recycler<TLongIntHashMap> longIntMap;
+    public final Recycler<TObjectIntHashMap> objectIntMap;
+    public final Recycler<TIntObjectHashMap> intObjectMap;
+    public final Recycler<TObjectFloatHashMap> objectFloatMap;
 
-    public abstract <K, V> ExtTHashMap<K, V> popHashMap();
+    public void close() {
+        hashMap.close();
+        hashSet.close();
+        doubleObjectMap.close();
+        longObjectMap.close();
+        longLongMap.close();
+        intIntMap.close();
+        floatIntMap.close();
+        doubleIntMap.close();
+        longIntMap.close();
+        objectIntMap.close();
+        intObjectMap.close();
+        objectFloatMap.close();
+    }
 
-    public abstract void pushHashMap(ExtTHashMap map);
+    @Inject
+    public CacheRecycler(Settings settings) {
+        super(settings);
+        String type = settings.get("type", "soft_thread_local");
+        int limit = settings.getAsInt("limit", 10);
+        int smartSize = settings.getAsInt("smart_size", 1024);
 
-    public abstract <T> THashSet<T> popHashSet();
+        hashMap = build(type, limit, smartSize, new Recycler.C<ExtTHashMap>() {
+            @Override
+            public ExtTHashMap newInstance(int sizing) {
+                return new ExtTHashMap(size(sizing));
+            }
 
-    public abstract void pushHashSet(THashSet map);
+            @Override
+            public void clear(ExtTHashMap value) {
+                value.clear();
+            }
+        });
+        hashSet = build(type, limit, smartSize, new Recycler.C<THashSet>() {
+            @Override
+            public THashSet newInstance(int sizing) {
+                return new THashSet(size(sizing));
+            }
 
-    public abstract <T> ExtTDoubleObjectHashMap<T> popDoubleObjectMap();
+            @Override
+            public void clear(THashSet value) {
+                value.clear();
+            }
+        });
+        doubleObjectMap = build(type, limit, smartSize, new Recycler.C<ExtTDoubleObjectHashMap>() {
+            @Override
+            public ExtTDoubleObjectHashMap newInstance(int sizing) {
+                return new ExtTDoubleObjectHashMap(size(sizing));
+            }
 
-    public abstract void pushDoubleObjectMap(ExtTDoubleObjectHashMap map);
+            @Override
+            public void clear(ExtTDoubleObjectHashMap value) {
+                value.clear();
+            }
+        });
+        longObjectMap = build(type, limit, smartSize, new Recycler.C<ExtTLongObjectHashMap>() {
+            @Override
+            public ExtTLongObjectHashMap newInstance(int sizing) {
+                return new ExtTLongObjectHashMap(size(sizing));
+            }
 
-    public abstract <T> ExtTLongObjectHashMap<T> popLongObjectMap();
+            @Override
+            public void clear(ExtTLongObjectHashMap value) {
+                value.clear();
+            }
+        });
+        longLongMap = build(type, limit, smartSize, new Recycler.C<TLongLongHashMap>() {
+            @Override
+            public TLongLongHashMap newInstance(int sizing) {
+                return new TLongLongHashMap(size(sizing));
+            }
 
-    public abstract void pushLongObjectMap(ExtTLongObjectHashMap map);
+            @Override
+            public void clear(TLongLongHashMap value) {
+                value.clear();
+            }
+        });
+        intIntMap = build(type, limit, smartSize, new Recycler.C<TIntIntHashMap>() {
+            @Override
+            public TIntIntHashMap newInstance(int sizing) {
+                return new TIntIntHashMap(size(sizing));
+            }
 
-    public abstract TLongLongHashMap popLongLongMap();
+            @Override
+            public void clear(TIntIntHashMap value) {
+                value.clear();
+            }
+        });
+        floatIntMap = build(type, limit, smartSize, new Recycler.C<TFloatIntHashMap>() {
+            @Override
+            public TFloatIntHashMap newInstance(int sizing) {
+                return new TFloatIntHashMap(size(sizing));
+            }
 
-    public abstract void pushLongLongMap(TLongLongHashMap map);
+            @Override
+            public void clear(TFloatIntHashMap value) {
+                value.clear();
+            }
+        });
+        doubleIntMap = build(type, limit, smartSize, new Recycler.C<TDoubleIntHashMap>() {
+            @Override
+            public TDoubleIntHashMap newInstance(int sizing) {
+                return new TDoubleIntHashMap(size(sizing));
+            }
 
-    public abstract TIntIntHashMap popIntIntMap();
+            @Override
+            public void clear(TDoubleIntHashMap value) {
+                value.clear();
+            }
+        });
+        longIntMap = build(type, limit, smartSize, new Recycler.C<TLongIntHashMap>() {
+            @Override
+            public TLongIntHashMap newInstance(int sizing) {
+                return new TLongIntHashMap(size(sizing));
+            }
 
-    public abstract void pushIntIntMap(TIntIntHashMap map);
+            @Override
+            public void clear(TLongIntHashMap value) {
+                value.clear();
+            }
+        });
+        objectIntMap = build(type, limit, smartSize, new Recycler.C<TObjectIntHashMap>() {
+            @Override
+            public TObjectIntHashMap newInstance(int sizing) {
+                return new TObjectIntHashMap(size(sizing));
+            }
 
-    public abstract TFloatIntHashMap popFloatIntMap();
+            @Override
+            public void clear(TObjectIntHashMap value) {
+                value.clear();
+            }
+        });
+        intObjectMap = build(type, limit, smartSize, new Recycler.C<TIntObjectHashMap>() {
+            @Override
+            public TIntObjectHashMap newInstance(int sizing) {
+                return new TIntObjectHashMap(size(sizing));
+            }
 
-    public abstract void pushFloatIntMap(TFloatIntHashMap map);
+            @Override
+            public void clear(TIntObjectHashMap value) {
+                value.clear();
+            }
+        });
+        objectFloatMap = build(type, limit, smartSize, new Recycler.C<TObjectFloatHashMap>() {
+            @Override
+            public TObjectFloatHashMap newInstance(int sizing) {
+                return new TObjectFloatHashMap(size(sizing));
+            }
 
-    public abstract TDoubleIntHashMap popDoubleIntMap();
+            @Override
+            public void clear(TObjectFloatHashMap value) {
+                value.clear();
+            }
+        });
+    }
 
-    public abstract void pushDoubleIntMap(TDoubleIntHashMap map);
+    public <K, V> Recycler.V<ExtTHashMap<K, V>> hashMap(int sizing) {
+        return (Recycler.V) hashMap.obtain(sizing);
+    }
 
-    public abstract TByteIntHashMap popByteIntMap();
+    public <T> Recycler.V<THashSet<T>> hashSet(int sizing) {
+        return (Recycler.V) hashSet.obtain(sizing);
+    }
 
-    public abstract void pushByteIntMap(TByteIntHashMap map);
+    public <T> Recycler.V<ExtTDoubleObjectHashMap<T>> doubleObjectMap(int sizing) {
+        return (Recycler.V) doubleObjectMap.obtain(sizing);
+    }
 
-    public abstract TShortIntHashMap popShortIntMap();
+    public <T> Recycler.V<ExtTLongObjectHashMap<T>> longObjectMap(int sizing) {
+        return (Recycler.V) longObjectMap.obtain(sizing);
+    }
 
-    public abstract void pushShortIntMap(TShortIntHashMap map);
+    public Recycler.V<TLongLongHashMap> longLongMap(int sizing) {
+        return longLongMap.obtain(sizing);
+    }
 
-    public abstract TLongIntHashMap popLongIntMap();
+    public Recycler.V<TIntIntHashMap> intIntMap(int sizing) {
+        return intIntMap.obtain(sizing);
+    }
 
-    public abstract void pushLongIntMap(TLongIntHashMap map);
+    public Recycler.V<TFloatIntHashMap> floatIntMap(int sizing) {
+        return floatIntMap.obtain(sizing);
+    }
 
-    public abstract <T> TObjectIntHashMap<T> popObjectIntMap();
+    public Recycler.V<TDoubleIntHashMap> doubleIntMap(int sizing) {
+        return doubleIntMap.obtain(sizing);
+    }
 
-    public abstract <T> void pushObjectIntMap(TObjectIntHashMap<T> map);
+    public Recycler.V<TLongIntHashMap> longIntMap(int sizing) {
+        return longIntMap.obtain(sizing);
+    }
 
-    public abstract <T> TIntObjectHashMap<T> popIntObjectMap();
+    public <T> Recycler.V<TObjectIntHashMap<T>> objectIntMap(int sizing) {
+        return (Recycler.V) objectIntMap.obtain(sizing);
+    }
 
-    public abstract <T> void pushIntObjectMap(TIntObjectHashMap<T> map);
+    public <T> Recycler.V<TIntObjectHashMap<T>> intObjectMap(int sizing) {
+        return (Recycler.V) intObjectMap.obtain(sizing);
+    }
 
-    public abstract <T> TObjectFloatHashMap<T> popObjectFloatMap();
+    public <T> Recycler.V<TObjectFloatHashMap<T>> objectFloatMap(int sizing) {
+        return (Recycler.V) objectFloatMap.obtain(sizing);
+    }
 
-    public abstract <T> void pushObjectFloatMap(TObjectFloatHashMap<T> map);
+    static int size(int sizing) {
+        return sizing > 0 ? sizing : 256;
+    }
 
-    public abstract Object[] popObjectArray(int size);
-
-    public abstract void pushObjectArray(Object[] objects);
-
-    public abstract int[] popIntArray(int size);
-
-    public abstract int[] popIntArray(int size, int sentinal);
-
-    public abstract void pushIntArray(int[] ints);
-
-    public abstract void pushIntArray(int[] ints, int sentinal);
-
+    private <T> Recycler<T> build(String type, int limit, int smartSize, Recycler.C<T> c) {
+        Recycler<T> recycler;
+        // default to soft_thread_local
+        if (type == null || "soft_thread_local".equals(type)) {
+            recycler = new SoftThreadLocalRecycler<T>(c, limit);
+        } else if ("thread_local".equals(type)) {
+            recycler = new ThreadLocalRecycler<T>(c, limit);
+        } else if ("queue".equals(type)) {
+            recycler = new QueueRecycler<T>(c);
+        } else {
+            throw new ElasticSearchIllegalArgumentException("no type support [" + type + "] for recycler");
+        }
+        if (smartSize > 0) {
+            recycler = new Recycler.Sizing<T>(recycler, smartSize);
+        }
+        return recycler;
+    }
 }

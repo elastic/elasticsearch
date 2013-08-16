@@ -28,6 +28,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -45,7 +46,6 @@ import java.util.regex.Pattern;
  */
 public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
 
-    private final CacheRecycler cacheRecycler;
     private final InternalStringTermsFacet.ComparatorType comparatorType;
     private final int size;
     private final SearchScript script;
@@ -53,7 +53,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     private final ImmutableSet<BytesRef> excluded;
     private final int numberOfShards;
 
-    final TObjectIntHashMap<BytesRef> facets;
+    final Recycler.V<TObjectIntHashMap<BytesRef>> facets;
     long missing;
     long total;
 
@@ -64,28 +64,27 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
         this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
-        this.cacheRecycler = cacheRecycler;
 
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;
 
-        this.facets = cacheRecycler.popObjectIntMap();
+        this.facets = cacheRecycler.objectIntMap(-1);
     }
 
     @Override
     public Collector collector() {
-        return new Collector(matcher, excluded, script, facets);
+        return new Collector(matcher, excluded, script, facets.v());
     }
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (facets.isEmpty()) {
-            cacheRecycler.pushObjectIntMap(facets);
+        if (facets.v().isEmpty()) {
+            facets.release();
             return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
+                for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
@@ -93,15 +92,15 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = ((InternalStringTermsFacet.TermEntry) ordered.pop());
                 }
-                cacheRecycler.pushObjectIntMap(facets);
+                facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
-                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
+                for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
-                cacheRecycler.pushObjectIntMap(facets);
+                facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }

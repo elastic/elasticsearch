@@ -278,7 +278,7 @@ public class TransportClient extends AbstractClient {
             // ignore
         }
 
-        injector.getInstance(CacheRecycler.class).clear();
+        injector.getInstance(CacheRecycler.class).close();
 
         CachedStreams.clear();
         ThreadLocals.clearReferencesThreadLocals();

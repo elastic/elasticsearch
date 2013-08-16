@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.common.lucene.docset.DocIdSets;
-
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -31,9 +29,11 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -54,7 +54,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     private final Filter childrenFilter;
 
     private Query rewrittenParentQuery;
-    private TObjectFloatHashMap<HashedBytesArray> uidToScore;
+    private Recycler.V<TObjectFloatHashMap<HashedBytesArray>> uidToScore;
 
     public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, Filter childrenFilter) {
         this.searchContext = searchContext;
@@ -66,8 +66,8 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        uidToScore = searchContext.cacheRecycler().popObjectFloatMap();
-        ParentUidCollector collector = new ParentUidCollector(uidToScore, searchContext, parentType);
+        uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
+        ParentUidCollector collector = new ParentUidCollector(uidToScore.v(), searchContext, parentType);
         Query parentQuery;
         if (rewrittenParentQuery == null) {
             parentQuery = rewrittenParentQuery = searchContext.searcher().rewrite(originalParentQuery);
@@ -78,11 +78,15 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextClear() {
+    public void executionDone() {
         if (uidToScore != null) {
-            searchContext.cacheRecycler().pushObjectFloatMap(uidToScore);
+            uidToScore.release();
         }
         uidToScore = null;
+    }
+
+    @Override
+    public void contextClear() {
     }
 
     @Override
@@ -139,7 +143,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         if (uidToScore == null) {
             throw new ElasticSearchIllegalStateException("has_parent query hasn't executed properly");
         }
-        if (uidToScore.isEmpty()) {
+        if (uidToScore.v().isEmpty()) {
             return Queries.NO_MATCH_QUERY.createWeight(searcher);
         }
 
@@ -222,7 +226,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                 return null;
             }
 
-            return new ChildScorer(this, uidToScore, childrenDocSet.iterator(), idTypeCache);
+            return new ChildScorer(this, uidToScore.v(), childrenDocSet.iterator(), idTypeCache);
         }
     }
 

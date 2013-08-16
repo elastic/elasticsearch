@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -43,14 +43,13 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
     private final TermsStatsFacet.ComparatorType comparatorType;
 
-    final CacheRecycler cacheRecycler;
     final IndexNumericFieldData keyIndexFieldData;
     final IndexNumericFieldData valueIndexFieldData;
     final SearchScript script;
 
     private final int size;
 
-    final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
+    final Recycler.V<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> entries;
     long missing;
 
     public TermsStatsDoubleFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
@@ -60,9 +59,8 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
-        this.cacheRecycler = context.cacheRecycler();
 
-        this.entries = cacheRecycler.popDoubleObjectMap();
+        this.entries = context.cacheRecycler().doubleObjectMap(-1);
     }
 
     @Override
@@ -72,14 +70,15 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (entries.isEmpty()) {
+        if (entries.v().isEmpty()) {
+            entries.release();
             return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsDoubleFacet.DoubleEntry>of(), missing);
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.valueCollection(), missing);
+            return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.v().valueCollection(), missing);
         }
-        Object[] values = entries.internalValues();
+        Object[] values = entries.v().internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         int limit = size;
@@ -92,7 +91,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
             ordered.add(value);
         }
 
-        cacheRecycler.pushDoubleObjectMap(entries);
+        entries.release();
         return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ordered, missing);
     }
 
@@ -103,9 +102,9 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
         public Collector() {
             if (script == null) {
-                this.aggregator = new Aggregator(entries);
+                this.aggregator = new Aggregator(entries.v());
             } else {
-                this.aggregator = new ScriptAggregator(entries, script);
+                this.aggregator = new ScriptAggregator(entries.v(), script);
             }
         }
 

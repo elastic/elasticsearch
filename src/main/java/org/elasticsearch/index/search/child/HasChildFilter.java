@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -55,7 +56,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
     Filter shortCircuitFilter;
     int remaining;
-    THashSet<HashedBytesArray> collectedUids;
+    Recycler.V<THashSet<HashedBytesArray>> collectedUids;
 
     public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext, int shortCircuitParentDocSet) {
         this.parentFilter = parentFilter;
@@ -118,7 +119,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         Bits parentsBits = DocIdSets.toSafeBits(context.reader(), parentDocIdSet);
         IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
         if (idReaderTypeCache != null) {
-            return new ParentDocSet(context.reader(), parentsBits, collectedUids, idReaderTypeCache);
+            return new ParentDocSet(context.reader(), parentsBits, collectedUids.v(), idReaderTypeCache);
         } else {
             return null;
         }
@@ -127,27 +128,31 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        collectedUids = searchContext.cacheRecycler().popHashSet();
-        UidCollector collector = new UidCollector(parentType, searchContext, collectedUids);
+        collectedUids = searchContext.cacheRecycler().hashSet(-1);
+        UidCollector collector = new UidCollector(parentType, searchContext, collectedUids.v());
         searchContext.searcher().search(childQuery, collector);
-        remaining = collectedUids.size();
+        remaining = collectedUids.v().size();
         if (remaining == 0) {
             shortCircuitFilter = Queries.MATCH_NO_FILTER;
         } else if (remaining == 1) {
-            BytesRef id = collectedUids.iterator().next().toBytesRef();
+            BytesRef id = collectedUids.v().iterator().next().toBytesRef();
             shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
         } else if (remaining <= shortCircuitParentDocSet) {
-            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids);
+            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v());
         }
     }
 
     @Override
-    public void contextClear() {
+    public void executionDone() {
         if (collectedUids != null) {
-            searchContext.cacheRecycler().pushHashSet(collectedUids);
+            collectedUids.release();
         }
         collectedUids = null;
         shortCircuitFilter = null;
+    }
+
+    @Override
+    public void contextClear() {
     }
 
     final class ParentDocSet extends MatchDocIdSet {

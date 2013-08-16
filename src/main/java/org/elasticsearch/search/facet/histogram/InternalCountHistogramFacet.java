@@ -21,12 +21,12 @@ package org.elasticsearch.search.facet.histogram;
 
 import gnu.trove.iterator.TLongLongIterator;
 import gnu.trove.map.hash.TLongLongHashMap;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -109,18 +109,9 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     }
 
     ComparatorType comparatorType;
-    TLongLongHashMap counts;
-    CacheRecycler cacheRecycler;
     CountEntry[] entries = null;
 
-    private InternalCountHistogramFacet() {
-    }
-
-    public InternalCountHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, CacheRecycler cacheRecycler) {
-        super(name);
-        this.comparatorType = comparatorType;
-        this.counts = counts;
-        this.cacheRecycler = cacheRecycler;
+    InternalCountHistogramFacet() {
     }
 
     public InternalCountHistogramFacet(String name, ComparatorType comparatorType, CountEntry[] entries) {
@@ -139,55 +130,30 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         return (Iterator) getEntries().iterator();
     }
 
-    void releaseCache() {
-        if (cacheRecycler != null) {
-            cacheRecycler.pushLongLongMap(counts);
-            cacheRecycler = null;
-            counts = null;
-        }
-    }
-
     @Override
     public Facet reduce(ReduceContext context) {
         List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             // need to sort here...
             InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facets.get(0);
-            if (histoFacet.entries == null) {
-                histoFacet.entries = new CountEntry[histoFacet.counts.size()];
-                int i = 0;
-                for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext(); ) {
-                    it.advance();
-                    histoFacet.entries[i++] = new CountEntry(it.key(), it.value());
-                }
-            }
             Arrays.sort(histoFacet.entries, histoFacet.comparatorType.comparator());
-            histoFacet.releaseCache();
             return facets.get(0);
         }
 
-        TLongLongHashMap counts = context.cacheRecycler().popLongLongMap();
+        Recycler.V<TLongLongHashMap> counts = context.cacheRecycler().longLongMap(-1);
         for (Facet facet : facets) {
             InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
-            if (histoFacet.entries != null) {
-                for (Entry entry : histoFacet.entries) {
-                    counts.adjustOrPutValue(entry.getKey(), entry.getCount(), entry.getCount());
-                }
-            } else {
-                for (TLongLongIterator it = histoFacet.counts.iterator(); it.hasNext(); ) {
-                    it.advance();
-                    counts.adjustOrPutValue(it.key(), it.value(), it.value());
-                }
+            for (Entry entry : histoFacet.entries) {
+                counts.v().adjustOrPutValue(entry.getKey(), entry.getCount(), entry.getCount());
             }
-            histoFacet.releaseCache();
         }
-        CountEntry[] entries = new CountEntry[counts.size()];
+        CountEntry[] entries = new CountEntry[counts.v().size()];
         int i = 0;
-        for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
+        for (TLongLongIterator it = counts.v().iterator(); it.hasNext(); ) {
             it.advance();
             entries[i++] = new CountEntry(it.key(), it.value());
         }
-        context.cacheRecycler().pushLongLongMap(counts);
+        counts.release();
 
         Arrays.sort(entries, comparatorType.comparator());
 
@@ -238,21 +204,10 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeByte(comparatorType.id());
-        if (entries != null) {
-            out.writeVInt(entries.length);
-            for (CountEntry entry : entries) {
-                out.writeLong(entry.getKey());
-                out.writeVLong(entry.getCount());
-            }
-        } else {
-            // optimize the write, since we know we have the same buckets as keys
-            out.writeVInt(counts.size());
-            for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {
-                it.advance();
-                out.writeLong(it.key());
-                out.writeVLong(it.value());
-            }
+        out.writeVInt(entries.length);
+        for (CountEntry entry : entries) {
+            out.writeLong(entry.getKey());
+            out.writeVLong(entry.getCount());
         }
-        releaseCache();
     }
 }

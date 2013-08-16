@@ -34,11 +34,6 @@ public class CacheRecyclerModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        String type = settings.get("node.cache.recycler.type", "default");
-        if ("none".equalsIgnoreCase(type)) {
-            bind(CacheRecycler.class).to(NoneCacheRecycler.class).asEagerSingleton();
-        } else {
-            bind(CacheRecycler.class).to(DefaultCacheRecycler.class).asEagerSingleton();
-        }
+        bind(CacheRecycler.class).asEagerSingleton();
     }
 }

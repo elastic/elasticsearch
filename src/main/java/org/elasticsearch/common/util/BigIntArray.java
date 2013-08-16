@@ -21,6 +21,8 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.util.Arrays;
+
 /**
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
@@ -70,4 +72,10 @@ public final class BigIntArray extends AbstractBigArray implements IntArray {
         return RamUsageEstimator.NUM_BYTES_INT;
     }
 
+    @Override
+    public void clear(int sentinal) {
+        for (int[] page : pages) {
+            Arrays.fill(page, sentinal);
+        }
+    }
 }

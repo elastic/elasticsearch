@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -166,7 +167,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
         InternalDoubleTermsFacet first = null;
 
-        TDoubleIntHashMap aggregated = context.cacheRecycler().popDoubleIntMap();
+        Recycler.V<TDoubleIntHashMap> aggregated = context.cacheRecycler().doubleIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -178,12 +179,12 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(((DoubleEntry) entry).term, entry.getCount(), entry.getCount());
+                aggregated.v().adjustOrPutValue(((DoubleEntry) entry).term, entry.getCount(), entry.getCount());
             }
         }
 
         BoundedTreeSet<DoubleEntry> ordered = new BoundedTreeSet<DoubleEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TDoubleIntIterator it = aggregated.iterator(); it.hasNext(); ) {
+        for (TDoubleIntIterator it = aggregated.v().iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new DoubleEntry(it.key(), it.value()));
         }
@@ -191,7 +192,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        context.cacheRecycler().pushDoubleIntMap(aggregated);
+        aggregated.release();
 
         return first;
     }

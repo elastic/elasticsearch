@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -182,13 +183,13 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTLongObjectHashMap<LongEntry> map = context.cacheRecycler().popLongObjectMap();
+        Recycler.V<ExtTLongObjectHashMap<LongEntry>> map = context.cacheRecycler().longObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 LongEntry longEntry = (LongEntry) entry;
-                LongEntry current = map.get(longEntry.term);
+                LongEntry current = map.v().get(longEntry.term);
                 if (current != null) {
                     current.count += longEntry.count;
                     current.totalCount += longEntry.totalCount;
@@ -200,21 +201,21 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                         current.max = longEntry.max;
                     }
                 } else {
-                    map.put(longEntry.term, longEntry);
+                    map.v().put(longEntry.term, longEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            LongEntry[] entries1 = map.values(new LongEntry[map.size()]);
+            LongEntry[] entries1 = map.v().values(new LongEntry[map.v().size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            context.cacheRecycler().pushLongObjectMap(map);
+            map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<LongEntry> ordered = new ArrayList<LongEntry>(map.size());
+            List<LongEntry> ordered = new ArrayList<LongEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 LongEntry value = (LongEntry) values[i];
                 if (value == null) {
@@ -222,7 +223,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            context.cacheRecycler().pushLongObjectMap(map);
+            map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

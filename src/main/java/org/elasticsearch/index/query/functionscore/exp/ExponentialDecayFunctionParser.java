@@ -44,14 +44,14 @@ public class ExponentialDecayFunctionParser extends DecayFunctionParser {
 
         @Override
         public double evaluate(double value, double scale) {
-            return Math.exp(scale * Math.abs(value));
+            return Math.exp(scale * value);
         }
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             ComplexExplanation ce = new ComplexExplanation();
             ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("exp(- abs(" + valueExpl + ") * " + -1*scale + ")");
+            ce.setDescription("exp(- abs(" + valueExpl + ") * " + -1 * scale + ")");
             return ce;
         }
 

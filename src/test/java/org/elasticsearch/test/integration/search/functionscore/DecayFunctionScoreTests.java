@@ -150,6 +150,87 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
+
+        createIndexMapped("test", "type1", "test", "string", "num", "double");
+        ensureYellow();
+
+        // add tw docs within offset
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId("1").setIndex("test")
+                .setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject()));
+        indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId("2").setIndex("test")
+                .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.7).endObject()));
+
+        // add docs outside offset
+        int numDummyDocs = 20;
+        for (int i = 0; i < numDummyDocs; i++) {
+            indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId(Integer.toString(i + 3)).setIndex("test")
+                    .setSource(jsonBuilder().startObject().field("test", "value").field("num", 3.0 + i).endObject()));
+        }
+        IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
+
+        indexRandom("test", false, builders);
+        refresh();
+
+        // Test Gauss
+        DecayFunctionBuilder fb = new GaussDecayFunctionBuilder("num", 1.0, 5.0);
+        fb.setOffset(1.0);
+
+        ActionFuture<SearchResponse> response = client()
+                .search(searchRequest()
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).size(numDummyDocs + 2)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.REPLACE.getName()))));
+        SearchResponse sr = response.actionGet();
+        SearchHits sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(sh.getAt(1).score(), equalTo(sh.getAt(0).score()));
+        for (int i = 0; i < numDummyDocs; i++) {
+            assertThat(sh.getAt(i + 2).getId(), equalTo(Integer.toString(i + 3)));
+        }
+
+        // Test Exp
+        fb = new ExponentialDecayFunctionBuilder("num", 1.0, 5.0);
+        fb.setOffset(1.0);
+
+        response = client()
+                .search(searchRequest()
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).size(numDummyDocs + 2)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.REPLACE.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(sh.getAt(1).score(), equalTo(sh.getAt(0).score()));
+        for (int i = 0; i < numDummyDocs; i++) {
+            assertThat(sh.getAt(i + 2).getId(), equalTo(Integer.toString(i + 3)));
+        }
+        // Test Lin
+        fb = new LinearDecayFunctionBuilder("num", 1.0, 20.0);
+        fb.setOffset(1.0);
+
+        response = client()
+                .search(searchRequest()
+                        .searchType(SearchType.QUERY_THEN_FETCH)
+                        .source(searchSource().explain(true).size(numDummyDocs + 2)
+                                .query(functionScoreQuery(termQuery("test", "value")).add(fb).boostMode(CombineFunction.REPLACE.getName()))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(sh.getAt(1).score(), equalTo(sh.getAt(0).score()));
+        for (int i = 0; i < numDummyDocs; i++) {
+            System.out.println("id " + sh.getAt(i + 2).getId() + " got score " + sh.getAt(i + 2).score());
+        }
+    }
+
+    @Test
     public void testBoostModeSettingWorks() throws Exception {
 
         createIndexMapped("test", "type1", "test", "string", "loc", "geo_point");
@@ -406,7 +487,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().explain(false).query(
                                 functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(), gfb1)
                                         .add(new MatchAllFilterBuilder(), gfb2).scoreMode("multiply"))));
 
@@ -465,7 +546,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                 .size(numDocs)
                                 .query(functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(), gfb1)
                                         .add(new MatchAllFilterBuilder(), gfb2).add(new MatchAllFilterBuilder(), gfb3)
-                                        .scoreMode("multiply"))));
+                                        .scoreMode("multiply").boostMode(CombineFunction.REPLACE.getName()))));
 
         SearchResponse sr = response.actionGet();
         ElasticsearchAssertions.assertNoFailures(sr);
@@ -477,6 +558,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         }
         for (int i = 0; i < numDocs - 1; i++) {
             assertThat(scores[i], lessThan(scores[i + 1]));
+
         }
 
     }

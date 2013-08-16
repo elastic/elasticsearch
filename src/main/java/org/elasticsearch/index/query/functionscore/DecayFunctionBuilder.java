@@ -26,20 +26,20 @@ import java.io.IOException;
 
 public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
 
-    protected static final String REFERNECE = "reference";
+    protected static final String ORIGIN = "origin";
     protected static final String SCALE = "scale";
     protected static final String DECAY = "decay";
     protected static final String OFFSET = "offset";
 
     private String fieldName;
-    private Object reference;
+    private Object origin;
     private Object scale;
     private double decay = -1;
     private Object offset;
 
-    public DecayFunctionBuilder(String fieldName, Object reference, Object scale) {
+    public DecayFunctionBuilder(String fieldName, Object origin, Object scale) {
         this.fieldName = fieldName;
-        this.reference = reference;
+        this.origin = origin;
         this.scale = scale;
     }
 
@@ -60,7 +60,7 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.startObject(fieldName);
-        builder.field(REFERNECE, reference);
+        builder.field(ORIGIN, origin);
         builder.field(SCALE, scale);
         if (decay > 0) {
             builder.field(DECAY, decay);

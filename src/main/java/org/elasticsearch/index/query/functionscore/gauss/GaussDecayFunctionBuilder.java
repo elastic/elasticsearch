@@ -24,8 +24,8 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
 public class GaussDecayFunctionBuilder extends DecayFunctionBuilder {
 
-    public GaussDecayFunctionBuilder(String fieldName, Object reference, Object scale) {
-        super(fieldName, reference, scale);
+    public GaussDecayFunctionBuilder(String fieldName, Object origin, Object scale) {
+        super(fieldName, origin, scale);
     }
 
     @Override

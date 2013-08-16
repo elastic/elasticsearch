@@ -58,25 +58,25 @@ import java.io.IOException;
  * {@code}
  * { 
  *      "fieldname1" : {
- *          "reference" = "someValue", 
+ *          "origin" = "someValue", 
  *          "scale" = "someValue"
  *      } 
  *      
  * }
  * </pre>
  * 
- * "reference" here refers to the reference point and "scale" to the level of
- * uncertainty you have in your reference.
+ * "origin" here refers to the reference point and "scale" to the level of
+ * uncertainty you have in your origin.
  * <p>
  * 
  * For example, you might want to retrieve an event that took place around the
  * 20 May 2010 somewhere near Berlin. You are mainly interested in events that
  * are close to the 20 May 2010 but you are unsure about your guess, maybe it
- * was a week before or after that. Your "reference" for the date field would be
+ * was a week before or after that. Your "origin" for the date field would be
  * "20 May 2010" and your "scale" would be "7d".
  * 
  * This class parses the input and creates a scoring function from the
- * parameters reference and scale.
+ * parameters origin and scale.
  * <p>
  * To write a new scoring function, create a new class that inherits from this
  * one and implement the getDistanceFuntion(). Furthermore, to create a builder,
@@ -103,7 +103,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      * {@code}
      * { 
      *      "fieldname1" : {
-     *          "reference" = "someValue", 
+     *          "origin" = "someValue", 
      *          "scale" = "someValue"
      *      } 
      *      
@@ -121,7 +121,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
-                // parse per field the reference and scale value
+                // parse per field the origin and scale value
                 scoreFunction = parseVariable(currentFieldName, parser, parseContext);
             } else {
                 throw new ElasticSearchParseException("Malformed score function score parameters.");
@@ -133,7 +133,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         return scoreFunction;
     }
 
-    // parses reference and scale parameter for field "fieldName"
+    // parses origin and scale parameter for field "fieldName"
     private ScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext) throws IOException {
 
         // now, the field must exist, else we cannot read the value for
@@ -162,7 +162,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         XContentParser.Token token;
         String parameterName = null;
         double scale = 0;
-        double reference = 0;
+        double origin = 0;
         double decay = 0.5;
         double offset = 0.0d;
         boolean scaleFound = false;
@@ -175,8 +175,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 scaleFound = true;
             } else if (parameterName.equals(DecayFunctionBuilder.DECAY)) {
                 decay = parser.doubleValue();
-            } else if (parameterName.equals(DecayFunctionBuilder.REFERNECE)) {
-                reference = parser.doubleValue();
+            } else if (parameterName.equals(DecayFunctionBuilder.ORIGIN)) {
+                origin = parser.doubleValue();
                 refFound = true;
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
                 offset = parser.doubleValue();
@@ -185,18 +185,18 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticSearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.REFERNECE
+            throw new ElasticSearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
                     + " must be set for numeric fields.");
         }
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
-        return new NumericFieldDataScoreFunction(reference, scale, decay, offset, getDecayFunction(), numericFieldData);
+        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
     }
 
     private ScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
             GeoStringFieldMapper mapper) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
-        GeoPoint reference = new GeoPoint();
+        GeoPoint origin = new GeoPoint();
         String scaleString = "1km";
         String offsetString = "0km";
         double decay = 0.5;
@@ -205,8 +205,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 parameterName = parser.currentName();
             } else if (parameterName.equals(DecayFunctionBuilder.SCALE)) {
                 scaleString = parser.text();
-            } else if (parameterName.equals(DecayFunctionBuilder.REFERNECE)) {
-                reference = GeoPoint.parse(parser);
+            } else if (parameterName.equals(DecayFunctionBuilder.ORIGIN)) {
+                origin = GeoPoint.parse(parser);
             } else if (parameterName.equals(DecayFunctionBuilder.DECAY)) {
                 decay = parser.doubleValue();
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
@@ -215,13 +215,13 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
-        if (reference == null) {
-            throw new ElasticSearchParseException(DecayFunctionBuilder.REFERNECE + "must be set for geo fields.");
+        if (origin == null) {
+            throw new ElasticSearchParseException(DecayFunctionBuilder.ORIGIN + "must be set for geo fields.");
         }
         double scale = DistanceUnit.parse(scaleString, DistanceUnit.METERS, DistanceUnit.METERS);
         double offset = DistanceUnit.parse(offsetString, DistanceUnit.METERS, DistanceUnit.METERS);
         IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
-        return new GeoFieldDataScoreFunction(reference, scale, decay, offset, getDecayFunction(), indexFieldData);
+        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData);
 
     }
 
@@ -230,7 +230,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         XContentParser.Token token;
         String parameterName = null;
         String scaleString = null;
-        String referenceString = null;
+        String originString = null;
         String offsetString = "0d";
         double decay = 0.5;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -238,8 +238,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 parameterName = parser.currentName();
             } else if (parameterName.equals(DecayFunctionBuilder.SCALE)) {
                 scaleString = parser.text();
-            } else if (parameterName.equals(DecayFunctionBuilder.REFERNECE)) {
-                referenceString = parser.text();
+            } else if (parameterName.equals(DecayFunctionBuilder.ORIGIN)) {
+                originString = parser.text();
             } else if (parameterName.equals(DecayFunctionBuilder.DECAY)) {
                 decay = parser.doubleValue();
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {
@@ -248,9 +248,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
-        long reference = SearchContext.current().nowInMillis();
-        if (referenceString != null) {
-            reference = dateFieldMapper.value(referenceString).longValue();
+        long origin = SearchContext.current().nowInMillis();
+        if (originString != null) {
+            origin = dateFieldMapper.value(originString).longValue();
         }
 
         if (scaleString == null) {
@@ -261,21 +261,21 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24));
         double offset = val.getMillis();
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(dateFieldMapper);
-        return new NumericFieldDataScoreFunction(reference, scale, decay, offset, getDecayFunction(), numericFieldData);
+        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
     }
 
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
-        private final GeoPoint reference;
+        private final GeoPoint origin;
         private final IndexGeoPointFieldData<?> fieldData;
         private GeoPointValues geoPointValues = null;
 
         private static final GeoDistance distFunction = GeoDistance.fromString("arc");
 
-        public GeoFieldDataScoreFunction(GeoPoint reference, double scale, double decay, double offset, DecayFunction func,
+        public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                 IndexGeoPointFieldData<?> fieldData) {
             super(scale, decay, offset, func);
-            this.reference = reference;
+            this.origin = origin;
             this.fieldData = fieldData;
         }
 
@@ -286,8 +286,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected double distance(int docId) {
-            GeoPoint other = geoPointValues.getValueMissing(docId, reference);
-            double distance = Math.abs(distFunction.calculate(reference.lat(), reference.lon(), other.lat(), other.lon(),
+            GeoPoint other = geoPointValues.getValueMissing(docId, origin);
+            double distance = Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
                     DistanceUnit.METERS)) - offset;
             if (distance < 0.0d) {
                 distance = 0.0d;
@@ -297,9 +297,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected String getDistanceString(int docId) {
-            final GeoPoint other = geoPointValues.getValueMissing(docId, reference);
-            return "arcDistance(" + other + "(=doc value), " + reference + "(=reference)) - " + offset
-                    + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + reference + "(=reference)) - " + offset
+            final GeoPoint other = geoPointValues.getValueMissing(docId, origin);
+            return "arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
+                    + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
                     + "(=offset)";
         }
 
@@ -312,14 +312,14 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
     static class NumericFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final IndexNumericFieldData<?> fieldData;
-        private final double reference;
+        private final double origin;
         private DoubleValues doubleValues;
 
-        public NumericFieldDataScoreFunction(double reference, double scale, double decay, double offset, DecayFunction func,
+        public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
                 IndexNumericFieldData<?> fieldData) {
             super(scale, decay, offset, func);
             this.fieldData = fieldData;
-            this.reference = reference;
+            this.origin = origin;
         }
 
         public void setNextReader(AtomicReaderContext context) {
@@ -328,7 +328,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected double distance(int docId) {
-            double distance = Math.abs(doubleValues.getValueMissing(docId, reference) - reference) - offset;
+            double distance = Math.abs(doubleValues.getValueMissing(docId, origin) - origin) - offset;
             if (distance < 0.0) {
                 distance = 0.0;
             }
@@ -337,9 +337,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected String getDistanceString(int docId) {
-            return "Math.abs(" + doubleValues.getValueMissing(docId, reference) + "(=doc value) - " + reference + "(=reference)) - "
-                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + doubleValues.getValueMissing(docId, reference) + "(=doc value) - "
-                    + reference + ") - " + offset + "(=offset)";
+            return "Math.abs(" + doubleValues.getValueMissing(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
+                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + doubleValues.getValueMissing(docId, origin) + "(=doc value) - "
+                    + origin + ") - " + offset + "(=offset)";
         }
 
         @Override
@@ -382,7 +382,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         /**
-         * This function computes the distance from a defined reference. Since
+         * This function computes the distance from a defined origin. Since
          * the value of the document is read from the index, it cannot be
          * guaranteed that the value actually exists. If it does not, we assume
          * the user handles this case in the query and return 0.

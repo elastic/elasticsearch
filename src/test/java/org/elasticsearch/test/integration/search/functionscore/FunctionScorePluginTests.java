@@ -125,11 +125,11 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
             return NAMES;
         }
 
-        static final DecayFunction distanceFunction = new LinearMultScoreFunction();
+        static final DecayFunction decayFunction = new LinearMultScoreFunction();
 
         @Override
         public DecayFunction getDecayFunction() {
-            return distanceFunction;
+            return decayFunction;
         }
 
         static class LinearMultScoreFunction implements DecayFunction {
@@ -158,8 +158,8 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
 
     public class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
 
-        public CustomDistanceScoreBuilder(String fieldName, Object reference, Object scale) {
-            super(fieldName, reference, scale);
+        public CustomDistanceScoreBuilder(String fieldName, Object origin, Object scale) {
+            super(fieldName, origin, scale);
         }
 
         @Override

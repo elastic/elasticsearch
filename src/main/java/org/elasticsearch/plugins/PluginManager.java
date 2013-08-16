@@ -88,9 +88,7 @@ public class PluginManager {
         }
     }
 
-    public void download(String name, boolean verbose) throws IOException {
-        HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
-
+    public void download(String name, boolean verbose, HttpDownloadHelper downloadHelper) throws IOException {
         if (!environment.pluginsFile().canWrite()) {
             System.out.println();
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
@@ -378,7 +376,9 @@ public class PluginManager {
                 case ACTION.INSTALL:
                     try {
                         System.out.println("-> Installing " + pluginName + "...");
-                        pluginManager.download(pluginName, verbose);
+                        HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
+
+                        pluginManager.download(pluginName, verbose, downloadHelper);
                         pluginManager.extract(pluginName);
                         exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {

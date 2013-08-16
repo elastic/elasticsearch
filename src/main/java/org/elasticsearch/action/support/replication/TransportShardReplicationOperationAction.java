@@ -411,16 +411,20 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                 foundPrimary = true;
                 if (shard.currentNodeId().equals(clusterState.nodes().localNodeId())) {
-                    if (request.operationThreaded()) {
-                        request.beforeLocalFork();
-                        threadPool.executor(executor).execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
-                            }
-                        });
-                    } else {
-                        performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                    try {
+                        if (request.operationThreaded()) {
+                            request.beforeLocalFork();
+                            threadPool.executor(executor).execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                                }
+                            });
+                        } else {
+                            performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                        }
+                    } catch (Throwable t) {
+                        listener.onFailure(t);
                     }
                 } else {
                     DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
@@ -686,22 +690,34 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             } else {
                 if (request.operationThreaded()) {
                     request.beforeLocalFork();
-                    threadPool.executor(executor).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                shardOperationOnReplica(shardRequest);
-                            } catch (Throwable e) {
-                                if (!ignoreReplicaException(e)) {
-                                    logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
-                                    shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
+                    try {
+                        threadPool.executor(executor).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    shardOperationOnReplica(shardRequest);
+                                } catch (Throwable e) {
+                                    if (!ignoreReplicaException(e)) {
+                                        logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
+                                        shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
+                                    }
+                                }
+                                if (counter.decrementAndGet() == 0) {
+                                    listener.onResponse(response.response());
                                 }
                             }
-                            if (counter.decrementAndGet() == 0) {
-                                listener.onResponse(response.response());
-                            }
+                        });
+                    } catch (Throwable e) {
+                        if (!ignoreReplicaException(e)) {
+                            logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
+                            shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
                         }
-                    });
+                        // we want to decrement the counter here, in teh failure handling, cause we got rejected
+                        // from executing on the thread pool
+                        if (counter.decrementAndGet() == 0) {
+                            listener.onResponse(response.response());
+                        }
+                    }
                 } else {
                     try {
                         shardOperationOnReplica(shardRequest);

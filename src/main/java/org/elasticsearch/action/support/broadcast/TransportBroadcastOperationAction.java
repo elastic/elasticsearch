@@ -214,54 +214,54 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 // no more active shards... (we should not really get here, just safety)
                 onOperation(null, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                final ShardRequest shardRequest = newShardRequest(shard, request);
-                if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                    if (localAsync) {
-                        threadPool.executor(executor).execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    onOperation(shard, shardIndex, shardOperation(shardRequest));
-                                } catch (Exception e) {
+                try {
+                    final ShardRequest shardRequest = newShardRequest(shard, request);
+                    if (shard.currentNodeId().equals(nodes.localNodeId())) {
+                        if (localAsync) {
+                            threadPool.executor(executor).execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        onOperation(shard, shardIndex, shardOperation(shardRequest));
+                                    } catch (Throwable e) {
+                                        onOperation(shard, shardIt, shardIndex, e);
+                                    }
+                                }
+                            });
+                        } else {
+                            onOperation(shard, shardIndex, shardOperation(shardRequest));
+                        }
+                    } else {
+                        DiscoveryNode node = nodes.get(shard.currentNodeId());
+                        if (node == null) {
+                            // no node connected, act as failure
+                            onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
+                        } else {
+                            transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
+                                @Override
+                                public ShardResponse newInstance() {
+                                    return newShardResponse();
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
+
+                                @Override
+                                public void handleResponse(ShardResponse response) {
+                                    onOperation(shard, shardIndex, response);
+                                }
+
+                                @Override
+                                public void handleException(TransportException e) {
                                     onOperation(shard, shardIt, shardIndex, e);
                                 }
-                            }
-                        });
-                    } else {
-                        try {
-                            onOperation(shard, shardIndex, shardOperation(shardRequest));
-                        } catch (Throwable e) {
-                            onOperation(shard, shardIt, shardIndex, e);
+                            });
                         }
                     }
-                } else {
-                    DiscoveryNode node = nodes.get(shard.currentNodeId());
-                    if (node == null) {
-                        // no node connected, act as failure
-                        onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
-                    } else {
-                        transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
-                            @Override
-                            public ShardResponse newInstance() {
-                                return newShardResponse();
-                            }
-
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
-
-                            @Override
-                            public void handleResponse(ShardResponse response) {
-                                onOperation(shard, shardIndex, response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException e) {
-                                onOperation(shard, shardIt, shardIndex, e);
-                            }
-                        });
-                    }
+                } catch (Throwable e) {
+                    onOperation(shard, shardIt, shardIndex, e);
                 }
             }
         }

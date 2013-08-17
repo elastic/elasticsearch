@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * A query that uses a script to compute or influence the score of documents
+ * A function that uses a script to compute or influence the score of documents
  * that match with the inner query or filter.
  */
 public class ScriptScoreFunctionBuilder implements ScoreFunctionBuilder {

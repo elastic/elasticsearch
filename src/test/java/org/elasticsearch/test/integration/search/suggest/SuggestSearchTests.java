@@ -1149,7 +1149,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     @Test // see #3469
     public void testShardFailures() throws IOException, InterruptedException {
         Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", between(1,5)).put("index.number_of_replicas", between(0,3));
+        builder.put("index.number_of_shards", between(1, 5)).put("index.number_of_replicas", between(0, 2));
         builder.put("index.analysis.analyzer.suggest.tokenizer", "standard");
         builder.putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler");
         builder.put("index.analysis.filter.shingler.type", "shingle");

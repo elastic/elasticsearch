@@ -57,7 +57,7 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
         int docCount = atLeast(100);
 
         for (int i = 0; i < docCount; i++) {
-            index("test", "type", "" + docCount, jsonBuilder().startObject().endObject());
+            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
         }
 
         flush();

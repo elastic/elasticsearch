@@ -36,10 +36,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * {@link IndexShardRoutingTable} encapsulates all instances or a single shard.
- * Each ElasticSearch index consists of multiple shards each shards encapsulates
- * a disjoint set of the index data and earch shard has one more more instances
- * refered to as replicas of a shard. Given that, this class encapsulates all
+ * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
+ * Each ElasticSearch index consists of multiple shards, each shard encapsulates
+ * a disjoint set of the index data and each shard has one or more instances
+ * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
  */
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {

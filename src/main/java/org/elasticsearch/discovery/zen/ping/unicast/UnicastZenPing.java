@@ -193,7 +193,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             }
                         }
                     });
-                } catch (RejectedExecutionException ex)  {
+                } catch (RejectedExecutionException ex) {
                     logger.debug("Ping execution rejected", ex);
                 } catch (EsRejectedExecutionException ex) {
                     logger.debug("Ping execution rejected", ex);
@@ -223,7 +223,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         public Executor executor() {
             if (executor == null) {
                 ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
-                executor = EsExecutors.newScalingExecutorService(0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory);
+                executor = EsExecutors.newScaling(0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory);
             }
             return executor;
         }

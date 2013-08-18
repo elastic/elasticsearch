@@ -59,7 +59,7 @@ public class FsGateway extends BlobStoreGateway {
         }
 
         int concurrentStreams = componentSettings.getAsInt("concurrent_streams", 5);
-        this.concurrentStreamPool = EsExecutors.newScalingExecutorService(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
+        this.concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
 
         initialize(new FsBlobStore(componentSettings, concurrentStreamPool, gatewayFile), clusterName, null);
     }

@@ -112,51 +112,31 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     @Override
     public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            concreteIndices = clusterState.metaData().concreteAllOpenIndices();
-        }
-        if (routing != null) {
-            HashSet<ShardId> set = new HashSet<ShardId>();
-            for (String index : concreteIndices) {
-                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                Set<String> effectiveRouting = routing.get(index);
-                if (effectiveRouting != null) {
-                    for (String r : effectiveRouting) {
-                        int shardId = shardId(clusterState, index, null, null, r);
-                        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-                        if (indexShard == null) {
-                            throw new IndexShardMissingException(new ShardId(index, shardId));
-                        }
-                        // we might get duplicates, but that's ok, its an estimated count? (we just want to know if its 1 or not)
-                        set.add(indexShard.shardId());
-                    }
-                } else {
-                    for (IndexShardRoutingTable indexShard : indexRouting) {
-                        set.add(indexShard.shardId());
-                    }
-                }
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, indices, concreteIndices, routing);
+        return shards.size();
+    }
+
+    @Override
+    public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, indices, concreteIndices, routing);
+        final Set<ShardIterator> set = new HashSet<ShardIterator>(shards.size());
+        for (IndexShardRoutingTable shard : shards) {
+            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+            if (iterator != null) {
+                set.add(iterator);
             }
-            return set.size();
-        } else {
-            // we use list here since we know we are not going to create duplicates
-            int count = 0;
-            for (String index : concreteIndices) {
-                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                count += indexRouting.shards().size();
-            }
-            return count;
         }
+        return new GroupShardsIterator(set);
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    @Override
-    public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
+    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllOpenIndices();
         }
-        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map 
-        final Set<ShardIterator> set = new HashSet<ShardIterator>();
+        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
+        final Set<IndexShardRoutingTable> set = new HashSet<IndexShardRoutingTable>();
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
@@ -169,21 +149,15 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                         throw new IndexShardMissingException(new ShardId(index, shardId));
                     }
                     // we might get duplicates, but that's ok, they will override one another
-                    ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
-                    if (iterator != null) {
-                        set.add(iterator);
-                    }
+                    set.add(indexShard);
                 }
             } else {
                 for (IndexShardRoutingTable indexShard : indexRouting) {
-                    ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
-                    if (iterator != null) {
-                        set.add(iterator);
-                    }
+                    set.add(indexShard);
                 }
             }
         }
-        return new GroupShardsIterator(set);
+        return set;
     }
 
     private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId, DiscoveryNodes nodes, @Nullable String preference) {

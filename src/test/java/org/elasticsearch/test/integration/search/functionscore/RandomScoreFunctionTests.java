@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.integration.search.functionscore;
 
-import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
@@ -33,60 +33,49 @@ import java.util.Arrays;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
 
-    @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
-                .put("index.number_of_shards", 5)
-                .put("index.number_of_replicas", 2)
-                .build();
-    }
-
-    @Override
-    protected int numberOfNodes() {
-        return 3;
-    }
-
     @Test
     public void consistentHitsWithSameSeed() throws Exception {
-        prepareCreate("test").execute().actionGet();
-        ensureGreen();
-
+        final int replicas = between(0,2); // needed for green status!
+        cluster().ensureAtLeastNumNodes(replicas+1);
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.builder().put("index.number_of_shards", between(2, 5))
+                        .put("index.number_of_replicas", replicas)
+                                .build()));
+        ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = atLeast(100);
-
         for (int i = 0; i < docCount; i++) {
             index("test", "type", "" + i, jsonBuilder().startObject().endObject());
         }
-
         flush();
-
-        long seed = System.nanoTime();
-        String preference = _TestUtil.randomRealisticUnicodeString(getRandom());
-
-        float[] scores = null;
-
-        for (int i = 0; i < 3; i++) {
-
-            SearchResponse searchResponse = client().prepareSearch()
-                    .setPreference(preference)
-                    .setQuery(functionScoreQuery(matchAllQuery()).add(new RandomScoreFunctionBuilder().seed(seed)))
-                    .execute().actionGet();
-
-            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
-
-            int hitCount = searchResponse.getHits().getHits().length;
-
-            if (scores == null) {
-
-                scores = new float[hitCount];
-                for (int j = 0; j < hitCount; j++) {
-                    scores[j] = searchResponse.getHits().getAt(j).score();
-                }
-            } else {
-                for (int j = 0; j < hitCount; j++) {
-                    assertThat(searchResponse.getHits().getAt(j).score(), CoreMatchers.equalTo(scores[j]));
+        int outerIters = atLeast(10);
+        for (int o = 0; o < outerIters; o++) {
+            final long seed = randomLong();
+            final String preference = randomRealisticUnicodeOfLengthBetween(1, 10); // at least one char!!
+            int innerIters = atLeast(2);
+            SearchHits hits = null;
+            for (int i = 0; i < innerIters; i++) {
+                SearchResponse searchResponse = client().prepareSearch()
+                        .setPreference(preference)
+                        .setQuery(functionScoreQuery(matchAllQuery()).add(new RandomScoreFunctionBuilder().seed(seed)))
+                        .execute().actionGet();
+                assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
+                int hitCount = searchResponse.getHits().getHits().length;
+                if (i == 0) {
+                    assertThat(hits, nullValue());
+                    hits = searchResponse.getHits();
+                } else {
+                    assertThat(hits.getHits().length, equalTo(searchResponse.getHits().getHits().length));
+                    for (int j = 0; j < hitCount; j++) {
+                        assertThat(searchResponse.getHits().getAt(j).score(), equalTo(hits.getAt(j).score()));
+                        assertThat(searchResponse.getHits().getAt(j).id(), equalTo(hits.getAt(j).id()));
+                    }
                 }
             }
         }

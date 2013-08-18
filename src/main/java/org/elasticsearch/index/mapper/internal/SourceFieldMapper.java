@@ -79,8 +79,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             FIELD_TYPE.freeze();
         }
 
-        public static final String[] INCLUDES = Strings.EMPTY_ARRAY;
-        public static final String[] EXCLUDES = Strings.EMPTY_ARRAY;
     }
 
     public static class Builder extends Mapper.Builder<Builder, SourceFieldMapper> {
@@ -93,8 +91,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
         private String format = Defaults.FORMAT;
 
-        private String[] includes = Defaults.INCLUDES;
-        private String[] excludes = Defaults.EXCLUDES;
+        private String[] includes = null;
+        private String[] excludes = null;
 
         public Builder() {
             super(Defaults.NAME);
@@ -192,7 +190,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     private XContentType formatContentType;
 
     public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, Defaults.INCLUDES, Defaults.EXCLUDES);
+        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null);
     }
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
@@ -213,12 +211,12 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     public String[] excludes() {
-        return this.excludes;
+        return this.excludes != null ? this.excludes : Strings.EMPTY_ARRAY;
 
     }
 
     public String[] includes() {
-        return this.includes;
+        return this.includes != null ? this.includes : Strings.EMPTY_ARRAY;
     }
 
     @Override
@@ -267,7 +265,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         }
         BytesReference source = context.source();
 
-        boolean filtered = includes.length > 0 || excludes.length > 0;
+        boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
         if (filtered) {
             // we don't update the context source if we filter, we want to keep it as is...
 
@@ -368,7 +366,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes.length == 0 && excludes.length == 0) {
+        if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes == null && excludes == null) {
             return builder;
         }
         builder.startObject(contentType());
@@ -384,10 +382,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
         }
-        if (includes.length > 0) {
+        if (includes != null) {
             builder.field("includes", includes);
         }
-        if (excludes.length > 0) {
+        if (excludes != null) {
             builder.field("excludes", excludes);
         }
         builder.endObject();

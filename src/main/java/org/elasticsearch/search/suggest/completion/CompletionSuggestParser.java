@@ -51,6 +51,19 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 if (!parseSuggestContext(parser, mapperService, fieldName, suggestion))  {
                     if (token == XContentParser.Token.VALUE_BOOLEAN && "fuzzy".equals(fieldName)) {
                         suggestion.setFuzzy(parser.booleanValue());
+                    } else if (token == XContentParser.Token.VALUE_STRING && "score_mode".equals(fieldName) || "scoreMode".equals(fieldName)) {
+                        String sScoreMode = parser.text();
+                        if ("max".equals(sScoreMode)) {
+                            suggestion.setScoreMode(CompletionSuggestionContext.ScoreMode.Max);
+                        } else if ("min".equals(sScoreMode)) {
+                            suggestion.setScoreMode(CompletionSuggestionContext.ScoreMode.Min);
+                        } else if ("total".equals(sScoreMode) || "sum".equals(sScoreMode)) {
+                            suggestion.setScoreMode(CompletionSuggestionContext.ScoreMode.Total);
+                        } else if ("product".equals(sScoreMode) || "multiply".equals(sScoreMode)) {
+                            suggestion.setScoreMode(CompletionSuggestionContext.ScoreMode.Multiply);
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
+                        }
                     }
                 }
             } else if (token == XContentParser.Token.START_OBJECT && "fuzzy".equals(fieldName)) {

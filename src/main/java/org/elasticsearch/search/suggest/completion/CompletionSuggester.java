@@ -74,11 +74,11 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     final Option value = results.get(key);
                     if (value == null) {
                         final Option option = new CompletionSuggestion.Entry.Option(new StringText(key), score, res.payload == null ? null
-                                : new BytesArray(res.payload));
+                                : new BytesArray(res.payload), suggestionContext.getScoreMode());
                         results.put(key, option);
-                    } else if (value.getScore() < score) {
-                        value.setScore(score);
-                        value.setPayload(res.payload == null ? null : new BytesArray(res.payload));
+                    } else {
+                            value.setScore(suggestionContext.getScoreMode().combine(score, value.getScore()));
+                            value.setPayload(res.payload == null ? null : new BytesArray(res.payload));
                     }
                 }
             }

@@ -34,6 +34,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
 
     public static final int TYPE = 2;
 
+
     public CompletionSuggestion() {
     }
 
@@ -68,10 +69,12 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
 
         public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
             private BytesReference payload;
+            private CompletionSuggestionContext.ScoreMode scoreMode;
 
-            public Option(Text text, float score,BytesReference payload) {
+            public Option(Text text, float score, BytesReference payload, CompletionSuggestionContext.ScoreMode scoreMode) {
                 super(text, score);
                 this.payload = payload;
+                this.scoreMode = scoreMode;
             }
             
 
@@ -92,6 +95,11 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             }
 
             @Override
+            public void mergeInto(org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option otherOption) {
+                super.setScore(scoreMode.combine(super.getScore(), otherOption.getScore()));
+            }
+
+            @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                 super.innerToXContent(builder, params);
                 if (payload != null && payload.length() > 0) {
@@ -104,12 +112,14 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             public void readFrom(StreamInput in) throws IOException {
                 super.readFrom(in);
                 payload = in.readBytesReference();
+                scoreMode = CompletionSuggestionContext.ScoreMode.fromOrd(in.readVInt());
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
                 out.writeBytesReference(payload);
+                out.writeVInt(scoreMode.ordinal());
             }
         }
     }

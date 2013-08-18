@@ -579,7 +579,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     builder.field(Fields.SCORE, score);
                     return builder;
                 }
-                
+
                 protected void mergeInto(Option otherOption) {
                     score = Math.max(score, otherOption.score);
                 }

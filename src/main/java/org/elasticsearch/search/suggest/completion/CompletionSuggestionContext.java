@@ -28,12 +28,71 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
  */
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
+    public static enum ScoreMode {
+        Max {
+            @Override
+            public float combine(float primary, float secondary) {
+                return Math.max(primary, secondary);
+            }
+            @Override
+            public String toString() {
+                return "max";
+            }
+        },
+        Min {
+            @Override
+            public float combine(float primary, float secondary) {
+                return Math.min(primary, secondary);
+            }
+            @Override
+            public String toString() {
+                return "min";
+            }
+        },
+        Total {
+            @Override
+            public float combine(float primary, float secondary) {
+                return primary + secondary;
+            }
+            @Override
+            public String toString() {
+                return "sum";
+            }
+        },
+        Multiply {
+            @Override
+            public float combine(float primary, float secondary) {
+                return primary * secondary;
+            }
+            @Override
+            public String toString() {
+                return "product";
+            }
+        };
+
+        public abstract float combine(float primary, float secondary);
+
+        public static ScoreMode fromOrd(int ord) {
+            switch (ord) {
+                case 1:
+                    return Min;
+                case 2:
+                    return Total;
+                case 3:
+                    return Multiply;
+                default:
+                    return Max;
+            }
+        }
+    }
+
     private FieldMapper<?> mapper;
     private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
     private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
     private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
     private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
     private boolean fuzzy = false;
+    private ScoreMode scoreMode = ScoreMode.Max;
 
     public CompletionSuggestionContext(Suggester suggester) {
         super(suggester);
@@ -85,5 +144,13 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     public boolean isFuzzy() {
         return fuzzy;
+    }
+
+    public void setScoreMode(ScoreMode scoreMode) {
+        this.scoreMode = scoreMode;
+    }
+
+    public ScoreMode getScoreMode() {
+        return scoreMode;
     }
 }

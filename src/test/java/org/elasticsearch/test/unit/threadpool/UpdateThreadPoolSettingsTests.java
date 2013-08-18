@@ -21,7 +21,6 @@ package org.elasticsearch.test.unit.threadpool;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -102,7 +101,6 @@ public class UpdateThreadPoolSettingsTests {
     @Test
     public void testFixedExecutorType() {
         ThreadPool threadPool = new ThreadPool(settingsBuilder().put("threadpool.search.type", "fixed").build(), null);
-        assertThat(info(threadPool, Names.SEARCH).getRejectSetting(), equalTo("abort"));
         assertThat(info(threadPool, Names.SEARCH).getQueueType(), equalTo("linked"));
         assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
 
@@ -168,17 +166,6 @@ public class UpdateThreadPoolSettingsTests {
         assertThat(info(threadPool, Names.SEARCH).getQueueType(), equalTo("array"));
         assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue(), instanceOf(ArrayBlockingQueue.class));
 
-        // Change rejection policy
-        oldExecutor = threadPool.executor(Names.SEARCH);
-        assertThat(info(threadPool, Names.SEARCH).getRejectSetting(), equalTo("abort"));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getRejectedExecutionHandler(), instanceOf(EsAbortPolicy.class));
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.reject_policy", "caller").build());
-        // Make sure rejection handler changed
-        assertThat(info(threadPool, Names.SEARCH).getRejectSetting(), equalTo("caller"));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getRejectedExecutionHandler(), instanceOf(ThreadPoolExecutor.CallerRunsPolicy.class));
-        // Make sure executor didn't change
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
         threadPool.shutdown();
     }
 
@@ -211,73 +198,6 @@ public class UpdateThreadPoolSettingsTests {
         assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
         assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
         assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        threadPool.shutdown();
-    }
-
-    @Test
-    public void testBlockingExecutorType() {
-        ThreadPool threadPool = new ThreadPool(settingsBuilder().put("threadpool.search.type", "blocking").put("threadpool.search.size", "10").build(), null);
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(1));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(10));
-        assertThat(info(threadPool, Names.SEARCH).getQueueSize().singles(), equalTo(1000L));
-        assertThat(info(threadPool, Names.SEARCH).getWaitTime().minutes(), equalTo(1L));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Replace with different type
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "scaling")
-                .put("threadpool.search.keep_alive", "10m")
-                .put("threadpool.search.min", "2")
-                .put("threadpool.search.size", "15")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("scaling"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(2));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(15));
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(2));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(15));
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
-
-        // Put old type back
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "blocking")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("blocking"));
-        // Make sure keep alive value is not used
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        // Make sure keep pool size value were reused
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(2));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(15));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(2));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(15));
-
-        // Change size
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.size", "10").put("threadpool.search.min", "5").build());
-        // Make sure size values changed
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(5));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(10));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(5));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(10));
-        // Make sure executor didn't change
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("blocking"));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        // Change queue capacity
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.queue_size", "500")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getQueueSize().singles(), equalTo(500L));
-
-        // Change wait time capacity
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.wait_time", "2m")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getWaitTime().minutes(), equalTo(2L));
 
         threadPool.shutdown();
     }

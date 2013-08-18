@@ -126,16 +126,21 @@ launch_service()
         es_parms="$es_parms -Des.foreground=yes"
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                 org.elasticsearch.bootstrap.ElasticSearch
-        execval=$?
+        # exec without running it in the background, makes it replace this shell, we'll never get here...
+        # this was the last line of the script.
     else
         # Startup ElasticSearch, background it, and write the pid.
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
-        execval=$?
-        [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
+        # exec with running it in the background, therefore we will continue this script here...
+        rval=$?
+        if [ "$rval" -eq 0 -a ! -z "$pidpath" ]; then
+            printf '%d' $! > "$pidpath"
+            rval=$?
+        fi
     fi
 
-    return $execval
+    return $rval
 }
 
 # Parse any command line options.

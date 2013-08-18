@@ -121,7 +121,9 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
     public void updateIncludeExclude() throws Exception {
         createIndexMapped("test", "type", "normal", "long", "exclude", "long", "include", "long");
 
-        logger.info("Index doc 1");
+        ensureGreen(); // make sure that replicas are initialized so the refresh command will work them too
+
+        logger.info("Index doc");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
                 .field("normal", 1).field("exclude", 1).field("include", 1)
                 .endObject()
@@ -139,18 +141,27 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
 
         assertTrue(putResponse.isAcknowledged());
 
-        logger.info("Index doc 2");
-        index("test", "type", "2", JsonXContent.contentBuilder().startObject()
+        // changed mapping doesn't affect indexed documents (checking backward compatibility)
+        GetResponse getResponse = client().prepareGet("test", "type", "1").setRealtime(false).get();
+        assertThat(getResponse.getSource(), hasKey("normal"));
+        assertThat(getResponse.getSource(), hasKey("exclude"));
+        assertThat(getResponse.getSource(), hasKey("include"));
+
+
+        logger.info("Index doc again");
+        index("test", "type", "1", JsonXContent.contentBuilder().startObject()
                 .field("normal", 2).field("exclude", 1).field("include", 2)
                 .endObject()
         );
 
-        GetResponse getResponse = get("test", "type", "2");
+        // but do affect newly indexed docs
+        getResponse = get("test", "type", "1");
         assertThat(getResponse.getSource(), hasKey("normal"));
         assertThat(getResponse.getSource(), not(hasKey("exclude")));
         assertThat(getResponse.getSource(), hasKey("include"));
 
 
+        logger.info("Changing mapping to includes");
         putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
                 JsonXContent.contentBuilder().startObject().startObject("type")
                         .startObject("_source")
@@ -163,18 +174,42 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         MappingMetaData typeMapping = clusterStateResponse.getState().metaData().index("test").getMappings().get("type");
         assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("includes"));
-        assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), not(hasKey("excludes")));
+        ArrayList<String> includes = (ArrayList<String>) ((Map<String, Object>) typeMapping.getSourceAsMap().get("_source")).get("includes");
+        assertThat(includes, contains("include"));
+        assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("excludes"));
+        assertThat((ArrayList<String>) ((Map<String, Object>) typeMapping.getSourceAsMap().get("_source")).get("excludes"), emptyIterable());
 
 
-        index("test", "type", "3", JsonXContent.contentBuilder().startObject()
+        logger.info("Indexing doc yet again");
+        index("test", "type", "1", JsonXContent.contentBuilder().startObject()
                 .field("normal", 3).field("exclude", 3).field("include", 3)
                 .endObject()
         );
 
-        getResponse = get("test", "type", "3");
+        getResponse = get("test", "type", "1");
         assertThat(getResponse.getSource(), not(hasKey("normal")));
         assertThat(getResponse.getSource(), not(hasKey("exclude")));
         assertThat(getResponse.getSource(), hasKey("include"));
+
+
+        logger.info("Adding excludes, but keep includes");
+        putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
+                JsonXContent.contentBuilder().startObject().startObject("type")
+                        .startObject("_source")
+                        .startArray("excludes").value("*.excludes").endArray()
+                        .endObject().endObject()
+        ).get();
+        assertTrue(putResponse.isAcknowledged());
+
+        clusterStateResponse = client().admin().cluster().prepareState().get();
+        typeMapping = clusterStateResponse.getState().metaData().index("test").getMappings().get("type");
+        assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("includes"));
+        includes = (ArrayList<String>) ((Map<String, Object>) typeMapping.getSourceAsMap().get("_source")).get("includes");
+        assertThat(includes, contains("include"));
+        assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("excludes"));
+        ArrayList<String> excludes = (ArrayList<String>) ((Map<String, Object>) typeMapping.getSourceAsMap().get("_source")).get("excludes");
+        assertThat(excludes, contains("*.excludes"));
+
 
     }
 

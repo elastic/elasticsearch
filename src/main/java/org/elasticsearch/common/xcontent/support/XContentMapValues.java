@@ -136,7 +136,7 @@ public class XContentMapValues {
 
     public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
         Map<String, Object> result = Maps.newHashMap();
-        filter(map, result, includes, excludes, new StringBuilder());
+        filter(map, result, includes == null ? Strings.EMPTY_ARRAY : includes, excludes == null ? Strings.EMPTY_ARRAY : excludes, new StringBuilder());
         return result;
     }
 

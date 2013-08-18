@@ -43,11 +43,11 @@ public class RecoverySettings extends AbstractComponent {
     public static final String INDICES_RECOVERY_COMPRESS = "indices.recovery.compress";
     public static final String INDICES_RECOVERY_CONCURRENT_STREAMS = "indices.recovery.concurrent_streams";
     public static final String INDICES_RECOVERY_MAX_BYTES_PER_SEC = "indices.recovery.max_bytes_per_sec";
-    
+
     /**
      * Use {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC} instead
      */
-    @Deprecated 
+    @Deprecated
     public static final String INDICES_RECOVERY_MAX_SIZE_PER_SEC = "indices.recovery.max_size_per_sec";
 
     private volatile ByteSizeValue fileChunkSize;
@@ -72,7 +72,7 @@ public class RecoverySettings extends AbstractComponent {
         this.compress = componentSettings.getAsBoolean("compress", true);
 
         this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
-        this.concurrentStreamPool = EsExecutors.newScalingExecutorService(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
+        this.concurrentStreamPool = EsExecutors.newScaling(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
         this.maxBytesPerSec = componentSettings.getAsBytesSize("max_bytes_per_sec", componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB)));
         if (maxBytesPerSec.bytes() <= 0) {

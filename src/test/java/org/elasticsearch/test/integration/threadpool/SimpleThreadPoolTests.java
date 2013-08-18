@@ -21,13 +21,12 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
 public class SimpleThreadPoolTests extends AbstractNodesTests {
-    
+
     private Client client1;
 
     private Client client2;
@@ -97,7 +96,6 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
                 if (info.getName().equals(Names.SEARCH)) {
                     assertThat(info.getType(), equalTo("fixed"));
-                    assertThat(info.getRejectSetting(), equalTo("abort"));
                     assertThat(info.getQueueType(), equalTo("linked"));
                     found = true;
                     break;
@@ -106,39 +104,8 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
             assertThat(found, equalTo(true));
 
             Map<String, Object> poolMap = getPoolSettingsThroughJson(nodeInfo.getThreadPool(), Names.SEARCH);
-            assertThat(poolMap.get("reject_policy").toString(), equalTo("abort"));
             assertThat(poolMap.get("queue_type").toString(), equalTo("linked"));
         }
-
-        client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put("threadpool.search.type", "blocking")
-                .put("threadpool.search.wait_time", "10s")
-                .put("threadpool.search.keep_alive", "15s")
-                .put("threadpool.search.capacity", "100")
-                .build()).execute().actionGet();
-        Thread.sleep(200);
-        nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
-        for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
-            boolean found = false;
-            for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
-                if (info.getName().equals(Names.SEARCH)) {
-                    assertThat(info.getType(), equalTo("blocking"));
-                    assertThat(info.getQueueSize().singles(), equalTo(100L));
-                    assertThat(info.getWaitTime().seconds(), equalTo(10L));
-                    assertThat(info.getKeepAlive().seconds(), equalTo(15L));
-                    found = true;
-                    break;
-                }
-            }
-            assertThat(found, equalTo(true));
-
-            Map<String, Object> poolMap = getPoolSettingsThroughJson(nodeInfo.getThreadPool(), Names.SEARCH);
-            assertThat(poolMap.get("queue_size").toString(), equalTo("100"));
-            assertThat(poolMap.get("wait_time").toString(), equalTo("10s"));
-            assertThat(poolMap.get("keep_alive").toString(), equalTo("15s"));
-        }
-
     }
 
     private Map<String, Object> getPoolSettingsThroughJson(ThreadPoolInfo info, String poolName) throws IOException {

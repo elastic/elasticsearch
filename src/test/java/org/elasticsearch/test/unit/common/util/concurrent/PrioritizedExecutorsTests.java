@@ -58,7 +58,7 @@ public class PrioritizedExecutorsTests {
 
     @Test
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(7);
@@ -85,7 +85,7 @@ public class PrioritizedExecutorsTests {
 
     @Test
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(7);
@@ -112,7 +112,7 @@ public class PrioritizedExecutorsTests {
 
     @Test
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(7);
@@ -139,7 +139,7 @@ public class PrioritizedExecutorsTests {
 
     @Test
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(7);
@@ -167,7 +167,7 @@ public class PrioritizedExecutorsTests {
     @Test
     public void testTimeout() throws Exception {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
-        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
         final CountDownLatch block = new CountDownLatch(1);
         executor.execute(new Runnable() {
             @Override

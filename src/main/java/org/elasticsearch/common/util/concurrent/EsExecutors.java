@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import jsr166y.LinkedTransferQueue;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;
@@ -31,28 +30,28 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class EsExecutors {
 
-    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizingThreadExecutor(ThreadFactory threadFactory) {
+    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(ThreadFactory threadFactory) {
         return new PrioritizedEsThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory);
     }
 
-    public static EsThreadPoolExecutor newScalingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
-                                                                 ThreadFactory threadFactory) {
+    public static EsThreadPoolExecutor newScaling(int min, int max, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<Runnable>();
         // we force the execution, since we might run into concurrency issues in offer for ScalingBlockingQueue
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
-                new ForceQueuePolicy());
+        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy());
         queue.executor = executor;
         return executor;
     }
 
-    public static EsThreadPoolExecutor newBlockingExecutorService(int min, int max, long keepAliveTime, TimeUnit unit,
-                                                                  ThreadFactory threadFactory, int capacity,
-                                                                  long waitTime, TimeUnit waitTimeUnit) {
-        ExecutorBlockingQueue<Runnable> queue = new ExecutorBlockingQueue<Runnable>(capacity);
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(min, max, keepAliveTime, unit, queue, threadFactory,
-                new TimedBlockingPolicy(waitTimeUnit.toMillis(waitTime)));
-        queue.executor = executor;
-        return executor;
+    public static EsThreadPoolExecutor newCached(long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
+        return new EsThreadPoolExecutor(0, Integer.MAX_VALUE, keepAliveTime, unit, new SynchronousQueue<Runnable>(), threadFactory);
+    }
+
+    public static EsThreadPoolExecutor newFixed(int size, BlockingQueue<Runnable> queue, ThreadFactory threadFactory) {
+        return new EsThreadPoolExecutor(size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy());
+    }
+
+    public static EsThreadPoolExecutor newFixed(int size, BlockingQueue<Runnable> queue, ThreadFactory threadFactory, XRejectedExecutionHandler rejectedExecutionHandler) {
+        return new EsThreadPoolExecutor(size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, rejectedExecutionHandler);
     }
 
     public static String threadName(Settings settings, String namePrefix) {
@@ -110,8 +109,8 @@ public class EsExecutors {
 
         @Override
         public boolean offer(E e) {
-            int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
             if (!tryTransfer(e)) {
+                int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
                 if (left > 0) {
                     return false;
                 } else {
@@ -123,27 +122,11 @@ public class EsExecutors {
         }
     }
 
-    static class ExecutorBlockingQueue<E> extends ArrayBlockingQueue<E> {
-
-        ThreadPoolExecutor executor;
-
-        ExecutorBlockingQueue(int capacity) {
-            super(capacity);
-        }
-
-        @Override
-        public boolean offer(E o) {
-            int allWorkingThreads = executor.getActiveCount() + super.size();
-            return allWorkingThreads < executor.getPoolSize() && super.offer(o);
-        }
-    }
-
-
     /**
      * A handler for rejected tasks that adds the specified element to this queue,
      * waiting if necessary for space to become available.
      */
-    static class ForceQueuePolicy implements RejectedExecutionHandler {
+    static class ForceQueuePolicy implements XRejectedExecutionHandler {
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
                 executor.getQueue().put(r);
@@ -152,40 +135,10 @@ public class EsExecutors {
                 throw new EsRejectedExecutionException(e);
             }
         }
-    }
-
-    /**
-     * A handler for rejected tasks that inserts the specified element into this
-     * queue, waiting if necessary up to the specified wait time for space to become
-     * available.
-     */
-    static class TimedBlockingPolicy implements XRejectedExecutionHandler {
-
-        private final CounterMetric rejected = new CounterMetric();
-        private final long waitTime;
-
-        /**
-         * @param waitTime wait time in milliseconds for space to become available.
-         */
-        public TimedBlockingPolicy(long waitTime) {
-            this.waitTime = waitTime;
-        }
-
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            try {
-                boolean successful = executor.getQueue().offer(r, waitTime, TimeUnit.MILLISECONDS);
-                if (!successful) {
-                    rejected.inc();
-                    throw new EsRejectedExecutionException();
-                }
-            } catch (InterruptedException e) {
-                throw new EsRejectedExecutionException(e);
-            }
-        }
 
         @Override
         public long rejected() {
-            return rejected.count();
+            return 0;
         }
     }
 }

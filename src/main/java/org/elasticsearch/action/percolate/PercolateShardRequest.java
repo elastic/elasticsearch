@@ -4,6 +4,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -19,8 +20,20 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     public PercolateShardRequest() {
     }
 
+    public PercolateShardRequest(String index, int shardId) {
+        super(index, shardId);
+    }
+
     public PercolateShardRequest(String index, int shardId, PercolateRequest request) {
         super(index, shardId, request);
+        this.documentType = request.documentType();
+        this.source = request.source();
+        this.docSource = request.docSource();
+        this.onlyCount = request.onlyCount();
+    }
+
+    public PercolateShardRequest(ShardId shardId, PercolateRequest request) {
+        super(shardId.index().name(), shardId.id());
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
@@ -41,6 +54,22 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
 
     public boolean onlyCount() {
         return onlyCount;
+    }
+
+    void documentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    void source(BytesReference source) {
+        this.source = source;
+    }
+
+    void docSource(BytesReference docSource) {
+        this.docSource = docSource;
+    }
+
+    void onlyCount(boolean onlyCount) {
+        this.onlyCount = onlyCount;
     }
 
     @Override

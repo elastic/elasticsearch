@@ -120,10 +120,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
-import org.elasticsearch.action.percolate.MultiPercolateAction;
-import org.elasticsearch.action.percolate.PercolateAction;
-import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
-import org.elasticsearch.action.percolate.TransportPercolateAction;
+import org.elasticsearch.action.percolate.*;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.suggest.SuggestAction;
@@ -253,7 +250,7 @@ public class ActionModule extends AbstractModule {
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         registerAction(MoreLikeThisAction.INSTANCE, TransportMoreLikeThisAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
+        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.

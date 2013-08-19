@@ -217,10 +217,11 @@ public class PercolatorService extends AbstractComponent {
         XContentParser parser = null;
 
         // Some queries (function_score query when for decay functions) rely on SearchContext being set:
-        SearchContext.setCurrent(new SearchContext(0,
+        SearchContext searchContext = new SearchContext(0,
                 new ShardSearchRequest().types(new String[0]),
                 null, context.indexShard.searcher(), context.percolateIndexService, context.indexShard,
-                null, null));
+                null, null);
+        SearchContext.setCurrent(searchContext);
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             String currentFieldName = null;
@@ -271,7 +272,7 @@ public class PercolatorService extends AbstractComponent {
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to parse request", e);
         } finally {
-            SearchContext.current().release();
+            searchContext.release();
             SearchContext.removeCurrent();
             if (parser != null) {
                 parser.close();

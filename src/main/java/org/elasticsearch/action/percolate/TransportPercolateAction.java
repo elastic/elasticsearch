@@ -120,6 +120,10 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected PercolateResponse newResponse(PercolateRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        return reduce(request, shardsResponses, percolatorService);
+    }
+
+    public static PercolateResponse reduce(PercolateRequest request, AtomicReferenceArray shardsResponses, PercolatorService percolatorService) {
         int successfulShards = 0;
         int failedShards = 0;
 

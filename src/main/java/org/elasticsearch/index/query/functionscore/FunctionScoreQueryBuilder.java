@@ -44,6 +44,8 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     private Float maxBoost;
 
     private String scoreMode;
+    
+    private String boostMode;
 
     private ArrayList<FilterBuilder> filters = new ArrayList<FilterBuilder>();
     private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<ScoreFunctionBuilder>();
@@ -72,6 +74,11 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
 
     public FunctionScoreQueryBuilder scoreMode(String scoreMode) {
         this.scoreMode = scoreMode;
+        return this;
+    }
+    
+    public FunctionScoreQueryBuilder boostMode(String boostMode) {
+        this.boostMode = boostMode;
         return this;
     }
 
@@ -123,6 +130,9 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         }
         if (scoreMode != null) {
             builder.field("score_mode", scoreMode);
+        }
+        if (boostMode != null) {
+            builder.field("boost_mode", boostMode);
         }
         if (maxBoost != null) {
             builder.field("max_boost", maxBoost);

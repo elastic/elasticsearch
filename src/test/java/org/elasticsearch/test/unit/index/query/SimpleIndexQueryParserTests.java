@@ -56,7 +56,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
-import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
@@ -83,6 +82,7 @@ import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.RegexpFlag.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.Matchers.*;
 
@@ -1473,7 +1473,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     @Test
     public void testCustomBoostFactorQueryBuilder_withFunctionScore() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(functionScoreQuery(termQuery("name.last", "banon")).add(new FactorBuilder().boostFactor(1.3f))).query();
+        Query parsedQuery = queryParser.parse(functionScoreQuery(termQuery("name.last", "banon"), factorFunction(1.3f))).query();
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));

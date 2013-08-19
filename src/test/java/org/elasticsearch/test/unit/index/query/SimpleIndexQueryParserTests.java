@@ -20,7 +20,6 @@
 package org.elasticsearch.test.unit.index.query;
 
 
-
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BoostingQuery;
@@ -180,7 +179,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         builder.boost(2.0f);
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery.getBoost(), equalTo(4.0f));
-        
+
         builder = queryString("((field:boosted^2) AND (field:foo^1.5))^3");
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
@@ -193,7 +192,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery.getBoost(), equalTo(6.0f));
     }
-    
+
     @Test
     public void testQueryStringFields1Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
@@ -235,7 +234,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(true)).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
-        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        List<Query> disjuncts = disMaxQuery.getDisjuncts();
         assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
     }
@@ -247,7 +246,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
-        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        List<Query> disjuncts = disMaxQuery.getDisjuncts();
         assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
     }
@@ -258,7 +257,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(queryString("test").field("content", 2.2f).field("name").useDisMax(true)).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
-        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        List<Query> disjuncts = disMaxQuery.getDisjuncts();
         assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
         assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
@@ -272,7 +271,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
-        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        List<Query> disjuncts = disMaxQuery.getDisjuncts();
         assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
         assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
@@ -336,7 +335,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         assertThat((double) disjunctionMaxQuery.getBoost(), closeTo(1.2, 0.01));
 
-        List<Query> disjuncts = Queries.disMaxClauses(disjunctionMaxQuery);
+        List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
         assertThat(disjuncts.size(), equalTo(2));
 
         Query firstQ = disjuncts.get(0);
@@ -357,7 +356,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         assertThat((double) disjunctionMaxQuery.getBoost(), closeTo(1.2, 0.01));
 
-        List<Query> disjuncts = Queries.disMaxClauses(disjunctionMaxQuery);
+        List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
         assertThat(disjuncts.size(), equalTo(2));
 
         Query firstQ = disjuncts.get(0);
@@ -377,7 +376,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
 
-        List<Query> disjuncts = Queries.disMaxClauses(disjunctionMaxQuery);
+        List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
         assertThat(disjuncts.size(), equalTo(1));
 
         PrefixQuery firstQ = (PrefixQuery) disjuncts.get(0);
@@ -1233,19 +1232,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
 
     @Test
     public void testTermsQueryBuilder() throws IOException {
-      IndexQueryParserService queryParser = queryParser();
-      Query parsedQuery = queryParser.parse(termsQuery("name.first", Lists.newArrayList("shay", "test"))).query();
-      assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-      BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
-      BooleanClause[] clauses = booleanQuery.getClauses();
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(termsQuery("name.first", Lists.newArrayList("shay", "test"))).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        BooleanClause[] clauses = booleanQuery.getClauses();
 
-      assertThat(clauses.length, equalTo(2));
+        assertThat(clauses.length, equalTo(2));
 
-      assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-      assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
 
-      assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
-      assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
+        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
     @Test
@@ -1471,8 +1470,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
 
-    
-
     @Test
     public void testCustomBoostFactorQueryBuilder_withFunctionScore() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -1588,7 +1585,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(((SpanTermQuery) spanNearQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
         assertThat(spanNearQuery.isInOrder(), equalTo(false));
     }
-    
+
     @Test
     public void testFieldMaskingSpanQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -1599,11 +1596,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(spanNearQuery.getClauses().length, equalTo(3));
         assertThat(((SpanTermQuery) spanNearQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
         assertThat(((SpanTermQuery) spanNearQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
-        assertThat(((SpanTermQuery)((FieldMaskingSpanQuery) spanNearQuery.getClauses()[2]).getMaskedQuery()).getTerm(), equalTo(new Term("age_1", "36")));
+        assertThat(((SpanTermQuery) ((FieldMaskingSpanQuery) spanNearQuery.getClauses()[2]).getMaskedQuery()).getTerm(), equalTo(new Term("age_1", "36")));
         assertThat(spanNearQuery.isInOrder(), equalTo(false));
     }
-    
-    
+
 
     @Test
     public void testSpanOrQueryBuilder() throws IOException {
@@ -2246,7 +2242,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), nullValue());
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("2"));
     }
-    
+
     @Test(expected = QueryParsingException.class)
     public void assureMalformedThrowsException() throws IOException {
         IndexQueryParserService queryParser;
@@ -2255,7 +2251,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/faulty-function-score-query.json");
         Query parsedQuery = queryParser.parse(query).query();
     }
-    
+
     @Test
     public void testFilterParsing() throws IOException {
         IndexQueryParserService queryParser;
@@ -2263,6 +2259,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         String query;
         query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/function-filter-score-query.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat((double)(parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
+        assertThat((double) (parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
     }
 }

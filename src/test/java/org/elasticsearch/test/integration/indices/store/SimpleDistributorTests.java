@@ -20,20 +20,20 @@
 package org.elasticsearch.test.integration.indices.store;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -74,14 +74,14 @@ public class SimpleDistributorTests extends AbstractNodesTests {
         createIndexWithStoreType("node1", "test", "niofs", "least_used");
         String storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(least_used[rate_limited(niofs(" + dataPath1 ));
+        assertThat(storeString, startsWith("store(least_used[rate_limited(niofs(" + dataPath1));
         assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("node1", "test", "niofs", "random");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(random[rate_limited(niofs(" + dataPath1 ));
+        assertThat(storeString, startsWith("store(random[rate_limited(niofs(" + dataPath1));
         assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
@@ -107,7 +107,7 @@ public class SimpleDistributorTests extends AbstractNodesTests {
         createIndexWithoutRateLimitingStoreType("node1", "test", "niofs", "least_used");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(least_used[niofs(" + dataPath1 ));
+        assertThat(storeString, startsWith("store(least_used[niofs(" + dataPath1));
         assertThat(storeString, containsString("), niofs(" + dataPath2));
         assertThat(storeString, endsWith(")])"));
     }
@@ -126,8 +126,7 @@ public class SimpleDistributorTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                 )
                 .execute().actionGet();
-        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForGreenStatus()
-                .setTimeout(TimeValue.timeValueSeconds(5)).execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
     }
 
     private void createIndexWithoutRateLimitingStoreType(String nodeId, String index, String storeType, String distributor) {
@@ -145,8 +144,7 @@ public class SimpleDistributorTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                 )
                 .execute().actionGet();
-        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForGreenStatus()
-                .setTimeout(TimeValue.timeValueSeconds(5)).execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
     }
 
     private Directory getStoreDirectory(String nodeId, String index, int shardId) {

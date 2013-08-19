@@ -41,6 +41,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
     }
 
     public MultiPercolateResponse() {
+        this.items = new Item[0];
     }
 
     @Override
@@ -99,8 +100,11 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
         private PercolateResponse response;
         private String errorMessage;
 
-        public Item(PercolateResponse response, String errorMessage) {
+        public Item(PercolateResponse response) {
             this.response = response;
+        }
+
+        public Item(String errorMessage) {
             this.errorMessage = errorMessage;
         }
 

@@ -169,7 +169,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         }
                         ops[requestIndex] = result.op;
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
@@ -194,7 +194,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     // add the response
                     DeleteResponse deleteResponse = shardDeleteOperation(deleteRequest, indexShard).response();
                     responses[requestIndex] = new BulkItemResponse(item.id(), "delete", deleteResponse);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
@@ -279,12 +279,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             if (updateAttemptsCount >= updateRequest.retryOnConflict()) {
                                 // we can't try any more
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update",
-                                        new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(t)));;
+                                        new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                                ;
 
                                 request.items()[requestIndex] = null; // do not send to replicas
-                          }
-                        }
-                        else {
+                            }
+                        } else {
                             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                             if (retryPrimaryException(t)) {
                                 // restore updated versions...
@@ -343,7 +343,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         if (request.refresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // ignore
             }
         }
@@ -548,7 +548,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
                     PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
                     ((IndexResponse) itemResponse.getResponse()).setMatches(percolate.matches());
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to percolate [{}]", e, itemRequest.request());
                 }
             }
@@ -577,7 +577,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.create(create);
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     // ignore, we are on backup
                 }
             } else if (item.request() instanceof DeleteRequest) {
@@ -585,7 +585,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
                     Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     // ignore, we are on backup
                 }
             }
@@ -594,7 +594,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         if (request.refresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // ignore
             }
         }
@@ -624,7 +624,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     }
                 }
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.warn("failed to update master on updated mapping for index [{}], type [{}]", e, index, type);
         }
     }

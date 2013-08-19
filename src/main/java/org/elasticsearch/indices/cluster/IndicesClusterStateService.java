@@ -63,9 +63,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -91,6 +89,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     // a map of mappings type we have seen per index due to cluster state
     // we need this so we won't remove types automatically created as part of the indexing process
     private final ConcurrentMap<Tuple<String, String>, Boolean> seenMappings = ConcurrentCollections.newConcurrentMap();
+
+    // a list of shards that failed during recovery
+    // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
+    private final ConcurrentMap<ShardId, Long> failedShards = ConcurrentCollections.newConcurrentMap();
 
     private final Object mutex = new Object();
 
@@ -496,10 +498,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         RoutingTable routingTable = event.state().routingTable();
         RoutingNode routingNodes = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
         if (routingNodes == null) {
+            failedShards.clear();
             return;
         }
         DiscoveryNodes nodes = event.state().nodes();
 
+        cleanFailedShards(routingTable, nodes);
 
         for (final ShardRouting shardRouting : routingNodes) {
             final IndexService indexService = indicesService.indexService(shardRouting.index());
@@ -545,6 +549,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
+    private void cleanFailedShards(RoutingTable routingTable, DiscoveryNodes nodes) {
+        String localNodeId = nodes.localNodeId();
+        Iterator<Map.Entry<ShardId, Long>> iterator = failedShards.entrySet().iterator();
+        shards:
+        while (iterator.hasNext()) {
+            Map.Entry<ShardId, Long> entry = iterator.next();
+            IndexRoutingTable indexRoutingTable = routingTable.index(entry.getKey().getIndex());
+            if (indexRoutingTable != null) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(entry.getKey().id());
+                if (shardRoutingTable != null) {
+                    for (ShardRouting shardRouting : shardRoutingTable.assignedShards()) {
+                        if (localNodeId.equals(shardRouting.currentNodeId())) {
+                            if (shardRouting.version() == entry.getValue()) {
+                                // It's the same failed shard - keep it
+                                continue shards;
+                            } else {
+                                // Different version - remove it
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            iterator.remove();
+        }
+    }
+
     private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final IndexShardRoutingTable indexShardRouting, final ShardRouting shardRouting) throws ElasticSearchException {
         final IndexService indexService = indicesService.indexService(shardRouting.index());
         if (indexService == null) {
@@ -571,6 +602,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         // if there is no shard, create it
         if (!indexService.hasShard(shardId)) {
+            if (failedShards.containsKey(shardRouting.shardId())) {
+                // already tried to create this shard but it failed - ignore
+                logger.trace("[{}][{}] not initializing, this shards failed to recover on this node before, waiting for reassignment", shardRouting.index(), shardRouting.id());
+                return;
+            }
             try {
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}] creating shard", shardRouting.index(), shardId);
@@ -710,6 +746,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private void handleRecoveryFailure(IndexService indexService, ShardRouting shardRouting, boolean sendShardFailure, Throwable failure) {
         logger.warn("[{}][{}] failed to start shard", failure, indexService.index().name(), shardRouting.shardId().id());
         synchronized (mutex) {
+            failedShards.put(shardRouting.shardId(), shardRouting.version());
             if (indexService.hasShard(shardRouting.shardId().id())) {
                 try {
                     indexService.removeShard(shardRouting.shardId().id(), "recovery failure [" + ExceptionsHelper.detailedMessage(failure) + "]");

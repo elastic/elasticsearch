@@ -417,7 +417,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             threadPool.executor(executor).execute(new Runnable() {
                                 @Override
                                 public void run() {
-                                    performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                                    try {
+                                        performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                                    } catch (Throwable t) {
+                                        listener.onFailure(t);
+                                    }
                                 }
                             });
                         } else {

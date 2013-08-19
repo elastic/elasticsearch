@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -40,6 +39,7 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -482,9 +482,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         .queryRescorer(
                                 QueryBuilders.boolQuery()
                                     .disableCoord(true)
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.REPLACE.getName()))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("7.0f")).boostMode(CombineFunction.REPLACE.getName()))
-                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.0f")).boostMode(CombineFunction.REPLACE.getName())))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]), scriptFunction("5.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]), scriptFunction("7.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                    .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]), scriptFunction("0.0f")).boostMode(CombineFunction.REPLACE.getName())))
                         .setQueryWeight(primaryWeight)
                         .setRescoreQueryWeight(secondaryWeight);
 
@@ -497,10 +497,10 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         .setPreference("test") // ensure we hit the same shards for tie-breaking
                         .setQuery(QueryBuilders.boolQuery()
                                 .disableCoord(true)
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0])).add(new ScriptScoreFunctionBuilder().script("2.0f")).boostMode(CombineFunction.REPLACE.getName()))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1])).add(new ScriptScoreFunctionBuilder().script("3.0f")).boostMode(CombineFunction.REPLACE.getName()))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2])).add(new ScriptScoreFunctionBuilder().script("5.0f")).boostMode(CombineFunction.REPLACE.getName()))
-                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3])).add(new ScriptScoreFunctionBuilder().script("0.2f")).boostMode(CombineFunction.REPLACE.getName())))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[0]), scriptFunction("2.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[1]), scriptFunction("3.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[2]), scriptFunction("5.0f")).boostMode(CombineFunction.REPLACE.getName()))
+                                .should(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", intToEnglish[3]), scriptFunction("0.2f")).boostMode(CombineFunction.REPLACE.getName())))
                         .setFrom(0)
                         .setSize(10)
                         .setRescorer(rescoreQuery)

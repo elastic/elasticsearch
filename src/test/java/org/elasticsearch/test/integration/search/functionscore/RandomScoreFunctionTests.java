@@ -21,7 +21,6 @@ package org.elasticsearch.test.integration.search.functionscore;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.CoreMatchers;
@@ -33,6 +32,7 @@ import java.util.Arrays;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,7 +63,7 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
             for (int i = 0; i < innerIters; i++) {
                 SearchResponse searchResponse = client().prepareSearch()
                         .setPreference(preference)
-                        .setQuery(functionScoreQuery(matchAllQuery()).add(new RandomScoreFunctionBuilder().seed(seed)))
+                        .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
                         .execute().actionGet();
                 assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
                 int hitCount = searchResponse.getHits().getHits().length;
@@ -99,7 +99,7 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
         for (int i = 0; i < count; i++) {
 
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(functionScoreQuery(matchAllQuery()).add(new RandomScoreFunctionBuilder().seed(System.nanoTime())))
+                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(System.nanoTime())))
                     .execute().actionGet();
 
             matrix[Integer.valueOf(searchResponse.getHits().getAt(0).id())]++;

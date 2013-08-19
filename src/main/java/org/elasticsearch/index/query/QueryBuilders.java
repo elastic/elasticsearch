@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.util.Collection;
 
@@ -549,11 +550,29 @@ public abstract class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
         return new FunctionScoreQueryBuilder(queryBuilder);
     }
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param queryBuilder The query to custom score
+     * @param scoreFunctionBuilder The score function used to re-score the query
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
+        return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
+    }
     
     /**
      * A query that allows to define a custom scoring function.
      *
      * @param filterBuilder The query to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder, ScoreFunctionBuilder function) {
+        return (new FunctionScoreQueryBuilder(filterBuilder)).add(function);
+    }
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param filterBuilder The filterBuilder to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder) {
         return new FunctionScoreQueryBuilder(filterBuilder);

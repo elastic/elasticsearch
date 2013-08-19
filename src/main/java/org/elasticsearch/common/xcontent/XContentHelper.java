@@ -233,6 +233,9 @@ public class XContentHelper {
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();
                             if (processed.containsKey(entry.getKey())) {
                                 mergeDefaults(processed.get(entry.getKey()), map);
+                            } else {
+                                // put the default entries after the content ones.
+                                processed.put(entry.getKey(), map);
                             }
                         }
                         for (Map<String, Object> map : processed.values()) {

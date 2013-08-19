@@ -22,6 +22,8 @@ package org.elasticsearch.test.integration.routing;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,7 +32,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -273,8 +274,14 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
         }
     }
 
+    /*
+    See https://github.com/elasticsearch/elasticsearch/issues/2682
+    Searching on more than one index, if one of those is an alias with configured routing, the shards that belonged
+    to the other indices (without routing) were not taken into account in PlainOperationRouting#searchShards.
+    That affected the number of shards that we executed the search on, thus some documents were missing in the search results.
+     */
     @Test
-    public void testAliasSearchRoutingWithConcreteAndAliasedIndices() throws Exception {
+    public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue2682() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
         IndicesAliasesResponse res = run(admin().indices().prepareAliases()
@@ -291,6 +298,35 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareSearch("index_*").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
         }
+    }
+
+    /*
+    See https://github.com/elasticsearch/elasticsearch/pull/3268
+    Searching on more than one index, if one of those is an alias with configured routing, the shards that belonged
+    to the other indices (without routing) were not taken into account in PlainOperationRouting#searchShardsCount.
+    That could cause returning 1, which led to forcing the QUERY_AND_FETCH mode.
+    As a result, (size * number of hit shards) results were returned and no reduce phase was taking place.
+     */
+    @Test
+    public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue3268() throws Exception {
+        createIndex("index", "index_2");
+        ensureGreen();
+        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("index", "index_1").routing("1")));
+        assertThat(res.isAcknowledged(), equalTo(true));
+
+        logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
+        client().prepareIndex("index_1", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        logger.info("--> indexing on index_2 which is a concrete index");
+        client().prepareIndex("index_2", "type2", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("index_*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+
+        logger.info("--> search all on index_* should find two");
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2L));
+        //Let's make sure that, even though 2 docs are available, only one is returned according to the size we set in the request
+        //Therefore the reduce phase has taken place, which proves that the QUERY_AND_FETCH search type wasn't erroneously forced.
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
     }
 
     @Test

@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -69,19 +70,19 @@ public class AttachmentMapper implements Mapper {
 
         private Integer defaultIndexedChars = null;
 
-        private StringFieldMapper.Builder contentBuilder;
+        private Mapper.Builder contentBuilder;
 
-        private StringFieldMapper.Builder titleBuilder = stringField("title");
+        private Mapper.Builder titleBuilder = stringField("title");
 
-        private StringFieldMapper.Builder nameBuilder = stringField("name");
+        private Mapper.Builder nameBuilder = stringField("name");
 
-        private StringFieldMapper.Builder authorBuilder = stringField("author");
+        private Mapper.Builder authorBuilder = stringField("author");
 
-        private StringFieldMapper.Builder keywordsBuilder = stringField("keywords");
+        private Mapper.Builder keywordsBuilder = stringField("keywords");
 
-        private DateFieldMapper.Builder dateBuilder = dateField("date");
+        private Mapper.Builder dateBuilder = dateField("date");
 
-        private StringFieldMapper.Builder contentTypeBuilder = stringField("content_type");
+        private Mapper.Builder contentTypeBuilder = stringField("content_type");
 
         public Builder(String name) {
             super(name);
@@ -99,37 +100,37 @@ public class AttachmentMapper implements Mapper {
             return this;
         }
 
-        public Builder content(StringFieldMapper.Builder content) {
+        public Builder content(Mapper.Builder content) {
             this.contentBuilder = content;
             return this;
         }
 
-        public Builder date(DateFieldMapper.Builder date) {
+        public Builder date(Mapper.Builder date) {
             this.dateBuilder = date;
             return this;
         }
 
-        public Builder author(StringFieldMapper.Builder author) {
+        public Builder author(Mapper.Builder author) {
             this.authorBuilder = author;
             return this;
         }
 
-        public Builder title(StringFieldMapper.Builder title) {
+        public Builder title(Mapper.Builder title) {
             this.titleBuilder = title;
             return this;
         }
 
-        public Builder name(StringFieldMapper.Builder name) {
+        public Builder name(Mapper.Builder name) {
             this.nameBuilder = name;
             return this;
         }
 
-        public Builder keywords(StringFieldMapper.Builder keywords) {
+        public Builder keywords(Mapper.Builder keywords) {
             this.keywordsBuilder = keywords;
             return this;
         }
 
-        public Builder contentType(StringFieldMapper.Builder contentType) {
+        public Builder contentType(Mapper.Builder contentType) {
             this.contentTypeBuilder = contentType;
             return this;
         }
@@ -140,16 +141,16 @@ public class AttachmentMapper implements Mapper {
             context.path().pathType(pathType);
 
             // create the content mapper under the actual name
-            StringFieldMapper contentMapper = contentBuilder.build(context);
+            Mapper contentMapper = contentBuilder.build(context);
 
             // create the DC one under the name
             context.path().add(name);
-            DateFieldMapper dateMapper = dateBuilder.build(context);
-            StringFieldMapper authorMapper = authorBuilder.build(context);
-            StringFieldMapper titleMapper = titleBuilder.build(context);
-            StringFieldMapper nameMapper = nameBuilder.build(context);
-            StringFieldMapper keywordsMapper = keywordsBuilder.build(context);
-            StringFieldMapper contentTypeMapper = contentTypeBuilder.build(context);
+            Mapper dateMapper = dateBuilder.build(context);
+            Mapper authorMapper = authorBuilder.build(context);
+            Mapper titleMapper = titleBuilder.build(context);
+            Mapper nameMapper = nameBuilder.build(context);
+            Mapper keywordsMapper = keywordsBuilder.build(context);
+            Mapper contentTypeMapper = contentTypeBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
@@ -199,21 +200,30 @@ public class AttachmentMapper implements Mapper {
                         String propName = entry1.getKey();
                         Object propNode = entry1.getValue();
 
+                        // Check if we have a multifield here
+                        boolean isMultifield = false;
+                        if (propNode != null && propNode instanceof Map) {
+                            Object oType = ((Map<String, Object>) propNode).get("type");
+                            if (oType != null && oType.equals(MultiFieldMapper.CONTENT_TYPE)) {
+                                isMultifield = true;
+                            }
+                        }
+
                         if (name.equals(propName)) {
                             // that is the content
-                            builder.content((StringFieldMapper.Builder) parserContext.typeParser("string").parse(name, (Map<String, Object>) propNode, parserContext));
+                            builder.content(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse(name, (Map<String, Object>) propNode, parserContext));
                         } else if ("date".equals(propName)) {
-                            builder.date((DateFieldMapper.Builder) parserContext.typeParser("date").parse("date", (Map<String, Object>) propNode, parserContext));
+                            builder.date(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:DateFieldMapper.CONTENT_TYPE).parse("date", (Map<String, Object>) propNode, parserContext));
                         } else if ("title".equals(propName)) {
-                            builder.title((StringFieldMapper.Builder) parserContext.typeParser("string").parse("title", (Map<String, Object>) propNode, parserContext));
+                            builder.title(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("title", (Map<String, Object>) propNode, parserContext));
                         } else if ("name".equals(propName)) {
-                            builder.name((StringFieldMapper.Builder) parserContext.typeParser("string").parse("name", (Map<String, Object>) propNode, parserContext));
+                            builder.name(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("name", (Map<String, Object>) propNode, parserContext));
                         } else if ("author".equals(propName)) {
-                            builder.author((StringFieldMapper.Builder) parserContext.typeParser("string").parse("author", (Map<String, Object>) propNode, parserContext));
+                            builder.author(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("author", (Map<String, Object>) propNode, parserContext));
                         } else if ("keywords".equals(propName)) {
-                            builder.keywords((StringFieldMapper.Builder) parserContext.typeParser("string").parse("keywords", (Map<String, Object>) propNode, parserContext));
+                            builder.keywords(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("keywords", (Map<String, Object>) propNode, parserContext));
                         } else if ("content_type".equals(propName)) {
-                            builder.contentType((StringFieldMapper.Builder) parserContext.typeParser("string").parse("content_type", (Map<String, Object>) propNode, parserContext));
+                            builder.contentType(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("content_type", (Map<String, Object>) propNode, parserContext));
                         }
                     }
                 }
@@ -229,23 +239,23 @@ public class AttachmentMapper implements Mapper {
 
     private final int defaultIndexedChars;
 
-    private final StringFieldMapper contentMapper;
+    private final Mapper contentMapper;
 
-    private final DateFieldMapper dateMapper;
+    private final Mapper dateMapper;
 
-    private final StringFieldMapper authorMapper;
+    private final Mapper authorMapper;
 
-    private final StringFieldMapper titleMapper;
+    private final Mapper titleMapper;
 
-    private final StringFieldMapper nameMapper;
+    private final Mapper nameMapper;
 
-    private final StringFieldMapper keywordsMapper;
+    private final Mapper keywordsMapper;
 
-    private final StringFieldMapper contentTypeMapper;
+    private final Mapper contentTypeMapper;
 
-    public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, StringFieldMapper contentMapper,
-                            DateFieldMapper dateMapper, StringFieldMapper titleMapper, StringFieldMapper nameMapper, StringFieldMapper authorMapper,
-                            StringFieldMapper keywordsMapper, StringFieldMapper contentTypeMapper) {
+    public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, Mapper contentMapper,
+                            Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
+                            Mapper keywordsMapper, Mapper contentTypeMapper) {
         this.name = name;
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;

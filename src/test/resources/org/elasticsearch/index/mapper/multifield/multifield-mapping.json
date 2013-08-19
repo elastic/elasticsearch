@@ -1,0 +1,61 @@
+{
+    "person": {
+        "properties": {
+            "file": {
+                "type": "attachment",
+                "path": "full",
+                "fields": {
+                    "file": {
+                        "type": "multi_field",
+                        "fields": {
+                            "file": { "type": "string" },
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "date": {
+                        "type": "multi_field",
+                        "fields": {
+                            "date": { "type": "date" },
+                            "string": { "type": "string" }
+                        }
+                    },
+                    "title": {
+                        "type": "multi_field",
+                        "fields": {
+                            "title": { "type": "string" },
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "name": {
+                        "type": "multi_field",
+                        "fields": {
+                            "name": { "type": "string" },
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "author": {
+                        "type": "multi_field",
+                        "fields": {
+                            "author": { "type": "string" },
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "keywords": {
+                        "type": "multi_field",
+                        "fields": {
+                            "keywords": { "type": "string" },
+                            "suggest": { "type": "string" }
+                        }
+                    },
+                    "content_type": {
+                        "type": "multi_field",
+                        "fields": {
+                            "content_type": { "type": "string" },
+                            "suggest": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

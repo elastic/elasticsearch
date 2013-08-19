@@ -126,7 +126,7 @@ public class PluginManager {
             }
 
             // update the plugin file name to reflect the extracted name
-            pluginFile = new File(environment.pluginsFile(), name + ".zip");
+            File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
             if (version != null) {
                 pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");

@@ -30,7 +30,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -45,6 +44,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -1185,8 +1185,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(
                         QueryBuilders.hasChildQuery(
                                 "child",
-                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0))
-                                        .add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0), scriptFunction("doc['c_field1'].value"))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("sum")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -1202,8 +1201,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(
                         QueryBuilders.hasChildQuery(
                                 "child",
-                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0))
-                                        .add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0), scriptFunction("doc['c_field1'].value"))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("max")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -1219,8 +1217,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(
                         QueryBuilders.hasChildQuery(
                                 "child",
-                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0))
-                                        .add(new ScriptScoreFunctionBuilder().script("doc['c_field1'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0), scriptFunction("doc['c_field1'].value"))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("avg")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
@@ -1236,8 +1233,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .setQuery(
                         QueryBuilders.hasParentQuery(
                                 "parent",
-                                QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"))
-                                        .add(new ScriptScoreFunctionBuilder().script("doc['p_field2'].value"))
+                                QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"), scriptFunction("doc['p_field2'].value"))
                                         .boostMode(CombineFunction.REPLACE.getName())).scoreType("score"))
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).execute().actionGet();
 

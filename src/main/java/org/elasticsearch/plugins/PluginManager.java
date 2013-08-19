@@ -96,8 +96,6 @@ public class PluginManager {
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
         }
 
-        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
-
         ArrayList<URL> pluginURLs = new ArrayList<URL>(); 
 
         // first, try directly from the URL provided

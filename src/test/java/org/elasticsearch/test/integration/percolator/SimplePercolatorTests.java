@@ -39,7 +39,6 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -50,6 +49,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -1159,7 +1159,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                     .setScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                     .execute().actionGet();
             assertNoFailures(response);
             assertThat(response.getCount(), equalTo(numQueries));
@@ -1178,7 +1178,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                     .setSort(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                     .execute().actionGet();
             assertNoFailures(response);
             assertThat(response.getCount(), equalTo(numQueries));
@@ -1203,8 +1203,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                     .setSort(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchQuery("field1", value))
-                            .add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction("doc['level'].value")))
                     .execute().actionGet();
             assertNoFailures(response);
 
@@ -1237,7 +1236,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setSort(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                 .execute().actionGet();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(2l));
@@ -1249,7 +1248,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
                 .setSort(true)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                 .execute().actionGet();
         assertThat(response.getCount(), equalTo(0l));
         assertThat(response.getSuccessfulShards(), equalTo(3));
@@ -1269,7 +1268,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setSort(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                 .execute().actionGet();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(0l));
@@ -1290,7 +1289,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setSort(true)
                 .setSize(2)
                 .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("doc['level'].value")))
+                .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                 .execute().actionGet();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(0l));

@@ -26,8 +26,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -39,6 +37,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -144,10 +144,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchAllQuery()).scoreMode("first")
-                                .add(termFilter("field", "value4"), new ScriptScoreFunctionBuilder().script("2"))
-                                .add(termFilter("field", "value2"), new ScriptScoreFunctionBuilder().script("3"))).setExplain(true)
-                .execute().actionGet();
+                        functionScoreQuery(matchAllQuery()).scoreMode("first").add(termFilter("field", "value4"), scriptFunction("2"))
+                                .add(termFilter("field", "value2"), scriptFunction("3"))).setExplain(true).execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
@@ -173,10 +171,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchAllQuery()).scoreMode("first")
-                                .add(termFilter("field", "value4"), new ScriptScoreFunctionBuilder().script("2"))
-                                .add(termFilter("field", "value2"), new ScriptScoreFunctionBuilder().script("3")).boost(2))
-                .setExplain(true).execute().actionGet();
+                        functionScoreQuery(matchAllQuery()).scoreMode("first").add(termFilter("field", "value4"), scriptFunction("2"))
+                                .add(termFilter("field", "value2"), scriptFunction("3")).boost(2)).setExplain(true).execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
@@ -362,9 +358,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                         .searchType(SearchType.QUERY_THEN_FETCH)
                         .source(searchSource()
                                 .explain(true)
-                                .query(functionScoreQuery(termQuery("test", "value"))
-                                        .add(new ScriptScoreFunctionBuilder()
-                                                .script("c_min = 1000; foreach (x : doc['snum'].values) { c_min = min(Integer.parseInt(x), c_min) } return c_min")))))
+                                .query(functionScoreQuery(
+                                        termQuery("test", "value"),
+                                        scriptFunction("c_min = 1000; foreach (x : doc['snum'].values) { c_min = min(Integer.parseInt(x), c_min) } return c_min")))))
                 .actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -378,9 +374,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                         .searchType(SearchType.QUERY_THEN_FETCH)
                         .source(searchSource()
                                 .explain(true)
-                                .query(functionScoreQuery(termQuery("test", "value"))
-                                        .add(new ScriptScoreFunctionBuilder()
-                                                .script("c_min = 1000; foreach (x : doc['lnum'].values) { c_min = min(x, c_min) } return c_min")))))
+                                .query(functionScoreQuery(
+                                        termQuery("test", "value"),
+                                        scriptFunction("c_min = 1000; foreach (x : doc['lnum'].values) { c_min = min(x, c_min) } return c_min")))))
                 .actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -394,9 +390,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                         .searchType(SearchType.QUERY_THEN_FETCH)
                         .source(searchSource()
                                 .explain(true)
-                                .query(functionScoreQuery(termQuery("test", "value"))
-                                        .add(new ScriptScoreFunctionBuilder()
-                                                .script("c_min = 1000; foreach (x : doc['dnum'].values) { c_min = min(x, c_min) } return c_min")))))
+                                .query(functionScoreQuery(
+                                        termQuery("test", "value"),
+                                        scriptFunction("c_min = 1000; foreach (x : doc['dnum'].values) { c_min = min(x, c_min) } return c_min")))))
                 .actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -410,9 +406,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                         .searchType(SearchType.QUERY_THEN_FETCH)
                         .source(searchSource()
                                 .explain(true)
-                                .query(functionScoreQuery(termQuery("test", "value"))
-                                        .add(new ScriptScoreFunctionBuilder()
-                                                .script("c_min = 1000; foreach (x : doc['gp'].values) { c_min = min(x.lat, c_min) } return c_min")))))
+                                .query(functionScoreQuery(
+                                        termQuery("test", "value"),
+                                        scriptFunction("c_min = 1000; foreach (x : doc['gp'].values) { c_min = min(x.lat, c_min) } return c_min")))))
                 .actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -551,8 +547,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         SearchResponse response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("doc['num1'].value"))))).actionGet();
+                                functionScoreQuery(termQuery("test", "value"), scriptFunction("doc['num1'].value"))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -564,8 +559,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("-doc['num1'].value"))))).actionGet();
+                                functionScoreQuery(termQuery("test", "value"), scriptFunction("-doc['num1'].value"))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -577,8 +571,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("pow(doc['num1'].value, 2)"))))).actionGet();
+                                functionScoreQuery(termQuery("test", "value"), scriptFunction("pow(doc['num1'].value, 2)"))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -590,8 +583,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("max(doc['num1'].value, 1d)"))))).actionGet();
+                                functionScoreQuery(termQuery("test", "value"), scriptFunction("max(doc['num1'].value, 1d)"))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -603,8 +595,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("doc['num1'].value * _score"))))).actionGet();
+                                functionScoreQuery(termQuery("test", "value"), scriptFunction("doc['num1'].value * _score"))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -616,9 +607,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("param1 * param2 * _score").param("param1", 2)
-                                                .param("param2", 2))))).actionGet();
+                                functionScoreQuery(termQuery("test", "value"), scriptFunction("param1 * param2 * _score")
+                                        .param("param1", 2).param("param2", 2))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -629,9 +619,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termFilter("test", "value")).add(
-                                        new ScriptScoreFunctionBuilder().script("param1 * param2 * _score").param("param1", 2)
-                                                .param("param2", 2))))).actionGet();
+                                functionScoreQuery(termFilter("test", "value"),
+                                        scriptFunction("param1 * param2 * _score").param("param1", 2).param("param2", 2))))).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
@@ -681,7 +670,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(fuzzyQuery("field", "value")).add(FilterBuilders.idsFilter("type").addIds("1"),
-                                new FactorBuilder().boostFactor(3))).execute().actionGet();
+                                factorFunction(3))).execute().actionGet();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
@@ -886,8 +875,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchAllQuery())
-                                .add(termFilter("field", "value4"), new ScriptScoreFunctionBuilder().script("2")).add(
-                                        termFilter("field", "value2"), new ScriptScoreFunctionBuilder().script("3"))).setExplain(true)
+                                .add(termFilter("field", "value4"), scriptFunction("2")).add(
+                                        termFilter("field", "value2"), scriptFunction("3"))).setExplain(true)
                 .execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -906,8 +895,8 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(
-                        functionScoreQuery(matchAllQuery()).add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2)).add(
-                                termFilter("field", "value2"), new FactorBuilder().boostFactor(3))).setExplain(true).execute().actionGet();
+                        functionScoreQuery(matchAllQuery()).add(termFilter("field", "value4"), factorFunction(2)).add(
+                                termFilter("field", "value2"), factorFunction(3))).setExplain(true).execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
@@ -926,9 +915,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchAllQuery()).scoreMode("sum")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("color", "red"), new FactorBuilder().boostFactor(5))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value1"), factorFunction(3))
+                                .add(termFilter("color", "red"), factorFunction(5))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -941,9 +930,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchAllQuery()).scoreMode("max")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("color", "red"), new FactorBuilder().boostFactor(5))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value1"), factorFunction(3))
+                                .add(termFilter("color", "red"), factorFunction(5))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -968,9 +957,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchAllQuery()).scoreMode("avg")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("color", "red"), new FactorBuilder().boostFactor(5))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value1"), factorFunction(3))
+                                .add(termFilter("color", "red"), factorFunction(5))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -986,9 +975,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchAllQuery()).scoreMode("min")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("color", "red"), new FactorBuilder().boostFactor(5))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value1"), factorFunction(3))
+                                .add(termFilter("color", "red"), factorFunction(5))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -1007,9 +996,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchAllQuery()).scoreMode("multiply")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("color", "red"), new FactorBuilder().boostFactor(5))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value1"), factorFunction(3))
+                                .add(termFilter("color", "red"), factorFunction(5))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -1028,9 +1017,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(termsQuery("field", "value1", "value2", "value3", "value4")).scoreMode("first")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value3"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("field", "value2"), new FactorBuilder().boostFactor(4))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value3"), factorFunction(3))
+                                .add(termFilter("field", "value2"), factorFunction(4))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
@@ -1049,9 +1038,9 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(termsQuery("field", "value1", "value2", "value3", "value4")).scoreMode("multiply")
-                                .add(termFilter("field", "value4"), new FactorBuilder().boostFactor(2))
-                                .add(termFilter("field", "value1"), new FactorBuilder().boostFactor(3))
-                                .add(termFilter("color", "red"), new FactorBuilder().boostFactor(5))).setExplain(true).execute()
+                                .add(termFilter("field", "value4"), factorFunction(2))
+                                .add(termFilter("field", "value1"), factorFunction(3))
+                                .add(termFilter("color", "red"), factorFunction(5))).setExplain(true).execute()
                 .actionGet();
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));

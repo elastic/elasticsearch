@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
@@ -67,6 +68,7 @@ public class FunctionScoreQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
+        CombineFunction combineFunction = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -76,6 +78,8 @@ public class FunctionScoreQueryParser implements QueryParser {
                 query = new XConstantScoreQuery(parseContext.parseInnerFilter());
             } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                 scoreMode = parseScoreMode(parseContext, parser);
+            } else if ("boost_mode".equals(currentFieldName) || "boostMode".equals(currentFieldName)) {
+                combineFunction = parseBoostMode(parseContext, parser);
             } else if ("max_boost".equals(currentFieldName) || "maxBoost".equals(currentFieldName)) {
                 maxBoost = parser.floatValue();
             } else if ("boost".equals(currentFieldName)) {
@@ -101,6 +105,9 @@ public class FunctionScoreQueryParser implements QueryParser {
         // provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.size() == 1 && filterFunctions.get(0).filter == null) {
             FunctionScoreQuery theQuery = new FunctionScoreQuery(query, filterFunctions.get(0).function);
+            if (combineFunction != null) {
+                theQuery.setCombineFunction(combineFunction);
+            }
             theQuery.setBoost(boost);
             theQuery.setMaxBoost(maxBoost);
             return theQuery;
@@ -108,6 +115,9 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else {
             FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode,
                     filterFunctions.toArray(new FiltersFunctionScoreQuery.FilterFunction[filterFunctions.size()]), maxBoost);
+            if (combineFunction != null) {
+                functionScoreQuery.setCombineFunction(combineFunction);
+            }
             functionScoreQuery.setBoost(boost);
             return functionScoreQuery;
         }
@@ -165,5 +175,15 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else {
             throw new QueryParsingException(parseContext.index(), NAME + " illegal score_mode [" + scoreMode + "]");
         }
+    }
+
+    private CombineFunction parseBoostMode(QueryParseContext parseContext, XContentParser parser) throws IOException {
+        String boostMode = parser.text();
+        for (CombineFunction cf : CombineFunction.values()) {
+            if (cf.getName().equals(boostMode)) {
+                return cf;
+            }
+        }
+        throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
     }
 }

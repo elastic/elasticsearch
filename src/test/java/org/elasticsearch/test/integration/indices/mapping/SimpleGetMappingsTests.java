@@ -27,14 +27,20 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public class SimpleGetMappingsTests extends AbstractSharedClusterTest {
+
+    @Test
+    public void getMappingsWhereThereAreNone() {
+        createIndex("index");
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
+        assertThat(response.mappings(), hasKey("index"));
+        assertThat(response.mappings().get("index").size(), equalTo(0));
+    }
 
     @Test
     public void simpleGetMappings() throws Exception {

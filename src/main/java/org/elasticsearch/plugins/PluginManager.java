@@ -116,14 +116,7 @@ public class PluginManager {
             }
 
             // the installation file should not include the userName, just the repoName
-            name = repoName;
-            if (name.startsWith("elasticsearch-")) {
-                // remove elasticsearch- prefix
-                name = name.substring("elasticsearch-".length());
-            } else if (name.startsWith("es-")) {
-                // remove es- prefix
-                name = name.substring("es-".length());
-            }
+            name = generatePluginName(name);
 
             // update the plugin file name to reflect the extracted name
             File pluginFile = new File(environment.pluginsFile(), name + ".zip");
@@ -173,21 +166,44 @@ public class PluginManager {
         throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
     }
 
-    public void extract(String name) throws IOException {
-        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
+    public String generatePluginName(String name) {
+        if (name.indexOf('/') != -1) {
+            // github repo
+            String[] elements = name.split("/");
+            String repoName = elements[1];       
+            
+            // the installation file should not include the userName, just the repoName
+            name = repoName;
+            if (name.startsWith("elasticsearch-")) {
+                // remove elasticsearch- prefix
+                name = name.substring("elasticsearch-".length());
+            } else if (name.startsWith("es-")) {
+                // remove es- prefix
+                name = name.substring("es-".length());
+            }
+        }
+
+        return name;
+    }
+
+    public void extract(String name) throws IOException {
+        
         String filterZipName = null;
+
         if (name.indexOf('/') != -1) {
             // github repo
             String[] elements = name.split("/");
             String userName = elements[0];
             String repoName = elements[1];
-            String version = null;
-            if (elements.length > 2) {
-                version = elements[2];
-            }
+            
             filterZipName = userName + "-" + repoName;
         }
+
+        name = generatePluginName(name);
+
+        // update the plugin file name to reflect the extracted name
+        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
 
         // extract the plugin
         File extractLocation = new File(environment.pluginsFile(), name);

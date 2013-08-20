@@ -319,15 +319,18 @@ public class MapperQueryParser extends QueryParser {
         if ("*".equals(part2)) {
             part2 = null;
         }
-        if (lowercaseExpandedTerms) {
-            part1 = part1 == null ? null : part1.toLowerCase(locale);
-            part2 = part2 == null ? null : part2.toLowerCase(locale);
-        }
+
         Collection<String> fields = extractMultiFields(field);
-        if (fields != null) {
-            if (fields.size() == 1) {
-                return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive);
-            }
+
+        if (fields == null) {
+            return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive);
+        }
+
+
+        if (fields.size() == 1) {
+            return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive);
+        }
+
             if (settings.useDisMax()) {
                 DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
                 boolean added = false;
@@ -356,10 +359,7 @@ public class MapperQueryParser extends QueryParser {
                     return null;
                 return getBooleanQuery(clauses, true);
             }
-        } else {
-            return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive);
         }
-    }
 
     private Query getRangeQuerySingle(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) {
         currentMapper = null;
@@ -367,6 +367,12 @@ public class MapperQueryParser extends QueryParser {
         if (fieldMappers != null) {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
+
+                if (lowercaseExpandedTerms && !currentMapper.isNumeric()) {
+                    part1 = part1 == null ? null : part1.toLowerCase(locale);
+                    part2 = part2 == null ? null : part2.toLowerCase(locale);
+                }
+
                 try {
                     Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                     return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);

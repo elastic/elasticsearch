@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.attachment;
 
-import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -356,7 +355,7 @@ public class AttachmentMapper implements Mapper {
         try {
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit            
             parsedContent = tika().parseToString(new BytesStreamInput(content, false), metadata, indexedChars);
-        } catch (TikaException e) {
+        } catch (Throwable e) {
             throw new MapperParsingException("Failed to extract [" + indexedChars + "] characters of text for [" + name + "]", e);
         }
 

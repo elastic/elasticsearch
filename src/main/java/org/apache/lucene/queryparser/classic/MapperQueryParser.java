@@ -319,45 +319,45 @@ public class MapperQueryParser extends QueryParser {
         if ("*".equals(part2)) {
             part2 = null;
         }
-        if (lowercaseExpandedTerms) {
-            part1 = part1 == null ? null : part1.toLowerCase(locale);
-            part2 = part2 == null ? null : part2.toLowerCase(locale);
-        }
+
         Collection<String> fields = extractMultiFields(field);
-        if (fields != null) {
-            if (fields.size() == 1) {
-                return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive);
-            }
-            if (settings.useDisMax()) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
-                boolean added = false;
-                for (String mField : fields) {
-                    Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
-                    if (q != null) {
-                        added = true;
-                        applyBoost(mField, q);
-                        disMaxQuery.add(q);
-                    }
-                }
-                if (!added) {
-                    return null;
-                }
-                return disMaxQuery;
-            } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
-                for (String mField : fields) {
-                    Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
-                    if (q != null) {
-                        applyBoost(mField, q);
-                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
-                    }
-                }
-                if (clauses.size() == 0)  // happens for stopwords
-                    return null;
-                return getBooleanQuery(clauses, true);
-            }
-        } else {
+
+        if (fields == null) {
             return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive);
+        }
+
+
+        if (fields.size() == 1) {
+            return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive);
+        }
+
+        if (settings.useDisMax()) {
+            DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+            boolean added = false;
+            for (String mField : fields) {
+                Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
+                if (q != null) {
+                    added = true;
+                    applyBoost(mField, q);
+                    disMaxQuery.add(q);
+                }
+            }
+            if (!added) {
+                return null;
+            }
+            return disMaxQuery;
+        } else {
+            List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+            for (String mField : fields) {
+                Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
+                if (q != null) {
+                    applyBoost(mField, q);
+                    clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                }
+            }
+            if (clauses.size() == 0)  // happens for stopwords
+                return null;
+            return getBooleanQuery(clauses, true);
         }
     }
 
@@ -367,6 +367,12 @@ public class MapperQueryParser extends QueryParser {
         if (fieldMappers != null) {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
+
+                if (lowercaseExpandedTerms && !currentMapper.isNumeric()) {
+                    part1 = part1 == null ? null : part1.toLowerCase(locale);
+                    part2 = part2 == null ? null : part2.toLowerCase(locale);
+                }
+
                 try {
                     Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                     return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);

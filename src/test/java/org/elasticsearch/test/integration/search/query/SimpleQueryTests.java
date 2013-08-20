@@ -35,6 +35,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -369,6 +372,31 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch().setQuery(queryString("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+    }
+
+    @Test
+    public void testDateRangeInQueryString() {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+
+        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
+        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+
+        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("past:[now-2M/d TO now/d]")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        searchResponse = client().prepareSearch().setQuery(queryString("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        try {
+            client().prepareSearch().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
+            fail("D is an unsupported unit in date math");
+        } catch (Exception e) {
+            // expected
+        }
     }
 
     @Test

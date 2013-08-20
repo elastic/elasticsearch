@@ -43,6 +43,8 @@ public class XFieldQuery {
   Map<String, Set<String>> termSetMap = new HashMap<String, Set<String>>();
 
   int termOrPhraseNumber; // used for colored tag support
+  
+  private int maxPhraseWindow = 1;
 
   // The maximum number of different matching terms accumulated from any one MultiTermQuery
   private static final int MAX_MTQ_TERMS = 1024;
@@ -456,9 +458,16 @@ public class XFieldQuery {
         this.boost = boost;
         this.termOrPhraseNumber = fieldQuery.nextTermOrPhraseNumber();
         this.positions = positions;
+        if (positions != null) {
+          fieldQuery.maxPhraseWindow = Math.max(fieldQuery.maxPhraseWindow, slop + positions[positions.length-1] - positions[0]);
+        }
       }
     }
     
+    public int getMaxPhraseWindow() {
+      return fieldQuery.maxPhraseWindow;
+    }
+
     public boolean isTerminal(){
       return terminal;
     }

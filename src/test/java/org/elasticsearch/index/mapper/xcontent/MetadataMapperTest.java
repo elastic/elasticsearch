@@ -37,14 +37,14 @@ public class MetadataMapperTest {
                 .startObject()
                     .field("_id", 1)
                     .startObject("file")
-                        .field("_name", "htmlWithoutDateMeta.html")
+                        .field("_name", filename)
                         .field("content", html)
                     .endObject()
                 .endObject().bytes();
 
         Document doc =  docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().smartName("file.name").mapper().names().indexName()), equalTo("htmlWithoutDateMeta.html"));
+        assertThat(doc.get(docMapper.mappers().smartName("file.name").mapper().names().indexName()), equalTo(filename));
         if (expected == null) {
             assertThat(doc.getField(docMapper.mappers().smartName("file.date").mapper().names().indexName()), nullValue());
         } else {

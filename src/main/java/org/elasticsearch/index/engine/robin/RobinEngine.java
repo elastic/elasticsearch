@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
@@ -184,7 +185,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.similarityService = similarityService;
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
-        this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
+        this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors() * 0.65)));
         this.versionMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
@@ -1385,7 +1386,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 RobinEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
-            
+
             int termIndexInterval = settings.getAsInt(INDEX_TERM_INDEX_INTERVAL, RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt(INDEX_TERM_INDEX_DIVISOR, RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);

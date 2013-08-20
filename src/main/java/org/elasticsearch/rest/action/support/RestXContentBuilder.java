@@ -58,7 +58,7 @@ public class RestXContentBuilder {
             builder.prettyPrint();
         }
 
-        builder.readableFormat(request.paramAsBoolean("readable_format", builder.readableFormat()));
+        builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
 
         String casing = request.param("case");
         if (casing != null && "camelCase".equals(casing)) {

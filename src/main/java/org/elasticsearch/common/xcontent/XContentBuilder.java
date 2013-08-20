@@ -83,7 +83,7 @@ public final class XContentBuilder implements BytesStream {
 
     private StringBuilder cachedStringBuilder;
 
-    private boolean readableFormat = true;
+    private boolean humanReadable = true;
 
     /**
      * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
@@ -108,13 +108,13 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
-    public XContentBuilder readableFormat(boolean readableFormat) {
-        this.readableFormat = readableFormat;
+    public XContentBuilder humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
         return this;
     }
 
-    public boolean readableFormat() {
-        return this.readableFormat;
+    public boolean humanReadable() {
+        return this.humanReadable;
     }
 
     public XContentBuilder field(String name, ToXContent xContent) throws IOException {
@@ -837,7 +837,7 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, TimeValue timeValue) throws IOException {
-        if (readableFormat) {
+        if (humanReadable) {
             field(readableFieldName, timeValue.toString());
         }
         field(rawFieldName, timeValue.millis());
@@ -845,7 +845,7 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTime) throws IOException {
-        if (readableFormat) {
+        if (humanReadable) {
             field(readableFieldName, new TimeValue(rawTime).toString());
         }
         field(rawFieldName, rawTime);
@@ -853,7 +853,7 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
-        if (readableFormat) {
+        if (humanReadable) {
             field(readableFieldName, byteSizeValue.toString());
         }
         field(rawFieldName, byteSizeValue.bytes());
@@ -861,7 +861,7 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawSize) throws IOException {
-        if (readableFormat) {
+        if (humanReadable) {
             field(readableFieldName, new ByteSizeValue(rawSize).toString());
         }
         field(rawFieldName, rawSize);

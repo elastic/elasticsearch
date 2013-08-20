@@ -99,7 +99,7 @@ public class ThreadPool extends AbstractComponent {
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 
-        int availableProcessors = boundedNumberOfProcessors();
+        int availableProcessors = EsExecutors.boundedNumberOfProcessors();
         int halfProcMaxAt5 = Math.min(((availableProcessors + 1) / 2), 5);
         int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
@@ -296,7 +296,7 @@ public class ThreadPool extends AbstractComponent {
             Executor executor = EsExecutors.newCached(keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, -1, -1, keepAlive, null));
         } else if ("fixed".equals(type)) {
-            int defaultSize = defaultSettings.getAsInt("size", boundedNumberOfProcessors() * 5);
+            int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors());
             SizeValue defaultQueueSize = defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null));
             String defaultRejectSetting = defaultSettings.get("reject_policy", "abort");
             String defaultQueueType = defaultSettings.get("queue_type", "linked");
@@ -335,7 +335,7 @@ public class ThreadPool extends AbstractComponent {
         } else if ("scaling".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             int defaultMin = defaultSettings.getAsInt("min", 1);
-            int defaultSize = defaultSettings.getAsInt("size", boundedNumberOfProcessors() * 5);
+            int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors());
             if (previousExecutorHolder != null) {
                 if ("scaling".equals(previousInfo.getType())) {
                     TimeValue updatedKeepAlive = settings.getAsTime("keep_alive", previousInfo.getKeepAlive());
@@ -688,17 +688,6 @@ public class ThreadPool extends AbstractComponent {
             static final XContentBuilderString QUEUE_TYPE = new XContentBuilderString("queue_type");
         }
 
-    }
-
-    /**
-     * Returns the number of processors available but at most <tt>24</tt>.
-     */
-    public static int boundedNumberOfProcessors() {
-        /* This relates to issues where machines with large number of cores
-         * ie. >= 48 create too many threads and run into OOM see #3478 
-         * We just use an 24 core upper-bound here to not stress the system
-         * too much with too many created threads */
-        return Math.min(24, Runtime.getRuntime().availableProcessors());
     }
 
     class ApplySettings implements NodeSettingsService.Listener {

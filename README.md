@@ -3,7 +3,7 @@ Mapper Attachments Type for ElasticSearch
 
 The mapper attachments plugin adds the `attachment` type to ElasticSearch using [Apache Tika](http://lucene.apache.org/tika/).
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/1.8.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/1.9.0`.
 
 <table>
 	<thead>
@@ -16,10 +16,16 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 	</thead>
 	<tbody>
 		<tr>
-			<td>1.9.0-SNAPSHOT (master)</td>
+			<td>1.10.0-SNAPSHOT (master)</td>
 			<td>0.90.3 -> master</td>
 			<td>1.4</td>
 			<td></td>
+		</tr>
+        <tr>
+			<td>1.9.0</td>
+			<td>0.90.3 -> master</td>
+			<td>1.4</td>
+			<td>20/08/2013</td>
 		</tr>
 		<tr>
 			<td>1.8.0</td>

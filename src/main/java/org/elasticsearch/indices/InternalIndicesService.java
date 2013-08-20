@@ -76,6 +76,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -242,6 +243,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 case Percolate:
                     stats.percolate = new PercolateStats();
                     break;
+                case Completion:
+                    stats.completion = new CompletionStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -290,6 +294,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                             break;
                         case Percolate:
                             stats.percolate.add(indexShard.shardPercolateService().stats());
+                            break;
+                        case Completion:
+                            stats.completion.add(indexShard.completionStats(flags.completionDataFields()));
                             break;
                         default:
                             throw new IllegalStateException("Unknown Flag: " + flag);

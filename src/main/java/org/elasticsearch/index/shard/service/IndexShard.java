@@ -50,6 +50,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 /**
  *
@@ -95,6 +96,8 @@ public interface IndexShard extends IndexShardComponent {
     IdCacheStats idCacheStats();
 
     FieldDataStats fieldDataStats(String... fields);
+
+    CompletionStats completionStats(String ... fields);
 
     PercolatorQueriesRegistry percolateRegistry();
 

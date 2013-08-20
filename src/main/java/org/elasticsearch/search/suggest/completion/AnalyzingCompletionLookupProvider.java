@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import gnu.trove.map.hash.TObjectLongHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.FieldInfo;
@@ -32,6 +33,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
@@ -238,9 +240,34 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 suggester.setPreservePositionIncrements(analyzingSuggestHolder.preservePositionIncrements);
                 return suggester;
             }
+
+            @Override
+            public CompletionStats stats(String ... fields) {
+                long sizeInBytes = 0;
+                TObjectLongHashMap<String> completionFields = null;
+                if (fields != null  && fields.length > 0) {
+                    completionFields = new TObjectLongHashMap<String>(fields.length);
+                }
+
+                for (Map.Entry<String, AnalyzingSuggestHolder> entry: lookupMap.entrySet()) {
+                    sizeInBytes += entry.getValue().fst.sizeInBytes();
+
+                    if (fields == null || fields.length == 0) continue;
+
+                    for (String field : fields) {
+                        // support for getting fields by regex as in fielddata
+                        if (Regex.simpleMatch(field, entry.getKey())) {
+                            long fstSize = entry.getValue().fst.sizeInBytes();
+                            completionFields.adjustOrPutValue(field, fstSize, fstSize);
+                        }
+                    }
+                }
+
+                return new CompletionStats(sizeInBytes, completionFields);
+            }
         };
     }
-    
+
     static class AnalyzingSuggestHolder {
         final boolean preserveSep;
         final boolean preservePositionIncrements;

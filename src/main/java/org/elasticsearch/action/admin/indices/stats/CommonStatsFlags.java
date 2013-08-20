@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -33,6 +34,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     private String[] types = null;
     private String[] groups = null;
     private String[] fieldDataFields = null;
+    private String[] completionDataFields = null;
 
     /**
      * Sets all flags to return all stats.
@@ -42,6 +44,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         types = null;
         groups = null;
         fieldDataFields = null;
+        completionDataFields = null;
         return this;
     }
 
@@ -53,6 +56,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         types = null;
         groups = null;
         fieldDataFields = null;
+        completionDataFields = null;
         return this;
     }
 
@@ -107,6 +111,14 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         return this.fieldDataFields;
     }
 
+    public CommonStatsFlags completionDataFields(String... completionDataFields) {
+        this.completionDataFields = completionDataFields;
+        return this;
+    }
+
+    public String[] completionDataFields() {
+        return this.completionDataFields;
+    }
 
     public boolean isSet(Flag flag) {
         return flags.contains(flag);
@@ -146,6 +158,9 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         out.writeStringArrayNullable(types);
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
+        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
+            out.writeStringArrayNullable(completionDataFields);
+        }
     }
 
     @Override
@@ -160,6 +175,9 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         types = in.readStringArray();
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
+            completionDataFields = in.readStringArray();
+        }
     }
 
     @Override
@@ -188,7 +206,8 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         FieldData("fielddata"),
         Docs("docs"),
         Warmer("warmer"),
-        Percolate("percolate");
+        Percolate("percolate"),
+        Completion("completion");
 
         private final String restName;
 

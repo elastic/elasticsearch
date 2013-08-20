@@ -70,6 +70,9 @@ public class XFieldPhraseList {
   }
 
   void extractPhrases(LinkedList<TermInfo> terms, QueryPhraseMap currMap, LinkedList<TermInfo> phraseCandidate, int longest) {
+    if (phraseCandidate.size() > 1 && phraseCandidate.getLast().getPosition() - phraseCandidate.getFirst().getPosition() > currMap.getMaxPhraseWindow()) {
+      return;
+    }
     if (terms.isEmpty()) {
       if (longest > 0) {
         addIfNoOverlap( new WeightedPhraseInfo( phraseCandidate.subList(0, longest), currMap.getBoost(), currMap.getTermOrPhraseNumber() ) );

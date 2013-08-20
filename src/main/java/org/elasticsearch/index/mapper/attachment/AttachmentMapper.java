@@ -28,14 +28,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
 
@@ -90,6 +90,8 @@ public class AttachmentMapper implements Mapper {
 
         private Mapper.Builder contentTypeBuilder = stringField("content_type");
 
+        private Mapper.Builder contentLengthBuilder = integerField("content_length");
+
         public Builder(String name) {
             super(name);
             this.builder = this;
@@ -136,6 +138,11 @@ public class AttachmentMapper implements Mapper {
             return this;
         }
 
+        public Builder contentLength(Mapper.Builder contentType) {
+            this.contentLengthBuilder = contentType;
+            return this;
+        }
+
         @Override
         public AttachmentMapper build(BuilderContext context) {
             ContentPath.Type origPathType = context.path().pathType();
@@ -152,6 +159,7 @@ public class AttachmentMapper implements Mapper {
             Mapper nameMapper = nameBuilder.build(context);
             Mapper keywordsMapper = keywordsBuilder.build(context);
             Mapper contentTypeMapper = contentTypeBuilder.build(context);
+            Mapper contentLength = contentLengthBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
@@ -170,7 +178,7 @@ public class AttachmentMapper implements Mapper {
                 ignoreErrors = Boolean.TRUE;
             }
 
-            return new AttachmentMapper(name, pathType, defaultIndexedChars, ignoreErrors, contentMapper, dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper);
+            return new AttachmentMapper(name, pathType, defaultIndexedChars, ignoreErrors, contentMapper, dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength);
         }
     }
 
@@ -185,7 +193,12 @@ public class AttachmentMapper implements Mapper {
      *      fields : {
      *          field1 : {type : "binary"},
      *          title : {store : "yes"},
-     *          date : {store : "yes"}
+     *          date : {store : "yes"},
+     *          name : {store : "yes"},
+     *          author : {store : "yes"},
+     *          keywords : {store : "yes"},
+     *          content_type : {store : "yes"},
+     *          content_length : {store : "yes"}
      *      }
      * }
      * </pre>
@@ -232,6 +245,8 @@ public class AttachmentMapper implements Mapper {
                             builder.keywords(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("keywords", (Map<String, Object>) propNode, parserContext));
                         } else if ("content_type".equals(propName)) {
                             builder.contentType(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("content_type", (Map<String, Object>) propNode, parserContext));
+                        } else if ("content_length".equals(propName)) {
+                            builder.contentLength(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE: IntegerFieldMapper.CONTENT_TYPE).parse("content_length", (Map<String, Object>) propNode, parserContext));
                         }
                     }
                 }
@@ -263,9 +278,11 @@ public class AttachmentMapper implements Mapper {
 
     private final Mapper contentTypeMapper;
 
+    private final Mapper contentLengthMapper;
+
     public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors, Mapper contentMapper,
                             Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
-                            Mapper keywordsMapper, Mapper contentTypeMapper) {
+                            Mapper keywordsMapper, Mapper contentTypeMapper, Mapper contentLengthMapper) {
         this.name = name;
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
@@ -277,6 +294,7 @@ public class AttachmentMapper implements Mapper {
         this.authorMapper = authorMapper;
         this.keywordsMapper = keywordsMapper;
         this.contentTypeMapper = contentTypeMapper;
+        this.contentLengthMapper = contentLengthMapper;
     }
 
     @Override
@@ -388,6 +406,20 @@ public class AttachmentMapper implements Mapper {
             if (!ignoreErrors) throw e;
             if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing content_type: {}: {}", e.getMessage(), context.externalValue());
         }
+
+        try {
+            if (metadata.get(Metadata.CONTENT_LENGTH) != null) {
+                // We try to get CONTENT_LENGTH from Tika first
+                context.externalValue(metadata.get(Metadata.CONTENT_LENGTH));
+            } else {
+                // Otherwise, we use our byte[] length
+                context.externalValue(content.length);
+            }
+            contentLengthMapper.parse(context);
+        } catch(MapperParsingException e){
+            if (!ignoreErrors) throw e;
+            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing content_length: {}: {}", e.getMessage(), context.externalValue());
+        }
     }
 
     @Override
@@ -404,6 +436,7 @@ public class AttachmentMapper implements Mapper {
         authorMapper.traverse(fieldMapperListener);
         keywordsMapper.traverse(fieldMapperListener);
         contentTypeMapper.traverse(fieldMapperListener);
+        contentLengthMapper.traverse(fieldMapperListener);
     }
 
     @Override
@@ -419,6 +452,7 @@ public class AttachmentMapper implements Mapper {
         authorMapper.close();
         keywordsMapper.close();
         contentTypeMapper.close();
+        contentLengthMapper.close();
     }
 
     @Override
@@ -435,6 +469,7 @@ public class AttachmentMapper implements Mapper {
         dateMapper.toXContent(builder, params);
         keywordsMapper.toXContent(builder, params);
         contentTypeMapper.toXContent(builder, params);
+        contentLengthMapper.toXContent(builder, params);
         builder.endObject();
 
         builder.endObject();

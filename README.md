@@ -1,5 +1,5 @@
 Mapper Attachments Type for ElasticSearch
-==================================
+=========================================
 
 The mapper attachments plugin adds the `attachment` type to ElasticSearch using Tika.
 
@@ -36,48 +36,72 @@ The `attachment` type is provided as a plugin extension. The plugin is a simple 
 
 Using the attachment type is simple, in your mapping JSON, simply set a certain JSON element as attachment, for example:
 
-    {
-        "person" : {
-            "properties" : {
-                "my_attachment" : { "type" : "attachment" }
-            }
+```javascript
+{
+    "person" : {
+        "properties" : {
+            "my_attachment" : { "type" : "attachment" }
         }
     }
+}
+```
 
 In this case, the JSON to index can be:
 
-    {
-        "my_attachment" : "... base64 encoded attachment ..."
-    }
+```javascript
+{
+    "my_attachment" : "... base64 encoded attachment ..."
+}
+```
 
 Or it is possible to use more elaborated JSON if content type or resource name need to be set explicitly:
 
-    {
-        "my_attachment" : {
-            "_content_type" : "application/pdf",
-            "_name" : "resource/name/of/my.pdf",
-            "content" : "... base64 encoded attachment ..."
-        }
+```javascript
+{
+    "my_attachment" : {
+        "_content_type" : "application/pdf",
+        "_name" : "resource/name/of/my.pdf",
+        "content" : "... base64 encoded attachment ..."
     }
+}
+```
 
-The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment as well (when available). The metadata supported are: `date`, `title`, `author`, and `keywords`. They can be queried using the "dot notation", for example: `my_attachment.author`.
+The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment as well (when available).
+
+The metadata supported are:
+
+* `date`
+* `title`
+* `name` only available if you set `_name` see above
+* `author`
+* `keywords`
+* `content_type`
+* `content_length` is the original content_length before text extraction (aka file size)
+
+They can be queried using the "dot notation", for example: `my_attachment.author`.
 
 Both the meta data and the actual content are simple core type mappers (string, date, ...), thus, they can be controlled in the mappings. For example:
 
-    {
-        "person" : {
-            "properties" : {
-                "file" : {
-                    "type" : "attachment",
-                    "fields" : {
-                        "file" : {"index" : "no"},
-                        "date" : {"store" : "yes"},
-                        "author" : {"analyzer" : "myAnalyzer"}
-                    }
+```javascript
+{
+    "person" : {
+        "properties" : {
+            "file" : {
+                "type" : "attachment",
+                "fields" : {
+                    "file" : {"index" : "no"},
+                    "title" : {store : "yes"},
+                    "date" : {"store" : "yes"},
+                    "author" : {"analyzer" : "myAnalyzer"},
+                    "keywords" : {store : "yes"},
+                    "content_type" : {store : "yes"},
+                    "content_length" : {store : "yes"}
                 }
             }
         }
     }
+}
+```
 
 In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no need to specify the `type` (like `string` or `date`) since it is already known.
 

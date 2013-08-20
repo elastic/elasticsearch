@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class MetadataMapperTest {
 
-    protected void checkDate(String filename, Settings settings, Long expected) throws IOException {
+    protected void checkMeta(String filename, Settings settings, Long expectedDate, Long expectedLength) throws IOException {
         DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), settings, new AnalysisService(new Index("test")), null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
@@ -45,45 +45,45 @@ public class MetadataMapperTest {
         Document doc =  docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().smartName("file.name").mapper().names().indexName()), equalTo(filename));
-        if (expected == null) {
+        if (expectedDate == null) {
             assertThat(doc.getField(docMapper.mappers().smartName("file.date").mapper().names().indexName()), nullValue());
         } else {
-            assertThat(doc.getField(docMapper.mappers().smartName("file.date").mapper().names().indexName()).numericValue().longValue(), is(expected));
+            assertThat(doc.getField(docMapper.mappers().smartName("file.date").mapper().names().indexName()).numericValue().longValue(), is(expectedDate));
         }
         assertThat(doc.get(docMapper.mappers().smartName("file.title").mapper().names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().smartName("file.author").mapper().names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().smartName("file.keywords").mapper().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
         assertThat(doc.get(docMapper.mappers().smartName("file.content_type").mapper().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.getField(docMapper.mappers().smartName("file.content_length").mapper().names().indexName()).numericValue().longValue(), is(expectedLength));
     }
 
     @Test
     public void testIgnoreWithoutDate() throws Exception {
-        checkDate("htmlWithoutDateMeta.html", ImmutableSettings.builder().build(), null);
+        checkMeta("htmlWithoutDateMeta.html", ImmutableSettings.builder().build(), null, 300L);
     }
 
     @Test
     public void testIgnoreWithEmptyDate() throws Exception {
-        checkDate("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().build(), null);
+        checkMeta("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().build(), null, 334L);
     }
 
     @Test
     public void testIgnoreWithCorrectDate() throws Exception {
-        checkDate("htmlWithValidDateMeta.html", ImmutableSettings.builder().build(), 1354233600000L);
+        checkMeta("htmlWithValidDateMeta.html", ImmutableSettings.builder().build(), 1354233600000L, 344L);
     }
 
     @Test
     public void testWithoutDate() throws Exception {
-        checkDate("htmlWithoutDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null);
+        checkMeta("htmlWithoutDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, 300L);
     }
 
     @Test(expectedExceptions = MapperParsingException.class)
     public void testWithEmptyDate() throws Exception {
-        checkDate("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null);
+        checkMeta("htmlWithEmptyDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
     }
 
     @Test
     public void testWithCorrectDate() throws Exception {
-        checkDate("htmlWithValidDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), 1354233600000L);
+        checkMeta("htmlWithValidDateMeta.html", ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(), 1354233600000L, 344L);
     }
-
 }

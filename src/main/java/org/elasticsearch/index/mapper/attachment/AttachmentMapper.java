@@ -223,10 +223,14 @@ public class AttachmentMapper implements Mapper {
 
                         // Check if we have a multifield here
                         boolean isMultifield = false;
+                        boolean isString = false;
                         if (propNode != null && propNode instanceof Map) {
                             Object oType = ((Map<String, Object>) propNode).get("type");
                             if (oType != null && oType.equals(MultiFieldMapper.CONTENT_TYPE)) {
                                 isMultifield = true;
+                            }
+                            if (oType != null && oType.equals(StringFieldMapper.CONTENT_TYPE)) {
+                                isString = true;
                             }
                         }
 
@@ -234,7 +238,8 @@ public class AttachmentMapper implements Mapper {
                             // that is the content
                             builder.content(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse(name, (Map<String, Object>) propNode, parserContext));
                         } else if ("date".equals(propName)) {
-                            builder.date(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:DateFieldMapper.CONTENT_TYPE).parse("date", (Map<String, Object>) propNode, parserContext));
+                            // If a specific format is already defined here, we should use it
+                            builder.date(parserContext.typeParser(isMultifield ? MultiFieldMapper.CONTENT_TYPE : isString ? StringFieldMapper.CONTENT_TYPE : DateFieldMapper.CONTENT_TYPE).parse("date", (Map<String, Object>) propNode, parserContext));
                         } else if ("title".equals(propName)) {
                             builder.title(parserContext.typeParser(isMultifield? MultiFieldMapper.CONTENT_TYPE:StringFieldMapper.CONTENT_TYPE).parse("title", (Map<String, Object>) propNode, parserContext));
                         } else if ("name".equals(propName)) {

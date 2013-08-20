@@ -1,0 +1,13 @@
+{
+    "person": {
+        "properties": {
+            "file": {
+                "type": "attachment",
+                "path": "full",
+                "fields": {
+                    "date": { "type": "string" }
+                }
+            }
+        }
+    }
+}

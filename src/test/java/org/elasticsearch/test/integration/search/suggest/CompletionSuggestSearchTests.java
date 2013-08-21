@@ -176,6 +176,19 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         ).get();
     }
 
+    @Test(expected = MapperException.class)
+    public void testThatIndexingNonObjectAsPayloadThrowsException() throws Exception {
+        createIndexAndMapping();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Foo Fighters").endArray()
+                .field("output", "Boo Fighters")
+                .field("payload", "does not work")
+                .endObject().endObject()
+        ).get();
+    }
+
     @Test
     public void testDisabledPreserveSeperators() throws Exception {
         createIndexAndMapping("simple", "simple", true, false, true);
@@ -597,7 +610,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                             .startObject().startObject(FIELD)
                             .startArray("input").value(input[i]).endArray()
                             .field("output",surface[i])
-                            .field("payload", "id: " + i)
+                            .startObject("payload").field("id", i).endObject()
                             .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT 
                             .endObject()
                             .endObject()
@@ -611,7 +624,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                             .startObject().startObject(FIELD)
                             .startArray("input").value(input[i]).endArray()
                             .field("output",surface[i])
-                            .field("payload", "id: " + i)
+                            .startObject("payload").field("id", i).endObject()
                             .field("weight", weight[i])
                             .endObject()
                             .endObject()

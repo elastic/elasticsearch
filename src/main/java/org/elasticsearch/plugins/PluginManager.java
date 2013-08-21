@@ -178,7 +178,7 @@ public class PluginManager {
                     }
                     if (!downloaded) {
                         // try it as a site plugin tagged
-                        pluginUrl = new URL("https://codeload.github.com/" + userName + "/" + repoName + "/zip/v" + version);
+                        pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/archive/v" + version + ".zip");
                         System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
                         try {
                             downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
@@ -192,7 +192,7 @@ public class PluginManager {
                     }
                 } else {
                     // assume site plugin, download master....
-                    URL pluginUrl = new URL("https://codeload.github.com/" + userName + "/" + repoName + "/zip/master");
+                    URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/archive/master.zip");
                     System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
                     try {
                         downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));

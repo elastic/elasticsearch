@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard.service;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -73,6 +74,8 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -487,6 +490,25 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public IdCacheStats idCacheStats() {
         return shardIdCache.stats();
+    }
+
+    @Override
+    public CompletionStats completionStats(String... fields) {
+        CompletionStats completionStats = new CompletionStats();
+
+        Engine.Searcher searcher = engine().searcher();
+
+        try {
+            PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(Completion090PostingsFormat.CODEC_NAME).get();
+            if (postingsFormat instanceof Completion090PostingsFormat) {
+                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
+                completionStats.add(completionPostingsFormat.completionStats(searcher().reader(), fields));
+            }
+        } finally {
+            searcher.release();
+        }
+
+        return completionStats;
     }
 
     @Override

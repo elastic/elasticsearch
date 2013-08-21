@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 
@@ -79,6 +81,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public FieldDataStats fieldData;
+
+    @Nullable
+    public CompletionStats completion;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -179,6 +184,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             fieldData.add(stats.getFieldData());
         }
+        if (completion == null) {
+            if (stats.getCompletion() != null) {
+                completion = new CompletionStats();
+                completion.add(stats.getCompletion());
+            }
+        } else {
+            completion.add(stats.getCompletion());
+        }
     }
 
     @Nullable
@@ -241,6 +254,11 @@ public class CommonStats implements Streamable, ToXContent {
         return this.fieldData;
     }
 
+    @Nullable
+    public CompletionStats getCompletion() {
+        return completion;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -284,6 +302,11 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (in.readBoolean()) {
             fieldData = FieldDataStats.readFieldDataStats(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
+            if (in.readBoolean()) {
+                completion = CompletionStats.readCompletionStats(in);
+            }
         }
     }
 
@@ -361,6 +384,14 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             fieldData.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
+            if (completion == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                completion.writeTo(out);
+            }
+        }
     }
 
     // note, requires a wrapping object
@@ -401,6 +432,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (fieldData != null) {
             fieldData.toXContent(builder, params);
+        }
+        if (completion != null) {
+            completion.toXContent(builder, params);
         }
         return builder;
     }

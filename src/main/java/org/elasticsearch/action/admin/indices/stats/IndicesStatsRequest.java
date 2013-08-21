@@ -203,6 +203,24 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.fieldDataFields();
     }
 
+    public IndicesStatsRequest completion(boolean completion) {
+        flags.set(Flag.Completion, completion);
+        return this;
+    }
+
+    public boolean completion() {
+        return flags.isSet(Flag.Completion);
+    }
+
+    public IndicesStatsRequest completionFields(String ... completionDataFields) {
+        flags.completionDataFields(completionDataFields);
+        return this;
+    }
+
+    public String[] completionFields() {
+        return flags.completionDataFields();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

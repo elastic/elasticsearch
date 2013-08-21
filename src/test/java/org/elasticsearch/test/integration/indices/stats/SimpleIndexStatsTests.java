@@ -308,9 +308,9 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
     
     @Test
     public void testFlagOrdinalOrder() {
-        Flag[] flags = new Flag[] { Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer };
-        
+        Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion};
+
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
             assertThat("ordinal has changed - this breaks the wire protocol. Only append to new values", i, equalTo(flags[i].ordinal()));
@@ -355,6 +355,9 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         case Warmer:
             builder.setWarmer(set);
             break;
+        case Completion:
+            builder.setCompletion(set);
+            break;
         default:
             assert false : "new flag? " + flag;
             break;
@@ -387,6 +390,8 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
             return response.getStore() != null;
         case Warmer:
             return response.getWarmer() != null;
+        case Completion:
+            return response.getCompletion() != null;
         default:
             assert false : "new flag? " + flag;
             return false;

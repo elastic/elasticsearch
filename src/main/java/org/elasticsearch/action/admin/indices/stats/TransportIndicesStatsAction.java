@@ -176,6 +176,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.fieldData()) {
             stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
         }
+        if (request.request.completion()) {
+            stats.stats.completion = indexShard.completionStats(request.request.completionFields());
+        }
 
         return stats;
     }

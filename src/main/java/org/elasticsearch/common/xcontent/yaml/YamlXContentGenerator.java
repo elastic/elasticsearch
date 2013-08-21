@@ -68,7 +68,7 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         YAMLParser parser;
         if (content.hasArray()) {

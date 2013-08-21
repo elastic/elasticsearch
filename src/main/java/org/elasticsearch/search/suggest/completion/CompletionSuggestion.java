@@ -23,9 +23,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -69,11 +71,11 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
             private BytesReference payload;
 
-            public Option(Text text, float score,BytesReference payload) {
+            public Option(Text text, float score, BytesReference payload) {
                 super(text, score);
                 this.payload = payload;
             }
-            
+
 
             protected Option() {
                 super();
@@ -86,7 +88,23 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             public BytesReference getPayload() {
                 return payload;
             }
-            
+
+            public String getPayloadAsString() {
+                return payload.toUtf8();
+            }
+
+            public long getPayloadAsLong() {
+                return Long.parseLong(payload.toUtf8());
+            }
+
+            public double getPayloadAsDouble() {
+                return Double.parseDouble(payload.toUtf8());
+            }
+
+            public Map<String, Object> getPayloadAsMap() {
+                return XContentHelper.convertToMap(payload, false).v2();
+            }
+
             public void setScore(float score) {
                 super.setScore(score);
             }

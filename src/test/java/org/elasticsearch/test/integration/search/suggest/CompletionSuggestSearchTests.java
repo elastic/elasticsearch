@@ -28,7 +28,6 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -57,14 +56,14 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     private static final String INDEX = "test";
     private static final String TYPE = "testType";
     private static final String FIELD = "testField";
-    
+
     @Test
-    public void testSimple() throws Exception{
+    public void testSimple() throws Exception {
         createIndexAndMapping();
         String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
-                            {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly" }, 
-                            {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
-                            {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
+                {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
+                {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
+                {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
         for (int i = 0; i < input.length; i++) {
             client().prepareIndex(INDEX, TYPE, "" + i)
                     .setSource(jsonBuilder()
@@ -86,7 +85,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     public void testBasicPrefixSuggestion() throws Exception {
         createIndexAndMapping();
         for (int i = 0; i < 2; i++) {
-            createData(i==0);
+            createData(i == 0);
             assertSuggestions("f", "Firestarter - The Prodigy", "Foo Fighters", "Generator - Foo Fighters", "Learn to Fly - Foo Fighters");
             assertSuggestions("ge", "Generator - Foo Fighters", "Get it on - Turbonegro");
             assertSuggestions("ge", "Generator - Foo Fighters", "Get it on - Turbonegro");
@@ -155,12 +154,66 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(prefixOption.getPayload(), is(notNullValue()));
 
         // parse JSON
-        Map<String, Object> jsonMap = JsonXContent.jsonXContent.createParser(prefixOption.getPayload()).mapAndClose();
+        Map<String, Object> jsonMap = prefixOption.getPayloadAsMap();
         assertThat(jsonMap.size(), is(2));
         assertThat(jsonMap.get("foo").toString(), is("bar"));
         assertThat(jsonMap.get("test"), is(instanceOf(List.class)));
         List<String> listValues = (List<String>) jsonMap.get("test");
         assertThat(listValues, hasItems("spam", "eggs"));
+    }
+
+    @Test
+    public void testPayloadAsNumeric() throws Exception {
+        createIndexAndMapping();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Foo Fighters").endArray()
+                .field("output", "Boo Fighters")
+                .field("payload", 1)
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("testSuggestions").field(FIELD).text("foo").size(10)
+        ).execute().actionGet();
+
+        assertSuggestions(suggestResponse, "testSuggestions", "Boo Fighters");
+        Suggest.Suggestion.Entry.Option option = suggestResponse.getSuggest().getSuggestion("testSuggestions").getEntries().get(0).getOptions().get(0);
+        assertThat(option, is(instanceOf(CompletionSuggestion.Entry.Option.class)));
+        CompletionSuggestion.Entry.Option prefixOption = (CompletionSuggestion.Entry.Option) option;
+        assertThat(prefixOption.getPayload(), is(notNullValue()));
+
+        assertThat(prefixOption.getPayloadAsLong(), equalTo(1l));
+    }
+
+    @Test
+    public void testPayloadAsString() throws Exception {
+        createIndexAndMapping();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Foo Fighters").endArray()
+                .field("output", "Boo Fighters")
+                .field("payload", "test")
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("testSuggestions").field(FIELD).text("foo").size(10)
+        ).execute().actionGet();
+
+        assertSuggestions(suggestResponse, "testSuggestions", "Boo Fighters");
+        Suggest.Suggestion.Entry.Option option = suggestResponse.getSuggest().getSuggestion("testSuggestions").getEntries().get(0).getOptions().get(0);
+        assertThat(option, is(instanceOf(CompletionSuggestion.Entry.Option.class)));
+        CompletionSuggestion.Entry.Option prefixOption = (CompletionSuggestion.Entry.Option) option;
+        assertThat(prefixOption.getPayload(), is(notNullValue()));
+
+        assertThat(prefixOption.getPayloadAsString(), equalTo("test"));
     }
 
     @Test(expected = MapperException.class)
@@ -172,19 +225,6 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .startArray("input").value("Foo Fighters").endArray()
                 .field("output", "Boo Fighters")
                 .startArray("payload").value("spam").value("eggs").endArray()
-                .endObject().endObject()
-        ).get();
-    }
-
-    @Test(expected = MapperException.class)
-    public void testThatIndexingNonObjectAsPayloadThrowsException() throws Exception {
-        createIndexAndMapping();
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input").value("Foo Fighters").endArray()
-                .field("output", "Boo Fighters")
-                .field("payload", "does not work")
                 .endObject().endObject()
         ).get();
     }
@@ -251,7 +291,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testThatShortSyntaxIsWorking() throws Exception  {
+    public void testThatShortSyntaxIsWorking() throws Exception {
         createIndexAndMapping();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -307,16 +347,16 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     @Test
     public void testThatUpgradeToMultiFieldWorks() throws Exception {
         Settings.Builder settingsBuilder = createDefaultSettings();
-        final XContentBuilder mapping =  jsonBuilder()
+        final XContentBuilder mapping = jsonBuilder()
                 .startObject()
                 .startObject(TYPE)
-                    .startObject("properties")
-                        .startObject(FIELD)
-                           .field("type", "string")
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject(FIELD)
+                .field("type", "string")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject()
+                .endObject();
         client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).setSettings(settingsBuilder).get();
         ensureYellow();
         client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
@@ -484,7 +524,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .field("type", "completion").field("analyzer", "simple")
                 .endObject()
                 .endObject().endObject().endObject())
-            .get();
+                .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         // Index two entities
@@ -510,7 +550,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
 
-    public void assertSuggestions(String suggestion, String ... suggestions) {
+    public void assertSuggestions(String suggestion, String... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
                 new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggestion).size(10)
@@ -519,7 +559,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertSuggestions(suggestResponse, suggestionName, suggestions);
     }
 
-    public void assertSuggestionsNotInOrder(String suggestString, String ... suggestions) {
+    public void assertSuggestionsNotInOrder(String suggestString, String... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
                 new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggestString).size(10)
@@ -544,7 +584,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(assertMsg, options.size(), is(suggestions.length));
         if (suggestionOrderStrict) {
             for (int i = 0; i < suggestions.length; i++) {
-                String errMsg = String.format(Locale.ROOT, "Expected elem %s in list %s to be [%s] score: %s", i, suggestionList, suggestions[i],  options.get(i).getScore());
+                String errMsg = String.format(Locale.ROOT, "Expected elem %s in list %s to be [%s] score: %s", i, suggestionList, suggestions[i], options.get(i).getScore());
                 assertThat(errMsg, options.get(i).getText().toString(), is(suggestions[i]));
             }
         } else {
@@ -595,12 +635,12 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
 
     private ImmutableSettings.Builder createDefaultSettings() {
         int randomShardNumber = between(1, 5);
-        int randomReplicaNumber = between(0, numberOfNodes()-1);
+        int randomReplicaNumber = between(0, numberOfNodes() - 1);
         return settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, randomShardNumber).put(SETTING_NUMBER_OF_REPLICAS, randomReplicaNumber);
     }
 
     private void createData(boolean optimize) throws IOException, InterruptedException, ExecutionException {
-        String[][] input = {{"Foo Fighters"}, {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly" }, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}};
+        String[][] input = {{"Foo Fighters"}, {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}};
         String[] surface = {"Foo Fighters", "Generator - Foo Fighters", "Learn to Fly - Foo Fighters", "The Prodigy", "Firestarter - The Prodigy", "Turbonegro", "Get it on - Turbonegro"};
         int[] weight = {10, 9, 8, 12, 11, 6, 7};
         IndexRequestBuilder[] builders = new IndexRequestBuilder[input.length];
@@ -609,7 +649,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                     .setSource(jsonBuilder()
                             .startObject().startObject(FIELD)
                             .startArray("input").value(input[i]).endArray()
-                            .field("output",surface[i])
+                            .field("output", surface[i])
                             .startObject("payload").field("id", i).endObject()
                             .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT 
                             .endObject()
@@ -623,7 +663,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                     .setSource(jsonBuilder()
                             .startObject().startObject(FIELD)
                             .startArray("input").value(input[i]).endArray()
-                            .field("output",surface[i])
+                            .field("output", surface[i])
                             .startObject("payload").field("id", i).endObject()
                             .field("weight", weight[i])
                             .endObject()

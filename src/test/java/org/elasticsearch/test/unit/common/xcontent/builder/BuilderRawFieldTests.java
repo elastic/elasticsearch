@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.common.xcontent.builder;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,12 +46,23 @@ public class BuilderRawFieldTests {
         testRawField(XContentType.SMILE);
     }
 
+    @Test
+    public void testYamlRawField() throws IOException {
+        testRawField(XContentType.YAML);
+    }
+
     private void testRawField(XContentType type) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(type);
         builder.startObject();
         builder.field("field1", "value1");
         builder.rawField("_source", XContentFactory.contentBuilder(type).startObject().field("s_field", "s_value").endObject().bytes());
         builder.field("field2", "value2");
+        builder.rawField("payload_i", new BytesArray(Long.toString(1)));
+        builder.field("field3", "value3");
+        builder.rawField("payload_d", new BytesArray(Double.toString(1.1)));
+        builder.field("field4", "value4");
+        builder.rawField("payload_s", new BytesArray("test"));
+        builder.field("field5", "value5");
         builder.endObject();
 
         XContentParser parser = XContentFactory.xContent(type).createParser(builder.bytes());
@@ -73,6 +85,39 @@ public class BuilderRawFieldTests {
         assertThat(parser.currentName(), equalTo("field2"));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
         assertThat(parser.text(), equalTo("value2"));
+
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("payload_i"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
+        assertThat(parser.numberType(), equalTo(XContentParser.NumberType.INT));
+        assertThat(parser.longValue(), equalTo(1l));
+
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("field3"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+        assertThat(parser.text(), equalTo("value3"));
+
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("payload_d"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
+        assertThat(parser.numberType(), equalTo(XContentParser.NumberType.DOUBLE));
+        assertThat(parser.doubleValue(), equalTo(1.1d));
+
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("field4"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+        assertThat(parser.text(), equalTo("value4"));
+
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("payload_s"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+        assertThat(parser.text(), equalTo("test"));
+
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("field5"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+        assertThat(parser.text(), equalTo("value5"));
+
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
     }
 }

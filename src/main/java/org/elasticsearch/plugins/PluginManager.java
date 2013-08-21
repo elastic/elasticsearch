@@ -28,6 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -35,11 +39,6 @@ import java.net.URL;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
@@ -179,7 +178,7 @@ public class PluginManager {
                     }
                     if (!downloaded) {
                         // try it as a site plugin tagged
-                        pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
+                        pluginUrl = new URL("https://codeload.github.com/" + userName + "/" + repoName + "/zip/v" + version);
                         System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
                         try {
                             downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
@@ -193,7 +192,7 @@ public class PluginManager {
                     }
                 } else {
                     // assume site plugin, download master....
-                    URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
+                    URL pluginUrl = new URL("https://codeload.github.com/" + userName + "/" + repoName + "/zip/master");
                     System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
                     try {
                         downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));

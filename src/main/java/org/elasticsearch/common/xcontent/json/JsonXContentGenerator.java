@@ -272,7 +272,27 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+    public final void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+        XContentType contentType = XContentFactory.xContentType(content);
+        if (contentType != null) {
+            writeObjectRaw(fieldName, content, bos);
+        } else {
+            writeFieldName(fieldName);
+            // we could potentially optimize this to not rely on exception logic...
+            String sValue = content.toUtf8();
+            try {
+                writeNumber(Long.parseLong(sValue));
+            } catch (NumberFormatException e) {
+                try {
+                    writeNumber(Double.parseDouble(sValue));
+                } catch (NumberFormatException e1) {
+                    writeString(sValue);
+                }
+            }
+        }
+    }
+
+    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
         generator.writeRaw(", \"");
         generator.writeRaw(fieldName);
         generator.writeRaw("\" : ");

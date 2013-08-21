@@ -74,7 +74,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         public static final String TYPE = "type";
     }
 
-    public static class Builder extends AbstractFieldMapper.OpenBuilder<Builder, CompletionFieldMapper>  {
+    public static class Builder extends AbstractFieldMapper.OpenBuilder<Builder, CompletionFieldMapper> {
 
         private NamedAnalyzer searchAnalyzer;
         private NamedAnalyzer indexAnalyzer;
@@ -175,7 +175,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         this.preservePositionIncrements = preservePositionIncrements;
     }
 
-   
+
     @Override
     public PostingsFormatProvider postingsFormatProvider() {
         return this.completionPostingsFormatProvider;
@@ -206,8 +206,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         XContentBuilder payloadBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
                         payload = payloadBuilder.bytes().toBytesRef();
                         payloadBuilder.close();
+                    } else if (token.isValue()) {
+                        payload = parser.bytesOrNull();
                     } else {
-                        throw new MapperException("Payload must be an object");
+                        throw new MapperException("payload doesn't support type " + token);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if ("output".equals(currentFieldName)) {
@@ -232,7 +234,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 }
             }
         }
-        payload = payload == null ? EMPTY: payload;
+        payload = payload == null ? EMPTY : payload;
         if (surfaceForm == null) { // no surface form use the input
             for (String input : inputs) {
                 BytesRef suggestPayload = analyzingSuggestLookupProvider.buildPayload(new BytesRef(
@@ -247,7 +249,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             }
         }
     }
-    
+
     public Field getCompletionField(String input, BytesRef payload) {
         return new SuggestField(names().fullName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
     }
@@ -274,21 +276,21 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
     }
 
-    
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name())
-            .field(Fields.TYPE, CONTENT_TYPE);
+                .field(Fields.TYPE, CONTENT_TYPE);
         if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
             builder.field(Fields.ANALYZER, indexAnalyzer.name());
         } else {
             builder.field(Fields.INDEX_ANALYZER, indexAnalyzer.name())
-                .field(Fields.SEARCH_ANALYZER, searchAnalyzer.name());
+                    .field(Fields.SEARCH_ANALYZER, searchAnalyzer.name());
         }
         builder.field(Fields.PAYLOADS, this.payloads)
-            .field(Fields.PRESERVE_SEPARATORS, this.preserveSeparators)
-            .field(Fields.PRESERVE_POSITION_INCREMENTS, this.preservePositionIncrements)
-        .endObject();
+                .field(Fields.PRESERVE_SEPARATORS, this.preserveSeparators)
+                .field(Fields.PRESERVE_POSITION_INCREMENTS, this.preservePositionIncrements)
+                .endObject();
 
         return builder;
     }
@@ -303,7 +305,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-    
+
 
     @Override
     public FieldType defaultFieldType() {

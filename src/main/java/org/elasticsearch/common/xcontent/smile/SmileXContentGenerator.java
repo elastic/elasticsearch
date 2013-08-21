@@ -68,7 +68,7 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
+    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         SmileParser parser;
         if (content.hasArray()) {

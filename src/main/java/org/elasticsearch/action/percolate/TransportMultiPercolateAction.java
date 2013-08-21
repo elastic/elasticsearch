@@ -136,6 +136,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
 
         // Resolving concrete indices and routing and grouping the requests by shard
         final Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard = new HashMap<ShardId, TransportShardMultiPercolateAction.Request>();
+        final Map<ShardId, TIntArrayList> shardToSlots = new HashMap<ShardId, TIntArrayList>();
         int expectedResults = 0;
         for (int i = 0;  i < percolateRequests.size(); i++) {
             Object element = percolateRequests.get(i);
@@ -158,6 +159,12 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                         requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shard.shardId().getIndex(), shardId.id(), percolateRequest.preference()));
                     }
                     requests.add(new TransportShardMultiPercolateAction.Request.Item(i, new PercolateShardRequest(shardId, percolateRequest)));
+
+                    TIntArrayList items = shardToSlots.get(shardId);
+                    if (items == null) {
+                        shardToSlots.put(shardId, items = new TIntArrayList());
+                    }
+                    items.add(i);
                 }
                 expectedResults++;
             } else if (element instanceof Throwable) {
@@ -200,6 +207,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                             }
                         }
                     } catch (Throwable e) {
+                        logger.error("{} Percolate original reduce error", e, shardId);
                         listener.onFailure(e);
                     }
                 }
@@ -208,16 +216,18 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                 @SuppressWarnings("unchecked")
                 public void onFailure(Throwable e) {
                     try {
-                        for (TransportShardMultiPercolateAction.Request.Item item : shardRequest.items()) {
-                            AtomicReferenceArray shardResults = responsesByItemAndShard.get(item.slot());
+                        TIntArrayList slots = shardToSlots.get(shardId);
+                        for (int i = 0; i < slots.size(); i++) {
+                            int slot = slots.get(i);
+                            AtomicReferenceArray shardResults = responsesByItemAndShard.get(slot);
                             if (shardResults == null) {
                                 continue;
                             }
 
                             shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, e));
-                            assert expectedOperationsPerItem[item.slot()].get() >= 1;
-                            if (expectedOperationsPerItem[item.slot()].decrementAndGet() == 0) {
-                                reduce(item.slot(), percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
+                            assert expectedOperationsPerItem[slot].get() >= 1;
+                            if (expectedOperationsPerItem[slot].decrementAndGet() == 0) {
+                                reduce(slot, percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
                             }
                         }
                     } catch (Throwable t) {

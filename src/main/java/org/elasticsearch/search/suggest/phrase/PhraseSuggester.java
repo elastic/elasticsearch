@@ -33,12 +33,10 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.*;
+import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
-
-import java.io.IOException;
 import java.util.List;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
@@ -56,11 +54,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexReader indexReader, CharsRef spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
-        UnicodeUtil.UTF8toUTF16(suggestion.getText(), spare);
-        Suggestion.Entry<Option> resultEntry = new Suggestion.Entry<Option>(new StringText(spare.toString()), 0, spare.length);
-        final Suggestion<Entry<Option>> response = new Suggestion<Entry<Option>>(name, suggestion.getSize());
-        response.addTerm(resultEntry);
-        
+        final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
+
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
         final int numGenerators = generators.size();
         final List<CandidateGenerator> gens = new ArrayList<CandidateGenerator>(generators.size());
@@ -81,12 +76,15 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
             
             WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
-            Correction[] corrections = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
+            Result checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
                     gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
                     suggestion.getShardSize(), indexReader,wordScorer , separator, suggestion.confidence(), suggestion.gramSize());
-           
+
+            PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
+            response.addTerm(resultEntry);
+
             BytesRef byteSpare = new BytesRef();
-            for (Correction correction : corrections) {
+            for (Correction correction : checkerResult.corrections) {
                 UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
                 Text phrase = new StringText(spare.toString());
                 Text highlighted = null;
@@ -96,8 +94,15 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                 }
                 resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
             }
+        } else {
+            response.addTerm(buildResultEntry(suggestion, spare, Double.MIN_VALUE));
         }
         return response;
+    }
+
+    private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRef spare, double cutoffScore) {
+        UnicodeUtil.UTF8toUTF16(suggestion.getText(), spare);
+        return new PhraseSuggestion.Entry(new StringText(spare.toString()), 0, spare.length, cutoffScore);
     }
     
     @Override

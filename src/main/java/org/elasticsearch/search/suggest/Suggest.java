@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
@@ -118,6 +119,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 break;
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
+                break;
+            case PhraseSuggestion.TYPE:
+                suggestion = new PhraseSuggestion();
                 break;
             default:
                 suggestion = new Suggestion<Entry<Option>>();
@@ -357,7 +361,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 CollectionUtil.timSort(options, comparator);
             }
 
-            protected Entry<O> reduce(List<Entry<O>> toReduce) {
+            protected Entry<O> reduce(List<? extends Entry<O>> toReduce) {
                 if (toReduce.size() == 1) {
                     return toReduce.get(0);
                 }
@@ -367,20 +371,29 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     assert leader.text.equals(entry.text);
                     assert leader.offset == entry.offset;
                     assert leader.length == entry.length;
+                    leader.merge(entry);
                     for (O option : entry) {
                         O merger = entries.get(option);
                         if (merger == null) {
-                           entries.put(option, option);
+                            entries.put(option, option);
                         } else {
                             merger.mergeInto(option);
-                        }    
+                        }
                     }
                 }
                 leader.options.clear();
-                leader.options.addAll(entries.keySet());
+                for (O option: entries.keySet()) {
+                    leader.addOption(option);
+                }
                 return leader;
             }
-            
+
+            /**
+             * Merge any extra fields for this subtype.
+             */
+            protected void merge(Entry<O> other) {
+            }
+
             /**
              * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
              *         single term.

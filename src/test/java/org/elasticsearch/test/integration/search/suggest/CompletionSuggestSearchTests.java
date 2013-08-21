@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
@@ -219,7 +221,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testThatMultipleInputsAreSuppored() throws Exception {
+    public void testThatMultipleInputsAreSupported() throws Exception {
         createIndexAndMapping("simple", "simple", false, false, true);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -451,6 +453,49 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
 
+    @Test
+    public void testThatStatsAreWorking() throws Exception {
+        String otherField = "testOtherField";
+
+        client().admin().indices().prepareDelete().get();
+        client().admin().indices().prepareCreate(INDEX)
+                .setSettings(createDefaultSettings())
+                .get();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion").field("analyzer", "simple")
+                .endObject()
+                .startObject(otherField)
+                .field("type", "completion").field("analyzer", "simple")
+                .endObject()
+                .endObject().endObject().endObject())
+            .get();
+        assertThat(putMappingResponse.isAcknowledged(), is(true));
+
+        // Index two entities
+        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").field(otherField, "WHATEVER").endObject()).get();
+        client().prepareIndex(INDEX, TYPE, "2").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Bar Fighters").field(otherField, "WHATEVER2").endObject()).get();
+
+        // Get all stats
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();
+        CompletionStats completionStats = indicesStatsResponse.getIndex(INDEX).getPrimaries().completion;
+        assertThat(completionStats, notNullValue());
+        long totalSizeInBytes = completionStats.getSizeInBytes();
+        assertThat(totalSizeInBytes, is(greaterThan(0L)));
+
+        IndicesStatsResponse singleFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields(FIELD).get();
+        long singleFieldSizeInBytes = singleFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get(FIELD);
+        IndicesStatsResponse otherFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields(otherField).get();
+        long otherFieldSizeInBytes = otherFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get(otherField);
+        assertThat(singleFieldSizeInBytes + otherFieldSizeInBytes, is(totalSizeInBytes));
+
+        // regexes
+        IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("test*").get();
+        long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("test*");
+        assertThat(regexSizeInBytes, is(totalSizeInBytes));
+    }
 
     public void assertSuggestions(String suggestion, String ... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);

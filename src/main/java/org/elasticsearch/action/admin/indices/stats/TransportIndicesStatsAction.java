@@ -179,6 +179,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.percolate()) {
             stats.stats.percolate = indexShard.shardPercolateService().stats();
         }
+        if (request.request.completion()) {
+            stats.stats.completion = indexShard.completionStats(request.request.completionFields());
+        }
 
         return stats;
     }

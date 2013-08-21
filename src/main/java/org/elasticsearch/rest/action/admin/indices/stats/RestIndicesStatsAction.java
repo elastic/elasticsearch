@@ -89,6 +89,11 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_stats/fielddata/{fields}", new RestFieldDataStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/fielddata/{fields}", new RestFieldDataStatsHandler());
 
+        controller.registerHandler(GET, "/_stats/completion", new RestCompletionStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/completion", new RestCompletionStatsHandler());
+        controller.registerHandler(GET, "/_stats/completion/{fields}", new RestCompletionStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/completion/{fields}", new RestCompletionStatsHandler());
+
         controller.registerHandler(GET, "/_stats/percolate", new RestPercolateStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/percolate", new RestPercolateStatsHandler());
     }
@@ -556,6 +561,45 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.indices(splitIndices(request.param("index")));
             indicesStatsRequest.types(splitTypes(request.param("types")));
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fields", null));
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+                @Override
+                public void onResponse(IndicesStatsResponse response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Throwable e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestCompletionStatsHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.listenerThreaded(false);
+            indicesStatsRequest.clear().completion(true);
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.completionFields(request.paramAsStringArray("fields", null));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override

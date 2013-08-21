@@ -25,10 +25,15 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.FilterAtomicReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.InputStreamDataInput;
+import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFiniteStrings;
 
@@ -47,7 +52,6 @@ import java.util.Map;
  * handle all the merge operations. The auxiliary suggest FST data structure is
  * only loaded if a FieldsProducer is requested for reading, for merging it uses
  * the low memory delegate postings format.
- * 
  */
 public class Completion090PostingsFormat extends PostingsFormat {
 
@@ -55,9 +59,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
     public static final int SUGGEST_CODEC_VERSION = 1;
     public static final String EXTENSION = "cmp";
 
+    private final static ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
     private PostingsFormat delegatePostingsFormat;
     private final static Map<String, CompletionLookupProvider> providers;
     private CompletionLookupProvider writeProvider;
+
 
     static {
         final CompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, false);
@@ -81,13 +87,13 @@ public class Completion090PostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public SuggestFieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+    public CompletionFieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         if (delegatePostingsFormat == null) {
             throw new UnsupportedOperationException("Error - " + getClass().getName()
                     + " has been constructed without a choice of PostingsFormat");
         }
         assert writeProvider != null;
-        return new SuggestFieldsConsumer(state);
+        return new CompletionFieldsConsumer(state);
     }
 
     @Override
@@ -95,12 +101,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
         return new CompletionFieldsProducer(state);
     }
 
-    private class SuggestFieldsConsumer extends FieldsConsumer {
+    private class CompletionFieldsConsumer extends FieldsConsumer {
 
         private FieldsConsumer delegatesFieldsConsumer;
         private FieldsConsumer suggestFieldsConsumer;
 
-        public SuggestFieldsConsumer(SegmentWriteState state) throws IOException {
+        public CompletionFieldsConsumer(SegmentWriteState state) throws IOException {
             this.delegatesFieldsConsumer = delegatePostingsFormat.fieldsConsumer(state);
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexOutput output = null;
@@ -274,6 +280,10 @@ public class Completion090PostingsFormat extends PostingsFormat {
         public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
             return lookup.getLookup(mapper, suggestionContext);
         }
+
+        public CompletionStats stats(String ... fields) {
+            return lookup.stats(fields);
+        }
     }
 
     public static abstract class CompletionLookupProvider implements PayloadProcessor, ToFiniteStrings {
@@ -326,7 +336,28 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
+    public CompletionStats completionStats(IndexReader indexReader, String ... fields) {
+        CompletionStats completionStats = new CompletionStats();
+        for (AtomicReaderContext atomicReaderContext : indexReader.leaves()) {
+            AtomicReader atomicReader = atomicReaderContext.reader();
+            try {
+                for (String fieldName : atomicReader.fields()) {
+                    Terms terms = atomicReader.fields().terms(fieldName);
+                    if (terms instanceof CompletionTerms) {
+                        CompletionTerms completionTerms = (CompletionTerms) terms;
+                        completionStats.add(completionTerms.stats(fields));
+                    }
+                }
+            } catch (IOException e) {
+                logger.error("Could not get completion stats: {}", e, e.getMessage());
+            }
+        }
+
+        return completionStats;
+    }
+
     public static abstract class LookupFactory {
         public abstract Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext);
+        public abstract CompletionStats stats(String ... fields);
     }
 }

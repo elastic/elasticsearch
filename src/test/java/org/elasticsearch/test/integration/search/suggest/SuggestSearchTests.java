@@ -40,9 +40,7 @@ import org.junit.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -165,7 +163,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
         int numShards = between(1,5);
         Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", numShards).put("index.number_of_replicas", between(0, 2));
+        builder.put("index.number_of_shards", numShards).put("index.number_of_replicas", between(0, numberOfNodes() - 1));
         builder.put("index.analysis.analyzer.biword.tokenizer", "standard");
         builder.putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase");
         builder.put("index.analysis.filter.shingler.type", "shingle");
@@ -1149,7 +1147,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     @Test // see #3469
     public void testShardFailures() throws IOException, InterruptedException {
         Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", between(1, 5)).put("index.number_of_replicas", between(0, 2));
+        builder.put("index.number_of_shards", between(1, 5)).put("index.number_of_replicas", between(0, numberOfNodes() - 1));
         builder.put("index.analysis.analyzer.suggest.tokenizer", "standard");
         builder.putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler");
         builder.put("index.analysis.filter.shingler.type", "shingle");
@@ -1187,7 +1185,8 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("name", "Just testing the suggestions api").endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", "2")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title").endObject()).execute().actionGet();
+            .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title about equal length").endObject()).execute().actionGet();
+        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         // When searching on a shard with a non existing mapping, we should fail
@@ -1240,7 +1239,8 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("name", "Just testing the suggestions api").endObject()).execute().actionGet();
         client().prepareIndex("test", "type1", "2")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title").endObject()).execute().actionGet();
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title about equal length").endObject()).execute().actionGet();
+        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
@@ -1250,5 +1250,73 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
 
         ElasticsearchAssertions.assertNoFailures(searchResponse);
         ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+    }
+
+    /**
+     * Searching for a rare phrase shouldn't provide any suggestions if confidence > 1.  This was possible before we rechecked the cutoff
+     * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
+     */
+    @Test
+    public void testSearchForRarePhrase() throws ElasticSearchException, IOException {
+        // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
+        int chafPerShard = 100;
+        Builder builder = ImmutableSettings.builder();
+        int numberOfShards = between(2, 5);
+        builder.put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", between(0, numberOfNodes() - 1));
+        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle");
+        builder.put("index.analysis.filter.my_shingle.type", "shingle");
+        builder.put("index.analysis.filter.my_shingle.output_unigrams", true);
+        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
+        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+        .startObject("properties")
+        .startObject("body").field("type", "string").field("analyzer", "body").endObject()
+        .endObject()
+        .endObject().endObject();
+
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
+        List<String> phrases = new ArrayList<String>();
+        Collections.addAll(phrases, "nobel prize", "noble gases", "somethingelse prize", "pride and joy", "notes are fun");
+        for (int i = 0; i < 8; i++) {
+            phrases.add("noble somethingelse" + i);
+        }
+        for (int i = 0; i < numberOfShards * chafPerShard; i++) {
+            phrases.add("chaff" + i);
+        }
+        for (String phrase: phrases) {
+            client().prepareIndex("test", "type1")
+            .setSource(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("body", phrase)
+                    .endObject()
+            )
+            .execute().actionGet();
+        }
+        refresh();
+
+        Suggest searchSuggest = searchSuggest(client(), "nobel prize", phraseSuggestion("simple_phrase")
+                .field("body")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
+                .confidence(2f)
+                .maxErrors(5f)
+                .size(1));
+        ElasticsearchAssertions.assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+
+        searchSuggest = searchSuggest(client(), "noble prize", phraseSuggestion("simple_phrase")
+                .field("body")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
+                .confidence(2f)
+                .maxErrors(5f)
+                .size(1));
+        ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "simple_phrase", "nobel prize");
+    }
+
+    @Override
+    protected int numberOfNodes() {
+        return 3;
     }
 }

@@ -206,6 +206,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         XContentBuilder payloadBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
                         payload = payloadBuilder.bytes().toBytesRef();
                         payloadBuilder.close();
+                    } else {
+                        throw new MapperException("Payload must be an object");
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if ("output".equals(currentFieldName)) {

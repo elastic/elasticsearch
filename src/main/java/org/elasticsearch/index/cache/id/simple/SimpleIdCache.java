@@ -266,7 +266,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         if (readerCache.shardId != null) {
             IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
-                shard.idCache().onCached(readerCache.sizeInBytes());
+                shard.idCache().onRemoval(readerCache.sizeInBytes());
             }
         }
     }

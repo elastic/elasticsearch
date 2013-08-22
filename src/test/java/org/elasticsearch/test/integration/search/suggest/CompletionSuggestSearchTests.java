@@ -22,6 +22,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -677,6 +680,41 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
             // make sure merging works just fine
             client().admin().indices().prepareFlush(INDEX).execute().actionGet();
             client().admin().indices().prepareOptimize(INDEX).execute().actionGet();
+        }
+    }
+    
+    @Test // see #3555
+    public void testPrunedSegments() throws IOException {
+        createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0), "standard", "standard", false, false, false);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("The Beatles").endArray()
+                .endObject().endObject()
+        ).get();
+        client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder()
+                .startObject()
+                    .field("somefield", "somevalue")
+                .endObject()
+        ).get(); // we have 2 docs in a segment...
+        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).setRefresh(true).execute().actionGet();
+        assertNoFailures(actionGet);
+        // update the first one and then merge.. the target segment will have no value in FIELD
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject()
+                    .field("somefield", "somevalue")
+                .endObject()
+        ).get();
+        actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).setRefresh(true).execute().actionGet();
+        assertNoFailures(actionGet);
+
+        assertSuggestions("b");
+        assertThat(2l, equalTo(client().prepareCount(INDEX).get().getCount()));
+        for(IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
+            ShardSegments[] shards = seg.getShards();
+            for (ShardSegments shardSegments : shards) {
+                assertThat(1, equalTo(shardSegments.getSegments().size()));
+            }
         }
     }
 }

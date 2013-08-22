@@ -31,7 +31,9 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.*;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestContextParser;
+import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 
 import java.io.IOException;
@@ -64,8 +66,13 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             AtomicReader atomicReader = atomicReaderContext.reader();
             Terms terms = atomicReader.fields().terms(fieldName);
             if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
-                Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
-                Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
+                final Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
+                final Lookup lookup = lookupTerms.getLookup(suggestionContext.mapper(), suggestionContext);
+                if (lookup == null) {
+                    // we don't have a lookup for this segment.. this might be possible if a merge dropped all
+                    // docs from the segment that had a value in this segment.
+                    continue;
+                }
                 List<Lookup.LookupResult> lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
                 for (Lookup.LookupResult res : lookupResults) {
 

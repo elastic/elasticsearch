@@ -133,17 +133,26 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                          * buid the FST and write it to disk.
                          */
                         FST<Pair<Long, BytesRef>> build = builder.build();
-                        fieldOffsets.put(field, output.getFilePointer());
-                        build.save(output);
-                        /* write some more meta-info */
-                        output.writeVInt(postingsConsumer.getMaxAnalyzedPathsForOneInput());
-                        output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
-                        output.writeInt(maxGraphExpansions); // can be negative
-                        int options = 0;
-                        options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
-                        options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
-                        options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
-                        output.writeVInt(options);
+                        assert build != null || docCount == 0 : "the FST is null but docCount is != 0 actual value: [" + docCount + "]";
+                        /*
+                         * it's possible that the FST is null if we have 2 segments that get merged
+                         * and all docs that have a value in this field are deleted. This will cause
+                         * a consumer to be created but it doesn't consume any values causing the FSTBuilder
+                         * to return null.
+                         */
+                        if (build != null) {
+                            fieldOffsets.put(field, output.getFilePointer());
+                            build.save(output);
+                            /* write some more meta-info */
+                            output.writeVInt(postingsConsumer.getMaxAnalyzedPathsForOneInput());
+                            output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
+                            output.writeInt(maxGraphExpansions); // can be negative
+                            int options = 0;
+                            options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
+                            options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
+                            options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
+                            output.writeVInt(options);
+                        }
                     }
                 };
             }
@@ -251,9 +260,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry: lookupMap.entrySet()) {
                     sizeInBytes += entry.getValue().fst.sizeInBytes();
-
-                    if (fields == null || fields.length == 0) continue;
-
+                    if (fields == null || fields.length == 0) {
+                        continue;
+                    }
                     for (String field : fields) {
                         // support for getting fields by regex as in fielddata
                         if (Regex.simpleMatch(field, entry.getKey())) {

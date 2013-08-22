@@ -472,8 +472,8 @@
                             <shadedPattern>org.elasticsearch.common.jackson</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>org.joda</pattern>
-                            <shadedPattern>org.elasticsearch.common.joda</shadedPattern>
+                            <pattern>org.joda.time</pattern>
+                            <shadedPattern>org.elasticsearch.common.joda.time</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.jboss.netty</pattern>

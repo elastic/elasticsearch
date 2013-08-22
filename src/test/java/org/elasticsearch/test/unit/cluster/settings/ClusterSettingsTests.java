@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,6 +34,24 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterSettingsTests {
+
+    @Test
+    public void clusterNonExistingSettingsUpdate() {
+        Node node1 = NodeBuilder.nodeBuilder().node();
+        node1.start();
+        Client client = node1.client();
+
+        String key1 = "no_idea_what_you_are_talking_about";
+        int value1 = 10;
+
+        ClusterUpdateSettingsResponse response = client.admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder().put(key1, value1).build())
+                .get();
+
+        assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+
+    }
 
     @Test
     public void clusterSettingsUpdateResponse() {

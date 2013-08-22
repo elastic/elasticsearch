@@ -159,6 +159,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (oldState == newState) {
                     // nothing changed...
+                    listener.onResponse(new ClusterUpdateSettingsResponse(transientUpdates.build(), persistentUpdates.build()));
                     return;
                 }
                 // now, reroute

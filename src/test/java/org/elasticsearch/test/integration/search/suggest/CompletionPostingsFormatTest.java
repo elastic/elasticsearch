@@ -247,6 +247,27 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         dir.close();
         return lookup;
     }
+    
+    @Test
+    public void testNoDocs() throws IOException {
+        AnalyzingCompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, true);
+        RAMDirectory dir = new RAMDirectory();
+        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
+        FieldsConsumer consumer = provider.consumer(output);
+        FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
+                DocValuesType.SORTED, DocValuesType.BINARY, new HashMap<String, String>());
+        TermsConsumer addField = consumer.addField(fieldInfo);
+        addField.finish(0, 0, 0);
+        consumer.close();
+        output.close();
+
+        IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
+        LookupFactory load = provider.load(input);
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
+        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true), new CompletionSuggestionContext(null)));
+        dir.close();
+    }
 
     // TODO ADD more unittests
 }

@@ -34,7 +34,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -50,6 +49,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -279,21 +279,21 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("_source.field"))).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), scriptFunction("_source.field"))).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).score(), Matchers.lessThan(searchResponse.getHits().getAt(1).score()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("_source.field"))).addSort("_score", SortOrder.DESC).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), scriptFunction("_source.field"))).addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).score(), Matchers.lessThan(searchResponse.getHits().getAt(1).score()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery()).add(new ScriptScoreFunctionBuilder().script("_source.field"))).addSort("_score", SortOrder.DESC).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), scriptFunction("_source.field"))).addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));

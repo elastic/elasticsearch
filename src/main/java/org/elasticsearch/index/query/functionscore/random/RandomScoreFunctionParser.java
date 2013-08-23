@@ -24,15 +24,14 @@ package org.elasticsearch.index.query.functionscore.random;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -73,6 +72,17 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
             seed = parseContext.nowInMillis();
         }
 
+        ShardId shardId = SearchContext.current().indexShard().shardId();
+        seed = salt(seed, shardId.index().name(), shardId.id());
+
         return new RandomScoreFunction(seed);
     }
+
+    public static long salt(long seed, String index, int shardId) {
+        long salt = index.hashCode();
+        salt = salt << 32;
+        salt |= shardId;
+        return salt^seed;
+    }
+
 }

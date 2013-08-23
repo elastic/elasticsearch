@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.child;
 
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -353,6 +354,49 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
 
 
+    }
+
+    @Test
+    public void testClearIdCacheBug() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices()
+                .prepareStats("test").setIdCache(true).execute().actionGet();
+        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        indicesStatsResponse = client().admin().indices()
+                .prepareStats("test").setIdCache(true).execute().actionGet();
+        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
+
+        client().admin().indices().prepareClearCache("test").setIdCache(true).execute().actionGet();
+        indicesStatsResponse = client().admin().indices()
+                .prepareStats("test").setIdCache(true).execute().actionGet();
+        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
     }
 
     @Test

@@ -29,6 +29,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchTestCase.ElasticSearchThreadFilter.class})
@@ -68,6 +69,12 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         
+    }
+    
+    private static final String[] numericTypes = new String[] {"byte", "short", "integer", "long"};
+    
+    public static String randomNumericType(Random random) {
+        return numericTypes[random.nextInt(numericTypes.length)];
     }
 
   }

@@ -179,7 +179,13 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
     public void testNumericField() throws Exception {
-        prepareCreate("test").execute().actionGet();
+        prepareCreate("test").addMapping("type", jsonBuilder()
+                    .startObject().startObject("type")
+                    .startObject("properties")
+                        .startObject("int_value").field("type", randomNumericType(getRandom())).endObject()
+                        .startObject("string_value").field("type", "string").endObject()
+                        .endObject()
+                    .endObject().endObject()).execute().actionGet();
         ensureGreen();
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())

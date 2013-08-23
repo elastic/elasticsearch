@@ -289,8 +289,9 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         clusterService1 = node1.injector().getInstance(ClusterService.class);
         testService1 = node1.injector().getInstance(MasterAwareService.class);
 
-        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...
+        assertThat(node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
+        assertThat(node1.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
         assertThat(clusterService1.state().nodes().masterNode(), is(notNullValue()));

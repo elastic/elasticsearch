@@ -298,7 +298,6 @@ public class ThreadPool extends AbstractComponent {
         } else if ("fixed".equals(type)) {
             int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors());
             SizeValue defaultQueueSize = defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null));
-            String defaultRejectSetting = defaultSettings.get("reject_policy", "abort");
             String defaultQueueType = defaultSettings.get("queue_type", "linked");
 
             if (previousExecutorHolder != null) {
@@ -329,7 +328,7 @@ public class ThreadPool extends AbstractComponent {
             SizeValue queueSize = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", defaultQueueSize)));
             String queueType = settings.get("queue_type", defaultQueueType);
             BlockingQueue<Runnable> workQueue = newQueue(queueSize, queueType);
-            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], reject_policy [{}], queue_type [{}]", name, type, size, queueSize, queueType);
+            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], queue_type [{}]", name, type, size, queueSize, queueType);
             Executor executor = EsExecutors.newFixed(size, workQueue, threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, size, size, null, queueSize, queueType));
         } else if ("scaling".equals(type)) {

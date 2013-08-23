@@ -188,7 +188,7 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
 
     @Override
     public <T> T[] toArray(T[] a) {
-        return (T[]) queue.toArray();
+        return (T[]) queue.toArray(a);
     }
 
     @Override

@@ -39,7 +39,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -315,8 +314,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                                 }
                             }
                         }
-                    } catch (RejectedExecutionException ex) {
-                        logger.debug("Rejected execution on NodeDisconnected", ex);
                     } catch (EsRejectedExecutionException ex) {
                         logger.debug("Rejected execution on NodeDisconnected", ex);
                     }

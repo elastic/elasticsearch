@@ -19,10 +19,6 @@
 
 package org.elasticsearch.action.termvector;
 
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -31,11 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -51,7 +43,7 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
 
     @Inject
     public TransportSingleShardTermVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
-            IndicesService indicesService, ThreadPool threadPool) {
+                                                IndicesService indicesService, ThreadPool threadPool) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
@@ -94,31 +86,7 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     protected TermVectorResponse shardOperation(TermVectorRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
-
-        final Engine.Searcher searcher = indexShard.searcher();
-        IndexReader topLevelReader = searcher.reader();
-
-        final TermVectorResponse termVectorResponse = new TermVectorResponse(request.index(), request.type(), request.id());
-        final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
-        try {
-            Fields topLevelFields = MultiFields.getFields(topLevelReader);
-            Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
-            if (docIdAndVersion != null) {
-                termVectorResponse.setFields(docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId), request.selectedFields(),
-                        request.getFlags(), topLevelFields);
-                termVectorResponse.setDocVersion(docIdAndVersion.version);
-                termVectorResponse.setExists(true);
-            } else {
-                
-            }
-
-        } catch (Throwable ex) {
-            
-            throw new ElasticSearchException("failed to execute term vector request", ex);
-        } finally {
-            searcher.release();
-        }
-        return termVectorResponse;
+        return indexShard.termVectorService().getTermVector(request);
     }
 
     @Override

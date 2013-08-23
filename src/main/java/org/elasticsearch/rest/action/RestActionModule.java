@@ -90,6 +90,7 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
+import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
 
@@ -176,6 +177,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestCountAction.class).asEagerSingleton();
         bind(RestSuggestAction.class).asEagerSingleton();
         bind(RestTermVectorAction.class).asEagerSingleton();
+        bind(RestMultiTermVectorsAction.class).asEagerSingleton();
         bind(RestBulkAction.class).asEagerSingleton();
         bind(RestUpdateAction.class).asEagerSingleton();
         bind(RestPercolateAction.class).asEagerSingleton();

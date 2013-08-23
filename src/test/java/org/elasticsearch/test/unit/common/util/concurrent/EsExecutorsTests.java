@@ -72,7 +72,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
 
         final AtomicBoolean executed3 = new AtomicBoolean();
         final CountDownLatch exec3Wait = new CountDownLatch(1);
-        executor.execute(new XRunnable() {
+        executor.execute(new AbstractRunnable() {
             @Override
             public void run() {
                 executed3.set(true);

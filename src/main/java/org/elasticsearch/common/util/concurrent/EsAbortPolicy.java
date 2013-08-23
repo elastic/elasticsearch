@@ -34,8 +34,8 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        if (r instanceof XRunnable) {
-            if (((XRunnable) r).isForceExecution()) {
+        if (r instanceof AbstractRunnable) {
+            if (((AbstractRunnable) r).isForceExecution()) {
                 BlockingQueue<Runnable> queue = executor.getQueue();
                 if (!(queue instanceof SizeBlockingQueue)) {
                     throw new ElasticSearchIllegalStateException("forced execution, but expected a size queue");

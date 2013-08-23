@@ -40,7 +40,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.XRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
@@ -696,7 +696,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (request.operationThreaded()) {
                     request.beforeLocalFork();
                     try {
-                        threadPool.executor(executor).execute(new XRunnable() {
+                        threadPool.executor(executor).execute(new AbstractRunnable() {
                             @Override
                             public void run() {
                                 try {

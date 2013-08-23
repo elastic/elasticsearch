@@ -22,7 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 /**
  * An extension to runnable.
  */
-public abstract class XRunnable implements Runnable {
+public abstract class AbstractRunnable implements Runnable {
 
     /**
      * Should the runnable force its execution in case it gets rejected?

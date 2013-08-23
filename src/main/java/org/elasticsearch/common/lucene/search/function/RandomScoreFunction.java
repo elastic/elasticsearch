@@ -64,9 +64,10 @@ public class RandomScoreFunction implements ScoreFunction {
         return exp;
     }
 
+
     /**
-     * Algorithm based on {@link java.util.Random} except this one is not
-     * thread safe
+     * Algorithm largely based on {@link java.util.Random} except this one is not
+     * thread safe and it incorporates the doc id on next();
      */
     static class PRNG {
 
@@ -84,15 +85,20 @@ public class RandomScoreFunction implements ScoreFunction {
 
         public float random(int doc) {
             if (doc == 0) {
-                doc = -17;
+                doc = 0xCAFEBAB;
             }
-            return nextFloat() * (doc ^ 0xCAFEBAB);
+
+            long rand = doc;
+            rand |= rand << 32;
+            rand ^= rand;
+            return nextFloat(rand);
         }
 
-        public float nextFloat() {
+        public float nextFloat(long rand) {
             seed = (seed * multiplier + addend) & mask;
-            int r = (int)(seed >>> 24);
-            return r / ((float)(1 << 24));
+            rand ^= seed;
+            double result = rand / (double)(1L << 54);
+            return (float) result;
         }
 
     }

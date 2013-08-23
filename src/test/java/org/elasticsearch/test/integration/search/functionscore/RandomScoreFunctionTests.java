@@ -107,15 +107,19 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
 
         int filled = 0;
         int maxRepeat = 0;
+        int sumRepeat = 0;
         for (int i = 0; i < matrix.length; i++) {
             int value = matrix[i];
+            sumRepeat += value;
             maxRepeat = Math.max(maxRepeat, value);
             if (value > 0) {
                 filled++;
             }
         }
+
         System.out.println();
         System.out.println("max repeat: " +  maxRepeat);
+        System.out.println("avg repeat: " +  sumRepeat / (double)filled);
         System.out.println("distribution: " +  filled/(double)count);
 
         int percentile50 = filled / 2;

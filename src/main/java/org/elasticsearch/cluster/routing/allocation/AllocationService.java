@@ -179,8 +179,6 @@ public class AllocationService extends AbstractComponent {
     }
 
     private boolean reroute(RoutingAllocation allocation) {
-        Iterable<DiscoveryNode> dataNodes = allocation.nodes().dataNodes().values();
-
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead
         changed |= deassociateDeadNodes(allocation);

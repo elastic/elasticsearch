@@ -21,7 +21,9 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
@@ -71,7 +73,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
         if (!docTerms.hasValue(doc)) {
             values[slot] = missingValue;
         } else {
-            if (values[slot] == null | values[slot] == missingValue) {
+            if (values[slot] == null || values[slot] == missingValue) {
                 values[slot] = new BytesRef();
             }
             docTerms.getValueScratch(doc, values[slot]);
@@ -160,6 +162,11 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
             }
 
             BytesRef currentVal = iter.next();
+            // We MUST allocate a new byte[] since relevantVal might have been filled by reference by a PagedBytes instance
+            // meaning that the BytesRef.bytes are shared and shouldn't be overwritten. We can't use the bytes of the iterator
+            // either because they will be overwritten by subsequent calls in the current thread
+            relevantVal.bytes = new byte[ArrayUtil.oversize(currentVal.length, RamUsageEstimator.NUM_BYTES_BYTE)];
+            relevantVal.offset = 0;
             relevantVal.length = 0;
             relevantVal.append(currentVal);
             while (true) {

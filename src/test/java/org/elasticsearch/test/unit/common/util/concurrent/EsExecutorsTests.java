@@ -20,14 +20,14 @@
 package org.elasticsearch.test.unit.common.util.concurrent;
 
 import com.google.common.base.Predicate;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadBarrier;
+import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -38,6 +38,119 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
 
     private TimeUnit randomTimeUnit() {
         return TimeUnit.values()[between(0, TimeUnit.values().length - 1)];
+    }
+
+    @Test
+    public void testFixedForcedExecution() throws Exception {
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(1, 1, EsExecutors.daemonThreadFactory("test"));
+        final CountDownLatch wait = new CountDownLatch(1);
+
+        final CountDownLatch exec1Wait = new CountDownLatch(1);
+        final AtomicBoolean executed1 = new AtomicBoolean();
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    wait.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                executed1.set(true);
+                exec1Wait.countDown();
+            }
+        });
+
+        final CountDownLatch exec2Wait = new CountDownLatch(1);
+        final AtomicBoolean executed2 = new AtomicBoolean();
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                executed2.set(true);
+                exec2Wait.countDown();
+            }
+        });
+
+        final AtomicBoolean executed3 = new AtomicBoolean();
+        final CountDownLatch exec3Wait = new CountDownLatch(1);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void run() {
+                executed3.set(true);
+                exec3Wait.countDown();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        });
+
+        wait.countDown();
+
+        exec1Wait.await();
+        exec2Wait.await();
+        exec3Wait.await();
+
+        assertThat(executed1.get(), equalTo(true));
+        assertThat(executed2.get(), equalTo(true));
+        assertThat(executed3.get(), equalTo(true));
+
+        executor.shutdownNow();
+    }
+
+    @Test
+    public void testFixedRejected() throws Exception {
+        EsThreadPoolExecutor executor = EsExecutors.newFixed(1, 1, EsExecutors.daemonThreadFactory("test"));
+        final CountDownLatch wait = new CountDownLatch(1);
+
+        final CountDownLatch exec1Wait = new CountDownLatch(1);
+        final AtomicBoolean executed1 = new AtomicBoolean();
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    wait.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                executed1.set(true);
+                exec1Wait.countDown();
+            }
+        });
+
+        final CountDownLatch exec2Wait = new CountDownLatch(1);
+        final AtomicBoolean executed2 = new AtomicBoolean();
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                executed2.set(true);
+                exec2Wait.countDown();
+            }
+        });
+
+        final AtomicBoolean executed3 = new AtomicBoolean();
+        try {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    executed3.set(true);
+                }
+            });
+            assert false : "should be rejected...";
+        } catch (EsRejectedExecutionException e) {
+            // all is well
+        }
+
+        wait.countDown();
+
+        exec1Wait.await();
+        exec2Wait.await();
+
+        assertThat(executed1.get(), equalTo(true));
+        assertThat(executed2.get(), equalTo(true));
+        assertThat(executed3.get(), equalTo(false));
+
+        executor.shutdownNow();
     }
 
     @Test

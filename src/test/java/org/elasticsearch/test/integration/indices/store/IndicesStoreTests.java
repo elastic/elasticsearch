@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.integration.indices.store;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.internal.InternalNode;
@@ -61,12 +61,6 @@ public class IndicesStoreTests extends AbstractNodesTests {
 
     @Test
     public void shardsCleanup() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception ex) {
-            // Ignore
-        }
-
         logger.info("--> creating index [test] with one shard and on replica");
         client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
@@ -85,7 +79,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
         startNode("server3");
 
         logger.info("--> making sure that shard is not allocated on server3");
-        assertThat(waitForShardDeletion(TimeValue.timeValueSeconds(1), "server3", "test", 0), equalTo(false));
+        assertThat(waitForShardDeletion("server3", "test", 0), equalTo(false));
 
         File server2Shard = shardDirectory("server2", "test", 0);
         logger.info("--> stopping node server2");
@@ -113,7 +107,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");
         assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));
         assertThat(shardDirectory("server3", "test", 0).exists(), equalTo(true));
-        assertThat(waitForShardDeletion(TimeValue.timeValueSeconds(1), "server2", "test", 0), equalTo(false));
+        assertThat(waitForShardDeletion("server2", "test", 0), equalTo(false));
     }
 
     private File shardDirectory(String server, String index, int shard) {
@@ -122,14 +116,13 @@ public class IndicesStoreTests extends AbstractNodesTests {
         return env.shardLocations(new ShardId(index, shard))[0];
     }
 
-    private boolean waitForShardDeletion(TimeValue timeout, String server, String index, int shard) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        boolean shardExists;
-        do {
-            shardExists = shardDirectory(server, index, shard).exists();
-        }
-        while (shardExists && (System.currentTimeMillis() - start) < timeout.millis());
-        return shardExists;
+    private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                return !shardDirectory(server, index, shard).exists();
+            }
+        });
+        return shardDirectory(server, index, shard).exists();
     }
 
 

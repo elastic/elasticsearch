@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -30,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -38,8 +36,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-@ThreadLeakScope(Scope.NONE)
-public class KeepFilterFactoryTests extends BaseTokenStreamTestCase {
+public class KeepFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
 
     private static final String RESOURCE = "org/elasticsearch/test/unit/index/analysis/keep_analysis.json";
     

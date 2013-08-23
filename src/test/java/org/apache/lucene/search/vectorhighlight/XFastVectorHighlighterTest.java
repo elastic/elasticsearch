@@ -33,13 +33,13 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.test.integration.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 
-public class XFastVectorHighlighterTest extends LuceneTestCase {
+public class XFastVectorHighlighterTest extends ElasticsearchLuceneTestCase {
 
   @Test
   public void testLotsOfPhrases() throws IOException {

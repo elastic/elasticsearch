@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -298,19 +297,17 @@ public class ThreadPool extends AbstractComponent {
         } else if ("fixed".equals(type)) {
             int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors());
             SizeValue defaultQueueSize = defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null));
-            String defaultQueueType = defaultSettings.get("queue_type", "linked");
 
             if (previousExecutorHolder != null) {
                 if ("fixed".equals(previousInfo.getType())) {
                     SizeValue updatedQueueSize = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", previousInfo.getQueueSize())));
-                    String updatedQueueType = settings.get("queue_type", previousInfo.getQueueType());
-                    if (Objects.equal(previousInfo.getQueueSize(), updatedQueueSize) && previousInfo.getQueueType().equals(updatedQueueType)) {
+                    if (Objects.equal(previousInfo.getQueueSize(), updatedQueueSize)) {
                         int updatedSize = settings.getAsInt("size", previousInfo.getMax());
                         if (previousInfo.getMax() != updatedSize) {
-                            logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}], queue_type [{}]", name, type, updatedSize, updatedQueueSize, updatedQueueType);
+                            logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
                             ((EsThreadPoolExecutor) previousExecutorHolder.executor).setCorePoolSize(updatedSize);
                             ((EsThreadPoolExecutor) previousExecutorHolder.executor).setMaximumPoolSize(updatedSize);
-                            return new ExecutorHolder(previousExecutorHolder.executor, new Info(name, type, updatedSize, updatedSize, null, updatedQueueSize, updatedQueueType));
+                            return new ExecutorHolder(previousExecutorHolder.executor, new Info(name, type, updatedSize, updatedSize, null, updatedQueueSize));
                         }
                         return previousExecutorHolder;
                     }
@@ -319,18 +316,13 @@ public class ThreadPool extends AbstractComponent {
                     defaultSize = previousInfo.getMax();
                 }
                 defaultQueueSize = previousInfo.getQueueSize();
-                if (previousInfo.getQueueType() != null) {
-                    defaultQueueType = previousInfo.getQueueType();
-                }
             }
 
             int size = settings.getAsInt("size", defaultSize);
             SizeValue queueSize = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", defaultQueueSize)));
-            String queueType = settings.get("queue_type", defaultQueueType);
-            BlockingQueue<Runnable> workQueue = newQueue(queueSize, queueType);
-            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}], queue_type [{}]", name, type, size, queueSize, queueType);
-            Executor executor = EsExecutors.newFixed(size, workQueue, threadFactory);
-            return new ExecutorHolder(executor, new Info(name, type, size, size, null, queueSize, queueType));
+            logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, size, queueSize);
+            Executor executor = EsExecutors.newFixed(size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);
+            return new ExecutorHolder(executor, new Info(name, type, size, size, null, queueSize));
         } else if ("scaling".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             int defaultMin = defaultSettings.getAsInt("min", 1);
@@ -400,24 +392,6 @@ public class ThreadPool extends AbstractComponent {
                     ((EsThreadPoolExecutor) oldExecutorHolder.executor).shutdown(new ExecutorShutdownListener(oldExecutorHolder));
                 }
             }
-        }
-    }
-
-    private BlockingQueue<Runnable> newQueue(SizeValue queueSize, String queueType) {
-        if (queueSize == null) {
-            return ConcurrentCollections.newBlockingQueue();
-        } else if (queueSize.singles() == 0) {
-            return new SynchronousQueue<Runnable>();
-        } else if (queueSize.singles() > 0) {
-            if ("linked".equals(queueType)) {
-                return new LinkedBlockingQueue<Runnable>((int) queueSize.singles());
-            } else if ("array".equals(queueType)) {
-                return new ArrayBlockingQueue<Runnable>((int) queueSize.singles());
-            } else {
-                throw new ElasticSearchIllegalArgumentException("illegal queue_type set to [" + queueType + "], should be either linked or array");
-            }
-        } else { // queueSize.singles() < 0, just treat it as unbounded queue
-            return ConcurrentCollections.newBlockingQueue();
         }
     }
 
@@ -555,7 +529,6 @@ public class ThreadPool extends AbstractComponent {
         private int max;
         private TimeValue keepAlive;
         private SizeValue queueSize;
-        private String queueType;
 
         Info() {
 
@@ -570,17 +543,12 @@ public class ThreadPool extends AbstractComponent {
         }
 
         public Info(String name, String type, int min, int max, @Nullable TimeValue keepAlive, @Nullable SizeValue queueSize) {
-            this(name, type, min, max, keepAlive, queueSize, null);
-        }
-
-        public Info(String name, String type, int min, int max, @Nullable TimeValue keepAlive, @Nullable SizeValue queueSize, String queueType) {
             this.name = name;
             this.type = type;
             this.min = min;
             this.max = max;
             this.keepAlive = keepAlive;
             this.queueSize = queueSize;
-            this.queueType = queueType;
         }
 
         public String getName() {
@@ -609,12 +577,6 @@ public class ThreadPool extends AbstractComponent {
             return this.queueSize;
         }
 
-        @Nullable
-        public String getQueueType() {
-            return this.queueType;
-        }
-
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readString();
@@ -629,7 +591,7 @@ public class ThreadPool extends AbstractComponent {
             }
             in.readBoolean(); // here to conform with removed waitTime
             in.readBoolean(); // here to conform with removed rejected setting
-            queueType = in.readOptionalString();
+            in.readBoolean(); // here to conform with queue type
         }
 
         @Override
@@ -650,9 +612,9 @@ public class ThreadPool extends AbstractComponent {
                 out.writeBoolean(true);
                 queueSize.writeTo(out);
             }
-            out.writeBoolean(false); // here to conform with remobed waitTime
+            out.writeBoolean(false); // here to conform with removed waitTime
             out.writeBoolean(false); // here to conform with removed rejected setting
-            out.writeOptionalString(queueType);
+            out.writeBoolean(false); // here to conform with queue type
         }
 
         @Override
@@ -671,9 +633,6 @@ public class ThreadPool extends AbstractComponent {
             if (queueSize != null) {
                 builder.field(Fields.QUEUE_SIZE, queueSize.toString());
             }
-            if (queueType != null) {
-                builder.field(Fields.QUEUE_TYPE, queueType);
-            }
             builder.endObject();
             return builder;
         }
@@ -684,7 +643,6 @@ public class ThreadPool extends AbstractComponent {
             static final XContentBuilderString MAX = new XContentBuilderString("max");
             static final XContentBuilderString KEEP_ALIVE = new XContentBuilderString("keep_alive");
             static final XContentBuilderString QUEUE_SIZE = new XContentBuilderString("queue_size");
-            static final XContentBuilderString QUEUE_TYPE = new XContentBuilderString("queue_type");
         }
 
     }

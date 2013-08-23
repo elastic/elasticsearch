@@ -57,12 +57,14 @@ public class EsExecutors {
         return new EsThreadPoolExecutor(0, Integer.MAX_VALUE, keepAliveTime, unit, new SynchronousQueue<Runnable>(), threadFactory, new EsAbortPolicy());
     }
 
-    public static EsThreadPoolExecutor newFixed(int size, BlockingQueue<Runnable> queue, ThreadFactory threadFactory) {
+    public static EsThreadPoolExecutor newFixed(int size, int queueCapacity, ThreadFactory threadFactory) {
+        BlockingQueue<Runnable> queue;
+        if (queueCapacity < 0) {
+            queue = ConcurrentCollections.newBlockingQueue();
+        } else {
+            queue = new SizeBlockingQueue<Runnable>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
+        }
         return new EsThreadPoolExecutor(size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy());
-    }
-
-    public static EsThreadPoolExecutor newFixed(int size, BlockingQueue<Runnable> queue, ThreadFactory threadFactory, XRejectedExecutionHandler rejectedExecutionHandler) {
-        return new EsThreadPoolExecutor(size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, rejectedExecutionHandler);
     }
 
     public static String threadName(Settings settings, String namePrefix) {
@@ -110,6 +112,7 @@ public class EsExecutors {
      */
     private EsExecutors() {
     }
+
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 

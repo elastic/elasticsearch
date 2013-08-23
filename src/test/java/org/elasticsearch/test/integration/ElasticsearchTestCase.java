@@ -44,14 +44,14 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
     
-    public void awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    public boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
         long sum = 0;
         for (int i = 0; i < iterations; i++) {
             if (breakPredicate.apply(null)) {
-                return;
+                return true;
             }
             sum += timeInMillis;
             Thread.sleep(timeInMillis);
@@ -59,6 +59,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
+        return breakPredicate.apply(null);
         
     }
     

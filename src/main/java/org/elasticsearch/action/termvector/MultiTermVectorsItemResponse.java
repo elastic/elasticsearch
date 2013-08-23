@@ -38,6 +38,7 @@ public class MultiTermVectorsItemResponse implements Streamable {
     }
 
     public MultiTermVectorsItemResponse(TermVectorResponse response, MultiTermVectorsResponse.Failure failure) {
+        assert (((response == null) && (failure != null)) || ((response != null) && (failure == null)));
         this.response = response;
         this.failure = failure;
     }

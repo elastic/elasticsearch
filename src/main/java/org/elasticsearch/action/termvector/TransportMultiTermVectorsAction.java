@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -45,8 +46,8 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
     private final TransportSingleShardMultiTermsVectorAction shardAction;
 
     @Inject
-    public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                                           TransportSingleShardMultiTermsVectorAction shardAction) {
+    public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+            ClusterService clusterService, TransportSingleShardMultiTermsVectorAction shardAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
@@ -60,21 +61,22 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-        final MultiTermVectorsItemResponse[] responses = new MultiTermVectorsItemResponse[request.requests.size()];
+        final AtomicArray<MultiTermVectorsItemResponse> responses = new AtomicArray<MultiTermVectorsItemResponse>(request.requests.size());
 
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<ShardId, MultiTermVectorsShardRequest>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorRequest termVectorRequest = request.requests.get(i);
             termVectorRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorRequest.routing(), termVectorRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorRequest.index())) {
-                responses[i] = new MultiTermVectorsItemResponse(null,
-                        new MultiTermVectorsResponse.Failure(termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),
-                                "[" + termVectorRequest.index() + "] missing"));
+                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorRequest.index(),
+                        termVectorRequest.type(), termVectorRequest.id(), "[" + termVectorRequest.index() + "] missing")));
                 continue;
             }
             termVectorRequest.index(clusterState.metaData().concreteIndex(termVectorRequest.index()));
-            ShardId shardId = clusterService.operationRouting()
-                    .getShards(clusterState, termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(), termVectorRequest.routing(), null).shardId();
+            ShardId shardId = clusterService
+                    .operationRouting()
+                    .getShards(clusterState, termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),
+                            termVectorRequest.routing(), null).shardId();
             MultiTermVectorsShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiTermVectorsShardRequest(shardId.index().name(), shardId.id());
@@ -91,10 +93,9 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
             shardAction.execute(shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {
                 @Override
                 public void onResponse(MultiTermVectorsShardResponse response) {
-                    synchronized (responses) {
-                        for (int i = 0; i < response.locations.size(); i++) {
-                            responses[response.locations.get(i)] = new MultiTermVectorsItemResponse(response.responses.get(i), response.failures.get(i));
-                        }
+                    for (int i = 0; i < response.locations.size(); i++) {
+                        responses.set(response.locations.get(i), new MultiTermVectorsItemResponse(response.responses.get(i),
+                                response.failures.get(i)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -105,12 +106,11 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
-                    synchronized (responses) {
-                        for (int i = 0; i < shardRequest.locations.size(); i++) {
-                            TermVectorRequest termVectorRequest = shardRequest.requests.get(i);
-                            responses[shardRequest.locations.get(i)] = new MultiTermVectorsItemResponse(null,
-                                    new MultiTermVectorsResponse.Failure(shardRequest.index(), termVectorRequest.type(), termVectorRequest.id(), message));
-                        }
+                    for (int i = 0; i < shardRequest.locations.size(); i++) {
+                        TermVectorRequest termVectorRequest = shardRequest.requests.get(i);
+                        responses.set(shardRequest.locations.get(i), new MultiTermVectorsItemResponse(null,
+                                new MultiTermVectorsResponse.Failure(shardRequest.index(), termVectorRequest.type(),
+                                        termVectorRequest.id(), message)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -118,7 +118,8 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new MultiTermVectorsResponse(responses));
+                    listener.onResponse(new MultiTermVectorsResponse(
+                            responses.toArray(new MultiTermVectorsItemResponse[responses.length()])));
                 }
             });
         }
@@ -140,8 +141,8 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
                 public void onResponse(MultiTermVectorsResponse response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
+                    } catch (Throwable t) {
+                        onFailure(t);
                     }
                 }
 
@@ -149,8 +150,9 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
                 public void onFailure(Throwable e) {
                     try {
                         channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + MultiTermVectorsAction.NAME + "] and request [" + request + "]", e1);
+                    } catch (Throwable t) {
+                        logger.warn("Failed to send error response for action [" + MultiTermVectorsAction.NAME + "] and request ["
+                                + request + "]", t);
                     }
                 }
             });

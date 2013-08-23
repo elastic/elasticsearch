@@ -40,7 +40,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 
 /**
  */
-// TODO: do we want to use TermVectorS or TermVector?
+
 public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private IndexShard indexShard;
@@ -58,18 +58,13 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     }
 
     public TermVectorResponse getTermVector(TermVectorRequest request) {
-
         final Engine.Searcher searcher = indexShard.searcher();
         IndexReader topLevelReader = searcher.reader();
-
         final TermVectorResponse termVectorResponse = new TermVectorResponse(request.index(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
-
-
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
-
             if (docIdAndVersion != null) {
 
                 Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
@@ -79,14 +74,11 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             } else {
                 termVectorResponse.setExists(false);
             }
-
         } catch (Throwable ex) {
-
             throw new ElasticSearchException("failed to execute term vector request", ex);
         } finally {
             searcher.release();
         }
         return termVectorResponse;
     }
-
 }

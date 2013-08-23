@@ -70,15 +70,14 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (requests.isEmpty()) {
-            validationException = ValidateActions.addValidationError("no documents to get", validationException);
+            validationException = ValidateActions.addValidationError("multi term vectors: no documents requested", validationException);
         } else {
             for (int i = 0; i < requests.size(); i++) {
                 TermVectorRequest termVectorRequest = requests.get(i);
-                if (termVectorRequest.index() == null) {
-                    validationException = ValidateActions.addValidationError("index is missing for doc " + i, validationException);
-                }
-                if (termVectorRequest.id() == null) {
-                    validationException = ValidateActions.addValidationError("id is missing for doc " + i, validationException);
+                ActionRequestValidationException validationExceptionForDoc = termVectorRequest.validate();
+                if (validationExceptionForDoc != null) {
+                    validationException = ValidateActions.addValidationError("at multi term vectors for doc " + i,
+                            validationExceptionForDoc);
                 }
             }
         }

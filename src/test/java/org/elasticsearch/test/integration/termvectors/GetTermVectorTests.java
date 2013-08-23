@@ -19,281 +19,31 @@
 
 package org.elasticsearch.test.integration.termvectors;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
-import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
-import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.document.*;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.IndexWriterConfig.OpenMode;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
 import org.elasticsearch.action.termvector.TermVectorResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.io.*;
-import java.util.*;
-
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetTermVectorTests extends AbstractTermVectorTests {
 
-    @Test
-    public void streamTest() throws Exception {
 
-        //TODO: unit tests rather than integration?
-        TermVectorResponse outResponse = new TermVectorResponse("a", "b", "c");
-        outResponse.setExists(true);
-        writeStandardTermVector(outResponse);
-
-        // write
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        outResponse.writeTo(out);
-
-        // read
-        ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-        TermVectorResponse inResponse = new TermVectorResponse("a", "b", "c");
-        inResponse.readFrom(esBuffer);
-
-        // see if correct
-        checkIfStandardTermVector(inResponse);
-        
-        outResponse = new TermVectorResponse("a", "b", "c");
-        writeEmptyTermVector(outResponse);
-        // write
-        outBuffer = new ByteArrayOutputStream();
-        out = new OutputStreamStreamOutput(outBuffer);
-        outResponse.writeTo(out);
-
-        // read
-        esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        esBuffer = new InputStreamStreamInput(esInBuffer);
-        inResponse = new TermVectorResponse("a", "b", "c");
-        inResponse.readFrom(esBuffer);
-        assertTrue(inResponse.isExists());
-        
-
-
-    }
-
-    private void checkIfStandardTermVector(TermVectorResponse inResponse) throws IOException {
-
-        Fields fields = inResponse.getFields();
-        assertThat(fields.terms("title"), Matchers.notNullValue());
-        assertThat(fields.terms("desc"), Matchers.notNullValue());
-        assertThat(fields.size(), equalTo(2));
-    }
-    
-    private void writeEmptyTermVector(TermVectorResponse outResponse) throws IOException {
-
-        Directory dir = FSDirectory.open(new File("/tmp/foo"));
-        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
-        conf.setOpenMode(OpenMode.CREATE);
-        IndexWriter writer = new IndexWriter(dir, conf);
-        FieldType type = new FieldType(TextField.TYPE_STORED);
-        type.setStoreTermVectorOffsets(true);
-        type.setStoreTermVectorPayloads(false);
-        type.setStoreTermVectorPositions(true);
-        type.setStoreTermVectors(true);
-        type.freeze();
-        Document d = new Document();
-        d.add(new Field("id", "abc", StringField.TYPE_STORED));
-        
-        writer.updateDocument(new Term("id", "abc"), d);
-        writer.commit();
-        writer.close();
-        DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
-        TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
-        ScoreDoc[] scoreDocs = search.scoreDocs;
-        int doc = scoreDocs[0].doc;
-        Fields fields = dr.getTermVectors(doc);
-        EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
-        outResponse.setFields(fields, null, flags, fields);
-        outResponse.setExists(true);
-
-    }
-
-    private void writeStandardTermVector(TermVectorResponse outResponse) throws IOException {
-
-        Directory dir = FSDirectory.open(new File("/tmp/foo"));
-        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
-
-        conf.setOpenMode(OpenMode.CREATE);
-        IndexWriter writer = new IndexWriter(dir, conf);
-        FieldType type = new FieldType(TextField.TYPE_STORED);
-        type.setStoreTermVectorOffsets(true);
-        type.setStoreTermVectorPayloads(false);
-        type.setStoreTermVectorPositions(true);
-        type.setStoreTermVectors(true);
-        type.freeze();
-        Document d = new Document();
-        d.add(new Field("id", "abc", StringField.TYPE_STORED));
-        d.add(new Field("title", "the1 quick brown fox jumps over  the1 lazy dog", type));
-        d.add(new Field("desc", "the1 quick brown fox jumps over  the1 lazy dog", type));
-
-        writer.updateDocument(new Term("id", "abc"), d);
-        writer.commit();
-        writer.close();
-        DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
-        TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
-        ScoreDoc[] scoreDocs = search.scoreDocs;
-        int doc = scoreDocs[0].doc;
-        Fields termVectors = dr.getTermVectors(doc);
-        EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
-        outResponse.setFields(termVectors, null, flags, termVectors);
-
-    }
-
-    private Fields buildWithLuceneAndReturnFields(String docId, String[] fields, String[] content, boolean[] withPositions,
-                                                  boolean[] withOffsets, boolean[] withPayloads) throws IOException {
-        assert (fields.length == withPayloads.length);
-        assert (content.length == withPayloads.length);
-        assert (withPositions.length == withPayloads.length);
-        assert (withOffsets.length == withPayloads.length);
-
-        Map<String, Analyzer> mapping = new HashMap<String, Analyzer>();
-        for (int i = 0; i < withPayloads.length; i++) {
-            if (withPayloads[i]) {
-                mapping.put(fields[i], new Analyzer() {
-                    @Override
-                    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-                        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, reader);
-                        TokenFilter filter = new LowerCaseFilter(TEST_VERSION_CURRENT, tokenizer);
-                        filter = new TypeAsPayloadTokenFilter(filter);
-                        return new TokenStreamComponents(tokenizer, filter);
-                    }
-
-                });
-            }
-        }
-        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(TEST_VERSION_CURRENT), mapping);
-
-        Directory dir = FSDirectory.open(new File("/tmp/foo"));
-        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, wrapper);
-
-        conf.setOpenMode(OpenMode.CREATE);
-        IndexWriter writer = new IndexWriter(dir, conf);
-
-        Document d = new Document();
-        for (int i = 0; i < fields.length; i++) {
-            d.add(new Field("id", docId, StringField.TYPE_STORED));
-            FieldType type = new FieldType(TextField.TYPE_STORED);
-            type.setStoreTermVectorOffsets(withOffsets[i]);
-            type.setStoreTermVectorPayloads(withPayloads[i]);
-            type.setStoreTermVectorPositions(withPositions[i] || withOffsets[i] || withPayloads[i]);
-            type.setStoreTermVectors(true);
-            type.freeze();
-            d.add(new Field(fields[i], content[i], type));
-            writer.updateDocument(new Term("id", docId), d);
-            writer.commit();
-        }
-        writer.close();
-
-        DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
-        TopDocs search = s.search(new TermQuery(new Term("id", docId)), 1);
-
-        ScoreDoc[] scoreDocs = search.scoreDocs;
-        assert (scoreDocs.length == 1);
-        int doc = scoreDocs[0].doc;
-        Fields returnFields = dr.getTermVectors(doc);
-        return returnFields;
-
-    }
-
-    @Test
-    public void testRestRequestParsing() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
-
-        TermVectorRequest tvr = new TermVectorRequest(null, null, null);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
-        TermVectorRequest.parseRequest(tvr, parser);
-
-        Set<String> fields = tvr.selectedFields();
-        assertThat(fields.contains("a"), equalTo(true));
-        assertThat(fields.contains("b"), equalTo(true));
-        assertThat(fields.contains("c"), equalTo(true));
-        assertThat(tvr.offsets(), equalTo(false));
-        assertThat(tvr.positions(), equalTo(false));
-        assertThat(tvr.payloads(), equalTo(true));
-        String additionalFields = "b,c  ,d, e  ";
-        RestTermVectorAction.addFieldStringsFromParameter(tvr, additionalFields);
-        assertThat(tvr.selectedFields().size(), equalTo(5));
-        assertThat(fields.contains("d"), equalTo(true));
-        assertThat(fields.contains("e"), equalTo(true));
-
-        additionalFields = "";
-        RestTermVectorAction.addFieldStringsFromParameter(tvr, additionalFields);
-
-        inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
-        tvr = new TermVectorRequest(null, null, null);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
-        TermVectorRequest.parseRequest(tvr, parser);
-        additionalFields = "";
-        RestTermVectorAction.addFieldStringsFromParameter(tvr, additionalFields);
-        assertThat(tvr.selectedFields(), equalTo(null));
-        additionalFields = "b,c  ,d, e  ";
-        RestTermVectorAction.addFieldStringsFromParameter(tvr, additionalFields);
-        assertThat(tvr.selectedFields().size(), equalTo(4));
-
-    }
-
-    @Test
-    public void testRequestParsingThrowsException() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
-        TermVectorRequest tvr = new TermVectorRequest(null, null, null);
-        boolean threwException = false;
-        try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
-            TermVectorRequest.parseRequest(tvr, parser);
-        } catch (Exception e) {
-            threwException = true;
-        }
-        assertThat(threwException, equalTo(true));
-
-    }
 
     @Test
     public void testNoSuchDoc() throws Exception {
@@ -421,9 +171,8 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
     @Test
     public void testRandomSingleTermVectors() throws ElasticSearchException, IOException {
-        Random random = getRandom(); 
         FieldType ft = new FieldType();
-        int config = random.nextInt(6);
+        int config = randomInt(6);
         boolean storePositions = false;
         boolean storeOffsets = false;
         boolean storePayloads = false;
@@ -485,9 +234,9 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         int[][] startOffset = {{10}, {40}, {16}, {20}, {35}, {26}, {4}, {0, 31}};
         int[][] endOffset = {{15}, {43}, {19}, {25}, {39}, {30}, {9}, {3, 34}};
 
-        boolean isPayloadRequested = random.nextBoolean();
-        boolean isOffsetRequested = random.nextBoolean();
-        boolean isPositionsRequested = random.nextBoolean();
+        boolean isPayloadRequested = randomBoolean();
+        boolean isOffsetRequested = randomBoolean();
+        boolean isPositionsRequested = randomBoolean();
         String infoString = createInfoString(isPositionsRequested, isOffsetRequested, isPayloadRequested, optionString);
         for (int i = 0; i < 10; i++) {
             TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i))

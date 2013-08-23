@@ -1,4 +1,5 @@
 package org.elasticsearch.test.integration.termvectors;
+
 /*
  * Licensed to ElasticSearch under one
  * or more contributor license agreements.  See the NOTICE file
@@ -17,7 +18,6 @@ package org.elasticsearch.test.integration.termvectors;
  * specific language governing permissions and limitations
  * under the License.
  */
-
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
@@ -93,7 +93,6 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
             mappingsBuilder.endObject();
         }
 
-
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder("name: ").append(name).append(" tv_with:");
@@ -117,7 +116,6 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
         public String index = "test";
         public String type = "type1";
 
-
         public TestDoc(String id, TestFieldSetting[] fieldSettings, String[] fieldContent) {
             this.id = id;
             this.fieldSettings = fieldSettings;
@@ -135,8 +133,7 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
             StringBuilder sb = new StringBuilder("index:").append(index).append(" type:").append(type).append(" id:").append(id);
             for (int i = 0; i < fieldSettings.length; i++) {
                 TestFieldSetting f = fieldSettings[i];
-                sb.append("\n").append("Field: ").append(f)
-                        .append("\n  content:").append(fieldContent[i]);
+                sb.append("\n").append("Field: ").append(f).append("\n  content:").append(fieldContent[i]);
             }
             sb.append("\n");
 
@@ -178,8 +175,8 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
                 requested += "payload,";
             }
             Locale aLocale = new Locale("en", "US");
-            return String.format(aLocale, "(doc: %s\n requested: %s, fields: %s)",
-                    doc, requested, selectedFields == null ? "NULL" : Join.join(",", selectedFields));
+            return String.format(aLocale, "(doc: %s\n requested: %s, fields: %s)", doc, requested,
+                    selectedFields == null ? "NULL" : Join.join(",", selectedFields));
         }
     }
 
@@ -206,23 +203,19 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
      * Generate test documentsThe returned documents are already indexed.
      */
     protected TestDoc[] generateTestDocs(int numberOfDocs, TestFieldSetting[] fieldSettings) {
-        String[] fieldContentOptions = new String[]{
-                "Generating a random permutation of a sequence (such as when shuffling cards).",
+        String[] fieldContentOptions = new String[] { "Generating a random permutation of a sequence (such as when shuffling cards).",
                 "Selecting a random sample of a population (important in statistical sampling).",
                 "Allocating experimental units via random assignment to a treatment or control condition.",
                 "Generating random numbers: see Random number generation.",
-                "Transforming a data stream (such as when using a scrambler in telecommunications)."
-        };
+                "Transforming a data stream (such as when using a scrambler in telecommunications)." };
 
-        Random rand = new Random();
         String[] contentArray = new String[fieldSettings.length];
         Map<String, Object> docSource = new HashMap<String, Object>();
         TestDoc[] testDocs = new TestDoc[numberOfDocs];
-
         for (int docId = 0; docId < numberOfDocs; docId++) {
             docSource.clear();
             for (int i = 0; i < contentArray.length; i++) {
-                contentArray[i] = fieldContentOptions[rand.nextInt(fieldContentOptions.length)];
+                contentArray[i] = fieldContentOptions[randomInt(fieldContentOptions.length - 1)];
                 docSource.put(fieldSettings[i].name, contentArray[i]);
             }
             TestDoc doc = new TestDoc(Integer.toString(docId), fieldSettings, contentArray.clone());
@@ -236,20 +229,18 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
     }
 
     protected TestConfig[] generateTestConfigs(int numberOfTests, TestDoc[] testDocs, TestFieldSetting[] fieldSettings) {
-        Random rand = new Random();
-
         ArrayList<TestConfig> configs = new ArrayList<TestConfig>();
         for (int i = 0; i < numberOfTests; i++) {
 
             ArrayList<String> selectedFields = null;
-            if (rand.nextBoolean()) {
+            if (randomBoolean()) {
                 // used field selection
                 selectedFields = new ArrayList<String>();
-                if (rand.nextBoolean()) {
+                if (randomBoolean()) {
                     selectedFields.add("Doesnt_exist"); // this will be ignored.
                 }
                 for (TestFieldSetting field : fieldSettings)
-                    if (rand.nextBoolean()) {
+                    if (randomBoolean()) {
                         selectedFields.add(field.name);
                     }
 
@@ -258,26 +249,22 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
                 }
 
             }
-            TestConfig config = new TestConfig(testDocs[rand.nextInt(testDocs.length)],
-                    selectedFields == null ? null : selectedFields.toArray(new String[]{}),
-                    rand.nextBoolean(), rand.nextBoolean(), rand.nextBoolean());
+            TestConfig config = new TestConfig(testDocs[randomInt(testDocs.length - 1)], selectedFields == null ? null
+                    : selectedFields.toArray(new String[] {}), randomBoolean(), randomBoolean(), randomBoolean());
 
             configs.add(config);
         }
         // always adds a test that fails
-        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{}).index("doesn't_exist"),
-                new String[]{"doesnt_exist"}, true, true, true)
-                .expectedException(IndexMissingException.class));
-
+        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[] {}, new String[] {}).index("doesn't_exist"),
+                new String[] { "doesnt_exist" }, true, true, true).expectedException(IndexMissingException.class));
 
         refresh();
 
-        return configs.toArray(new TestConfig[]{});
+        return configs.toArray(new TestConfig[] {});
     }
 
     protected TestFieldSetting[] getFieldSettings() {
-        return new TestFieldSetting[]{
-                new TestFieldSetting("field_with_positions", false, false, true),
+        return new TestFieldSetting[] { new TestFieldSetting("field_with_positions", false, false, true),
                 new TestFieldSetting("field_with_offsets", true, false, false),
                 new TestFieldSetting("field_with_only_tv", false, false, false),
                 new TestFieldSetting("field_with_positions_offsets", false, false, true),
@@ -335,7 +322,8 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
 
     protected void validateResponse(TermVectorResponse esResponse, Fields luceneFields, TestConfig testConfig) throws IOException {
         TestDoc testDoc = testConfig.doc;
-        HashSet<String> selectedFields = testConfig.selectedFields == null ? null : new HashSet<String>(Arrays.asList(testConfig.selectedFields));
+        HashSet<String> selectedFields = testConfig.selectedFields == null ? null : new HashSet<String>(
+                Arrays.asList(testConfig.selectedFields));
         Fields esTermVectorFields = esResponse.getFields();
         for (TestFieldSetting field : testDoc.fieldSettings) {
             Terms esTerms = esTermVectorFields.terms(field.name);
@@ -366,8 +354,7 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
 
                 String currentTerm = esTermEnum.term().utf8ToString();
 
-                assertThat("Token mismatch for field: " + field.name, currentTerm,
-                        equalTo(luceneTermEnum.term().utf8ToString()));
+                assertThat("Token mismatch for field: " + field.name, currentTerm, equalTo(luceneTermEnum.term().utf8ToString()));
 
                 esDocsPosEnum.nextDoc();
                 luceneDocsPosEnum.nextDoc();
@@ -406,11 +393,8 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
     }
 
     protected TermVectorRequestBuilder getRequestForConfig(TestConfig config) {
-        return client().prepareTermVector(config.doc.index, config.doc.type, config.doc.id)
-                .setPayloads(config.requestPayloads)
-                .setOffsets(config.requestOffsets)
-                .setPositions(config.requestPositions)
-                .setFieldStatistics(true).setTermStatistics(true)
+        return client().prepareTermVector(config.doc.index, config.doc.type, config.doc.id).setPayloads(config.requestPayloads)
+                .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
                 .setSelectedFields(config.selectedFields);
 
     }

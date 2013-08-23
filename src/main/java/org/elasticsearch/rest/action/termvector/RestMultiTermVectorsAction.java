@@ -29,8 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -63,11 +61,11 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
 
         try {
             multiTermVectorsRequest.add(request.param("index"), request.param("type"), sFields, request.content());
-        } catch (Exception e) {
+        } catch (Throwable t) {
             try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, e));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
+                channel.sendResponse(new XContentThrowableRestResponse(request, t));
+            } catch (Throwable tIO) {
+                logger.error("Failed to send failure response", tIO);
             }
             return;
         }
@@ -79,8 +77,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     response.toXContent(builder, request);
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                } catch (Throwable t) {
+                    onFailure(t);
                 }
             }
 
@@ -88,8 +86,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             public void onFailure(Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
+                } catch (Throwable t) {
+                    logger.error("Failed to send failure response", t);
                 }
             }
         });

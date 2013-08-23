@@ -48,7 +48,6 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
 
     @Override
     protected String executor() {
-        // TODO: Is this the right pool to execute this on?
         return ThreadPool.Names.GET;
     }
 
@@ -101,10 +100,10 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
                 IndexShard indexShard = indexService.shardSafe(shardId);
                 TermVectorResponse termVectorResponse = indexShard.termVectorService().getTermVector(termVectorRequest);
                 response.add(request.locations.get(i), termVectorResponse);
-            } catch (Exception e) {
-                logger.debug("[{}][{}] failed to execute multi term vectors for [{}]/[{}]", e, request.index(), shardId, termVectorRequest.type(), termVectorRequest.id());
+            } catch (Throwable t) {
+                logger.debug("[{}][{}] failed to execute multi term vectors for [{}]/[{}]", t, request.index(), shardId, termVectorRequest.type(), termVectorRequest.id());
                 response.add(request.locations.get(i),
-                        new MultiTermVectorsResponse.Failure(request.index(), termVectorRequest.type(), termVectorRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                        new MultiTermVectorsResponse.Failure(request.index(), termVectorRequest.type(), termVectorRequest.id(), ExceptionsHelper.detailedMessage(t)));
             }
         }
 

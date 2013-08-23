@@ -32,7 +32,7 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
 
     TIntArrayList locations;
     List<TermVectorResponse> responses;
-    ArrayList<MultiTermVectorsResponse.Failure> failures;
+    List<MultiTermVectorsResponse.Failure> failures;
 
     MultiTermVectorsShardResponse() {
         locations = new TIntArrayList();

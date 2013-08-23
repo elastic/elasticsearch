@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.integration;
 
-import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.logging.Loggers;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchTestCase.ElasticSearchThreadFilter.class})
+@ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
@@ -41,14 +40,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
 
-    public static class ElasticSearchThreadFilter implements ThreadFilter {
-        @Override
-        public boolean reject(Thread t) {
-
-            return true;
-        }
-    }
-    
     public void awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -36,12 +33,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
-@ThreadLeakScope(Scope.NONE)
-public class StopAnalyzerTests extends BaseTokenStreamTestCase {
+public class StopAnalyzerTests extends ElasticSearchTokenStreamTestCase {
 
     @Test
     public void testDefaultsCompoundAnalysis() throws Exception {

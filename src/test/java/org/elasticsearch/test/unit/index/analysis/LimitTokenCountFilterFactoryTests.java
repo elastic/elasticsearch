@@ -19,22 +19,19 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-@ThreadLeakScope(Scope.NONE)
-public class LimitTokenCountFilterFactoryTests extends BaseTokenStreamTestCase {
+public class LimitTokenCountFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.unit.common.lucene.uid;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -33,13 +31,12 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
+import org.elasticsearch.test.integration.ElasticsearchLuceneTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -50,9 +47,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-@SuppressCodecs("Lucene3x")
-@ThreadLeakScope(Scope.NONE) // a thread in this JVM might be from a prev. test
-public class VersionsTests extends LuceneTestCase {
+public class VersionsTests extends ElasticsearchLuceneTestCase {
     
     public static DirectoryReader reopen(DirectoryReader reader) throws IOException {
         return reopen(reader, true);

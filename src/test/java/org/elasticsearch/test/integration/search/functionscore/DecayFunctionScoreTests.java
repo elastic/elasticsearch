@@ -345,7 +345,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.MULT.getName()))));
+                                        2.0f).boostMode(CombineFunction.MULT))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
@@ -357,7 +357,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.REPLACE.getName()))));
+                                        2.0f).boostMode(CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
@@ -369,7 +369,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.SUM.getName()))));
+                                        2.0f).boostMode(CombineFunction.SUM))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
@@ -381,7 +381,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.AVG.getName()))));
+                                        2.0f).boostMode(CombineFunction.AVG))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
@@ -393,7 +393,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.MIN.getName()))));
+                                        2.0f).boostMode(CombineFunction.MIN))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
@@ -405,7 +405,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
-                                        2.0f).boostMode(CombineFunction.MAX.getName()))));
+                                        2.0f).boostMode(CombineFunction.MAX))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));

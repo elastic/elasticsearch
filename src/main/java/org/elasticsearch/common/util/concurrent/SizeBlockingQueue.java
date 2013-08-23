@@ -41,6 +41,7 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
     private final AtomicInteger size = new AtomicInteger();
 
     public SizeBlockingQueue(BlockingQueue<E> queue, int capacity) {
+        assert capacity >= 0;
         this.queue = queue;
         this.capacity = capacity;
     }

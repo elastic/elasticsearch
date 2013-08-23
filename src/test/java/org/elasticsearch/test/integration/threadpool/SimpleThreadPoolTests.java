@@ -96,7 +96,6 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
                 if (info.getName().equals(Names.SEARCH)) {
                     assertThat(info.getType(), equalTo("fixed"));
-                    assertThat(info.getQueueType(), equalTo("linked"));
                     found = true;
                     break;
                 }
@@ -104,7 +103,6 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
             assertThat(found, equalTo(true));
 
             Map<String, Object> poolMap = getPoolSettingsThroughJson(nodeInfo.getThreadPool(), Names.SEARCH);
-            assertThat(poolMap.get("queue_type").toString(), equalTo("linked"));
         }
     }
 

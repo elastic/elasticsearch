@@ -26,7 +26,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -101,7 +104,6 @@ public class UpdateThreadPoolSettingsTests {
     @Test
     public void testFixedExecutorType() {
         ThreadPool threadPool = new ThreadPool(settingsBuilder().put("threadpool.search.type", "fixed").build(), null);
-        assertThat(info(threadPool, Names.SEARCH).getQueueType(), equalTo("linked"));
         assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
 
         // Replace with different type
@@ -151,20 +153,6 @@ public class UpdateThreadPoolSettingsTests {
         threadPool.updateSettings(settingsBuilder()
                 .put("threadpool.search.queue", "500")
                 .build());
-        assertThat(info(threadPool, Names.SEARCH).getQueueType(), equalTo("linked"));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue(), instanceOf(LinkedBlockingQueue.class));
-
-        // Set different queue and size type
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.queue_type", "array")
-                .put("threadpool.search.size", "12")
-                .build());
-        // Make sure keep size changed
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("fixed"));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(12));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(12));
-        assertThat(info(threadPool, Names.SEARCH).getQueueType(), equalTo("array"));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue(), instanceOf(ArrayBlockingQueue.class));
 
         threadPool.shutdown();
     }

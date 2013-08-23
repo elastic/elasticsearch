@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -123,7 +124,7 @@ public class ThreadPool extends AbstractComponent {
         }
         executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(Names.SAME, "same")));
         this.executors = ImmutableMap.copyOf(executors);
-        this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "scheduler"));
+        this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         if (nodeSettingsService != null) {

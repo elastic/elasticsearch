@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoostableQueryBuilder;
@@ -79,6 +80,11 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     
     public FunctionScoreQueryBuilder boostMode(String boostMode) {
         this.boostMode = boostMode;
+        return this;
+    }
+    
+    public FunctionScoreQueryBuilder boostMode(CombineFunction combineFunction) {
+        this.boostMode = combineFunction.getName();
         return this;
     }
 

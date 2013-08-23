@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  *
@@ -310,11 +309,10 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
     }
     
     private void waitForDocs(final long numDocs) throws InterruptedException {
-        awaitBusy(new Predicate<Object>() {
+        assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 return client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() > numDocs;
             }
-        }, 5, TimeUnit.MINUTES); // not really relevant here we just have to wait some time
-        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), greaterThan(numDocs));
+        }, 5, TimeUnit.MINUTES), equalTo(true)); // not really relevant here we just have to wait some time
     }
 }

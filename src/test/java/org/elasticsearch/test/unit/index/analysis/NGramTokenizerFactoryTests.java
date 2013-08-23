@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.unit.index.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -37,6 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
+import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -50,8 +48,7 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-@ThreadLeakScope(Scope.NONE)
-public class NGramTokenizerFactoryTests extends BaseTokenStreamTestCase {
+public class NGramTokenizerFactoryTests extends ElasticSearchTokenStreamTestCase {
 
     @Test
     public void testParseTokenChars() {

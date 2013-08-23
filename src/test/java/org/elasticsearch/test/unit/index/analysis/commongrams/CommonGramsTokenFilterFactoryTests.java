@@ -19,10 +19,7 @@
 
 package org.elasticsearch.test.unit.index.analysis.commongrams;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -30,6 +27,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
 import org.elasticsearch.test.unit.index.analysis.AnalysisTestsHelper;
 import org.junit.Assert;
 import org.junit.Test;
@@ -38,9 +36,7 @@ import java.io.IOException;
 import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
-
-@ThreadLeakScope(Scope.NONE)
-public class CommonGramsTokenFilterFactoryTests extends BaseTokenStreamTestCase {
+public class CommonGramsTokenFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {

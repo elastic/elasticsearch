@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -103,7 +104,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 size, new ByteSizeValue(sizeInBytes), expire, cleanInterval);
 
         nodeSettingsService.addListener(new ApplySettings());
-
         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, new ReaderCleaner());
     }
 
@@ -169,34 +169,46 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 return;
             }
             if (readersKeysToClean.isEmpty()) {
-                threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, this);
+                schedule();
                 return;
             }
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    Recycler.V<THashSet<Object>> keys = cacheRecycler.hashSet(-1);
-                    try {
-                        for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
-                            keys.v().add(it.next());
-                            it.remove();
-                        }
-                        cache.cleanUp();
-                        if (!keys.v().isEmpty()) {
-                            for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
-                                WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
-                                if (keys.v().contains(filterCacheKey.readerKey())) {
-                                    // same as invalidate
-                                    it.remove();
+            try {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        Recycler.V<THashSet<Object>> keys = cacheRecycler.hashSet(-1);
+                        try {
+                            for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
+                                keys.v().add(it.next());
+                                it.remove();
+                            }
+                            cache.cleanUp();
+                            if (!keys.v().isEmpty()) {
+                                for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
+                                    WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
+                                    if (keys.v().contains(filterCacheKey.readerKey())) {
+                                        // same as invalidate
+                                        it.remove();
+                                    }
                                 }
                             }
+                            schedule();
+                        } finally {
+                            keys.release();
                         }
-                        threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, ReaderCleaner.this);
-                    } finally {
-                        keys.release();
                     }
-                }
-            });
+                });
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Can not run ReaderCleaner - execution rejected", ex);
+            } 
+        }
+        
+        private void schedule() {
+            try {
+                threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, this);
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Can not schedule ReaderCleaner - execution rejected", ex);
+            }
         }
     }
 }

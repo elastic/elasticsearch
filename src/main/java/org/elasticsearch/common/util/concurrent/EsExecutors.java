@@ -54,7 +54,7 @@ public class EsExecutors {
     }
 
     public static EsThreadPoolExecutor newCached(long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
-        return new EsThreadPoolExecutor(0, Integer.MAX_VALUE, keepAliveTime, unit, new SynchronousQueue<Runnable>(), threadFactory);
+        return new EsThreadPoolExecutor(0, Integer.MAX_VALUE, keepAliveTime, unit, new SynchronousQueue<Runnable>(), threadFactory, new EsAbortPolicy());
     }
 
     public static EsThreadPoolExecutor newFixed(int size, BlockingQueue<Runnable> queue, ThreadFactory threadFactory) {

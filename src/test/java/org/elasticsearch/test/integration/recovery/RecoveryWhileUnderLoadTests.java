@@ -294,7 +294,6 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> refreshing the index");
         refreshAndAssert();
         logger.info("--> verifying indexed content");
-        refreshAndAssert();
         for (int i = 0; i < 10; i++) {
             CountResponse actionGet = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(actionGet);
@@ -302,10 +301,18 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         }
     }
     
-    private RefreshResponse refreshAndAssert() {
-        RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
-        assertNoFailures(actionGet);
-        return actionGet;
+    private void refreshAndAssert() throws InterruptedException {
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                try {
+                    RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
+                    assertNoFailures(actionGet);
+                    return actionGet.getTotalShards() == actionGet.getSuccessfulShards();
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }, 5, TimeUnit.MINUTES), equalTo(true));
     }
     
     private void waitForDocs(final long numDocs) throws InterruptedException {

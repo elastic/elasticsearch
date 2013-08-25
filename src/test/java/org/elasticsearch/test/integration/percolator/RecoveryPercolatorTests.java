@@ -363,6 +363,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                             for (MultiPercolateResponse.Item item : response) {
                                 assertThat(item.isFailure(), equalTo(false));
                                 assertNoFailures(item.getResponse());
+                                assertThat(item.getResponse().getSuccessfulShards(), equalTo(2));
                                 assertThat(item.getResponse().getCount(), equalTo((long) numQueries));
                                 assertThat(item.getResponse().getMatches().length, equalTo(numQueries));
                             }
@@ -382,6 +383,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                                         .execute().actionGet();
                             }
                             assertNoFailures(response);
+                            assertThat(response.getSuccessfulShards(), equalTo(2));
                             assertThat(response.getCount(), equalTo((long) numQueries));
                             assertThat(response.getMatches().length, equalTo(numQueries));
                         }

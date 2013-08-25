@@ -203,7 +203,12 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
 
                             assert expectedOperationsPerItem[item.slot()].get() >= 1;
                             if (expectedOperationsPerItem[item.slot()].decrementAndGet() == 0) {
-                                reduce(item.slot(), percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
+                                try {
+                                    reduce(item.slot(), percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
+                                } catch (Throwable t) {
+                                    // Don't let any failure bubble up, otherwise expectedOperationsPerItem will be decremented twice
+                                    listener.onFailure(t);
+                                }
                             }
                         }
                     } catch (Throwable e) {
@@ -225,7 +230,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                             }
 
                             shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, e));
-                            assert expectedOperationsPerItem[slot].get() >= 1;
+                            assert expectedOperationsPerItem[slot].get() >= 1 : "Caused by: " + e.getMessage();
                             if (expectedOperationsPerItem[slot].decrementAndGet() == 0) {
                                 reduce(slot, percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
                             }

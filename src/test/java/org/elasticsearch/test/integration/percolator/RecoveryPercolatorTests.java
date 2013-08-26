@@ -39,7 +39,6 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -317,11 +316,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
             @Override
             public void run() {
                 try {
-                    XContentBuilder doc = null;
-                    try {
-                        doc = jsonBuilder().startObject().field("field", "a").endObject();
-                    } catch (IOException e) {}
-
+                    XContentBuilder doc = jsonBuilder().startObject().field("field", "a").endObject();
                     while (run.get()) {
                         NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo()
                                 .execute().actionGet();

@@ -196,10 +196,10 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
         try {
             return percolatorService.percolate(request);
-        } catch (Throwable t) {
-            logger.trace("[{}][{}] failed to percolate", t, request.index(), request.shardId());
+        } catch (Throwable e) {
+            logger.trace("[{}][{}] failed to percolate", e, request.index(), request.shardId());
             ShardId shardId = new ShardId(request.index(), request.shardId());
-            throw new PercolateException(shardId, "failed to percolate", t);
+            throw new PercolateException(shardId, "failed to percolate", e);
         }
     }
 

@@ -262,7 +262,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject())
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(1));
-        assertThat(response.getMatches()[0].id().string(), equalTo("100"));
+        assertThat(response.getMatches()[0].getId().string(), equalTo("100"));
     }
 
     @Test

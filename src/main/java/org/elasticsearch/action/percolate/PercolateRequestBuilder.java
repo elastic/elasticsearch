@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.util.Map;
 
@@ -175,6 +176,11 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
 
     public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
         sourceBuilder().setFilterBuilder(filterBuilder);
+        return this;
+    }
+
+    public PercolateRequestBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
+        sourceBuilder().setHighlightBuilder(highlightBuilder);
         return this;
     }
 

@@ -43,6 +43,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -98,7 +99,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             return new ExplainResponse(false);
         }
 
-        SearchContext context = new SearchContext(
+        SearchContext context = new DefaultSearchContext(
                 0,
                 new ShardSearchRequest().types(new String[]{request.type()})
                         .filteringAliases(request.filteringAlias()),

@@ -52,6 +52,7 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -480,7 +481,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.searcher() : searcher;
-        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler);
+        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler);
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());

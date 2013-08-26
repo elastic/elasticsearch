@@ -31,6 +31,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.OpenBitSet;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -340,7 +340,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         final int numParents = atLeast(100);
         List<Document> docs = new ArrayList<Document>();
-        final BitSet parents = new BitSet();
+        final OpenBitSet parents = new OpenBitSet();
         for (int i = 0; i < numParents; ++i) {
             docs.clear();
             final int numChildren = randomInt(4);
@@ -360,7 +360,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
                 parent.add(new StringField("text", value, Store.YES));
             }
             docs.add(parent);
-            parents.set(parents.length() + docs.size() - 1);
+            parents.set(parents.prevSetBit(parents.length() - 1) + docs.size());
             writer.addDocuments(docs);
             if (randomInt(10) == 0) {
                 writer.commit();
@@ -396,7 +396,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             final int docID = topDocs.scoreDocs[i].doc;
             assert parents.get(docID);
             BytesRef cmpValue = null;
-            for (int child = parents.previousSetBit(docID - 1) + 1; child < docID; ++child) {
+            for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
                 String[] vals = searcher.doc(child).getValues("text");
                 if (vals.length == 0) {
                     vals = new String[] {missingValue.utf8ToString()};

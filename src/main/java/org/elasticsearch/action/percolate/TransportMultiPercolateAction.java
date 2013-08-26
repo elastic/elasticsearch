@@ -220,6 +220,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                 @Override
                 @SuppressWarnings("unchecked")
                 public void onFailure(Throwable e) {
+                    logger.debug("Shard multi percolate failure", e);
                     try {
                         TIntArrayList slots = shardToSlots.get(shardId);
                         for (int i = 0; i < slots.size(); i++) {

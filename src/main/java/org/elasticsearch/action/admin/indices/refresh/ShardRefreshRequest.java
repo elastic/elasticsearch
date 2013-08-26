@@ -30,34 +30,29 @@ import java.io.IOException;
  */
 class ShardRefreshRequest extends BroadcastShardOperationRequest {
 
-    private boolean waitForOperations = true;
+    private boolean force = true;
 
     ShardRefreshRequest() {
     }
 
     public ShardRefreshRequest(String index, int shardId, RefreshRequest request) {
         super(index, shardId, request);
-        waitForOperations = request.waitForOperations();
+        force = request.force();
     }
 
-    public boolean waitForOperations() {
-        return waitForOperations;
-    }
-
-    public ShardRefreshRequest waitForOperations(boolean waitForOperations) {
-        this.waitForOperations = waitForOperations;
-        return this;
+    public boolean force() {
+        return force;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForOperations = in.readBoolean();
+        force = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForOperations);
+        out.writeBoolean(force);
     }
 }

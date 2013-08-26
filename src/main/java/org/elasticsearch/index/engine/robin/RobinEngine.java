@@ -957,7 +957,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private void refreshVersioningTable(long time) {
         // we need to refresh in order to clear older version values
-        refresh(new Refresh(true).force(true));
+        refresh(new Refresh().force(true));
         for (Map.Entry<HashedBytesRef, VersionValue> entry : versionMap.entrySet()) {
             HashedBytesRef uid = entry.getKey();
             synchronized (dirtyLock(uid.bytes)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
@@ -1048,7 +1048,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             flush(new Flush().force(true));
         }
         if (optimize.refresh()) {
-            refresh(new Refresh(false).force(true));
+            refresh(new Refresh().force(true));
         }
     }
 

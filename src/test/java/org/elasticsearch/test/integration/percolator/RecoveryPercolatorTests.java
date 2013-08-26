@@ -301,12 +301,12 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         final int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
-            client().prepareIndex("test", "_percolator", Integer.toString(i))
+            client.prepareIndex("test", "_percolator", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
 
-        client().prepareIndex("test", "type", "1")
+        client.prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("field", "a"))
                 .execute().actionGet();
 
@@ -323,7 +323,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                     } catch (IOException e) {}
 
                     while (run.get()) {
-                        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo()
+                        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo()
                                 .execute().actionGet();
                         String node2Id = null;
                         String node3Id = null;
@@ -337,13 +337,13 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
                         String preference = "_prefer_node:" + (randomBoolean() ? node2Id : node3Id);
                         if (multiPercolate) {
-                            MultiPercolateRequestBuilder builder = client()
+                            MultiPercolateRequestBuilder builder = client
                                     .prepareMultiPercolate();
                             int numPercolateRequest = randomIntBetween(50, 100);
 
                             for (int i = 0; i < numPercolateRequest / 2; i++) {
                                 builder.add(
-                                        client().preparePercolate()
+                                        client.preparePercolate()
                                                 .setPreference(preference)
                                                 .setIndices("test").setDocumentType("type")
                                                 .setPercolateDoc(docBuilder().setDoc(doc)));
@@ -351,7 +351,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
                             for (int i = numPercolateRequest / 2; i < numPercolateRequest; i++) {
                                 builder.add(
-                                        client().preparePercolate()
+                                        client.preparePercolate()
                                                 .setPreference(preference)
                                                 .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                                                 .setIndices("test").setDocumentType("type")
@@ -370,13 +370,13 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                         } else {
                             PercolateResponse response;
                             if (randomBoolean()) {
-                                response = client().preparePercolate()
+                                response = client.preparePercolate()
                                         .setIndices("test").setDocumentType("type")
                                         .setPercolateDoc(docBuilder().setDoc(doc))
                                         .setPreference(preference)
                                         .execute().actionGet();
                             } else {
-                                response = client().preparePercolate()
+                                response = client.preparePercolate()
                                         .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                                         .setIndices("test").setDocumentType("type")
                                         .setPreference(preference)
@@ -402,28 +402,28 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         try {
             for (int i = 0; i < 4; i++) {
                 closeNode("node3");
-                client().admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForYellowStatus()
                         .setWaitForNodes("2")
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
                 closeNode("node2");
-                client().admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForYellowStatus()
                         .setWaitForNodes("1")
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
                 startNode("node3");
-                client().admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForYellowStatus()
                         .setWaitForNodes("2")
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
                 startNode("node2");
-                client().admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForYellowStatus()
                         .setWaitForNodes("3")

@@ -185,14 +185,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Refresh {
 
-        private final boolean waitForOperations;
-
         private boolean force = false;
 
-        public Refresh(boolean waitForOperations) {
-            this.waitForOperations = waitForOperations;
-        }
-
+        /**
+         * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
+         * to true (note, still lightweight if no refresh is needed).
+         */
         public Refresh force(boolean force) {
             this.force = force;
             return this;
@@ -202,13 +200,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.force;
         }
 
-        public boolean waitForOperations() {
-            return waitForOperations;
-        }
-
         @Override
         public String toString() {
-            return "waitForOperations[" + waitForOperations + "]";
+            return "force[" + force + "]";
         }
     }
 

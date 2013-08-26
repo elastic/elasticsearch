@@ -105,7 +105,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
         IndexShard indexShard = indexService.shardSafe(shardId);
 
         if (request.refresh() && !request.realtime()) {
-            indexShard.refresh(new Engine.Refresh(false));
+            indexShard.refresh(new Engine.Refresh().force(TransportGetAction.REFRESH_FORCE));
         }
 
         MultiGetShardResponse response = new MultiGetShardResponse();

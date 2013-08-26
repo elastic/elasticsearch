@@ -36,7 +36,7 @@ import java.io.IOException;
  */
 public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
 
-    private boolean waitForOperations = true;
+    private boolean force = true;
 
     RefreshRequest() {
     }
@@ -45,22 +45,26 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
         super(indices);
     }
 
-    public boolean waitForOperations() {
-        return waitForOperations;
+    public boolean force() {
+        return force;
     }
 
-    public RefreshRequest waitForOperations(boolean waitForOperations) {
-        this.waitForOperations = waitForOperations;
+    /**
+     * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
+     * to true (note, still lightweight if no refresh is needed).
+     */
+    public RefreshRequest force(boolean force) {
+        this.force = force;
         return this;
     }
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForOperations = in.readBoolean();
+        force = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForOperations);
+        out.writeBoolean(force);
     }
 }

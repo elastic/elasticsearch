@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -238,22 +239,31 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return this.shardRouting;
     }
 
-    public InternalIndexShard routingEntry(ShardRouting shardRouting) {
+    public InternalIndexShard routingEntry(ShardRouting newRouting) {
         ShardRouting currentRouting = this.shardRouting;
-        if (!shardRouting.shardId().equals(shardId())) {
-            throw new ElasticSearchIllegalArgumentException("Trying to set a routing entry with shardId [" + shardRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
+        if (!newRouting.shardId().equals(shardId())) {
+            throw new ElasticSearchIllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
         }
         if (currentRouting != null) {
-            if (!shardRouting.primary() && currentRouting.primary()) {
+            if (!newRouting.primary() && currentRouting.primary()) {
                 logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
             }
             // if its the same routing, return
-            if (currentRouting.equals(shardRouting)) {
+            if (currentRouting.equals(newRouting)) {
                 return this;
             }
         }
-        this.shardRouting = shardRouting;
-        indicesLifecycle.shardRoutingChanged(this, currentRouting, shardRouting);
+
+        // make sure we refresh on state change due to cluster state changes
+        if (newRouting.state() == ShardRoutingState.STARTED && (currentRouting == null || currentRouting.state() != ShardRoutingState.STARTED)) {
+            try {
+                engine.refresh(new Engine.Refresh().force(true));
+            } catch (Throwable t) {
+                logger.debug("failed to refresh due to move to cluster wide started", t);
+            }
+        }
+        this.shardRouting = newRouting;
+        indicesLifecycle.shardRoutingChanged(this, currentRouting, newRouting);
         return this;
     }
 
@@ -642,7 +652,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         // clear unreferenced files
         translog.clearUnreferenced();
-        engine.refresh(new Engine.Refresh(true));
+        engine.refresh(new Engine.Refresh().force(true));
         synchronized (mutex) {
             logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
@@ -805,7 +815,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 public void run() {
                     try {
                         if (engine.refreshNeeded()) {
-                            refresh(new Engine.Refresh(false));
+                            refresh(new Engine.Refresh().force(false));
                         }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore

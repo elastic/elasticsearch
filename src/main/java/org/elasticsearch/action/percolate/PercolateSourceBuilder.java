@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,6 +42,7 @@ public class PercolateSourceBuilder implements ToXContent {
     private Integer size;
     private Boolean sort;
     private Boolean score;
+    private HighlightBuilder highlightBuilder;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {
@@ -91,6 +93,11 @@ public class PercolateSourceBuilder implements ToXContent {
         return this;
     }
 
+    public PercolateSourceBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
+        this.highlightBuilder = highlightBuilder;
+        return this;
+    }
+
     public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -123,6 +130,9 @@ public class PercolateSourceBuilder implements ToXContent {
         }
         if (score != null) {
             builder.field("score", score);
+        }
+        if (highlightBuilder != null) {
+            highlightBuilder.toXContent(builder, params);
         }
         builder.endObject();
         return builder;

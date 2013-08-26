@@ -31,11 +31,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  *
@@ -116,16 +115,32 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             boolean justIds = "ids".equals(params.param("percolate_format"));
             if (justIds) {
                 for (PercolateResponse.Match match : matches) {
-                    builder.value(match.id());
+                    builder.value(match.getId());
                 }
             } else {
                 for (PercolateResponse.Match match : matches) {
                     builder.startObject();
                     builder.field(Fields._INDEX, match.getIndex());
                     builder.field(Fields._ID, match.getId());
-                    float score = match.score();
+                    float score = match.getScore();
                     if (score != PercolatorService.NO_SCORE) {
                         builder.field(Fields._SCORE, match.getScore());
+                    }
+                    if (match.getHighlightFields() != null) {
+                        builder.startObject(Fields.HIGHLIGHT);
+                        for (HighlightField field : match.getHighlightFields().values()) {
+                            builder.field(field.name());
+                            if (field.fragments() == null) {
+                                builder.nullValue();
+                            } else {
+                                builder.startArray();
+                                for (Text fragment : field.fragments()) {
+                                    builder.value(fragment);
+                                }
+                                builder.endArray();
+                            }
+                        }
+                        builder.endObject();
                     }
                     builder.endObject();
                 }
@@ -166,6 +181,14 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         private Text index;
         private Text id;
         private float score;
+        private Map<String, HighlightField> hl;
+
+        public Match(Text index, Text id, float score, Map<String, HighlightField> hl) {
+            this.id = id;
+            this.score = score;
+            this.index = index;
+            this.hl = hl;
+        }
 
         public Match(Text index, Text id, float score) {
             this.id = id;
@@ -176,28 +199,20 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         Match() {
         }
 
-        public Text index() {
+        public Text getIndex() {
             return index;
         }
 
-        public Text id() {
+        public Text getId() {
             return id;
         }
 
-        public float score() {
+        public float getScore() {
             return score;
         }
 
-        public Text getIndex() {
-            return index();
-        }
-
-        public Text getId() {
-            return id();
-        }
-
-        public float getScore() {
-            return score();
+        public Map<String, HighlightField> getHighlightFields() {
+            return hl;
         }
 
         @Override
@@ -205,6 +220,13 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             id = in.readText();
             index = in.readText();
             score = in.readFloat();
+            int size = in.readVInt();
+            if (size > 0) {
+                hl = new HashMap<String, HighlightField>(size);
+                for (int j = 0; j < size; j++) {
+                    hl.put(in.readString(), HighlightField.readHighlightField(in));
+                }
+            }
         }
 
         @Override
@@ -212,6 +234,15 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             out.writeText(id);
             out.writeText(index);
             out.writeFloat(score);
+            if (hl != null) {
+                out.writeVInt(hl.size());
+                for (Map.Entry<String, HighlightField> entry : hl.entrySet()) {
+                    out.writeString(entry.getKey());
+                    entry.getValue().writeTo(out);
+                }
+            } else {
+                out.writeVInt(0);
+            }
         }
     }
 
@@ -222,6 +253,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
+        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
     }
 
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -1240,10 +1243,10 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(2l));
-        assertThat(response.getMatches()[0].id().string(), equalTo("2"));
-        assertThat(response.getMatches()[0].score(), equalTo(2f));
-        assertThat(response.getMatches()[1].id().string(), equalTo("1"));
-        assertThat(response.getMatches()[1].score(), equalTo(1f));
+        assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
+        assertThat(response.getMatches()[0].getScore(), equalTo(2f));
+        assertThat(response.getMatches()[1].getId().string(), equalTo("1"));
+        assertThat(response.getMatches()[1].getScore(), equalTo(1f));
 
         response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")
                 .setSort(true)
@@ -1295,6 +1298,163 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(response.getCount(), equalTo(0l));
     }
 
+    @Test
+    public void testPercolatorWithHighlighting() throws Exception {
+        Client client = cluster().nodeClient();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+                .execute().actionGet();
+        ensureGreen();
+
+        if (randomBoolean()) {
+            client.admin().indices().preparePutMapping("test").setType("type")
+                    .setSource(
+                            jsonBuilder().startObject().startObject("type")
+                                    .startObject("properties")
+                                    .startObject("field1").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
+                                    .endObject()
+                                    .endObject().endObject()
+                    )
+                    .execute().actionGet();
+        }
+
+        logger.info("--> register a queries");
+        client.prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "brown fox")).endObject())
+                .execute().actionGet();
+        client.prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "lazy dog")).endObject())
+                .execute().actionGet();
+        client.prepareIndex("test", "_percolator", "3")
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "jumps")).endObject())
+                .execute().actionGet();
+        client.prepareIndex("test", "_percolator", "4")
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "dog")).endObject())
+                .execute().actionGet();
+        client.prepareIndex("test", "_percolator", "5")
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "fox")).endObject())
+                .execute().actionGet();
+
+        logger.info("--> Percolate doc with field1=The quick brown fox jumps over the lazy dog");
+        PercolateResponse response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setSize(5)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
+                .setHighlightBuilder(new HighlightBuilder().field("field1"))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertNoFailures(response);
+        assertThat(response.getMatches(), arrayWithSize(5));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
+
+        PercolateResponse.Match[] matches = response.getMatches();
+        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
+            @Override
+            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
+                return a.getId().compareTo(b.getId());
+            }
+        });
+
+        assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
+        assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"));
+        assertThat(matches[2].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
+        assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
+
+        // Anything with percolate query isn't realtime
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Query percolate doc with field1=The quick brown fox jumps over the lazy dog");
+        response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setSize(5)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
+                .setHighlightBuilder(new HighlightBuilder().field("field1"))
+                .setPercolateQuery(matchAllQuery())
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getMatches(), arrayWithSize(5));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
+
+        matches = response.getMatches();
+        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
+            @Override
+            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
+                return a.getId().compareTo(b.getId());
+            }
+        });
+
+        assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
+        assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"));
+        assertThat(matches[2].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
+        assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
+
+        logger.info("--> Query percolate with score for doc with field1=The quick brown fox jumps over the lazy dog");
+        response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setSize(5)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
+                .setHighlightBuilder(new HighlightBuilder().field("field1"))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setScore(true)
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getMatches(), arrayWithSize(5));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
+
+        matches = response.getMatches();
+        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
+            @Override
+            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
+                return a.getId().compareTo(b.getId());
+            }
+        });
+
+        assertThat(matches[0].getScore(), equalTo(5.5f));
+        assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
+        assertThat(matches[1].getScore(), equalTo(5.5f));
+        assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"));
+        assertThat(matches[2].getScore(), equalTo(5.5f));
+        assertThat(matches[2].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[3].getScore(), equalTo(5.5f));
+        assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
+        assertThat(matches[4].getScore(), equalTo(5.5f));
+        assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
+
+        logger.info("--> Top percolate for doc with field1=The quick brown fox jumps over the lazy dog");
+        response = client.preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setSize(5)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
+                .setHighlightBuilder(new HighlightBuilder().field("field1"))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setSort(true)
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getMatches(), arrayWithSize(5));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4", "5"));
+
+        matches = response.getMatches();
+        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
+            @Override
+            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
+                return a.getId().compareTo(b.getId());
+            }
+        });
+
+        assertThat(matches[0].getScore(), equalTo(5.5f));
+        assertThat(matches[0].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"));
+        assertThat(matches[1].getScore(), equalTo(5.5f));
+        assertThat(matches[1].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"));
+        assertThat(matches[2].getScore(), equalTo(5.5f));
+        assertThat(matches[2].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox <em>jumps</em> over the lazy dog"));
+        assertThat(matches[3].getScore(), equalTo(5.5f));
+        assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
+        assertThat(matches[4].getScore(), equalTo(5.5f));
+        assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
+    }
+
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {
         if (matches.length == 0) {
             return Strings.EMPTY_ARRAY;
@@ -1302,7 +1462,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         String[] strings = new String[matches.length];
         for (int i = 0; i < matches.length; i++) {
             assert index.equals(matches[i].getIndex().string());
-            strings[i] = matches[i].id().string();
+            strings[i] = matches[i].getId().string();
         }
         return strings;
     }

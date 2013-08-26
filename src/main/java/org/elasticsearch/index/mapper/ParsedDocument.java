@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.apache.lucene.document.Field;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.List;
 
@@ -47,7 +47,7 @@ public class ParsedDocument {
 
     private final Analyzer analyzer;
 
-    private final BytesReference source;
+    private BytesReference source;
 
     private boolean mappingsModified;
 
@@ -109,6 +109,10 @@ public class ParsedDocument {
 
     public BytesReference source() {
         return this.source;
+    }
+
+    public void setSource(BytesReference source) {
+        this.source = source;
     }
 
     public ParsedDocument parent(String parent) {

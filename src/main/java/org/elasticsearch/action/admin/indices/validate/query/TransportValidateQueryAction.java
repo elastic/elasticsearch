@@ -41,6 +41,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -169,7 +170,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         if (request.querySource().length() == 0) {
             valid = true;
         } else {
-            SearchContext.setCurrent(new SearchContext(0,
+            SearchContext.setCurrent(new DefaultSearchContext(0,
                     new ShardSearchRequest().types(request.types()),
                     null, indexShard.searcher(), indexService, indexShard,
                     scriptService, cacheRecycler));

@@ -23,9 +23,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.percolator.PercolateContext;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  */
@@ -36,13 +41,24 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private long count;
     private float[] scores;
     private BytesRef[] matches;
+    private List<Map<String, HighlightField>> hls = new ArrayList<Map<String, HighlightField>>();
     private byte percolatorTypeId;
     private int requestedSize;
 
-    public PercolateShardResponse() {
+    PercolateShardResponse() {
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolatorService.PercolateContext context, String index, int shardId) {
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, String index, int shardId) {
+        super(index, shardId);
+        this.matches = matches;
+        this.hls = hls;
+        this.count = count;
+        this.scores = scores;
+        this.percolatorTypeId = context.percolatorTypeId;
+        this.requestedSize = context.size;
+    }
+
+    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = matches;
         this.count = count;
@@ -51,7 +67,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.requestedSize = context.size;
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, PercolatorService.PercolateContext context, String index, int shardId) {
+    public PercolateShardResponse(BytesRef[] matches, long count, PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = matches;
         this.scores = new float[0];
@@ -60,7 +76,17 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.requestedSize = context.size;
     }
 
-    public PercolateShardResponse(long count, PercolatorService.PercolateContext context, String index, int shardId) {
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, String index, int shardId) {
+        super(index, shardId);
+        this.matches = matches;
+        this.hls = hls;
+        this.scores = new float[0];
+        this.count = count;
+        this.percolatorTypeId = context.percolatorTypeId;
+        this.requestedSize = context.size;
+    }
+
+    public PercolateShardResponse(long count, PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.count = count;
         this.matches = EMPTY;
@@ -69,7 +95,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.requestedSize = context.size;
     }
 
-    public PercolateShardResponse(PercolatorService.PercolateContext context, String index, int shardId) {
+    public PercolateShardResponse(PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = EMPTY;
         this.scores = new float[0];
@@ -92,6 +118,10 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         return requestedSize;
     }
 
+    public List<Map<String, HighlightField>> hls() {
+        return hls;
+    }
+
     public byte percolatorTypeId() {
         return percolatorTypeId;
     }
@@ -103,6 +133,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        percolatorTypeId = in.readByte();
+        requestedSize = in.readVInt();
         count = in.readVLong();
         matches = new BytesRef[in.readVInt()];
         for (int i = 0; i < matches.length; i++) {
@@ -112,13 +144,22 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         for (int i = 0; i < scores.length; i++) {
             scores[i] = in.readFloat();
         }
-        percolatorTypeId = in.readByte();
-        requestedSize = in.readVInt();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            int mSize = in.readVInt();
+            Map<String, HighlightField> fields = new HashMap<String, HighlightField>();
+            for (int j = 0; j < mSize; j++) {
+                fields.put(in.readString(), HighlightField.readHighlightField(in));
+            }
+            hls.add(fields);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeByte(percolatorTypeId);
+        out.writeVLong(requestedSize);
         out.writeVLong(count);
         out.writeVInt(matches.length);
         for (BytesRef match : matches) {
@@ -128,7 +169,13 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         for (float score : scores) {
             out.writeFloat(score);
         }
-        out.writeByte(percolatorTypeId);
-        out.writeVLong(requestedSize);
+        out.writeVInt(hls.size());
+        for (Map<String, HighlightField> hl : hls) {
+            out.writeVInt(hl.size());
+            for (Map.Entry<String, HighlightField> entry : hl.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 }

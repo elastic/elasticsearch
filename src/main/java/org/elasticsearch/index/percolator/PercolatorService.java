@@ -118,7 +118,7 @@ public class PercolatorService extends AbstractIndexComponent {
     private void loadQueries(String indexName) {
         IndexService indexService = percolatorIndexService();
         IndexShard shard = indexService.shard(0);
-        shard.refresh(new Engine.Refresh(true));
+        shard.refresh(new Engine.Refresh().force(true));
         Engine.Searcher searcher = shard.searcher();
         try {
             // create a query to fetch all queries that are registered under the index name (which is the type
@@ -178,11 +178,11 @@ public class PercolatorService extends AbstractIndexComponent {
             try {
                 final Query parseQuery = percolator.parseQuery(id, fieldsVisitor.source());
                 if (parseQuery != null) {
-                    queries.put(id, parseQuery);    
+                    queries.put(id, parseQuery);
                 } else {
                     logger.warn("failed to add query [{}] - parser returned null", id);
                 }
-                
+
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }

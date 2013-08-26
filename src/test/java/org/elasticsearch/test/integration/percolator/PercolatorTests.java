@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimplePercolatorTests extends AbstractSharedClusterTest {
+public class PercolatorTests extends AbstractSharedClusterTest {
 
     @Override
     protected int numberOfNodes() {

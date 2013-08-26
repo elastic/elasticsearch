@@ -49,7 +49,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
+import static org.elasticsearch.test.integration.percolator.PercolatorTests.convertFromTextArray;
 import static org.elasticsearch.test.integration.percolator.TTLPercolatorTests.ensureGreen;
 import static org.hamcrest.Matchers.*;
 

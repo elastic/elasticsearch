@@ -50,7 +50,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.integration.percolator.SimplePercolatorTests.convertFromTextArray;
+import static org.elasticsearch.test.integration.percolator.PercolatorTests.convertFromTextArray;
 import static org.hamcrest.Matchers.*;
 
 

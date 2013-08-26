@@ -35,7 +35,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -117,14 +119,9 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                         String percolateAction = parser.currentName();
                         if ("percolate".equals(percolateAction)) {
                             parsePercolateAction(parser, percolateRequest);
-                        } else if ("count_percolate".equals(percolateAction) || "countPercolate".equals(percolateAction)) {
+                        } else if ("count".equals(percolateAction)) {
                             percolateRequest.onlyCount(true);
                             parsePercolateAction(parser, percolateRequest);
-                        } else if ("percolate_existing_doc".equals(percolateAction) || "percolateExistingDoc".equals(percolateAction)) {
-                            parsePercolateExistingAction(parser, percolateRequest);
-                        } else if ("count_percolate_existing_doc".equals(percolateAction) || "countPercolateExistingDoc".equals(percolateAction)) {
-                            percolateRequest.onlyCount(true);
-                            parsePercolateExistingAction(parser, percolateRequest);
                         } else {
                             throw new ElasticSearchParseException(percolateAction + " isn't a supported percolate operation");
                         }
@@ -154,70 +151,71 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     }
 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest) throws IOException {
+        String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
+
+        Map<String, Object> header = new HashMap<String, Object>();
+
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                    percolateRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
-                } else if ("type".equals(currentFieldName)) {
-                    percolateRequest.documentType(parser.text());
-                } else if ("preference".equals(currentFieldName)) {
-                    percolateRequest.preference(parser.text());
-                } else if ("routing".equals(currentFieldName)) {
-                    percolateRequest.routing(parser.text());
-                } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
-                    percolateRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
-                }
+                header.put(currentFieldName, parser.text());
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                    percolateRequest.indices(parseArray(parser));
-                } else {
-                    throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
-                }
+                header.put(currentFieldName, parseArray(parser));
             }
         }
-    }
 
-    private void parsePercolateExistingAction(XContentParser parser, PercolateRequest percolateRequest) throws IOException {
-        String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
-        GetRequest getRequest = new GetRequest(globalIndex);
-        percolateRequest.getRequest(getRequest);
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if ("id".equals(currentFieldName)) {
-                    getRequest.id(parser.text());
-                } else if ("index".equals(currentFieldName)) {
-                    getRequest.index(parser.text());
-                } else if ("type".equals(currentFieldName)) {
-                    getRequest.type(parser.text());
-                } else if ("preference".equals(currentFieldName)) {
-                    getRequest.preference(parser.text());
-                } else if ("routing".equals(currentFieldName)) {
-                    getRequest.routing(parser.text());
-                } else if ("percolate_index".equals(currentFieldName) || "percolate_indices".equals(currentFieldName) || "percolateIndex".equals(currentFieldName) || "percolateIndices".equals(currentFieldName)) {
-                    percolateRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
-                } else if ("percolate_type".equals(currentFieldName) || "percolateType".equals(currentFieldName)) {
-                    percolateRequest.documentType(parser.text());
-                } else if ("percolate_preference".equals(currentFieldName) || "percolatePreference".equals(currentFieldName)) {
-                    percolateRequest.preference(parser.text());
-                } else if ("percolate_routing".equals(currentFieldName) || "percolateRouting".equals(currentFieldName)) {
-                    percolateRequest.routing(parser.text());
-                } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
-                    percolateRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
+        if (header.containsKey("id")) {
+            GetRequest getRequest = new GetRequest(globalIndex);
+            percolateRequest.getRequest(getRequest);
+            for (Map.Entry<String, Object> entry : header.entrySet()) {
+                Object value = entry.getValue();
+                if ("id".equals(entry.getKey())) {
+                    getRequest.id((String) value);
+                    header.put("id", entry.getValue());
+                } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                    getRequest.index((String) value);
+                } else if ("type".equals(entry.getKey())) {
+                    getRequest.type((String) value);
+                } else if ("preference".equals(entry.getKey())) {
+                    getRequest.preference((String) value);
+                } else if ("routing".equals(entry.getKey())) {
+                    getRequest.routing((String) value);
+                } else if ("percolate_index".equals(entry.getKey()) || "percolate_indices".equals(entry.getKey()) || "percolateIndex".equals(entry.getKey()) || "percolateIndices".equals(entry.getKey())) {
+                    if (value instanceof String[]) {
+                        percolateRequest.indices((String[]) value);
+                    } else {
+                        percolateRequest.indices(Strings.splitStringByCommaToArray((String) value));
+                    }
+                } else if ("percolate_type".equals(entry.getKey()) || "percolateType".equals(entry.getKey())) {
+                    percolateRequest.documentType((String) value);
+                } else if ("percolate_preference".equals(entry.getKey()) || "percolatePreference".equals(entry.getKey())) {
+                    percolateRequest.preference((String) value);
+                } else if ("percolate_routing".equals(entry.getKey()) || "percolateRouting".equals(entry.getKey())) {
+                    percolateRequest.routing((String) value);
+                } else if ("ignore_indices".equals(entry.getKey()) || "ignoreIndices".equals(entry.getKey())) {
+                    percolateRequest.ignoreIndices(IgnoreIndices.fromString((String) value));
                 }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                    percolateRequest.indices(parseArray(parser));
-                } else {
-                    throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
+            }
+        } else {
+            for (Map.Entry<String, Object> entry : header.entrySet()) {
+                Object value = entry.getValue();
+                if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                    if (value instanceof String[]) {
+                        percolateRequest.indices((String[]) value);
+                    } else {
+                        percolateRequest.indices(Strings.splitStringByCommaToArray((String) value));
+                    }
+                } else if ("type".equals(entry.getKey())) {
+                    percolateRequest.documentType((String) value);
+                } else if ("preference".equals(entry.getKey())) {
+                    percolateRequest.preference((String) value);
+                } else if ("routing".equals(entry.getKey())) {
+                    percolateRequest.routing((String) value);
+                } else if ("ignore_indices".equals(entry.getKey()) || "ignoreIndices".equals(entry.getKey())) {
+                    percolateRequest.ignoreIndices(IgnoreIndices.fromString((String) value));
                 }
             }
         }

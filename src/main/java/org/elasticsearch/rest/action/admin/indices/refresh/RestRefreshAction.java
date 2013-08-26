@@ -58,6 +58,7 @@ public class RestRefreshAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         RefreshRequest refreshRequest = new RefreshRequest(RestActions.splitIndices(request.param("index")));
         refreshRequest.listenerThreaded(false);
+        refreshRequest.force(request.paramAsBoolean("force", refreshRequest.force()));
         if (request.hasParam("ignore_indices")) {
             refreshRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

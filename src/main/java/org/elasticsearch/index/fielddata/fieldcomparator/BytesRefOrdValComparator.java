@@ -137,16 +137,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
     @Override
     public int compareDocToValue(int doc, BytesRef value) {
-        BytesRef docValue = termsIndex.getValue(doc);
-        if (docValue == null) {
-            if (value == null) {
-                return 0;
-            }
-            return -1;
-        } else if (value == null) {
-            return 1;
-        }
-        return docValue.compareTo(value);
+        throw new UnsupportedOperationException();
     }
 
     class PerSegmentComparator extends NestedWrappableComparator<BytesRef> {
@@ -196,7 +187,9 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
         @Override
         public int compareDocToValue(int doc, BytesRef value) {
-            return BytesRefOrdValComparator.this.compareDocToValue(doc, value);
+            final long ord = getOrd(doc);
+            final BytesRef docValue = ord == 0 ? null : termsIndex.getValueByOrd(ord);
+            return compareValues(docValue, value);
         }
 
         protected long getOrd(int doc) {

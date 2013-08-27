@@ -283,23 +283,23 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
         builder.field(Fields.TIMESTAMP, timestamp);
-        builder.timeValueField(Fields.UPTIME, Fields.UPTIME_IN_MILLIS, uptime);
+        builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
         if (mem != null) {
             builder.startObject(Fields.MEM);
 
-            builder.byteSizeField(Fields.HEAP_USED, Fields.HEAP_USED_IN_BYTES, mem.heapUsed);
-            builder.byteSizeField(Fields.HEAP_COMMITTED, Fields.HEAP_COMMITTED_IN_BYTES, mem.heapCommitted);
-            builder.byteSizeField(Fields.NON_HEAP_USED, Fields.NON_HEAP_USED_IN_BYTES, mem.nonHeapUsed);
-            builder.byteSizeField(Fields.NON_HEAP_COMMITTED, Fields.NON_HEAP_COMMITTED_IN_BYTES, mem.nonHeapCommitted);
+            builder.byteSizeField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, mem.heapUsed);
+            builder.byteSizeField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, mem.heapCommitted);
+            builder.byteSizeField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, mem.nonHeapUsed);
+            builder.byteSizeField(Fields.NON_HEAP_COMMITTED_IN_BYTES, Fields.NON_HEAP_COMMITTED, mem.nonHeapCommitted);
 
             builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
                 builder.startObject(pool.name(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.byteSizeField(Fields.USED, Fields.USED_IN_BYTES, pool.used);
-                builder.byteSizeField(Fields.MAX, Fields.MAX_IN_BYTES, pool.max);
+                builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, pool.used);
+                builder.byteSizeField(Fields.MAX_IN_BYTES, Fields.MAX, pool.max);
 
-                builder.byteSizeField(Fields.PEAK_USED, Fields.PEAK_USED_IN_BYTES, pool.peakUsed);
-                builder.byteSizeField(Fields.PEAK_MAX, Fields.PEAK_MAX_IN_BYTES, pool.peakMax);
+                builder.byteSizeField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, pool.peakUsed);
+                builder.byteSizeField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, pool.peakMax);
 
                 builder.endObject();
             }
@@ -316,13 +316,13 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         if (gc != null) {
             builder.startObject(Fields.GC);
             builder.field(Fields.COLLECTION_COUNT, gc.collectionCount());
-            builder.timeValueField(Fields.COLLECTION_TIME, Fields.COLLECTION_TIME_IN_MILLIS, gc.collectionTime());
+            builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, gc.collectionTime());
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
                 builder.startObject(collector.name(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.field(Fields.COLLECTION_COUNT, collector.collectionCount());
-                builder.timeValueField(Fields.COLLECTION_TIME, Fields.COLLECTION_TIME_IN_MILLIS, collector.collectionTime);
+                builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
                 builder.endObject();
             }
             builder.endObject();
@@ -335,8 +335,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             for (BufferPool bufferPool : bufferPools) {
                 builder.startObject(bufferPool.name(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.field(Fields.COUNT, bufferPool.count());
-                builder.byteSizeField(Fields.USED, Fields.USED_IN_BYTES, bufferPool.used);
-                builder.byteSizeField(Fields.TOTAL_CAPACITY, Fields.TOTAL_CAPACITY_IN_BYTES, bufferPool.totalCapacity);
+                builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, bufferPool.used);
+                builder.byteSizeField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY, bufferPool.totalCapacity);
                 builder.endObject();
             }
             builder.endObject();

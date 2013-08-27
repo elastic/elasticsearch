@@ -274,11 +274,11 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         builder.field(Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
-        builder.byteSizeField(Fields.HEAP_INIT, Fields.HEAP_INIT_IN_BYTES, mem.heapInit);
-        builder.byteSizeField(Fields.HEAP_MAX, Fields.HEAP_MAX_IN_BYTES, mem.heapMax);
-        builder.byteSizeField(Fields.NON_HEAP_INIT, Fields.NON_HEAP_INIT_IN_BYTES, mem.nonHeapInit);
-        builder.byteSizeField(Fields.NON_HEAP_MAX, Fields.NON_HEAP_MAX_IN_BYTES, mem.nonHeapMax);
-        builder.byteSizeField(Fields.DIRECT_MAX, Fields.DIRECT_MAX_IN_BYTES, mem.directMemoryMax);
+        builder.byteSizeField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, mem.heapInit);
+        builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
+        builder.byteSizeField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, mem.nonHeapInit);
+        builder.byteSizeField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, mem.nonHeapMax);
+        builder.byteSizeField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, mem.directMemoryMax);
         builder.endObject();
 
         builder.endObject();

@@ -133,11 +133,11 @@ public class SearchStats implements Streamable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
-            builder.timeValueField(Fields.QUERY_TIME, Fields.QUERY_TIME_IN_MILLIS, queryTimeInMillis);
+            builder.timeValueField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, queryTimeInMillis);
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
-            builder.timeValueField(Fields.FETCH_TIME, Fields.FETCH_TIME_IN_MILLIS, fetchTimeInMillis);
+            builder.timeValueField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, fetchTimeInMillis);
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
             return builder;

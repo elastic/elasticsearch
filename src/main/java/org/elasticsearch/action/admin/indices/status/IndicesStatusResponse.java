@@ -126,8 +126,8 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
 
             builder.startObject(Fields.INDEX);
             if (indexStatus.getStoreSize() != null) {
-                builder.byteSizeField(Fields.PRIMARY_SIZE, Fields.PRIMARY_SIZE_IN_BYTES, indexStatus.getPrimaryStoreSize());
-                builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, indexStatus.getStoreSize());
+                builder.byteSizeField(Fields.PRIMARY_SIZE_IN_BYTES, Fields.PRIMARY_SIZE, indexStatus.getPrimaryStoreSize());
+                builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, indexStatus.getStoreSize());
             }
             builder.endObject();
             if (indexStatus.getTranslogOperations() != -1) {
@@ -175,7 +175,7 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                     builder.field(Fields.STATE, shardStatus.getState());
                     if (shardStatus.getStoreSize() != null) {
                         builder.startObject(Fields.INDEX);
-                        builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, shardStatus.getStoreSize());
+                        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, shardStatus.getStoreSize());
                         builder.endObject();
                     }
                     if (shardStatus.getTranslogId() != -1) {
@@ -212,14 +212,14 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                         builder.startObject(Fields.PEER_RECOVERY);
                         builder.field(Fields.STAGE, peerRecoveryStatus.getStage());
                         builder.field(Fields.START_TIME_IN_MILLIS, peerRecoveryStatus.getStartTime());
-                        builder.timeValueField(Fields.TIME, Fields.TIME_IN_MILLIS, peerRecoveryStatus.getTime());
+                        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, peerRecoveryStatus.getTime());
 
                         builder.startObject(Fields.INDEX);
                         builder.field(Fields.PROGRESS, peerRecoveryStatus.getIndexRecoveryProgress());
-                        builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, peerRecoveryStatus.getIndexSize());
-                        builder.byteSizeField(Fields.REUSED_SIZE, Fields.REUSED_SIZE_IN_BYTES, peerRecoveryStatus.getReusedIndexSize());
-                        builder.byteSizeField(Fields.EXPECTED_RECOVERED_SIZE, Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, peerRecoveryStatus.getExpectedRecoveredIndexSize());
-                        builder.byteSizeField(Fields.RECOVERED_SIZE, Fields.RECOVERED_SIZE_IN_BYTES, peerRecoveryStatus.getRecoveredIndexSize());
+                        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, peerRecoveryStatus.getIndexSize());
+                        builder.byteSizeField(Fields.REUSED_SIZE_IN_BYTES, Fields.REUSED_SIZE, peerRecoveryStatus.getReusedIndexSize());
+                        builder.byteSizeField(Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, Fields.EXPECTED_RECOVERED_SIZE, peerRecoveryStatus.getExpectedRecoveredIndexSize());
+                        builder.byteSizeField(Fields.RECOVERED_SIZE_IN_BYTES, Fields.RECOVERED_SIZE, peerRecoveryStatus.getRecoveredIndexSize());
                         builder.endObject();
 
                         builder.startObject(Fields.TRANSLOG);
@@ -234,14 +234,14 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                         builder.startObject(Fields.GATEWAY_RECOVERY);
                         builder.field(Fields.STAGE, gatewayRecoveryStatus.getStage());
                         builder.field(Fields.START_TIME_IN_MILLIS, gatewayRecoveryStatus.getStartTime());
-                        builder.timeValueField(Fields.TIME, Fields.TIME_IN_MILLIS, gatewayRecoveryStatus.getTime());
+                        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, gatewayRecoveryStatus.getTime());
 
                         builder.startObject(Fields.INDEX);
                         builder.field(Fields.PROGRESS, gatewayRecoveryStatus.getIndexRecoveryProgress());
-                        builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, gatewayRecoveryStatus.getIndexSize());
-                        builder.byteSizeField(Fields.REUSED_SIZE, Fields.REUSED_SIZE_IN_BYTES, gatewayRecoveryStatus.getReusedIndexSize());
-                        builder.byteSizeField(Fields.EXPECTED_RECOVERED_SIZE, Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, gatewayRecoveryStatus.getExpectedRecoveredIndexSize());
-                        builder.byteSizeField(Fields.RECOVERED_SIZE, Fields.RECOVERED_SIZE_IN_BYTES, gatewayRecoveryStatus.getRecoveredIndexSize());
+                        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, gatewayRecoveryStatus.getIndexSize());
+                        builder.byteSizeField(Fields.REUSED_SIZE_IN_BYTES, Fields.REUSED_SIZE, gatewayRecoveryStatus.getReusedIndexSize());
+                        builder.byteSizeField(Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, Fields.EXPECTED_RECOVERED_SIZE, gatewayRecoveryStatus.getExpectedRecoveredIndexSize());
+                        builder.byteSizeField(Fields.RECOVERED_SIZE_IN_BYTES, Fields.RECOVERED_SIZE, gatewayRecoveryStatus.getRecoveredIndexSize());
                         builder.endObject();
 
                         builder.startObject(Fields.TRANSLOG);
@@ -256,10 +256,10 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
                         builder.startObject(Fields.GATEWAY_SNAPSHOT);
                         builder.field(Fields.STAGE, gatewaySnapshotStatus.getStage());
                         builder.field(Fields.START_TIME_IN_MILLIS, gatewaySnapshotStatus.getStartTime());
-                        builder.timeValueField(Fields.TIME, Fields.TIME_IN_MILLIS, gatewaySnapshotStatus.getTime());
+                        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, gatewaySnapshotStatus.getTime());
 
                         builder.startObject(Fields.INDEX);
-                        builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, gatewaySnapshotStatus.getIndexSize());
+                        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, gatewaySnapshotStatus.getIndexSize());
                         builder.endObject();
 
                         builder.startObject(Fields.TRANSLOG);

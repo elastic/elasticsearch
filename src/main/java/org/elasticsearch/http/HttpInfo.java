@@ -60,8 +60,7 @@ public class HttpInfo implements Streamable, Serializable, ToXContent {
         builder.startObject(Fields.HTTP);
         builder.field(Fields.BOUND_ADDRESS, address.boundAddress().toString());
         builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
-        builder.field(Fields.MAX_CONTENT_LENGTH, new ByteSizeValue(maxContentLength));
-        builder.field(Fields.MAX_CONTENT_LENGTH_IN_BYTES, maxContentLength);
+        builder.byteSizeField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength);
         builder.endObject();
         return builder;
     }

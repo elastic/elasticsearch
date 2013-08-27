@@ -47,7 +47,7 @@ public class PercolateStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.PERCOLATE);
         builder.field(Fields.TOTAL, percolateCount);
-        builder.timeValueField(Fields.TIME, Fields.TIME_IN_MILLIS, percolateTimeInMillis);
+        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, percolateTimeInMillis);
         builder.field(Fields.CURRENT, current);
         builder.endObject();
         return builder;

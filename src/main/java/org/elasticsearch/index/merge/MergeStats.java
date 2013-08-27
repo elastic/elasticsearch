@@ -133,11 +133,11 @@ public class MergeStats implements Streamable, ToXContent {
         builder.startObject(Fields.MERGES);
         builder.field(Fields.CURRENT, current);
         builder.field(Fields.CURRENT_DOCS, currentNumDocs);
-        builder.byteSizeField(Fields.CURRENT_SIZE, Fields.CURRENT_SIZE_IN_BYTES, currentSizeInBytes);
+        builder.byteSizeField(Fields.CURRENT_SIZE_IN_BYTES, Fields.CURRENT_SIZE, currentSizeInBytes);
         builder.field(Fields.TOTAL, total);
-        builder.timeValueField(Fields.TOTAL_TIME, Fields.TOTAL_TIME_IN_MILLIS, totalTimeInMillis);
+        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
         builder.field(Fields.TOTAL_DOCS, totalNumDocs);
-        builder.byteSizeField(Fields.TOTAL_SIZE, Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
+        builder.byteSizeField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, totalSizeInBytes);
         builder.endObject();
         return builder;
     }

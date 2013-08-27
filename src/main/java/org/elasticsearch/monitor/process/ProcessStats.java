@@ -110,16 +110,16 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.PERCENT, cpu.percent());
-            builder.byteSizeField(Fields.SYS, Fields.SYS_IN_MILLIS, cpu.sys);
-            builder.byteSizeField(Fields.USER, Fields.USER_IN_MILLIS, cpu.user);
-            builder.byteSizeField(Fields.TOTAL, Fields.TOTAL_IN_MILLIS, cpu.total);
+            builder.timeValueField(Fields.SYS_IN_MILLIS, Fields.SYS, cpu.sys);
+            builder.timeValueField(Fields.USER_IN_MILLIS, Fields.USER, cpu.user);
+            builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
             builder.endObject();
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.RESIDENT, Fields.RESIDENT_IN_BYTES, mem.resident);
-            builder.byteSizeField(Fields.SHARE, Fields.SHARE_IN_BYTES, mem.share);
-            builder.byteSizeField(Fields.TOTAL_VIRTUAL, Fields.TOTAL_VIRTUAL_IN_BYTES, mem.totalVirtual);
+            builder.byteSizeField(Fields.RESIDENT_IN_BYTES, Fields.RESIDENT, mem.resident);
+            builder.byteSizeField(Fields.SHARE_IN_BYTES, Fields.SHARE, mem.share);
+            builder.byteSizeField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, mem.totalVirtual);
             builder.endObject();
         }
         builder.endObject();

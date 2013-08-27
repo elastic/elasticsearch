@@ -138,7 +138,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         builder.field(Fields.TIMESTAMP, timestamp);
 
         if (uptime != -1) {
-            builder.byteSizeField(Fields.UPTIME, Fields.UPTIME_IN_MILLIS, uptime);
+            builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
         }
 
         if (loadAverage.length > 0) {
@@ -160,22 +160,22 @@ public class OsStats implements Streamable, Serializable, ToXContent {
 
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.FREE, Fields.FREE_IN_BYTES, mem.free);
-            builder.byteSizeField(Fields.USED, Fields.USED_IN_BYTES, mem.used);
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, mem.free);
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, mem.used);
 
             builder.field(Fields.FREE_PERCENT, mem.freePercent());
             builder.field(Fields.USED_PERCENT, mem.usedPercent());
 
-            builder.byteSizeField(Fields.ACTUAL_FREE, Fields.ACTUAL_FREE_IN_BYTES, mem.actualFree);
-            builder.byteSizeField(Fields.ACTUAL_USED, Fields.ACTUAL_USED_IN_BYTES, mem.actualUsed);
+            builder.byteSizeField(Fields.ACTUAL_FREE_IN_BYTES, Fields.ACTUAL_FREE, mem.actualFree);
+            builder.byteSizeField(Fields.ACTUAL_USED_IN_BYTES, Fields.ACTUAL_USED, mem.actualUsed);
 
             builder.endObject();
         }
 
         if (swap != null) {
             builder.startObject(Fields.SWAP);
-            builder.byteSizeField(Fields.USED, Fields.USED_IN_BYTES, swap.used);
-            builder.byteSizeField(Fields.FREE, Fields.FREE_IN_BYTES, swap.free);
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, swap.used);
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, swap.free);
             builder.endObject();
         }
 

@@ -105,11 +105,11 @@ public class GetStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, getCount());
-        builder.timeValueField(Fields.TIME, Fields.TIME_IN_MILLIS, getTimeInMillis());
+        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, getTimeInMillis());
         builder.field(Fields.EXISTS_TOTAL, existsCount);
-        builder.timeValueField(Fields.EXISTS_TIME, Fields.EXISTS_TIME_IN_MILLIS, existsTimeInMillis);
+        builder.timeValueField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, existsTimeInMillis);
         builder.field(Fields.MISSING_TOTAL, missingCount);
-        builder.timeValueField(Fields.MISSING_TIME, Fields.MISSING_TIME_IN_MILLIS, missingTimeInMillis);
+        builder.timeValueField(Fields.MISSING_TIME_IN_MILLIS, Fields.MISSING_TIME, missingTimeInMillis);
         builder.field(Fields.CURRENT, current);
         builder.endObject();
         return builder;

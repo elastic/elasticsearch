@@ -92,13 +92,13 @@ public class CompletionStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.COMPLETION);
-        builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, sizeInBytes);
+        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
             for (TObjectLongIterator<String> it = fields.iterator(); it.hasNext(); ) {
                 it.advance();
                 builder.startObject(it.key(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, it.value());
+                builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, it.value());
                 builder.endObject();
             }
             builder.endObject();

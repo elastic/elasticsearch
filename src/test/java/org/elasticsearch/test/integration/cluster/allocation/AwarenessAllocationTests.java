@@ -133,7 +133,7 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
     
     @Test
     @Slow
-    @AwaitsFix(bugUrl="simonw works on this")
+    @AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/3580")
     public void testAwarenessZonesIncrementalNodes() throws InterruptedException {
         Settings commonSettings = ImmutableSettings.settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
@@ -141,7 +141,7 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                 .build();
 
 
-        logger.info("--> starting 6 nodes on different zones");
+        logger.info("--> starting 2 nodes on zones 'a' & 'b'");
         startNode("A-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
         startNode("B-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
         client().admin().indices().prepareCreate("test")
@@ -161,10 +161,12 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         }
         assertThat(counts.get("A-0"), equalTo(5));
         assertThat(counts.get("B-0"), equalTo(5));
-        
-        startNode("B-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
-        Thread.sleep(1000);// TODO this is bad - how can we fix this?
+        logger.info("--> starting another node in zone 'b'");
 
+        startNode("B-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
+        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        client().admin().cluster().prepareReroute().get();
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
        

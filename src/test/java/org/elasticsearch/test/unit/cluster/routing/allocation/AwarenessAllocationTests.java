@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -753,5 +754,62 @@ public class AwarenessAllocationTests {
 
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
+    }
+    
+    @Test
+    @AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/3580")
+    public void testZones() {
+        AllocationService strategy = new AllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .build());
+
+        logger.info("Building initial routing table for 'testZones'");
+
+        MetaData metaData = newMetaDataBuilder()
+                .put(newIndexMetaDataBuilder("test").numberOfShards(5).numberOfReplicas(1))
+                .build();
+
+        RoutingTable routingTable = routingTable()
+                .addAsNew(metaData.index("test"))
+                .build();
+
+        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+
+        logger.info("--> adding two nodes on same rack and do rerouting");
+        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+                .put(newNode("A-0", ImmutableMap.of("zone", "a")))
+                .put(newNode("B-0", ImmutableMap.of("zone", "b")))
+        ).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+
+        logger.info("--> start the shards (primaries)");
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        logger.info("--> replica will not start because we have only one rack value");
+        assertThat(clusterState.routingNodes().shardsWithState(STARTED).size(), equalTo(10));
+        assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+
+        logger.info("--> add a new node in zone 'a' and reroute");
+        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+                .put(newNode("A-1", ImmutableMap.of("zone", "a")))
+        ).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
+        assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo("A-1"));
     }
 }

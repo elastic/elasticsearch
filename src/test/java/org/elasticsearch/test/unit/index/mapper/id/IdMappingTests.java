@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.mapper.id;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -113,5 +114,23 @@ public class IdMappingTests {
                 .endObject().string();
 
         assertThat(serialized_id_mapping, equalTo(expected_id_mapping));
+    }
+
+    @Test
+    public void testObjectId() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject().string();
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+
+        BytesReference source = XContentFactory.jsonBuilder().startObject()
+                .startObject("_id").field("name", "test").endObject()
+                .endObject().bytes();
+        try {
+            ParsedDocument doc = docMapper.parse("type", "1", source);
+            assert false;
+        } catch (MapperParsingException e) {
+            assert true;
+        }
+
     }
 }

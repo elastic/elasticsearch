@@ -307,6 +307,8 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
                 return null;
             }
             return new Field(names.indexName(), context.id(), fieldType);
+        } else if (parser.currentName() != null && parser.currentName().equals(Defaults.NAME) && parser.currentToken().equals(XContentParser.Token.START_OBJECT)) {
+            throw new MapperParsingException("Content id cannot be an object.");
         } else {
             // we are in the pre/post parse phase
             if (!fieldType.indexed() && !fieldType.stored()) {

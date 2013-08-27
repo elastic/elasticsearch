@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -158,8 +159,17 @@ public class RecoverySource extends AbstractComponent {
 
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
                     final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
+                    int fileIndex = 0;
                     for (final String name : response.phase1FileNames) {
-                        recoverySettings.concurrentStreamPool().execute(new Runnable() {
+                        ThreadPoolExecutor pool;
+                        long fileSize = response.phase1FileSizes.get(fileIndex);
+                        if (fileSize > recoverySettings.SMALL_FILE_CUTOFF_BYTES) {
+                            pool = recoverySettings.concurrentStreamPool();
+                        } else {
+                            pool = recoverySettings.concurrentSmallFileStreamPool();
+                        }
+
+                        pool.execute(new Runnable() {
                             @Override
                             public void run() {
                                 IndexInput indexInput = null;
@@ -207,6 +217,7 @@ public class RecoverySource extends AbstractComponent {
                                 }
                             }
                         });
+                        fileIndex++;
                     }
 
                     latch.await();

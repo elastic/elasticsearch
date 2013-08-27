@@ -13,7 +13,7 @@ import org.junit.runner.notification.RunListener;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
- * line parameters allowing quick test re-run under ANT command line.
+ * line parameters allowing quick test re-run under MVN command line.
  */
 public class ReproduceInfoPrinter extends RunListener {
 
@@ -22,6 +22,11 @@ public class ReproduceInfoPrinter extends RunListener {
     @Override
     public void testStarted(Description description) throws Exception {
         logger.info("Test {} started", description.getDisplayName());
+    }
+
+    @Override
+    public void testFinished(Description description) throws Exception {
+        logger.info("Test {} finished", description.getDisplayName());
     }
 
     @Override

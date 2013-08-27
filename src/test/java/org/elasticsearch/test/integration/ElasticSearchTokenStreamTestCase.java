@@ -19,13 +19,15 @@
 
 package org.elasticsearch.test.integration;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.junit.listerners.ReproduceInfoPrinter;
 
+@Listeners({
+    ReproduceInfoPrinter.class
+})
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)

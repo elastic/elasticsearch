@@ -330,27 +330,32 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                             }
                         }
 
-                        String preference = "_prefer_node:" + (randomBoolean() ? node2Id : node3Id);
+                        String preference;
+                        if (node2Id == null && node3Id == null) {
+                            preference = "_local";
+                        } else {
+                            preference = "_prefer_node:" + (randomBoolean() ? node2Id : node3Id);
+                        }
                         if (multiPercolate) {
                             MultiPercolateRequestBuilder builder = client
                                     .prepareMultiPercolate();
                             int numPercolateRequest = randomIntBetween(50, 100);
 
-                            for (int i = 0; i < numPercolateRequest / 2; i++) {
-                                builder.add(
-                                        client.preparePercolate()
-                                                .setPreference(preference)
-                                                .setIndices("test").setDocumentType("type")
-                                                .setPercolateDoc(docBuilder().setDoc(doc)));
-                            }
-
-                            for (int i = numPercolateRequest / 2; i < numPercolateRequest; i++) {
-                                builder.add(
-                                        client.preparePercolate()
-                                                .setPreference(preference)
-                                                .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                                                .setIndices("test").setDocumentType("type")
-                                );
+                            for (int i = 0; i < numPercolateRequest; i++) {
+                                if (randomBoolean()) {
+                                    builder.add(
+                                            client.preparePercolate()
+                                                    .setPreference(preference)
+                                                    .setGetRequest(Requests.getRequest("test").type("type").id("1"))
+                                                    .setIndices("test").setDocumentType("type")
+                                    );
+                                } else {
+                                    builder.add(
+                                            client.preparePercolate()
+                                                    .setPreference(preference)
+                                                    .setIndices("test").setDocumentType("type")
+                                                    .setPercolateDoc(docBuilder().setDoc(doc)));
+                                }
                             }
 
                             MultiPercolateResponse response = builder.execute().actionGet();

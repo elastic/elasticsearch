@@ -131,7 +131,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         List<ShardOperationFailedException> shardFailures = null;
 
         byte percolatorTypeId = 0x00;
-        int nonEmptyResponses = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -144,21 +143,18 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
                 PercolateShardResponse percolateShardResponse = (PercolateShardResponse) shardResponse;
-                if (shardResults == null) {
-                    shardResults = newArrayList();
-                }
-                if (percolateShardResponse.percolatorTypeId() != 0x00) {
-                    percolatorTypeId = percolateShardResponse.percolatorTypeId();
-                }
-                if (!percolateShardResponse.isEmpty()) {
-                    nonEmptyResponses++;
-                }
-                shardResults.add(percolateShardResponse);
                 successfulShards++;
+                if (!percolateShardResponse.isEmpty()) {
+                    if (shardResults == null) {
+                        percolatorTypeId = percolateShardResponse.percolatorTypeId();
+                        shardResults = newArrayList();
+                    }
+                    shardResults.add(percolateShardResponse);
+                }
             }
         }
 
-        if (shardResults == null || percolatorTypeId == 0x00 || nonEmptyResponses == 0) {
+        if (shardResults == null) {
             long tookInMillis = System.currentTimeMillis() - request.startTime;
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis);
         } else {

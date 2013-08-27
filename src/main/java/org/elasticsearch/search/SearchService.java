@@ -38,11 +38,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -90,15 +88,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final FetchPhase fetchPhase;
 
-
     private final long defaultKeepAlive;
 
-    private final ScheduledFuture keepAliveReaper;
-
+    private final ScheduledFuture<?> keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
-
-    private final CleanContextOnIndicesLifecycleListener indicesLifecycleListener = new CleanContextOnIndicesLifecycleListener();
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -128,7 +122,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         elementParsers.putAll(fetchPhase.parseElements());
         elementParsers.put("stats", new StatsGroupsParseElement());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
-        indicesLifecycle.addListener(indicesLifecycleListener);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
 
@@ -150,23 +143,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     @Override
     protected void doClose() throws ElasticSearchException {
         keepAliveReaper.cancel(false);
-        indicesService.indicesLifecycle().removeListener(indicesLifecycleListener);
-    }
-
-    public void releaseContextsForIndex(Index index) {
-        for (SearchContext context : activeContexts.values()) {
-            if (context.shardTarget().index().equals(index.name())) {
-                freeContext(context);
-            }
-        }
-    }
-
-    public void releaseContextsForShard(ShardId shardId) {
-        for (SearchContext context : activeContexts.values()) {
-            if (context.shardTarget().index().equals(shardId.index().name()) && context.shardTarget().shardId() == shardId.id()) {
-                freeContext(context);
-            }
-        }
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticSearchException {
@@ -665,19 +641,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     }
                 }
             }
-        }
-    }
-
-    class CleanContextOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
-
-        @Override
-        public void beforeIndexClosed(IndexService indexService) {
-            releaseContextsForIndex(indexService.index());
-        }
-
-        @Override
-        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
-            releaseContextsForShard(shardId);
         }
     }
 

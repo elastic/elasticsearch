@@ -217,13 +217,13 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
 
             if (info.total != -1) {
-                builder.byteSizeField(Fields.TOTAL, Fields.TOTAL_IN_BYTES, info.total);
+                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, info.total);
             }
             if (info.free != -1) {
-                builder.byteSizeField(Fields.FREE, Fields.FREE_IN_BYTES, info.free);
+                builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, info.free);
             }
             if (info.available != -1) {
-                builder.byteSizeField(Fields.AVAILABLE, Fields.AVAILABLE_IN_BYTES, info.available);
+                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, info.available);
             }
 
             if (info.diskReads != -1) {
@@ -234,10 +234,10 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
 
             if (info.diskReadBytes != -1) {
-                builder.byteSizeField(Fields.DISK_READ_SIZE, Fields.DISK_READ_SIZE_IN_BYTES, info.getDiskReadSizeInBytes());
+                builder.byteSizeField(Fields.DISK_READ_SIZE_IN_BYTES, Fields.DISK_READ_SIZE, info.getDiskReadSizeInBytes());
             }
             if (info.diskWriteBytes != -1) {
-                builder.byteSizeField(Fields.DISK_WRITE_SIZE, Fields.DISK_WRITE_SIZE_IN_BYTES, info.getDiskWriteSizeInBytes());
+                builder.byteSizeField(Fields.DISK_WRITE_SIZE_IN_BYTES, Fields.DISK_WRITE_SIZE, info.getDiskWriteSizeInBytes());
             }
 
             if (info.diskQueue != -1) {

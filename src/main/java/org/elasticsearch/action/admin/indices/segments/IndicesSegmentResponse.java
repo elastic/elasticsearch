@@ -126,7 +126,7 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
                         builder.field(Fields.GENERATION, segment.getGeneration());
                         builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                         builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
-                        builder.byteSizeField(Fields.SIZE, Fields.SIZE_IN_BYTES, segment.getSizeInBytes());
+                        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSizeInBytes());
                         builder.field(Fields.COMMITTED, segment.isCommitted());
                         builder.field(Fields.SEARCH, segment.isSearch());
                         if (segment.getVersion() != null) {

@@ -126,7 +126,7 @@ public class PluginManager {
                 if (elements.length > 2) {
                     version = elements[2];
                 }
-                filterZipName = userName + "-" + repoName;
+                filterZipName = repoName;
                 // the installation file should not include the userName, just the repoName
                 name = repoName;
                 if (name.startsWith("elasticsearch-")) {
@@ -225,13 +225,13 @@ public class PluginManager {
                 if (zipEntry.isDirectory()) {
                     continue;
                 }
-                String zipName = zipEntry.getName().replace('\\', '/');
+                String zipEntryName = zipEntry.getName().replace('\\', '/');
                 if (filterZipName != null) {
-                    if (zipName.startsWith(filterZipName)) {
-                        zipName = zipName.substring(zipName.indexOf('/'));
+                    if (zipEntryName.startsWith(filterZipName)) {
+                        zipEntryName = zipEntryName.substring(zipEntryName.indexOf('/'));
                     }
                 }
-                File target = new File(extractLocation, zipName);
+                File target = new File(extractLocation, zipEntryName);
                 FileSystemUtils.mkdirs(target.getParentFile());
                 Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
             }

@@ -67,15 +67,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.requestedSize = context.size;
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, PercolateContext context, String index, int shardId) {
-        super(index, shardId);
-        this.matches = matches;
-        this.scores = new float[0];
-        this.count = count;
-        this.percolatorTypeId = context.percolatorTypeId;
-        this.requestedSize = context.size;
-    }
-
     public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, String index, int shardId) {
         super(index, shardId);
         this.matches = matches;
@@ -127,7 +118,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     }
 
     public boolean isEmpty() {
-        return matches.length == 0 && count == 0;
+        return percolatorTypeId == 0x00;
     }
 
     @Override

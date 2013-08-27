@@ -20,6 +20,8 @@
 package org.elasticsearch.test.integration.cluster.allocation;
 
 import gnu.trove.map.hash.TObjectIntHashMap;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -34,7 +36,8 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -92,5 +95,90 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
             }
         } while (counts.get("node3") != 10 && (System.currentTimeMillis() - start) < 10000);
         assertThat(counts.get("node3"), equalTo(10));
+    }
+    
+    @Test
+    @Slow
+    public void testAwarenessZones() throws InterruptedException {
+        Settings commonSettings = ImmutableSettings.settingsBuilder()
+                .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .build();
+
+        logger.info("--> starting 6 nodes on different zones");
+        startNode("A-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
+        startNode("B-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
+        startNode("B-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));       
+        startNode("A-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
+        client().admin().indices().prepareCreate("test")
+        .setSettings(settingsBuilder().put("index.number_of_shards", 5)
+                .put("index.number_of_replicas", 1)).execute().actionGet();
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForRelocatingShards(0).execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                }
+            }
+        }
+        assertThat(counts.get("A-1"), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get("B-1"), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get("A-0"), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get("B-0"), anyOf(equalTo(2),equalTo(3)));
+    }
+    
+    @Test
+    @Slow
+    @AwaitsFix(bugUrl="simonw works on this")
+    public void testAwarenessZonesIncrementalNodes() throws InterruptedException {
+        Settings commonSettings = ImmutableSettings.settingsBuilder()
+                .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .build();
+
+
+        logger.info("--> starting 6 nodes on different zones");
+        startNode("A-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
+        startNode("B-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
+        client().admin().indices().prepareCreate("test")
+        .setSettings(settingsBuilder().put("index.number_of_shards", 5)
+                .put("index.number_of_replicas", 1)).execute().actionGet();
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").setWaitForRelocatingShards(0).execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                }
+            }
+        }
+        assertThat(counts.get("A-0"), equalTo(5));
+        assertThat(counts.get("B-0"), equalTo(5));
+        
+        startNode("B-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
+        Thread.sleep(1000);// TODO this is bad - how can we fix this?
+
+        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+       
+        counts = new TObjectIntHashMap<String>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                }
+            }
+        }
+        assertThat(counts.get("A-0"), equalTo(5));
+        assertThat(counts.get("B-1"), equalTo(2));
+        assertThat(counts.get("B-0"), equalTo(3));
     }
 }

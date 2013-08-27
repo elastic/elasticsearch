@@ -42,7 +42,10 @@ public class RecoverySettings extends AbstractComponent {
     public static final String INDICES_RECOVERY_TRANSLOG_SIZE = "indices.recovery.translog_size";
     public static final String INDICES_RECOVERY_COMPRESS = "indices.recovery.compress";
     public static final String INDICES_RECOVERY_CONCURRENT_STREAMS = "indices.recovery.concurrent_streams";
+    public static final String INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS = "indices.recovery.concurrent_small_file_streams";
     public static final String INDICES_RECOVERY_MAX_BYTES_PER_SEC = "indices.recovery.max_bytes_per_sec";
+
+    public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb").bytes();
 
     /**
      * Use {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC} instead
@@ -57,7 +60,9 @@ public class RecoverySettings extends AbstractComponent {
     private volatile ByteSizeValue translogSize;
 
     private volatile int concurrentStreams;
+    private volatile int concurrentSmallFileStreams;
     private final ThreadPoolExecutor concurrentStreamPool;
+    private final ThreadPoolExecutor concurrentSmallFileStreamPool;
 
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile SimpleRateLimiter rateLimiter;
@@ -73,6 +78,8 @@ public class RecoverySettings extends AbstractComponent {
 
         this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
         this.concurrentStreamPool = EsExecutors.newScaling(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
+        this.concurrentSmallFileStreams = componentSettings.getAsInt("concurrent_small_file_streams", settings.getAsInt("index.shard.recovery.concurrent_small_file_streams", 2));
+        this.concurrentSmallFileStreamPool = EsExecutors.newScaling(0, concurrentSmallFileStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[small_file_recovery_stream]"));
 
         this.maxBytesPerSec = componentSettings.getAsBytesSize("max_bytes_per_sec", componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB)));
         if (maxBytesPerSec.bytes() <= 0) {
@@ -119,6 +126,10 @@ public class RecoverySettings extends AbstractComponent {
 
     public ThreadPoolExecutor concurrentStreamPool() {
         return concurrentStreamPool;
+    }
+
+    public ThreadPoolExecutor concurrentSmallFileStreamPool() {
+        return concurrentSmallFileStreamPool;
     }
 
     public RateLimiter rateLimiter() {
@@ -170,6 +181,13 @@ public class RecoverySettings extends AbstractComponent {
                 logger.info("updating [indices.recovery.concurrent_streams] from [{}] to [{}]", RecoverySettings.this.concurrentStreams, concurrentStreams);
                 RecoverySettings.this.concurrentStreams = concurrentStreams;
                 RecoverySettings.this.concurrentStreamPool.setMaximumPoolSize(concurrentStreams);
+            }
+
+            int concurrentSmallFileStreams = settings.getAsInt(INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, RecoverySettings.this.concurrentSmallFileStreams);
+            if (concurrentSmallFileStreams != RecoverySettings.this.concurrentSmallFileStreams) {
+                logger.info("updating [indices.recovery.concurrent_small_file_streams] from [{}] to [{}]", RecoverySettings.this.concurrentSmallFileStreams, concurrentSmallFileStreams);
+                RecoverySettings.this.concurrentSmallFileStreams = concurrentSmallFileStreams;
+                RecoverySettings.this.concurrentSmallFileStreamPool.setMaximumPoolSize(concurrentSmallFileStreams);
             }
         }
     }

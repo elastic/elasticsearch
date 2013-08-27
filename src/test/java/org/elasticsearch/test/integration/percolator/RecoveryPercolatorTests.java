@@ -333,9 +333,16 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                         String preference;
                         if (node2Id == null && node3Id == null) {
                             preference = "_local";
+                        } else if (node2Id == null || node3Id == null) {
+                            if (node2Id != null) {
+                                preference = "_prefer_node:" + node2Id;
+                            } else {
+                                preference = "_prefer_node:" + node3Id;
+                            }
                         } else {
                             preference = "_prefer_node:" + (randomBoolean() ? node2Id : node3Id);
                         }
+
                         if (multiPercolate) {
                             MultiPercolateRequestBuilder builder = client
                                     .prepareMultiPercolate();

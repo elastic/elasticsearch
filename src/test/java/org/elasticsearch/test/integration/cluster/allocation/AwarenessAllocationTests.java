@@ -20,7 +20,6 @@
 package org.elasticsearch.test.integration.cluster.allocation;
 
 import gnu.trove.map.hash.TObjectIntHashMap;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -133,7 +132,6 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
     
     @Test
     @Slow
-    @AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/3580")
     public void testAwarenessZonesIncrementalNodes() throws InterruptedException {
         Settings commonSettings = ImmutableSettings.settingsBuilder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
@@ -167,9 +165,11 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
+        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForActiveShards(10).setWaitForRelocatingShards(0).execute().actionGet();
+
         assertThat(health.isTimedOut(), equalTo(false));
-       
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+
         counts = new TObjectIntHashMap<String>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
@@ -180,7 +180,8 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
             }
         }
         assertThat(counts.get("A-0"), equalTo(5));
-        assertThat(counts.get("B-1"), equalTo(2));
         assertThat(counts.get("B-0"), equalTo(3));
+        assertThat(counts.get("B-1"), equalTo(2));
+        
     }
 }

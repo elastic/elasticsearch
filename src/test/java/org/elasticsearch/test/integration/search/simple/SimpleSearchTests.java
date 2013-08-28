@@ -30,26 +30,25 @@ import org.junit.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleSearchTests extends AbstractSharedClusterTest {
-    
+
     @Test
     public void testSearchNullIndex() {
         try {
-            client().prepareSearch((String)null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
+            client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
-            
+
         }
-        
+
         try {
-            client().prepareSearch((String[])null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
+            client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
             assert false;
         } catch (ElasticSearchIllegalArgumentException e) {
-            
+
         }
     }
 
@@ -115,8 +114,8 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.mapping.date.parse_upper_inclusive", false)).execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        refresh();
         ensureGreen();
+        refresh();
         // test include upper on ranges to include the full day on the upper bound (disabled here though...)
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
         assertNoFailures(searchResponse);
@@ -130,8 +129,8 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        refresh();
         ensureGreen();
+        refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -139,39 +138,39 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
     }
-    
+
     @Test
     public void localDependentDateTests() throws Exception {
         prepareCreate("test")
-            .addMapping("type1",
-                    jsonBuilder().startObject()
-                                    .startObject("type1")
-                                        .startObject("properties")
-                                            .startObject("date_field")
-                                                .field("type", "date")
-                                                .field("format", "E, d MMM yyyy HH:mm:ss Z")
-                                                .field("locale", "de")
-                                            .endObject()
-                                        .endObject()
-                                    .endObject()
+                .addMapping("type1",
+                        jsonBuilder().startObject()
+                                .startObject("type1")
+                                .startObject("properties")
+                                .startObject("date_field")
+                                .field("type", "date")
+                                .field("format", "E, d MMM yyyy HH:mm:ss Z")
+                                .field("locale", "de")
+                                .endObject()
+                                .endObject()
+                                .endObject()
                                 .endObject())
-        .execute().actionGet();
+                .execute().actionGet();
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", ""+i).setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800").execute().actionGet();
-            client().prepareIndex("test", "type1", ""+(10+i)).setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800").execute().actionGet();
+            client().prepareIndex("test", "type1", "" + i).setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800").execute().actionGet();
+            client().prepareIndex("test", "type1", "" + (10 + i)).setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800").execute().actionGet();
         }
-        
+
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
-                        .execute().actionGet();
+                    .execute().actionGet();
             assertThat(searchResponse.getHits().totalHits(), equalTo(10l));
-    
+
             searchResponse = client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("date_field").gte( "Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
-                        .execute().actionGet();
+                    .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
+                    .execute().actionGet();
             assertThat(searchResponse.getHits().totalHits(), equalTo(20l));
         }
     }

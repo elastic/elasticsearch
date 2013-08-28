@@ -34,6 +34,8 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
 
     private float boost = -1;
 
+    private String queryName;
+
     public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
         this.matchBuilder = matchBuilder;
         this.end = end;
@@ -41,6 +43,14 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
 
     public SpanFirstQueryBuilder boost(float boost) {
         this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public SpanFirstQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
         return this;
     }
 
@@ -52,6 +62,9 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
         builder.field("end", end);
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("name", queryName);
         }
         builder.endObject();
     }

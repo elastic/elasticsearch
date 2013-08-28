@@ -64,6 +64,7 @@ public class RegexpQueryParser implements QueryParser {
         Object value = null;
         float boost = 1.0f;
         int flagsValue = -1;
+        String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -85,6 +86,8 @@ public class RegexpQueryParser implements QueryParser {
                         if (flagsValue < 0) {
                             flagsValue = RegExp.ALL;
                         }
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[regexp] query does not support [" + currentFieldName + "]");
@@ -124,7 +127,11 @@ public class RegexpQueryParser implements QueryParser {
             query = regexpQuery;
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 
 

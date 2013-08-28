@@ -90,6 +90,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private Boolean lenient;
 
+    private String queryName;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -303,6 +305,14 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public QueryStringQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -383,6 +393,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         if (lenient != null) {
             builder.field("lenient", lenient);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

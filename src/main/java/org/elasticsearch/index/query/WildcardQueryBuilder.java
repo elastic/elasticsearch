@@ -43,6 +43,8 @@ public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQ
 
     private String rewrite;
 
+    private String queryName;
+
     /**
      * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
      * matches any character sequence (including the empty one), and <tt>?</tt>,
@@ -73,10 +75,18 @@ public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQ
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public WildcardQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(WildcardQueryParser.NAME);
-        if (boost == -1 && rewrite == null) {
+        if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, wildcard);
         } else {
             builder.startObject(name);
@@ -86,6 +96,9 @@ public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQ
             }
             if (rewrite != null) {
                 builder.field("rewrite", rewrite);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
             }
             builder.endObject();
         }

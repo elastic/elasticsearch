@@ -53,6 +53,7 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
 
         SpanQuery inner = null;
         String field = null;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -74,6 +75,8 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
@@ -93,6 +96,9 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
 
         FieldMaskingSpanQuery query = new FieldMaskingSpanQuery(inner, field);
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

@@ -69,6 +69,8 @@ public class FieldQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
     private String minimumShouldMatch;
 
+    private String queryName;
+
     /**
      * A query that executes the query string against a field. It is a simplified
      * version of {@link QueryStringQueryBuilder} that simply runs against
@@ -294,6 +296,15 @@ public class FieldQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FieldQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        this.extraSet = true;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FieldQueryParser.NAME);
@@ -346,6 +357,9 @@ public class FieldQueryBuilder extends BaseQueryBuilder implements BoostableQuer
             }
             if (minimumShouldMatch != null) {
                 builder.field("minimum_should_match", minimumShouldMatch);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
             }
             builder.endObject();
         }

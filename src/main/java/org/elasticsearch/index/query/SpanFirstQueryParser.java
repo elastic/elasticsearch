@@ -52,6 +52,7 @@ public class SpanFirstQueryParser implements QueryParser {
 
         SpanQuery match = null;
         int end = -1;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -73,6 +74,8 @@ public class SpanFirstQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("end".equals(currentFieldName)) {
                     end = parser.intValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]");
                 }
@@ -87,6 +90,9 @@ public class SpanFirstQueryParser implements QueryParser {
 
         SpanFirstQuery query = new SpanFirstQuery(match, end);
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

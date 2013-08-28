@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
@@ -43,6 +43,8 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private String indexedShapeIndex;
     private String indexedShapeFieldName;
+
+    private String queryName;
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the
@@ -117,6 +119,14 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public GeoShapeQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoShapeQueryParser.NAME);
@@ -144,6 +154,9 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

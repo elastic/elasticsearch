@@ -52,6 +52,7 @@ public class SpanNotQueryParser implements QueryParser {
 
         SpanQuery include = null;
         SpanQuery exclude = null;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -77,6 +78,8 @@ public class SpanNotQueryParser implements QueryParser {
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
@@ -91,6 +94,9 @@ public class SpanNotQueryParser implements QueryParser {
 
         SpanNotQuery query = new SpanNotQuery(include, exclude);
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

@@ -30,8 +30,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -62,6 +60,7 @@ public class SpanTermQueryParser implements QueryParser {
 
         String value = null;
         float boost = 1.0f;
+        String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -75,6 +74,8 @@ public class SpanTermQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[span_term] query does not support [" + currentFieldName + "]");
                     }
@@ -105,6 +106,9 @@ public class SpanTermQueryParser implements QueryParser {
 
         SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

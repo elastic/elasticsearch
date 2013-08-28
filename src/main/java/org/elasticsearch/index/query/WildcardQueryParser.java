@@ -61,6 +61,7 @@ public class WildcardQueryParser implements QueryParser {
 
         String value = null;
         float boost = 1.0f;
+        String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -76,6 +77,8 @@ public class WildcardQueryParser implements QueryParser {
                         boost = parser.floatValue();
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = parser.textOrNull();
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[wildcard] query does not support [" + currentFieldName + "]");
                     }
@@ -100,10 +103,14 @@ public class WildcardQueryParser implements QueryParser {
             valueBytes = new BytesRef(value);
         }
 
-        WildcardQuery query = new WildcardQuery(new Term(fieldName, valueBytes));
-        QueryParsers.setRewriteMethod(query, rewriteMethod);
-        query.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
-        query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        WildcardQuery wildcardQuery = new WildcardQuery(new Term(fieldName, valueBytes));
+        QueryParsers.setRewriteMethod(wildcardQuery, rewriteMethod);
+        wildcardQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
+        wildcardQuery.setBoost(boost);
+        Query query =  wrapSmartNameQuery(wildcardQuery, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

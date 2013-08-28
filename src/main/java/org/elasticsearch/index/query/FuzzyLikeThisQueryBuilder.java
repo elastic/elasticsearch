@@ -39,6 +39,7 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
     private Boolean ignoreTF;
     private String analyzer;
     private Boolean failOnUnsupportedField;
+    private String queryName;
 
     /**
      * Constructs a new fuzzy like this query which uses the "_all" field.
@@ -105,6 +106,14 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FuzzyLikeThisQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyLikeThisQueryParser.NAME);
@@ -139,6 +148,9 @@ public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements Boost
         }
         if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

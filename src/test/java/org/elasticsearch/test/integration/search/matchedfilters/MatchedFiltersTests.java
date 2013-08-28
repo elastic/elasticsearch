@@ -27,8 +27,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
@@ -79,6 +78,25 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
                 fail("Unexpected document returned with id " + hit.id());
             }
         }
+
+        searchResponse = client().prepareSearch()
+                .setQuery(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2")))
+                .execute().actionGet();
+
+
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1") || hit.id().equals("2")) {
+                assertThat(hit.matchedFilters().length, equalTo(1));
+                assertThat(hit.matchedFilters(), hasItemInArray("test1"));
+            } else if (hit.id().equals("3")) {
+                assertThat(hit.matchedFilters().length, equalTo(1));
+                assertThat(hit.matchedFilters(), hasItemInArray("test2"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
     }
 
     @Test
@@ -109,7 +127,30 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
                         termFilter("title", "title1").filterName("title")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedFilters().length, equalTo(2));
+                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+            } else if (hit.id().equals("2") || hit.id().equals("3")) {
+                assertThat(hit.matchedFilters().length, equalTo(1));
+                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(queryFilter(boolQuery()
+                        .should(termQuery("name", "test").queryName("name"))
+                        .should(termQuery("title", "title1").queryName("title"))))
+                .execute().actionGet();
+
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -154,7 +195,25 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
                         .setFilter(termFilter("name", "test").filterName("name"))
                         .execute().actionGet();
 
-        assertThat(searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
+                assertThat(hit.matchedFilters().length, equalTo(2));
+                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+
+        searchResponse = client().prepareSearch()
+                .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
+                .setFilter(queryFilter(matchQuery("name", "test").queryName("name")))
+                .execute().actionGet();
+
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
 
         for (SearchHit hit : searchResponse.getHits()) {

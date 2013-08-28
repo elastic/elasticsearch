@@ -60,6 +60,7 @@ public class IdsQueryParser implements QueryParser {
         Collection<String> types = null;
         String currentFieldName = null;
         float boost = 1.0f;
+        String queryName = null;
         XContentParser.Token token;
         boolean idsProvided = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -92,6 +93,8 @@ public class IdsQueryParser implements QueryParser {
                     types = ImmutableList.of(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[ids] query does not support [" + currentFieldName + "]");
                 }
@@ -116,6 +119,9 @@ public class IdsQueryParser implements QueryParser {
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         ConstantScoreQuery query = new ConstantScoreQuery(filter);
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

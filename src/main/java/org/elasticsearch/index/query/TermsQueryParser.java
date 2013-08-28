@@ -69,6 +69,7 @@ public class TermsQueryParser implements QueryParser {
         float boost = 1.0f;
         String minimumShouldMatch = null;
         List<Object> values = newArrayList();
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -93,6 +94,8 @@ public class TermsQueryParser implements QueryParser {
                     minimumShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
                 }
@@ -116,17 +119,21 @@ public class TermsQueryParser implements QueryParser {
         }
 
         try {
-            BooleanQuery query = new BooleanQuery(disableCoord);
+            BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
             for (Object value : values) {
                 if (mapper != null) {
-                    query.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+                    booleanQuery.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
                 } else {
-                    query.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
+                    booleanQuery.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
                 }
             }
-            query.setBoost(boost);
-            Queries.applyMinimumShouldMatch(query, minimumShouldMatch);
-            return wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(query)), smartNameFieldMappers, parseContext);
+            booleanQuery.setBoost(boost);
+            Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+            Query query = wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(booleanQuery)), smartNameFieldMappers, parseContext);
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
+            return query;
         } finally {
             if (smartNameFieldMappers != null && smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 QueryParseContext.setTypes(previousTypes);

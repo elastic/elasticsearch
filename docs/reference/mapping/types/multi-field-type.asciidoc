@@ -1,0 +1,93 @@
+[[mapping-multi-field-type]]
+=== Multi Field Type
+
+The `multi_field` type allows to map several
+<<mapping-core-types,core_types>> of the same
+value. This can come very handy, for example, when wanting to map a
+`string` type, once when it's `analyzed` and once when it's
+`not_analyzed`. For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "name" : {
+                "type" : "multi_field",
+                "fields" : {
+                    "name" : {"type" : "string", "index" : "analyzed"},
+                    "untouched" : {"type" : "string", "index" : "not_analyzed"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above example shows how the `name` field, which is of simple
+`string` type, gets mapped twice, once with it being `analyzed` under
+`name`, and once with it being `not_analyzed` under `untouched`.
+
+[float]
+==== Accessing Fields
+
+With `multi_field` mapping, the field that has the same name as the
+property is treated as if it was mapped without a multi field. That's
+the "default" field. It can be accessed regularly, for example using
+`name` or using typed navigation `tweet.name`.
+
+The `path` attribute allows to control how non-default fields can be
+accessed. If the `path` attribute is set to `full`, which is the default
+setting, all non-default fields are prefixed with the name of the
+property and can be accessed by their full path using the navigation
+notation: `name.untouched`, or using the typed navigation notation
+`tweet.name.untouched`. If the `path` attribute is set to `just_name`
+the actual field name without a prefix is used. The `just_name` setting,
+among other things, allows indexing content of multiple fields under the
+same name. In the example below the content of both fields `first_name`
+and `last_name` can be accessed by using `any_name` or `tweet.any_name`
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties": {
+            "first_name": {
+                "type": "multi_field",
+                "path": "just_name",
+                "fields": {
+                    "first_name": {"type": "string", "index": "analyzed"},
+                    "any_name": {"type": "string","index": "analyzed"}
+                }
+            },
+            "last_name": {
+                "type": "multi_field",
+                "path": "just_name",
+                "fields": {
+                    "last_name": {"type": "string", "index": "analyzed"},
+                    "any_name": {"type": "string","index": "analyzed"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Include in All
+
+The `include_in_all` setting on the "default" field allows to control if
+the value of the field should be included in the `_all` field. Note, the
+value of the field is copied to `_all`, not the tokens. So, it only
+makes sense to copy the field value once. Because of this, the
+`include_in_all` setting on all non-default fields is automatically set
+to `false` and can't be changed.
+
+[float]
+==== Merging
+
+When updating mapping definition using the `put_mapping` API, a core
+type mapping can be "upgraded" to a `multi_field` mapping. This means
+that if the old mapping has a plain core type mapping, the updated
+mapping for the same property can be a `multi_field` type, with the
+default field being the one being replaced.

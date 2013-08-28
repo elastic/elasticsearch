@@ -1,0 +1,223 @@
+[[setup-configuration]]
+== Configuration
+
+[float]
+=== Environment Variables
+
+Within the scripts, ElasticSearch comes with built in `JAVA_OPTS` passed
+to the JVM started. The most important setting for that is the `-Xmx` to
+control the maximum allowed memory for the process, and `-Xms` to
+control the minimum allocated memory for the process (_in general, the
+more memory allocated to the process, the better_).
+
+Most times it is better to leave the default `JAVA_OPTS` as they are,
+and use the `ES_JAVA_OPTS` environment variable in order to set / change
+JVM settings or arguments.
+
+The `ES_HEAP_SIZE` environment variable allows to set the heap memory
+that will be allocated to elasticsearch java process. It will allocate
+the same value to both min and max values, though those can be set
+explicitly (not recommended) by setting `ES_MIN_MEM` (defaults to
+`256m`), and `ES_MAX_MEM` (defaults to `1gb`).
+
+It is recommended to set the min and max memory to the same value, and
+enable <<setup-configuration-memory,`mlockall`>>.
+
+[float]
+=== System Configuration
+
+[float]
+==== File Descriptors
+
+Make sure to increase the number of open files descriptors on the
+machine (or for the user running elasticsearch). Setting it to 32k or
+even 64k is recommended.
+
+In order to test how many open files the process can open, start it with
+`-Des.max-open-files` set to `true`. This will print the number of open
+files the process can open on startup.
+
+["float",id="setup-configuration-memory"]
+==== Memory Settings
+
+There is an option to use
+http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] to
+try to lock the process address space so it won't be swapped. For this
+to work, the `bootstrap.mlockall` should be set to `true` and it is
+recommended to set both the min and max memory allocation to be the
+same. Note: This option is only available on Linux/Unix operating
+systems.
+
+In order to see if this works or not, set the `common.jna` logging to
+DEBUG level. A solution to "Unknown mlockall error 0" can be to set
+`ulimit -l unlimited`.
+
+Note, `mlockall` might cause the JVM or shell
+session to exit if it fails to allocate the memory (because not enough
+memory is available on the machine).
+
+[float]
+=== Elasticsearch Settings
+
+*elasticsearch* configuration files can be found under `ES_HOME/config`
+folder. The folder comes with two files, the `elasticsearch.yml` for
+configuring ElasticSearch different
+<<modules,modules>>, and `logging.yml` for
+configuring the ElasticSearch logging.
+
+The configuration format is http://www.yaml.org/[YAML]. Here is an
+example of changing the address all network based modules will use to
+bind and publish to:
+
+[source,js]
+--------------------------------------------------
+network :
+    host : 10.0.0.4
+--------------------------------------------------
+
+*elasticsearch* configuration files can be found under `ES_HOME/config`
+folder. The folder comes with two files, the `elasticsearch.yml` for
+configuring ElasticSearch different <<modules,modules>>, and `logging.yml` 
+for configuring the ElasticSearch logging.
+
+
+[float]
+==== Paths
+
+In production use, you will almost certainly want to change paths for
+data and log files:
+
+[source,js]
+--------------------------------------------------
+path:
+  logs: /var/log/elasticsearch
+  data: /var/data/elasticsearch
+--------------------------------------------------
+
+[float]
+==== Cluster name
+
+Also, don't forget to give your production cluster a name, which is used
+to discover and auto-join other nodes:
+
+[source,js]
+--------------------------------------------------
+cluster:
+  name: <NAME OF YOUR CLUSTER>
+--------------------------------------------------
+
+[float]
+==== Node name
+
+You may also want to change the default node name for each node to
+something like the display hostname. By default ElasticSearch will
+randomly pick a Marvel character name from a list of around 3000 names
+when your node starts up.
+
+[source,js]
+--------------------------------------------------
+node:
+  name: <NAME OF YOUR NODE>
+--------------------------------------------------
+
+Internally, all settings are collapsed into "namespaced" settings. For
+example, the above gets collapsed into `network.host`. This means that
+its easy to support other configuration formats, for example,
+http://www.json.org[JSON]. If JSON is a preferred configuration format,
+simply rename the `elasticsearch.yml` file to `elasticsearch.json` and
+add:
+
+[float]
+==== Configuration styles
+
+[source,js]
+--------------------------------------------------
+{
+    "network" : {
+        "host" : "10.0.0.4"
+    }
+}
+--------------------------------------------------
+
+It also means that its easy to provide the settings externally either
+using the `ES_JAVA_OPTS` or as parameters to the `elasticsearch`
+command, for example:
+
+[source,js]
+--------------------------------------------------
+$ elasticsearch -f -Des.network.host=10.0.0.4
+--------------------------------------------------
+
+Another option is to set `es.default.` prefix instead of `es.` prefix,
+which means the default setting will be used only if not explicitly set
+in the configuration file.
+
+Another option is to use the `${...}` notation within the configuration
+file which will resolve to an environment setting, for example:
+
+[source,js]
+--------------------------------------------------
+{
+    "network" : {
+        "host" : "${ES_NET_HOST}"
+    }
+}
+--------------------------------------------------
+
+The location of the configuration file can be set externally using a
+system property:
+
+[source,js]
+--------------------------------------------------
+$ elasticsearch -f -Des.config=/path/to/config/file
+--------------------------------------------------
+
+[float]
+=== Index Settings
+
+Indices created within the cluster can provide their own settings. For
+example, the following creates an index with memory based storage
+instead of the default file system based one (the format can be either
+YAML or JSON):
+
+[source,js]
+--------------------------------------------------
+$ curl -XPUT http://localhost:9200/kimchy/ -d \
+'
+index :
+    store:
+        type: memory
+'
+--------------------------------------------------
+
+Index level settings can be set on the node level as well, for example,
+within the `elasticsearch.yml` file, the following can be set:
+
+[source,js]
+--------------------------------------------------
+index :
+    store:
+        type: memory
+--------------------------------------------------
+
+This means that every index that gets created on the specific node
+started with the mentioned configuration will store the index in memory
+*unless the index explicitly sets it*. In other words, any index level
+settings override what is set in the node configuration. Of course, the
+above can also be set as a "collapsed" setting, for example:
+
+[source,js]
+--------------------------------------------------
+$ elasticsearch -f -Des.index.store.type=memory
+--------------------------------------------------
+
+All of the index level configuration can be found within each
+<<index-modules,index module>>.
+
+[float]
+=== Logging
+
+ElasticSearch uses an internal logging abstraction and comes, out of the
+box, with http://logging.apache.org/log4j/[log4j]. It tries to simplify
+log4j configuration by using http://www.yaml.org/[YAML] to configure it,
+and the logging configuration file is `config/logging.yml` file.

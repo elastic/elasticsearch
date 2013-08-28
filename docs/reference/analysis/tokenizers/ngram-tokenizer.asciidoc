@@ -1,0 +1,57 @@
+[[analysis-ngram-tokenizer]]
+=== NGram Tokenizer
+
+A tokenizer of type `nGram`.
+
+The following are settings that can be set for a `nGram` tokenizer type:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Setting |Description |Default value
+|`min_gram` |Minimum size in codepoints of a single n-gram |`1`.
+
+|`max_gram` |Maximum size in codepoints of a single n-gram |`2`.
+
+|`token_chars` |(Since `0.90.2`) Characters classes to keep in the
+tokens, Elasticsearch will split on characters that don't belong to any
+of these classes. |`[]` (Keep all characters)
+|=======================================================================
+
+`token_chars` accepts the following character classes: 
+
+[horizontal]
+`letter`::      for example `a`, `b`, `ï` or `京`
+`digit`::       for example `3` or `7`
+`whitespace`::  for example `" "` or `"\n"` 
+`punctuation`:: for example `!` or `"`
+`symbol`::      for example `$` or `â`
+
+[float]
+==== Example
+
+[source,js]
+--------------------------------------------------
+    curl -XPUT 'localhost:9200/test' -d '
+    {
+        "settings" : {
+            "analysis" : {
+                "analyzer" : {
+                    "my_ngram_analyzer" : {
+                        "tokenizer" : "my_ngram_tokenizer"
+                    }
+                },
+                "tokenizer" : {
+                    "my_ngram_tokenizer" : {
+                        "type" : "nGram",
+                        "min_gram" : "2",
+                        "max_gram" : "3",
+                        "token_chars": [ "letter", "digit" ]
+                    }
+                }
+            }
+        }
+    }'
+
+    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=my_ngram_analyzer' -d 'FC Schalke 04'
+    # FC, Sc, Sch, ch, cha, ha, hal, al, alk, lk, lke, ke, 04
+--------------------------------------------------

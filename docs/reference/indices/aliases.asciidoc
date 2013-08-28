@@ -1,0 +1,351 @@
+[[indices-aliases]]
+== Index Aliases
+
+APIs in elasticsearch accept an index name when working against a
+specific index, and several indices when applicable. The index aliases
+API allow to alias an index with a name, with all APIs automatically
+converting the alias name to the actual index name. An alias can also be
+mapped to more than one index, and when specifying it, the alias will
+automatically expand to the aliases indices. An alias can also be
+associated with a filter that will automatically be applied when
+searching, and routing values.
+
+Here is a sample of associating the alias `alias1` with index `test1`:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "index" : "test1", "alias" : "alias1" } }
+    ]
+}'
+--------------------------------------------------
+
+An alias can also be removed, for example:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "remove" : { "index" : "test1", "alias" : "alias1" } }
+    ]
+}'
+--------------------------------------------------
+
+Renaming an alias is a simple `remove` then `add` operation within the
+same API. This operation is atomic, no need to worry about a short
+period of time where the alias does not point to an index:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "remove" : { "index" : "test1", "alias" : "alias1" } },
+        { "add" : { "index" : "test1", "alias" : "alias2" } }
+    ]
+}'
+--------------------------------------------------
+
+Associating an alias with more than one index are simply several `add`
+actions:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "index" : "test1", "alias" : "alias1" } },
+        { "add" : { "index" : "test2", "alias" : "alias1" } }
+    ]
+}'
+--------------------------------------------------
+
+It is an error to index to an alias which points to more than one index.
+
+[float]
+=== Filtered Aliases
+
+Aliases with filters provide an easy way to create different "views" of
+the same index. The filter can be defined using Query DSL and is applied
+to all Search, Count, Delete By Query and More Like This operations with
+this alias. Here is an example:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test1",
+                 "alias" : "alias2",
+                 "filter" : { "term" : { "user" : "kimchy" } }
+            }
+        }
+    ]
+}'
+--------------------------------------------------
+
+[float]
+==== Routing
+
+It is possible to associate routing values with aliases. This feature
+can be used together with filtering aliases in order to avoid
+unnecessary shard operations.
+
+The following command creates a new alias `alias1` that points to index
+`test`. After `alias1` is created, all operations with this alias are
+automatically modified to use value `1` for routing:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias1",
+                 "routing" : "1"
+            }
+        }
+    ]
+}'
+--------------------------------------------------
+
+It's also possible to specify different routing values for searching
+and indexing operations:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias2",
+                 "search_routing" : "1,2",
+                 "index_routing" : "2"
+            }
+        }
+    ]
+}'
+--------------------------------------------------
+
+As shown in the example above, search routing may contain several values
+separated by comma. Index routing can contain only a single value.
+
+If an operation that uses routing alias also has a routing parameter, an
+intersection of both alias routing and routing specified in the
+parameter is used. For example the following command will use "2" as a
+routing value:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
+--------------------------------------------------
+
+[float]
+=== Add a single index alias
+
+From version `0.90.1` there is an api to add a single index alias,
+options: 
+
+[horizontal]
+`index`::   The index to alias refers to. This is a required option. 
+`alias`::   The name of the alias. This is a required option. 
+`routing`:: An optional routing that can be associated with an alias. 
+`filter`::  An optional filter that can be associated with an alias.
+
+The rest endpoint is: `/{index}/_alias/{alias}`.
+
+[float]
+==== Examples:
+
+Adding time based alias:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/logs_201305/_alias/2013'
+--------------------------------------------------
+
+Adding user alias:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
+        "routing" : "12",
+    "filter" : {
+        "term" : {
+            "user_id" : 12
+        }
+    }       
+}'
+--------------------------------------------------
+
+[float]
+=== Delete a single index alias
+
+From version `0.90.1` there is an api to delete a single index alias,
+options: 
+
+[horizontal]
+`index`:: The index the alias is in, the needs to be deleted. This is
+          a required option. 
+`alias`:: The name of the alias to delete. This is a required option.
+
+The rest endpoint is: `/{index}/_alias/{alias}`. Example:
+
+[source,js]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/users/_alias/user_12'
+--------------------------------------------------
+
+[float]
+=== Retrieving existing aliases
+
+The get index alias api (Available since `0.90.1`) allows to filter by
+alias name and index name. This api redirects to the master and fetches
+the requested index aliases, if available. This api only serialises the
+found index aliases.
+
+Possible options: 
+[horizontal]
+`index`::   
+
+    The index name to get aliases for. Partially names are
+    supported via wildcards, also multiple index names can be specified
+    separated with a comma. Also the alias name for an index can be used. 
+
+`alias`::   
+    The name of alias to return in the response. Like the index
+    option, this option supports wildcards and the option the specify
+    multiple alias names separated by a comma. This is a required option. 
+
+`ignore_indices`::
+    What to do is an specified index name doesn't
+    exist. If set to `missing` then those indices are ignored.
+
+The rest endpoint is: `/{index}/_alias/{alias}`.
+
+[float]
+==== Examples:
+
+All aliases for the index users:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/users/_alias/*'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+ {
+  "users" : {
+    "aliases" : {
+      "user_13" : {
+        "filter" : {
+          "term" : {
+            "user_id" : 13
+          }
+        },
+        "index_routing" : "13",
+        "search_routing" : "13"
+      },
+      "user_14" : {
+        "filter" : {
+          "term" : {
+            "user_id" : 14
+          }
+        },
+        "index_routing" : "14",
+        "search_routing" : "14"
+      },
+      "user_12" : {
+        "filter" : {
+          "term" : {
+            "user_id" : 12
+          }
+        },
+        "index_routing" : "12",
+        "search_routing" : "12"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+All aliases with the name 2013 in any index:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_alias/2013'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "logs_201304" : {
+    "aliases" : {
+      "2013" : { }
+    }
+  },
+  "logs_201305" : {
+    "aliases" : {
+      "2013" : { }
+    }
+  }
+}
+--------------------------------------------------
+
+All aliases that start with 2013_01 in any index:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_alias/2013_01*'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "logs_20130101" : {
+    "aliases" : {
+      "2013_01" : { }
+    }
+  }
+}
+--------------------------------------------------
+
+There is also a HEAD variant of the get indices aliases api to check if
+index aliases exist. The indices aliases exists api supports the same
+option as the get indices aliases api. Examples:
+
+[source,js]
+--------------------------------------------------
+curl -XHEAD 'localhost:9200/_alias/2013'
+curl -XHEAD 'localhost:9200/_alias/2013_01*'
+curl -XHEAD 'localhost:9200/users/_alias/*'
+--------------------------------------------------
+
+[float]
+=== Pre 0.90.1 way of getting index aliases
+
+Aliases can be retrieved using the get aliases API, which can either
+return all indices with all aliases, or just for specific indices:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/test/_aliases'
+curl -XGET 'localhost:9200/test1,test2/_aliases'
+curl -XGET 'localhost:9200/_aliases'
+--------------------------------------------------

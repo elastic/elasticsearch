@@ -1,0 +1,85 @@
+[[query-dsl-has-child-query]]
+=== Has Child Query
+
+The `has_child` query works the same as the
+<<query-dsl-has-child-filter,has_child>> filter,
+by automatically wrapping the filter with a
+<<query-dsl-constant-score-query,constant_score>>
+(when using the default score type). It has the same syntax as the
+<<query-dsl-has-child-filter,has_child>> filter:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "type" : "blog_tag",
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+An important difference with the `top_children` query is that this query
+is always executed in two iterations whereas the `top_children` query
+can be executed in one or more iteration. When using the `has_child`
+query the `total_hits` is always correct.
+
+[float]
+==== Scoring capabilities
+
+The `has_child` also has scoring support from version `0.20.2`. The
+supported score types are `max`, `sum`, `avg` or `none`. The default is
+`none` and yields the same behaviour as in previous versions. If the
+score type is set to another value than `none`, the scores of all the
+matching child documents are aggregated into the associated parent
+documents. The score type can be specified with the `score_type` field
+inside the `has_child` query:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "type" : "blog_tag",
+        "score_type" : "sum",
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Scope
+
+The `_scope` support has been removed from version `0.90.beta1`. See:
+https://github.com/elasticsearch/elasticsearch/issues/2606
+
+A `_scope` can be defined on the filter allowing to run facets on the
+same scope name that will work against the child documents. For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "_scope" : "my_scope",
+        "type" : "blog_tag",
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Memory Considerations
+
+With the current implementation, all `_id` values are loaded to memory
+(heap) in order to support fast lookups, so make sure there is enough
+memory for it.

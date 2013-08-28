@@ -95,9 +95,10 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
     @Override
     public void applyFailedShards(FailedRerouteAllocation allocation) {
-        ShardRouting failedShard = allocation.failedShard();
-        cachedStores.remove(failedShard.shardId());
-        cachedShardsState.remove(failedShard.shardId());
+        for (ShardRouting failedShard : allocation.failedShards()) {
+            cachedStores.remove(failedShard.shardId());
+            cachedShardsState.remove(failedShard.shardId());
+        }
     }
 
     @Override

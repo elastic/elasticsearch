@@ -59,6 +59,7 @@ public class ShardStateAction extends AbstractComponent {
     private final ThreadPool threadPool;
 
     private final BlockingQueue<ShardRouting> startedShardsQueue = ConcurrentCollections.newBlockingQueue();
+    private final BlockingQueue<ShardRouting> failedShardQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -109,18 +110,16 @@ public class ShardStateAction extends AbstractComponent {
 
     private void innerShardFailed(final ShardRouting shardRouting, final String reason) {
         logger.warn("received shard failed for {}, reason [{}]", shardRouting, reason);
+        failedShardQueue.add(shardRouting);
         clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Received failed shard {}, reason [{}]", shardRouting, reason);
-                }
-                RoutingAllocation.Result routingResult = allocationService.applyFailedShard(currentState, shardRouting);
+                List<ShardRouting> shards = new ArrayList<ShardRouting>();
+                failedShardQueue.drainTo(shards);
+
+                RoutingAllocation.Result routingResult = allocationService.applyFailedShards(currentState, shards);
                 if (!routingResult.changed()) {
                     return currentState;
-                }
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Applying failed shard {}, reason [{}]", shardRouting, reason);
                 }
                 return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }

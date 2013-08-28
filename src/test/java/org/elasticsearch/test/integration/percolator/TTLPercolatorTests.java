@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.*;
 public class TTLPercolatorTests extends AbstractNodesTests {
 
     @Test
-    public void testPercolatingWithTimeToLive() throws Exception {
+        public void testPercolatingWithTimeToLive() throws Exception {
         long purgeInterval = 200;
         Settings settings = settingsBuilder()
                 .put("gateway.type", "none")
@@ -95,14 +95,10 @@ public class TTLPercolatorTests extends AbstractNodesTests {
         logger.info("Checking if the ttl purger has run");
         long currentDeleteCount;
         do {
-            if (rarely()) {
-                client.admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
-            } else if (rarely()) {
-                client.admin().indices().prepareOptimize("test").setMaxNumSegments(1).execute().actionGet();
-            }
             IndicesStatsResponse response = client.admin().indices().prepareStats("test")
                     .clear().setIndexing(true)
                     .execute().actionGet();
+            // This returns the number of delete operations stats (not Lucene delete count)
             currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
         } while (currentDeleteCount < 2); // TTL deletes one doc, but it is indexed in the primary shard and replica shard.
         assertThat(currentDeleteCount, equalTo(2l));

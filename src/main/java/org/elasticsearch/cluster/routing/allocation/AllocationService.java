@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -98,17 +99,24 @@ public class AllocationService extends AbstractComponent {
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
 
+    public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
+        return applyFailedShards(clusterState, ImmutableList.of(failedShard));
+    }
+
     /**
      * Applies the failed shards. Note, shards can be called several times within this method.
      * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.</p>
      */
-    public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
+    public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<ShardRouting> failedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         Collections.shuffle(routingNodes.unassigned());
-        FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShard);
-        boolean changed = applyFailedShard(allocation, failedShard, true);
+        FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards);
+        boolean changed = false;
+        for (ShardRouting failedShard : failedShards) {
+            changed |= applyFailedShard(allocation, failedShard, true);
+        }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
         }

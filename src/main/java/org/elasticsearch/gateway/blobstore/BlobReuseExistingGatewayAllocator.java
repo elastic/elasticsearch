@@ -88,8 +88,10 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
 
     @Override
     public void applyFailedShards(FailedRerouteAllocation allocation) {
-        cachedCommitPoints.remove(allocation.failedShard().shardId());
-        cachedStores.remove(allocation.failedShard().shardId());
+        for (ShardRouting failedShard : allocation.failedShards()) {
+            cachedCommitPoints.remove(failedShard.shardId());
+            cachedStores.remove(failedShard.shardId());
+        }
     }
 
     @Override

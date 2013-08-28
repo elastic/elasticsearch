@@ -42,6 +42,7 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchWhileRelocatingTests extends AbstractSharedClusterTest {
@@ -98,8 +99,8 @@ public class SearchWhileRelocatingTests extends AbstractSharedClusterTest {
                                                     functionScoreQuery(termQuery("test", "value"),
                                                             gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
                                                             CombineFunction.MULT.getName())))).get();
+                            assertHitCount(sr, (long) (numDocs));
                             final SearchHits sh = sr.getHits();
-                            assertThat("Expect num docs in getTotalHits() ",sh.getTotalHits(), equalTo((long) (numDocs)));
                             assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
                                     equalTo((long) (sh.getHits().length)));
                         }

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.*;
 public class TTLPercolatorTests extends AbstractNodesTests {
 
     @Test
-        public void testPercolatingWithTimeToLive() throws Exception {
+    public void testPercolatingWithTimeToLive() throws Exception {
         long purgeInterval = 200;
         Settings settings = settingsBuilder()
                 .put("gateway.type", "none")

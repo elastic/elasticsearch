@@ -201,7 +201,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                 long expire = new Date(timestamp + ttl).getTime();
                 long now = System.currentTimeMillis();
                 // there is not point indexing already expired doc
-                if (now >= expire) {
+                if (context.sourceToParse().origin() == SourceToParse.Origin.PRIMARY && now >= expire) {
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field

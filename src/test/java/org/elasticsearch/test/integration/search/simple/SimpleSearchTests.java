@@ -27,6 +27,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
+import java.util.concurrent.ExecutionException;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -51,11 +53,28 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
 
         }
     }
+    
+    @Test
+    public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1,3))).get();
+        indexRandom("test", true, 
+        client().prepareIndex("test", "type", "1").setSource("field", "value"),
+        client().prepareIndex("test", "type", "2").setSource("field", "value"),
+        client().prepareIndex("test", "type", "3").setSource("field", "value"),
+        client().prepareIndex("test", "type", "4").setSource("field", "value"),
+        client().prepareIndex("test", "type", "5").setSource("field", "value"),
+        client().prepareIndex("test", "type", "6").setSource("field", "value"));
+        
+        int iters = atLeast(10);
+        for (int i = 0; i < iters; i++) {
+            // id is not indexed, but lets see that we automatically convert to
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomUnicodeOfLengthBetween(0, 4)).get();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(6l));
+        }
+    }
 
     @Test
     public void simpleIpTests() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client().admin().indices().preparePutMapping("test").setType("type1")
@@ -76,7 +95,6 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleIdTests() {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();

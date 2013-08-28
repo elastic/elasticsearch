@@ -28,12 +28,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 public class SourceToParse {
 
     public static SourceToParse source(XContentParser parser) {
-        return new SourceToParse(parser);
+        return new SourceToParse(Origin.PRIMARY, parser);
     }
 
     public static SourceToParse source(BytesReference source) {
-        return new SourceToParse(source);
+        return new SourceToParse(Origin.PRIMARY, source);
     }
+
+    public static SourceToParse source(Origin origin, BytesReference source) {
+        return new SourceToParse(origin, source);
+    }
+
+    private final Origin origin;
 
     private final BytesReference source;
 
@@ -53,16 +59,22 @@ public class SourceToParse {
 
     private long ttl;
 
-    public SourceToParse(XContentParser parser) {
+    public SourceToParse(Origin origin, XContentParser parser) {
+        this.origin = origin;
         this.parser = parser;
         this.source = null;
     }
 
-    public SourceToParse(BytesReference source) {
+    public SourceToParse(Origin origin, BytesReference source) {
+        this.origin = origin;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = source.toBytesArray();
         this.parser = null;
+    }
+
+    public Origin origin() {
+        return origin;
     }
 
     public XContentParser parser() {
@@ -140,4 +152,12 @@ public class SourceToParse {
         this.ttl = ttl;
         return this;
     }
+
+    public static enum Origin {
+
+        PRIMARY,
+        REPLICA
+
+    }
+
 }

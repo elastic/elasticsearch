@@ -37,6 +37,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -115,7 +117,6 @@ public class PluginManager {
         }
 
         // now, try as a path name...
-        String filterZipName = null;
         if (!downloaded) {
             if (name.indexOf('/') != -1) {
                 // github repo
@@ -126,7 +127,6 @@ public class PluginManager {
                 if (elements.length > 2) {
                     version = elements[2];
                 }
-                filterZipName = repoName;
                 // the installation file should not include the userName, just the repoName
                 name = repoName;
                 if (name.startsWith("elasticsearch-")) {
@@ -219,17 +219,18 @@ public class PluginManager {
         ZipFile zipFile = null;
         try {
             zipFile = new ZipFile(pluginFile);
-            Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+            //we check whether we need to remove the top-level folder while extracting
+            //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
+            boolean removeTopLevelDir = topLevelDirInExcess(zipFile);
+            Enumeration <? extends ZipEntry> zipEntries = zipFile.entries();
             while (zipEntries.hasMoreElements()) {
                 ZipEntry zipEntry = zipEntries.nextElement();
                 if (zipEntry.isDirectory()) {
                     continue;
                 }
                 String zipEntryName = zipEntry.getName().replace('\\', '/');
-                if (filterZipName != null) {
-                    if (zipEntryName.startsWith(filterZipName)) {
-                        zipEntryName = zipEntryName.substring(zipEntryName.indexOf('/'));
-                    }
+                if (removeTopLevelDir) {
+                    zipEntryName = zipEntryName.substring(zipEntryName.indexOf('/'));
                 }
                 File target = new File(extractLocation, zipEntryName);
                 FileSystemUtils.mkdirs(target.getParentFile());
@@ -306,7 +307,31 @@ public class PluginManager {
             }
         }
     }
-    
+
+    private boolean topLevelDirInExcess(ZipFile zipFile) {
+        //We don't rely on ZipEntry#isDirectory because it might be that there is no explicit dir
+        //but the files path do contain dirs, thus they are going to be extracted on sub-folders anyway
+        Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+        Set<String> topLevelDirNames = new HashSet<String>();
+        while (zipEntries.hasMoreElements()) {
+            ZipEntry zipEntry = zipEntries.nextElement();
+            String zipEntryName = zipEntry.getName().replace('\\', '/');
+
+            int slash = zipEntryName.indexOf('/');
+            //if there isn't a slash in the entry name it means that we have a file in the top-level
+            if (slash == -1 ) {
+                return false;
+            }
+
+            topLevelDirNames.add(zipEntryName.substring(0, slash));
+            //if we have more than one top-level folder
+            if (topLevelDirNames.size() > 1) {
+                return false;
+            }
+        }
+        return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
+    }
+
     private static final int EXIT_CODE_OK = 0;
     private static final int EXIT_CODE_CMD_USAGE = 64;
     private static final int EXIT_CODE_IO_ERROR = 74;

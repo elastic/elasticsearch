@@ -1,0 +1,17 @@
+[[search-request-min-score]]
+=== min_score
+
+Allows to filter out documents based on a minimum score:
+
+[source,js]
+--------------------------------------------------
+{
+    "min_score": 0.5,
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+
+Note, most times, this does not make much sense, but is provided for
+advance use cases.

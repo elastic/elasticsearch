@@ -1,0 +1,42 @@
+[[query-dsl]]
+= Query DSL
+
+[partintro]
+--
+*elasticsearch* provides a full Query DSL based on JSON to define
+queries. In general, there are basic queries such as
+<<query-dsl-term-query,term>> or
+<<query-dsl-prefix-query,prefix>>. There are
+also compound queries like the
+<<query-dsl-bool-query,bool>> query. Queries can
+also have filters associated with them such as the
+<<query-dsl-filtered-query,filtered>> or
+<<query-dsl-constant-score-query,constant_score>>
+queries, with specific filter queries.
+
+Think of the Query DSL as an AST of queries. Certain queries can contain
+other queries (like the
+<<query-dsl-bool-query,bool>> query), others can
+contain filters (like the
+<<query-dsl-constant-score-query,constant_score>>),
+and some can contain both a query and a filter (like the
+<<query-dsl-filtered-query,filtered>>). Each of
+those can contain *any* query of the list of queries or *any* filter
+from the list of filters, resulting in the ability to build quite
+complex (and interesting) queries.
+
+Both queries and filters can be used in different APIs. For example,
+within a <<search-request-query,search query>>, or
+as a <<search-facets,facet filter>>. This
+section explains the components (queries and filters) that can form the
+AST one can use.
+
+Filters are very handy since they perform an order of magnitude better
+than plain queries since no scoring is performed and they are
+automatically cached.
+
+--
+
+include::query-dsl/queries.asciidoc[]
+
+include::query-dsl/filters.asciidoc[]

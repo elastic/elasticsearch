@@ -1,0 +1,100 @@
+[[cluster-nodes-stats]]
+== Nodes Stats
+
+[float]
+=== Nodes statistics
+
+The cluster nodes stats API allows to retrieve one or more (or all) of
+the cluster nodes statistics.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_cluster/nodes/stats'
+curl -XGET 'http://localhost:9200/_cluster/nodes/nodeId1,nodeId2/stats'
+
+# simplified
+curl -XGET 'http://localhost:9200/_nodes/stats'
+curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/stats'
+--------------------------------------------------
+
+The first command retrieves stats of all the nodes in the cluster. The
+second command selectively retrieves nodes stats of only `nodeId1` and
+`nodeId2`. All the nodes selective options are explained
+<<cluster-nodes,here>>.
+
+By default, `indices` stats are returned. With options for `indices`,
+`os`, `process`, `jvm`, `network`, `transport`, `http`, `fs`, and
+`thread_pool`. For example:
+
+[horizontal]
+`indices`:: 
+	Indices stats about size, document count, indexing and
+	deletion times, search times, field cache size , merges and flushes
+
+`fs`:: 
+	File system information, data path, free disk space, read/write
+	stats
+
+`http`:: 
+	HTTP connection information
+
+`jvm`:: 
+	JVM stats, memory pool information, garbage collection, buffer
+	pools
+
+`network`:: 
+	TCP information
+
+`os`:: 
+	Operating system stats, load average, cpu, mem, swap
+
+`process`:: 
+	Process statistics, memory consumption, cpu usage, open
+	file descriptors
+
+`thread_pool`:: 
+	Statistics about each thread pool, including current
+	size, queue and rejected tasks
+
+`transport`:: 
+	Transport statistics about sent and received bytes in
+	cluster communication
+
+`clear`:: 
+	Clears all the flags (first). Useful, if you only want to
+	retrieve specific stats.
+
+[source,js]
+--------------------------------------------------
+# return indices and os
+curl -XGET 'http://localhost:9200/_nodes/stats?os=true'
+# return just os and process
+curl -XGET 'http://localhost:9200/_nodes/stats?clear=true&os=true&process=true'
+# specific type endpoint
+curl -XGET 'http://localhost:9200/_nodes/process/stats'
+curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/process/stats'
+# or, if you like the other way
+curl -XGET 'http://localhost:9200/_nodes/stats/process'
+curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
+--------------------------------------------------
+
+The `all` flag can be set to return all the stats.
+
+[float]
+=== Field data statistics
+
+From 0.90, you can get information about field data memory usage on node
+level or on index level.
+
+[source,js]
+--------------------------------------------------
+# Node Stats
+curl localhost:9200/_nodes/stats/indices/fielddata/field1,field2?pretty
+
+# Indices Stat
+curl localhost:9200/_stats/fielddata/field1,field2?pretty
+
+# You can use wildcards for field names
+curl localhost:9200/_stats/fielddata/field*?pretty
+curl localhost:9200/_nodes/stats/indices/fielddata/field*?pretty
+--------------------------------------------------

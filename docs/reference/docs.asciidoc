@@ -1,0 +1,31 @@
+[[docs]]
+= Document APIs
+
+[partintro]
+--
+
+This section describes the REST APIs *elasticsearch* provides (mainly)
+using JSON. The API is exposed using
+<<modules-http,HTTP>>,
+<<modules-thrift,thrift>>,
+<<modules-memcached,memcached>>.
+
+--
+
+include::docs/index_.asciidoc[]
+
+include::docs/get.asciidoc[]
+
+include::docs/delete.asciidoc[]
+
+include::docs/update.asciidoc[]
+
+include::docs/multi-get.asciidoc[]
+
+include::docs/bulk.asciidoc[]
+
+include::docs/delete-by-query.asciidoc[]
+
+include::docs/bulk-udp.asciidoc[]
+
+

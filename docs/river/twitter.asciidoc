@@ -1,0 +1,10 @@
+[[river-twitter]]
+== Twitter River
+
+The twitter river indexes the public
+http://dev.twitter.com/pages/streaming_api[twitter stream], aka the
+hose, and makes it searchable.
+
+See
+https://github.com/elasticsearch/elasticsearch-river-twitter/blob/master/README.md[README
+file] for details.

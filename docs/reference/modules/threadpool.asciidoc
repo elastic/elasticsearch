@@ -1,0 +1,120 @@
+[[modules-threadpool]]
+== Thread Pool
+
+A node holds several thread pools in order to improve how threads are
+managed and memory consumption within a node. There are several thread
+pools, but the important ones include:
+
+[horizontal]
+`index`:: 
+    For index/delete operations, defaults to `fixed` type since
+    `0.90.0`, size `# of available processors`. (previously type `cached`)
+
+`search`:: 
+    For count/search operations, defaults to `fixed` type since
+    `0.90.0`, size `3x # of available processors`. (previously type
+    `cached`)
+
+`get`:: 
+    For get operations, defaults to `fixed` type since `0.90.0`,
+    size `# of available processors`. (previously type `cached`)
+
+`bulk`:: 
+    For bulk operations, defaults to `fixed` type since `0.90.0`,
+    size `# of available processors`. (previously type `cached`)
+
+`warmer`:: 
+    For segment warm-up operations, defaults to `scaling` since
+    `0.90.0` with a `5m` keep-alive. (previously type `cached`)
+
+`refresh`:: 
+    For refresh operations, defaults to `scaling` since
+    `0.90.0` with a `5m` keep-alive. (previously type `cached`)
+
+Changing a specific thread pool can be done by setting its type and
+specific type parameters, for example, changing the `index` thread pool
+to `blocking` type:
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: blocking
+        min: 1
+        size: 30
+        wait_time: 30s
+--------------------------------------------------
+
+NOTE: you can update threadpool settings live using
+      <<cluster-update-settings>>.
+
+
+[float]
+=== Thread pool types
+
+The following are the types of thread pools that can be used and their
+respective parameters:
+
+[float]
+==== `cache`
+
+The `cache` thread pool is an unbounded thread pool that will spawn a
+thread if there are pending requests. Here is an example of how to set
+it:
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: cached
+--------------------------------------------------
+
+[float]
+==== `fixed`
+
+The `fixed` thread pool holds a fixed size of threads to handle the
+requests with a queue (optionally bounded) for pending requests that
+have no threads to service them.
+
+The `size` parameter controls the number of threads, and defaults to the
+number of cores times 5.
+
+The `queue_size` allows to control the size of the queue of pending
+requests that have no threads to execute them. By default, it is set to
+`-1` which means its unbounded. When a request comes in and the queue is
+full, the `reject_policy` parameter can control how it will behave. The
+default, `abort`, will simply fail the request. Setting it to `caller`
+will cause the request to execute on an IO thread allowing to throttle
+the execution on the networking layer.
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: fixed
+        size: 30
+        queue_size: 1000
+        reject_policy: caller
+--------------------------------------------------
+
+[float]
+==== `blocking`
+
+The `blocking` pool allows to configure a `min` (defaults to `1`) and
+`size` (defaults to the number of cores times 5) parameters for the
+number of threads.
+
+It also has a backlog queue with a default `queue_size` of `1000`. Once
+the queue is full, it will wait for the provided `wait_time` (defaults
+to `60s`) on the calling IO thread, and fail if it has not been
+executed.
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    index:
+        type: blocking
+        min: 1
+        size: 30
+        wait_time: 30s
+--------------------------------------------------

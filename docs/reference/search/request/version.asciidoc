@@ -1,0 +1,14 @@
+[[search-request-version]]
+=== Version
+
+Returns a version for each search hit.
+
+[source,js]
+--------------------------------------------------
+{
+    "version": true,
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------

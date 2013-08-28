@@ -161,7 +161,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     }
 
     private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId, DiscoveryNodes nodes, @Nullable String preference) {
-        if (preference == null) {
+        if (preference == null || preference.isEmpty()) {
             String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
             if (awarenessAttributes.length == 0) {
                 return indexShard.activeInitializingShardsRandomIt();

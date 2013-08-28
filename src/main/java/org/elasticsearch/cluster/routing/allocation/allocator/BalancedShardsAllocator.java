@@ -379,12 +379,27 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     while (true) {
                         final ModelNode minNode = modelNodes[lowIdx];
                         final ModelNode maxNode = modelNodes[highIdx];
+                        advance_range: 
                         if (maxNode.numShards(index) > 0) {
                             float delta = weights[highIdx] - weights[lowIdx];
                             delta = delta <= threshold ? delta : sorter.weight(Operation.THRESHOLD_CHECK, maxNode) - sorter.weight(Operation.THRESHOLD_CHECK, minNode);
                             if (delta <= threshold) {
+                                if (lowIdx > 0 && highIdx-1 > 0 // is there a chance for a higher delta? 
+                                    && (weights[highIdx-1] - weights[0] > threshold) // check if we need to break at all
+                                    ) {
+                                    /* This is a special case if allocations from the "heaviest" to the "lighter" nodes is not possible 
+                                     * due to some allocation decider restrictions like zone awareness. if one zone has for instance 
+                                     * less nodes than another zone. so one zone is horribly overloaded from a balanced perspective but we
+                                     * can't move to the "lighter" shards since otherwise the zone would go over capacity.
+                                     * 
+                                     * This break jumps straight to the condition below were we start moving from the high index towards 
+                                     * the low index to shrink the window we are considering for balance from the other direction. 
+                                     * (check shrinking the window from MAX to MIN)
+                                     * See #3580
+                                     */
+                                    break advance_range;
+                                }
                                 if (logger.isTraceEnabled()) {
-
                                     logger.trace("Stop balancing index [{}]  min_node [{}] weight: [{}]  max_node [{}] weight: [{}]  delta: [{}]",
                                             index, maxNode.getNodeId(), weights[highIdx], minNode.getNodeId(), weights[lowIdx], delta);
                                 }
@@ -411,13 +426,15 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 continue;
                             }
                         }
-                        if (lowIdx < highIdx - 1) {
-                            /* we can't move from any shard from the min node lets move on to the next node
+                        if (lowIdx < highIdx - 1) { 
+                            /* Shrinking the window from MIN to MAX
+                             * we can't move from any shard from the min node lets move on to the next node
                              * and see if the threshold still holds. We either don't have any shard of this
                              * index on this node of allocation deciders prevent any relocation.*/
                             lowIdx++;
                         } else if (lowIdx > 0) {
-                            /* now we go max to min since obviously we can't move anything to the max node 
+                            /* Shrinking the window from MAX to MIN
+                             * now we go max to min since obviously we can't move anything to the max node 
                              * lets pick the next highest */
                             lowIdx = 0;
                             highIdx--;
@@ -514,7 +531,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * the sorter holds the minimum weight node first for the shards index.
              * We now walk through the nodes until we find a node to allocate the shard.
              * This is not guaranteed to be balanced after this operation we still try best effort to 
-             * allocate on the minimal eligable node.
+             * allocate on the minimal eligible node.
              */
             for (ModelNode currentNode : nodes) {
                 if (currentNode.getNodeId().equals(node.nodeId())) {
@@ -522,7 +539,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
                 RoutingNode target = allocation.routingNodes().node(currentNode.getNodeId());
                 Decision decision = allocation.deciders().canAllocate(shard, target, allocation);
-                if (decision.type() == Type.YES) { // TODO maybe we can respect throtteling here too?
+                if (decision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                     sourceNode.removeShard(shard);
                     final MutableShardRouting initializingShard = new MutableShardRouting(shard.index(), shard.id(), currentNode.getNodeId(),
                             shard.currentNodeId(), shard.primary(), INITIALIZING, shard.version() + 1);

@@ -1,0 +1,7 @@
+[[analysis-standard-tokenfilter]]
+=== Standard Token Filter
+
+A token filter of type `standard` that normalizes tokens extracted with
+the
+<<analysis-standard-tokenizer,Standard
+Tokenizer>>.

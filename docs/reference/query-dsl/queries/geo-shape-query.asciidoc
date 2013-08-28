@@ -1,0 +1,66 @@
+[[query-dsl-geo-shape-query]]
+=== GeoShape Query
+
+Query version of the
+<<query-dsl-geo-shape-filter,geo_shape Filter>>.
+
+Requires the <<mapping-geo-shape-type,geo_shape
+Mapping>>.
+
+Given a document that looks like this:
+
+[source,js]
+--------------------------------------------------
+{
+    "name": "Wind & Wetter, Berlin, Germany",
+    "location": {
+        "type": "Point",
+        "coordinates": [13.400544, 52.530286]
+    }
+}
+--------------------------------------------------
+
+The following query will find the point:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "geo_shape": {
+            "location": {
+                "shape": {
+                    "type": "envelope",
+                    "coordinates": [[13, 53],[14, 52]]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+See the Filter's documentation for more information.
+
+[float]
+==== Relevancy and Score
+
+Currently Elasticsearch does not have any notion of geo shape relevancy,
+consequently the Query internally uses a `constant_score` Query which
+wraps a <<query-dsl-geo-shape-filter,geo_shape
+filter>>.
+
+[float]
+==== Compatibility with older versions
+
+Elasticsearch 0.90 changed the geo_shape implementation in a way that is
+not compatible. Prior to this version, there was a required `relation`
+field on queries and filter queries that indicated the relation of the
+query shape to the indexed shapes. Support for this was implemented in
+Elasticsearch and was poorly aligned with the underlying Lucene
+implementation, which has no notion of a relation. From 0.90, this field
+defaults to its only supported value: `intersects`. The other values of
+`contains`, `within`, `disjoint` are no longer supported. By using e.g.
+a bool filter, one can easily emulate `disjoint`. Given the imprecise
+accuracy (see
+<<mapping-geo-shape-type,geo_shape Mapping>>),
+`within` and `contains` were always somewhat problematic and
+`intersects` is generally good enough.

@@ -1,0 +1,245 @@
+[[modules-plugins]]
+== Plugins
+
+[float]
+=== Plugins
+
+Plugins are a way to enhance the basic elasticsearch functionality in a
+custom manner. They range from adding custom mapping types, custom
+analyzers (in a more built in fashion), native scripts, custom discovery
+and more.
+
+[float]
+==== Installing plugins
+
+Installing plugins can either be done manually by placing them under the
+`plugins` directory, or using the `plugin` script. Several plugins can
+be found under the https://github.com/elasticsearch[elasticsearch]
+organization in GitHub, starting with `elasticsearch-`.
+
+Starting from 0.90.2, installing plugins typically take the form of
+`plugin --install <org>/<user/component>/<version>`. The plugins will be
+automatically downloaded in this case from `download.elasticsearch.org`,
+and in case they don't exist there, from maven (central and sonatype).
+
+Note that when the plugin is located in maven central or sonatype
+repository, `<org>` is the artifact `groupId` and `<user/component>` is
+the `artifactId`.
+
+For prior version, the older form is
+`plugin -install <org>/<user/component>/<version>`
+
+A plugin can also be installed directly by specifying the URL for it,
+for example:
+`bin/plugin --url file://path/to/plugin --install plugin-name` or
+`bin/plugin -url file://path/to/plugin -install plugin-name` for older
+version.
+
+Starting from 0.90.2, for more information about plugins, you can run
+`bin/plugin -h`.
+
+[float]
+==== Site Plugins
+
+Plugins can have "sites" in them, any plugin that exists under the
+`plugins` directory with a `_site` directory, its content will be
+statically served when hitting `/_plugin/[plugin_name]/` url. Those can
+be added even after the process has started.
+
+Installed plugins that do not contain any java related content, will
+automatically be detected as site plugins, and their content will be
+moved under `_site`.
+
+The ability to install plugins from Github allows to easily install site
+plugins hosted there by downloading the actual repo, for example,
+running:
+
+[source,js]
+--------------------------------------------------
+# From 0.90.2
+bin/plugin --install mobz/elasticsearch-head
+bin/plugin --install lukas-vlcek/bigdesk
+
+# From a prior version
+bin/plugin -install mobz/elasticsearch-head
+bin/plugin -install lukas-vlcek/bigdesk
+--------------------------------------------------
+
+Will install both of those site plugins, with `elasticsearch-head`
+available under `http://localhost:9200/_plugin/head/` and `bigdesk`
+available under `http://localhost:9200/_plugin/bigdesk/`.
+
+[float]
+==== Mandatory Plugins
+
+If you rely on some plugins, you can define mandatory plugins using the
+`plugin.mandatory` attribute, for example, here is a sample config:
+
+[source,js]
+--------------------------------------------------
+plugin.mandatory: mapper-attachments,lang-groovy
+--------------------------------------------------
+
+For safety reasons, if a mandatory plugin is not installed, the node
+will not start.
+
+[float]
+==== Installed Plugins
+
+A list of the currently loaded plugins can be retrieved using the
+<<cluster-nodes-info,Node Info API>>.
+
+[float]
+=== Known Plugins
+
+[float]
+==== Analysis Plugins
+
+* https://github.com/yakaz/elasticsearch-analysis-combo/[Combo Analysis
+Plugin] (by Olivier Favre, Yakaz)
+* https://github.com/elasticsearch/elasticsearch-analysis-smartcn[Smart
+Chinese Analysis Plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-analysis-icu[ICU
+Analysis plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-analysis-stempel[Stempel
+(Polish) Analysis plugin] (by elasticsearch team)
+* https://github.com/chytreg/elasticsearch-analysis-morfologik[Morfologik
+(Polish) Analysis plugin] (by chytreg)
+* https://github.com/medcl/elasticsearch-analysis-ik[IK Analysis Plugin]
+(by Medcl)
+* https://github.com/medcl/elasticsearch-analysis-mmseg[Mmseg Analysis
+Plugin] (by Medcl)
+* https://github.com/jprante/elasticsearch-analysis-hunspell[Hunspell
+Analysis Plugin] (by Jörg Prante)
+* https://github.com/elasticsearch/elasticsearch-analysis-kuromoji[Japanese
+(Kuromoji) Analysis plugin] (by elasticsearch team).
+* https://github.com/suguru/elasticsearch-analysis-japanese[Japanese
+Analysis plugin] (by suguru).
+* https://github.com/imotov/elasticsearch-analysis-morphology[Russian
+and English Morphological Analysis Plugin] (by Igor Motov)
+* https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis
+Plugin] (by Medcl)
+* https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer
+Analysis Plugin] (by Medcl)
+* https://github.com/barminator/elasticsearch-analysis-annotation[Annotation
+Analysis Plugin] (by Michal Samek)
+
+[float]
+==== River Plugins
+
+* https://github.com/elasticsearch/elasticsearch-river-couchdb[CouchDB
+River Plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-river-wikipedia[Wikipedia
+River Plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-river-twitter[Twitter
+River Plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-river-rabbitmq[RabbitMQ
+River Plugin] (by elasticsearch team)
+* https://github.com/domdorn/elasticsearch-river-activemq/[ActiveMQ
+River Plugin] (by Dominik Dorn)
+* https://github.com/albogdano/elasticsearch-river-amazonsqs[Amazon SQS
+River Plugin] (by Alex Bogdanovski)
+* https://github.com/xxBedy/elasticsearch-river-csv[CSV River Plugin]
+(by Martin Bednar)
+* http://www.pilato.fr/dropbox/[Dropbox River Plugin] (by David Pilato)
+* http://www.pilato.fr/fsriver/[FileSystem River Plugin] (by David
+Pilato)
+* https://github.com/sksamuel/elasticsearch-river-hazelcast[Hazelcast
+River Plugin] (by Steve Samuel)
+* https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin]
+(by Jörg Prante)
+* https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by
+Steve Sarandos)
+* https://github.com/tlrx/elasticsearch-river-ldap[LDAP River Plugin]
+(by Tanguy Leroux)
+* https://github.com/richardwilly98/elasticsearch-river-mongodb/[MongoDB
+River Plugin] (by Richard Louapre)
+* https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River
+Plugin] (by Steve Samuel)
+* https://github.com/jprante/elasticsearch-river-oai/[Open Archives
+Initiative (OAI) River Plugin] (by Jörg Prante)
+* https://github.com/sksamuel/elasticsearch-river-redis[Redis River
+Plugin] (by Steve Samuel)
+* http://dadoonet.github.com/rssriver/[RSS River Plugin] (by David
+Pilato)
+* https://github.com/adamlofts/elasticsearch-river-sofa[Sofa River
+Plugin] (by adamlofts)
+* https://github.com/javanna/elasticsearch-river-solr/[Solr River
+Plugin] (by Luca Cavanna)
+* https://github.com/sunnygleason/elasticsearch-river-st9[St9 River
+Plugin] (by Sunny Gleason)
+* https://github.com/endgameinc/elasticsearch-river-kafka[Kafka River
+Plugin] (by Endgame Inc.)
+* https://github.com/obazoud/elasticsearch-river-git[Git River Plugin] (by Olivier Bazoud)
+
+[float]
+==== Transport Plugins
+
+* https://github.com/elasticsearch/elasticsearch-transport-wares[Servlet
+transport] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-transport-memcached[Memcached
+transport plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-transport-thrift[Thrift
+Transport] (by elasticsearch team)
+* https://github.com/tlrx/transport-zeromq[ZeroMQ transport layer
+plugin] (by Tanguy Leroux)
+* https://github.com/sonian/elasticsearch-jetty[Jetty HTTP transport
+plugin] (by Sonian Inc.)
+
+[float]
+==== Scripting Plugins
+
+* https://github.com/elasticsearch/elasticsearch-lang-python[Python
+language Plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-lang-javascript[JavaScript
+language Plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-lang-groovy[Groovy lang
+Plugin] (by elasticsearch team)
+* https://github.com/hiredman/elasticsearch-lang-clojure[Clojure
+Language Plugin] (by Kevin Downey)
+
+[float]
+==== Site Plugins
+
+* https://github.com/lukas-vlcek/bigdesk[BigDesk Plugin] (by Lukáš Vlček)
+* https://github.com/mobz/elasticsearch-head[Elasticsearch Head Plugin]
+(by Ben Birch)
+* https://github.com/royrusso/elasticsearch-HQ[ElasticSearch HQ] (by Roy
+Russo)
+* https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by
+Karel Minařík)
+* https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy
+Plugin] (by Zachary Tong)
+* https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor
+Plugin] (by Zachary Tong)
+* https://github.com/andrewvc/elastic-hammer[Hammer Plugin] (by Andrew
+Cholakian)
+
+[float]
+==== Misc Plugins
+
+* https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper
+Attachments Type plugin] (by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-hadoop[Hadoop Plugin]
+(by elasticsearch team)
+* https://github.com/elasticsearch/elasticsearch-cloud-aws[AWS Cloud
+Plugin] (by elasticsearch team)
+* https://github.com/mattweber/elasticsearch-mocksolrplugin[ElasticSearch
+Mock Solr Plugin] (by Matt Weber)
+* https://github.com/spinscale/elasticsearch-suggest-plugin[Suggester
+Plugin] (by Alexander Reelsen)
+* https://github.com/medcl/elasticsearch-partialupdate[ElasticSearch
+PartialUpdate Plugin] (by Medcl)
+* https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery
+Plugin] (by Sonian Inc.)
+* https://github.com/derryx/elasticsearch-changes-plugin[ElasticSearch
+Changes Plugin] (by Thomas Peuss)
+* http://tlrx.github.com/elasticsearch-view-plugin[ElasticSearch View
+Plugin] (by Tanguy Leroux)
+* https://github.com/viniciusccarvalho/elasticsearch-newrelic[ElasticSearch
+New Relic Plugin] (by Vinicius Carvalho)
+* https://github.com/endgameinc/elasticsearch-term-plugin[Terms
+Component Plugin] (by Endgame Inc.)
+* https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]:
+Results clustering with carrot2 (by Dawid Weiss)
+

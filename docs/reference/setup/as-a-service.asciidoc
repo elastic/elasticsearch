@@ -1,0 +1,32 @@
+[[setup-service]]
+== Running As a Service
+
+It should be simple to wrap the `elasticsearch` script in an `init.d` or
+the like. But, elasticsearch also supports running it using the
+https://github.com/elasticsearch/elasticsearch-servicewrapper[Java Service Wrapper].
+
+ElasticSearch can be run as a service using the `elasticsearch` script
+located under `bin/service` location. The repo for it is located
+http://github.com/elasticsearch/elasticsearch-servicewrapper[here]. The
+script accepts a single parameter with the following values:
+
+[horizontal]
+`console`:: Run the elasticsearch in the foreground.
+
+`start`::   Run elasticsearch in the background.
+
+`stop`::    Stops elasticsearch if its running.
+
+`install`:: Install elasticsearch to run on system startup (init.d / service).
+
+`remove`::  Removes elasticsearch from system startup (init.d / service).
+
+The service uses Java Service Wrapper which is a small native wrapper
+around the Java virtual machine which also monitors it.
+
+Note, passing JVM level configuration (such as -X parameters) should be
+set within the `elasticsearch.conf` file.
+
+The `ES_MIN_MEM` and `ES_MAX_MEM` environment variables to set the
+minimum and maximum memory allocation for the JVM (set in mega bytes).
+It defaults to `256` and `1024` respectively.

@@ -1,0 +1,198 @@
+[[cluster-update-settings]]
+== Cluster Update Settings
+
+Allows to update cluster wide specific settings. Settings updated can
+either be persistent (applied cross restarts) or transient (will not
+survive a full cluster restart). Here is an example:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "persistent" : {
+        "discovery.zen.minimum_master_nodes" : 2
+    } 
+}' 
+--------------------------------------------------
+
+Or:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "discovery.zen.minimum_master_nodes" : 2
+    } 
+}' 
+--------------------------------------------------
+
+The cluster responds with the settings updated. So the response for the
+last example will be:
+
+[source,js]
+--------------------------------------------------
+{
+    "persistent" : {},
+    "transient" : {
+        "discovery.zen.minimum_master_nodes" : "2"
+    } 
+}' 
+--------------------------------------------------
+
+Cluster wide settings can be returned using:
+
+[source,js]
+--------------------------------------------------
+curl -XGET localhost:9200/_cluster/settings
+--------------------------------------------------
+
+There is a specific list of settings that can be updated, those include:
+
+[float]
+=== Cluster settings
+
+[float]
+==== Routing allocation
+
+[float]
+===== Awareness
+
+`cluster.routing.allocation.awareness.attributes`::
+     See <<modules-cluster>>.
+
+`cluster.routing.allocation.awareness.force.*`::
+     See <<modules-cluster>>.
+
+[float]
+===== Balanced Shards
+
+`cluster.routing.allocation.balance.shard`::
+     Defines the weight factor for shards allocated on a node 
+     (float). Defaults to `0.45f`.
+
+`cluster.routing.allocation.balance.index`::
+     Defines a factor to the number of shards per index allocated 
+      on a specific node (float). Defaults to `0.5f`.
+
+`cluster.routing.allocation.balance.primary`::
+      defines a weight factor for the number of primaries of a specific index 
+      allocated on a node (float). `0.05f`.
+
+`cluster.routing.allocation.balance.threshold`::
+      minimal optimization value of operations that should be performed (non 
+      negative float). Defaults to `1.0f`.
+
+[float]
+===== Concurrent Rebalance
+
+`cluster.routing.allocation.cluster_concurrent_rebalance`::
+       Allow to control how many concurrent rebalancing of shards are 
+       allowed cluster wide, and default it to `2` (integer). `-1` for 
+       unlimited. See also <<modules-cluster>>.
+
+[float]
+===== Disable allocation
+
+`cluster.routing.allocation.disable_allocation`::
+     See <<modules-cluster>>.
+
+`cluster.routing.allocation.disable_replica_allocation`::
+     See <<modules-cluster>>.
+
+`cluster.routing.allocation.disable_new_allocation`::
+     See <<modules-cluster>>.
+
+[float]
+===== Throttling allocation
+
+`cluster.routing.allocation.node_initial_primaries_recoveries`::
+     See <<modules-cluster>>.
+
+`cluster.routing.allocation.node_concurrent_recoveries`::
+     See <<modules-cluster>>.
+
+[float]
+===== Filter allocation
+
+`cluster.routing.allocation.include.*`::
+     See <<modules-cluster>>.
+
+`cluster.routing.allocation.exclude.*`::
+     See <<modules-cluster>>.
+
+`cluster.routing.allocation.require.*` (from 0.90)::
+     See <<modules-cluster>>.
+
+[float]
+==== Metadata
+
+`cluster.blocks.read_only`::
+      Have the whole cluster read only (indices do not accept write operations), metadata is not allowed to be modified (create or delete indices).
+
+[float]
+==== Discovery
+
+`discovery.zen.minimum_master_nodes`::
+     See <<modules-discovery-zen>>
+
+[float]
+==== Threadpools
+
+`threadpool.*`::
+     See <<modules-threadpool>>
+
+[float]
+=== Index settings
+
+[float]
+==== Index filter cache
+
+`indices.cache.filter.size`::
+     See <<index-modules-cache>>
+
+`indices.cache.filter.expire` (time)::
+     See <<index-modules-cache>>
+
+[float]
+==== TTL interval
+
+`indices.ttl.interval` (time):: 
+    See <<mapping-ttl-field>>
+
+[float]
+==== Recovery
+
+`indices.recovery.concurrent_streams`::
+     See <<modules-indices>>
+
+`indices.recovery.file_chunk_size`::
+     See <<modules-indices>>
+
+`indices.recovery.translog_ops`::
+     See <<modules-indices>>
+
+`indices.recovery.translog_size`::
+     See <<modules-indices>>
+
+`indices.recovery.compress`::
+     See <<modules-indices>>
+
+`indices.recovery.max_bytes_per_sec`::
+     Since 0.90.1. See <<modules-indices>>
+
+`indices.recovery.max_size_per_sec`::
+    Deprecated since 0.90.1. See `max_bytes_per_sec` instead.
+
+[float]
+==== Store level throttling
+
+`indices.store.throttle.type`::
+      See <<index-modules-store>>
+
+`indices.store.throttle.max_bytes_per_sec`::
+      See <<index-modules-store>>
+
+[float]
+=== Logger
+
+Logger values can also be updated by setting `logger.` prefix. More
+settings will be allowed to be updated.

@@ -1,0 +1,16 @@
+[[analysis-charfilters]]
+== Character Filters
+
+Character filters are used to preprocess the string of 
+characters before it is passed to the <<analysis-tokenizers,tokenizer>>.
+A character filter may be used to strip out HTML markup, , or to convert
+`"&"` characters to the word `"and"`.    
+
+Elasticsearch has built in characters filters which can be
+used to build <<analysis-custom-analyzer,custom analyzers>>.
+
+include::charfilters/mapping-charfilter.asciidoc[]
+
+include::charfilters/htmlstrip-charfilter.asciidoc[]
+
+include::charfilters/pattern-replace-charfilter.asciidoc[]

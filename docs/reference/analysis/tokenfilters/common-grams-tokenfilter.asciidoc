@@ -1,0 +1,61 @@
+[[analysis-common-grams-tokenfilter]]
+=== Common Grams Token Filter
+
+Token filter that generates bigrams for frequently occuring terms.
+Single terms are still indexed. It can be used as an alternative to the
+<<analysis-stop-tokenfilter,Stop
+Token Filter>> when we don't want to completely ignore common terms.
+
+For example, the text "the quick brown is a fox" will be tokenized as
+"the", "the_quick", "quick", "brown", "brown_is", "is_a", "a_fox",
+"fox". Assuming "the", "is" and "a" are common words.
+
+When `query_mode` is enabled, the token filter removes common words and
+single terms followed by a common word. This parameter should be enabled
+in the search analyzer.
+
+For example, the query "the quick brown is a fox" will be tokenized as
+"the_quick", "quick", "brown_is", "is_a", "a_fox", "fox".
+
+The following are settings that can be set:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`common_words` |A list of common words to use.
+
+|`common_words_path` |A path (either relative to `config` location, or
+absolute) to a list of common words. Each word should be in its own
+"line" (separated by a line break). The file must be UTF-8 encoded.
+
+|`ignore_case` |If true, common words matching will be case insensitive
+(defaults to `false`).
+
+|`query_mode` |Generates bigrams then removes common words and single
+terms followed by a common word (defaults to `false`).
+|=======================================================================
+
+Note, `common_words` or `common_words_path` field is required.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+index :
+    analysis :
+        analyzer :
+            index_grams :
+                tokenizer : whitespace
+                filter : [common_grams]
+            search_grams :
+                tokenizer : whitespace
+                filter : [common_grams_query]
+        filter :
+            common_grams :
+                type : common_grams
+                common_words: [a, an, the]                
+            common_grams_query :
+                type : common_grams
+                query_mode: true
+                common_words: [a, an, the]                
+--------------------------------------------------

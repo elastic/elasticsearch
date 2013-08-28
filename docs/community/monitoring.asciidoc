@@ -1,0 +1,27 @@
+== Health and Performance Monitoring
+
+* https://github.com/lukas-vlcek/bigdesk[bigdesk]:
+  Live charts and statistics for elasticsearch cluster.
+
+* https://github.com/karmi/elasticsearch-paramedic[paramedic]:
+  Live charts with cluster stats and indices/shards information.
+
+* http://www.elastichq.org/[ElasticSearchHQ]:
+  Free cluster health monitoring tool
+
+* http://sematext.com/spm/index.html[SPM for ElasticSearch]:
+  Performance monitoring with live charts showing cluster and node stats, integrated
+  alerts, email reports, etc.
+
+* https://github.com/radu-gheorghe/check-es[check-es]:
+  Nagios/Shinken plugins for checking on elasticsearch
+
+* https://github.com/anchor/nagios-plugin-elasticsearch[check_elasticsearch]:
+  An ElasticSearch availability and performance monitoring plugin for
+  Nagios.
+
+* https://github.com/rbramley/Opsview-elasticsearch[opsview-elasticsearch]:
+  Opsview plugin written in Perl for monitoring ElasticSearch
+
+* https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy]:
+  Plugin to watch Lucene segment merges across your cluster

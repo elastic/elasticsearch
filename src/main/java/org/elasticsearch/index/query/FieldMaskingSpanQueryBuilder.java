@@ -34,6 +34,9 @@ public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements Sp
 
     private float boost = -1;
 
+    private String queryName;
+
+
     public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String field) {
         this.queryBuilder = queryBuilder;
         this.field = field;
@@ -41,6 +44,14 @@ public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements Sp
 
     public FieldMaskingSpanQueryBuilder boost(float boost) {
         this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FieldMaskingSpanQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
         return this;
     }
 
@@ -52,6 +63,9 @@ public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements Sp
         builder.field("field", field);
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

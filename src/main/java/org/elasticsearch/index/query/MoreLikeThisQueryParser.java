@@ -60,6 +60,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         Analyzer analyzer = null;
         List<String> moreLikeFields = null;
         boolean failOnUnsupportedField = true;
+        String queryName = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -92,6 +93,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     mltQuery.setBoost(parser.floatValue());
                 } else if ("fail_on_unsupported_field".equals(currentFieldName) || "failOnUnsupportedField".equals(currentFieldName)) {
                     failOnUnsupportedField = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -142,7 +145,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
             return null;
         }
         mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
-
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, mltQuery);
+        }
         return mltQuery;
     }
 }

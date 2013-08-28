@@ -55,6 +55,7 @@ public class DisMaxQueryParser implements QueryParser {
 
         List<Query> queries = newArrayList();
         boolean queriesFound = false;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -89,6 +90,8 @@ public class DisMaxQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
                     tieBreaker = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
@@ -105,6 +108,9 @@ public class DisMaxQueryParser implements QueryParser {
 
         DisjunctionMaxQuery query = new DisjunctionMaxQuery(queries, tieBreaker);
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

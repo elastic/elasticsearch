@@ -71,6 +71,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery = null;
 
+    private String queryName;
+
     /**
      * Constructs a new text query.
      */
@@ -213,6 +215,14 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public MultiMatchQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MultiMatchQueryParser.NAME);
@@ -283,6 +293,10 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
         if (zeroTermsQuery != null) {
             builder.field("zero_terms_query", zeroTermsQuery.toString());
+        }
+
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

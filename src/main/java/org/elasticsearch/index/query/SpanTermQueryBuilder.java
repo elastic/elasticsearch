@@ -34,6 +34,8 @@ public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryB
 
     private float boost = -1;
 
+    private String queryName;
+
     public SpanTermQueryBuilder(String name, String value) {
         this(name, (Object) value);
     }
@@ -64,15 +66,28 @@ public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public SpanTermQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SpanTermQueryParser.NAME);
-        if (boost == -1) {
+        if (boost == -1 && queryName != null) {
             builder.field(name, value);
         } else {
             builder.startObject(name);
             builder.field("value", value);
-            builder.field("boost", boost);
+            if (boost != -1) {
+                builder.field("boost", boost);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
+            }
             builder.endObject();
         }
         builder.endObject();

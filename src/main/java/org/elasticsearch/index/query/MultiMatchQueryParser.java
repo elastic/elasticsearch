@@ -60,6 +60,7 @@ public class MultiMatchQueryParser implements QueryParser {
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);
         String minimumShouldMatch = null;
         Map<String, Float> fieldNameWithBoosts = Maps.newHashMap();
+        String queryName = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -156,6 +157,8 @@ public class MultiMatchQueryParser implements QueryParser {
                     } else {
                         throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                     }
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                 }
@@ -176,6 +179,9 @@ public class MultiMatchQueryParser implements QueryParser {
         }
 
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

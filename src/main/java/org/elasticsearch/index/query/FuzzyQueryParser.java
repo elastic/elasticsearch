@@ -65,6 +65,7 @@ public class FuzzyQueryParser implements QueryParser {
         int prefixLength = FuzzyQuery.defaultPrefixLength;
         int maxExpansions = FuzzyQuery.defaultMaxExpansions;
         boolean transpositions = false;
+        String queryName = null;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -89,6 +90,8 @@ public class FuzzyQueryParser implements QueryParser {
                       transpositions = parser.booleanValue();
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = QueryParsers.parseRewriteMethod(parser.textOrNull(), null);
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[fuzzy] query does not support [" + currentFieldName + "]");
                     }
@@ -123,6 +126,10 @@ public class FuzzyQueryParser implements QueryParser {
         }
         query.setBoost(boost);
 
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

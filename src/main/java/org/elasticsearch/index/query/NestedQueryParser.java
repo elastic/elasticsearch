@@ -61,6 +61,7 @@ public class NestedQueryParser implements QueryParser {
         float boost = 1.0f;
         String path = null;
         ScoreMode scoreMode = ScoreMode.Avg;
+        String queryName = null;
 
         // we need a late binding filter so we can inject a parent nested filter inner nested queries
         LateBindingParentFilter currentParentFilterContext = parentFilterContext.get();
@@ -104,6 +105,8 @@ public class NestedQueryParser implements QueryParser {
                         } else {
                             throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]");
                         }
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[nested] query does not support [" + currentFieldName + "]");
                     }
@@ -154,6 +157,9 @@ public class NestedQueryParser implements QueryParser {
 
             ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, scoreMode);
             joinQuery.setBoost(boost);
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, joinQuery);
+            }
             return joinQuery;
         } finally {
             // restore the thread local one...

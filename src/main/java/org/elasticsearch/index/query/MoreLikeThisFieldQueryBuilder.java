@@ -43,6 +43,7 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
     private float boost = -1;
     private String analyzer;
     private Boolean failOnUnsupportedField;
+    private String queryName;
 
     /**
      * A more like this query that runs against a specific field.
@@ -164,6 +165,14 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public MoreLikeThisFieldQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MoreLikeThisFieldQueryParser.NAME);
@@ -211,6 +220,9 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
         }
         if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
         builder.endObject();

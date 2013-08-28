@@ -39,6 +39,8 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
     private float boost = -1;
 
+    private String queryName;
+
     /**
      * A query for a field based on several terms matching on any of them.
      *
@@ -156,6 +158,14 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public TermsQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsQueryParser.NAME);
@@ -173,6 +183,9 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         }
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

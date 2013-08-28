@@ -45,6 +45,8 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     
     private Boolean adjustPureNegative;
 
+    private String queryName;
+
     /**
      * Adds a query that <b>must</b> appear in the matching documents.
      */
@@ -133,6 +135,14 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public BoolQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
@@ -150,6 +160,9 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         }
         if (adjustPureNegative != null) {
             builder.field("adjust_pure_negative", adjustPureNegative);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

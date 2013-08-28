@@ -38,6 +38,8 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
 
     private String rewrite;
 
+    private String queryName;
+
     /**
      * A Query that matches documents containing terms with a specified prefix.
      *
@@ -63,10 +65,18 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public PrefixQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixQueryParser.NAME);
-        if (boost == -1 && rewrite == null) {
+        if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, prefix);
         } else {
             builder.startObject(name);
@@ -76,6 +86,9 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
             }
             if (rewrite != null) {
                 builder.field("rewrite", rewrite);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
             }
             builder.endObject();
         }

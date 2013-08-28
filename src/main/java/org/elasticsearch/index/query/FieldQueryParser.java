@@ -71,6 +71,7 @@ public class FieldQueryParser implements QueryParser {
         qpSettings.defaultField(fieldName);
         qpSettings.analyzeWildcard(defaultAnalyzeWildcard);
         qpSettings.allowLeadingWildcard(defaultAllowLeadingWildcard);
+        String queryName = null;
 
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -132,6 +133,8 @@ public class FieldQueryParser implements QueryParser {
                         qpSettings.minimumShouldMatch(parser.textOrNull());
                     } else if ("quote_field_suffix".equals(currentFieldName) || "quoteFieldSuffix".equals(currentFieldName)) {
                         qpSettings.quoteFieldSuffix(parser.textOrNull());
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[field] query does not support [" + currentFieldName + "]");
                     }
@@ -175,6 +178,9 @@ public class FieldQueryParser implements QueryParser {
                 Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }
             parseContext.indexCache().queryParserCache().put(qpSettings, query);
+            if (queryName != null) {
+                parseContext.addNamedQuery(queryName, query);
+            }
             return query;
         } catch (ParseException e) {
             throw new QueryParsingException(parseContext.index(), "Failed to parse query [" + qpSettings.queryString() + "]", e);

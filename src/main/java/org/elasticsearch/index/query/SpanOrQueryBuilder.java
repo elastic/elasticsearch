@@ -33,6 +33,8 @@ public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBui
 
     private float boost = -1;
 
+    private String queryName;
+
     public SpanOrQueryBuilder clause(SpanQueryBuilder clause) {
         clauses.add(clause);
         return this;
@@ -40,6 +42,14 @@ public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBui
 
     public SpanOrQueryBuilder boost(float boost) {
         this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public SpanOrQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
         return this;
     }
 
@@ -56,6 +66,9 @@ public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBui
         builder.endArray();
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

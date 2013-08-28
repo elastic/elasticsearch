@@ -36,6 +36,7 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
     private int flags = -1;
     private float boost = -1;
     private String rewrite;
+    private String queryName;
 
     /**
      * Constructs a new term query.
@@ -75,10 +76,18 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public RegexpQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RegexpQueryParser.NAME);
-        if (boost == -1 && rewrite == null) {
+        if (boost == -1 && rewrite == null && queryName != null) {
             builder.field(name, regexp);
         } else {
             builder.startObject(name);
@@ -91,6 +100,9 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
             }
             if (rewrite != null) {
                 builder.field("rewrite", rewrite);
+            }
+            if (queryName != null) {
+                builder.field("name", queryName);
             }
             builder.endObject();
         }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
@@ -71,6 +70,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         boolean ignoreTF = false;
         Analyzer analyzer = null;
         boolean failOnUnsupportedField = true;
+        String queryName = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -94,6 +94,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("fail_on_unsupported_field".equals(currentFieldName) || "failOnUnsupportedField".equals(currentFieldName)) {
                     failOnUnsupportedField = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
                 }
@@ -142,6 +144,9 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         query.setBoost(boost);
         query.setIgnoreTF(ignoreTF);
 
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

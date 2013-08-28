@@ -81,6 +81,7 @@ public class CommonTermsQueryParser implements QueryParser {
         Occur highFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
         Occur lowFreqOccur = DEFAULT_LOW_FREQ_OCCUR;
         float maxTermFrequency = DEFAULT_MAX_TERM_DOC_FREQ;
+        String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -141,6 +142,8 @@ public class CommonTermsQueryParser implements QueryParser {
                         lowFreqMinimumShouldMatch = parser.text();
                     } else if ("cutoff_frequency".equals(currentFieldName)) {
                         maxTermFrequency = parser.floatValue();
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
                     }
@@ -161,9 +164,13 @@ public class CommonTermsQueryParser implements QueryParser {
         if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
-        ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
-        query.setBoost(boost);
-        return parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
+        commonsQuery.setBoost(boost);
+        Query query = parseQueryString(commonsQuery, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 
 

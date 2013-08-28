@@ -38,6 +38,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private Integer shortCircuitCutoff;
 
+    private String queryName;
+
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
@@ -69,6 +71,14 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public HasChildQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildQueryParser.NAME);
@@ -83,6 +93,9 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
         if (shortCircuitCutoff != null) {
             builder.field("short_circuit_cutoff", shortCircuitCutoff);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

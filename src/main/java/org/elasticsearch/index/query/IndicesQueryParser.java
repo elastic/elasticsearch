@@ -60,6 +60,7 @@ public class IndicesQueryParser implements QueryParser {
         Query query = null;
         boolean queryFound = false;
         Set<String> indices = Sets.newHashSet();
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -98,6 +99,8 @@ public class IndicesQueryParser implements QueryParser {
                     } else if ("none".equals(type)) {
                         noMatchQuery = MatchNoDocsQuery.INSTANCE;
                     }
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
                 }
@@ -121,8 +124,14 @@ public class IndicesQueryParser implements QueryParser {
 
         for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, parseContext.index().name())) {
+                if (queryName != null) {
+                    parseContext.addNamedQuery(queryName, query);
+                }
                 return query;
             }
+        }
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, noMatchQuery);
         }
         return noMatchQuery;
     }

@@ -36,6 +36,8 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
     private String sNoMatchQuery;
     private QueryBuilder noMatchQuery;
 
+    private String queryName;
+
     public IndicesQueryBuilder(QueryBuilder queryBuilder, String... indices) {
         this.queryBuilder = queryBuilder;
         this.indices = indices;
@@ -57,6 +59,14 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public IndicesQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(IndicesQueryParser.NAME);
@@ -68,6 +78,9 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
             noMatchQuery.toXContent(builder, params);
         } else if (sNoMatchQuery != null) {
             builder.field("no_match_query", sNoMatchQuery);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

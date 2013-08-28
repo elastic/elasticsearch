@@ -34,6 +34,8 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     private float boost = -1;
 
+    private String queryName;
+
     public SpanNotQueryBuilder include(SpanQueryBuilder include) {
         this.include = include;
         return this;
@@ -46,6 +48,14 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     public SpanNotQueryBuilder boost(float boost) {
         this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public SpanNotQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
         return this;
     }
 
@@ -64,6 +74,9 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         exclude.toXContent(builder, params);
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

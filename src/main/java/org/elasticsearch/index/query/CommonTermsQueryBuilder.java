@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
@@ -65,6 +65,8 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
     private Boolean disableCoords = null;
 
     private Float cutoffFrequency = null;
+
+    private String queryName;
 
     /**
      * Constructs a new common terms query.
@@ -146,6 +148,14 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public CommonTermsQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(CommonTermsQueryParser.NAME);
@@ -179,6 +189,9 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
                 builder.field("high_freq", highFreqMinimumShouldMatch);
             }
             builder.endObject();
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

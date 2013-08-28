@@ -40,6 +40,8 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private int incrementalFactor = -1;
 
+    private String queryName;
+
     public TopChildrenQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
@@ -80,6 +82,14 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public TopChildrenQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TopChildrenQueryParser.NAME);
@@ -97,6 +107,9 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         if (incrementalFactor != -1) {
             builder.field("incremental_factor", incrementalFactor);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

@@ -71,6 +71,7 @@ public class GeoShapeQueryParser implements QueryParser {
         XContentParser.Token token;
         String currentFieldName = null;
         float boost = 1f;
+        String queryName = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -119,6 +120,8 @@ public class GeoShapeQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 }
             }
         }
@@ -148,6 +151,9 @@ public class GeoShapeQueryParser implements QueryParser {
         }
         Query query = strategy.makeQuery(getArgs(shape, shapeRelation));
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 

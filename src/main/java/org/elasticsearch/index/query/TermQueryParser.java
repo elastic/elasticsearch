@@ -57,6 +57,7 @@ public class TermQueryParser implements QueryParser {
         }
         String fieldName = parser.currentName();
 
+        String queryName = null;
         Object value = null;
         float boost = 1.0f;
         token = parser.nextToken();
@@ -72,6 +73,8 @@ public class TermQueryParser implements QueryParser {
                         value = parser.objectBytes();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[term] query does not support [" + currentFieldName + "]");
                     }
@@ -106,6 +109,10 @@ public class TermQueryParser implements QueryParser {
             query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        query = wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

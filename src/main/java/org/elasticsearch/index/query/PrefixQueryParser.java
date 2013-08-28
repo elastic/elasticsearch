@@ -59,6 +59,7 @@ public class PrefixQueryParser implements QueryParser {
         }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
+        String queryName = null;
 
         Object value = null;
         float boost = 1.0f;
@@ -77,6 +78,8 @@ public class PrefixQueryParser implements QueryParser {
                         boost = parser.floatValue();
                     } else if ("rewrite".equals(currentFieldName)) {
                         rewriteMethod = parser.textOrNull();
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[prefix] query does not support [" + currentFieldName + "]");
@@ -116,6 +119,10 @@ public class PrefixQueryParser implements QueryParser {
             query = prefixQuery;
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return  query;
     }
 }

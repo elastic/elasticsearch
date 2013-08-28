@@ -52,6 +52,7 @@ public class SpanOrQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
+        String queryName = null;
 
         List<SpanQuery> clauses = newArrayList();
 
@@ -75,6 +76,8 @@ public class SpanOrQueryParser implements QueryParser {
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
                 }
@@ -86,6 +89,9 @@ public class SpanOrQueryParser implements QueryParser {
 
         SpanOrQuery query = new SpanOrQuery(clauses.toArray(new SpanQuery[clauses.size()]));
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

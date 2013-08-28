@@ -45,6 +45,8 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     private String indexedShapeIndex;
     private String indexedShapeFieldName;
 
+    private String queryName;
+
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the
      * given field name using the given Shape
@@ -118,6 +120,14 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public GeoShapeQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoShapeQueryParser.NAME);
@@ -147,6 +157,9 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

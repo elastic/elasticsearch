@@ -39,6 +39,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
     private Boolean ignoreTF;
     private String analyzer;
     private Boolean failOnUnsupportedField;
+    private String queryName;
 
     /**
      * A fuzzy more like this query on the provided field.
@@ -98,6 +99,14 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FuzzyLikeThisFieldQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyLikeThisFieldQueryParser.NAME);
@@ -126,6 +135,9 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         }
         if (failOnUnsupportedField != null) {
             builder.field("fail_on_unsupported_field", failOnUnsupportedField);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
         builder.endObject();

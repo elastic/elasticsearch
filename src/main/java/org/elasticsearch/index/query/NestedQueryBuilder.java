@@ -34,6 +34,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
 
     private float boost = 1.0f;
 
+    private String queryName;
+
     public NestedQueryBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
         this.queryBuilder = queryBuilder;
@@ -63,6 +65,14 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public NestedQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NestedQueryParser.NAME);
@@ -79,6 +89,9 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

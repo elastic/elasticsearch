@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -119,13 +120,9 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> indexing threads stopped");
 
         logger.info("--> refreshing the index");
-        refreshAndAssert();
+        refreshAndAssert(10);
         logger.info("--> verifying indexed content");
-        for (int i = 0; i < 10; i++) {
-            CountResponse actionGet = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertNoFailures(actionGet);
-            assertThat("iteration: " + i + " failed", actionGet.getCount(), equalTo(indexCounter.get()));
-        }
+        iterateAssertCount(5, indexCounter.get(), 10);
     }
 
     @Test
@@ -197,13 +194,9 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> indexing threads stopped");
 
         logger.info("--> refreshing the index");
-        refreshAndAssert();
+        refreshAndAssert(10);
         logger.info("--> verifying indexed content");
-        for (int i = 0; i < 10; i++) {
-            CountResponse actionGet = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertNoFailures(actionGet);
-            assertThat("iteration: " + i + " failed", actionGet.getCount(), equalTo(indexCounter.get()));
-        }
+        iterateAssertCount(5, indexCounter.get(), 10);
     }
 
     @Test
@@ -292,21 +285,45 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForNodes(">=1").execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("--> refreshing the index");
-        refreshAndAssert();
+        refreshAndAssert(10);
         logger.info("--> verifying indexed content");
-        for (int i = 0; i < 10; i++) {
-            CountResponse actionGet = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+        iterateAssertCount(5, indexCounter.get(), 10);
+
+    }
+
+    private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, int iterations) {
+
+        CountResponse[] iterationResults = new CountResponse[iterations];
+
+        for (int i = 0; i < iterations; i++) {
+            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            iterationResults[i] = countResponse;
+            logger.info("iteration [{}] - successful shards: {} (expected {})", i, countResponse.getSuccessfulShards(), numberOfShards);
+            logger.info("iteration [{}] - failed shards: {} (expected 0)", i, countResponse.getFailedShards());
+            if (countResponse.getShardFailures() != null && countResponse.getShardFailures().length > 1) {
+                logger.info("iteration [{}] - shard failures: {}", i, Arrays.toString(countResponse.getShardFailures()));
+            }
+            logger.info("iteration [{}] - returned documents: {} (expected {})", i, countResponse.getCount(), numberOfDocs);
+        }
+
+        for (int i = 0; i < iterations; i++) {
+            CountResponse actionGet = iterationResults[i];
+            fail();
             assertNoFailures(actionGet);
-            assertThat("iteration: " + i + " failed", actionGet.getCount(), equalTo(indexCounter.get()));
+            //checking that we are not missing any shard
+            assertThat(actionGet.getSuccessfulShards(), equalTo(numberOfShards));
+            //if it fails here it means that some shard is missing documents (not refreshed?)
+            assertThat("iteration: " + i + " failed", actionGet.getCount(), equalTo(numberOfDocs));
         }
     }
-    
-    private void refreshAndAssert() throws InterruptedException {
+
+    private void refreshAndAssert(final int numberOfShards) throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 try {
                     RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
                     assertNoFailures(actionGet);
+                    assertThat(actionGet.getSuccessfulShards(), equalTo(numberOfShards));
                     return actionGet.getTotalShards() == actionGet.getSuccessfulShards();
                 } catch (Throwable e) {
                     throw new RuntimeException(e);

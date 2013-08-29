@@ -18,6 +18,7 @@ docs/build.log
 ## will correctly set the classpath based on the declared dependencies.
 .project
 .classpath
+eclipse-build
 */.project
 */.classpath
 */eclipse-build

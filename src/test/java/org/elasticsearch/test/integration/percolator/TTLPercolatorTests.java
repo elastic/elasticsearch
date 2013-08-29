@@ -62,6 +62,11 @@ public class TTLPercolatorTests extends AbstractNodesTests {
                 .endObject()
         ).setRefresh(true).setTTL(ttl).execute().actionGet();
 
+        IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+                .clear().setIndexing(true)
+                .execute().actionGet();
+        assertThat(response.getIndices().get("test").getTotal().getIndexing().getTotal().getIndexCount(), equalTo(2l));
+
         PercolateResponse percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder()
@@ -76,7 +81,7 @@ public class TTLPercolatorTests extends AbstractNodesTests {
             // OK, ttl + purgeInterval has passed (slow machine or many other tests were running at the same time
             GetResponse getResponse = client.prepareGet("test", "_percolator", "kuku").execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(false));
-            IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+            response = client.admin().indices().prepareStats("test")
                     .clear().setIndexing(true)
                     .execute().actionGet();
             long currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
@@ -95,7 +100,7 @@ public class TTLPercolatorTests extends AbstractNodesTests {
         logger.info("Checking if the ttl purger has run");
         long currentDeleteCount;
         do {
-            IndicesStatsResponse response = client.admin().indices().prepareStats("test")
+            response = client.admin().indices().prepareStats("test")
                     .clear().setIndexing(true)
                     .execute().actionGet();
             // This returns the number of delete operations stats (not Lucene delete count)

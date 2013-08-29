@@ -104,7 +104,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             try {
                 responseItem.response = percolatorService.percolate(item.request);
             } catch (Throwable e) {
-                logger.trace("[{}][{}] failed to multi percolate", e, request.index(), request.shardId());
+                logger.debug("[{}][{}] failed to multi percolate", e, request.index(), request.shardId());
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw new ElasticSearchException("", e);
                 } else {

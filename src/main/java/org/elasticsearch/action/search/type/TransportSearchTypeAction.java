@@ -265,7 +265,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 }
                 if (successulOps.get() == 0) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("All shards failied for phase: [{}]", firstPhaseName(), t);
+                        logger.debug("All shards failed for phase: [{}]", firstPhaseName(), t);
                     }
                     // no successful ops, raise an exception
                     listener.onFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", buildShardFailures()));

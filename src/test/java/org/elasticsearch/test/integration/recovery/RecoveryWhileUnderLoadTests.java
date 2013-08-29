@@ -308,7 +308,6 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
 
         for (int i = 0; i < iterations; i++) {
             CountResponse actionGet = iterationResults[i];
-            fail();
             assertNoFailures(actionGet);
             //checking that we are not missing any shard
             assertThat(actionGet.getSuccessfulShards(), equalTo(numberOfShards));

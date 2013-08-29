@@ -201,14 +201,11 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                                 shardResults.set(shardId.id(), item.response());
                             }
 
-                            assert expectedOperationsPerItem[item.slot()].get() >= 1;
+                            assert expectedOperationsPerItem[item.slot()].get() >= 1 : "slot[" + item.slot() + "] can't be lower than one";
                             if (expectedOperationsPerItem[item.slot()].decrementAndGet() == 0) {
-                                try {
-                                    reduce(item.slot(), percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
-                                } catch (Throwable t) {
-                                    // Don't let any failure bubble up, otherwise expectedOperationsPerItem will be decremented twice
-                                    listener.onFailure(t);
-                                }
+                                // Failure won't bubble up, since we fail the whole request now via the catch clause below,
+                                // so expectedOperationsPerItem will not be decremented twice.
+                                reduce(item.slot(), percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
                             }
                         }
                     } catch (Throwable e) {
@@ -231,13 +228,13 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                             }
 
                             shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, e));
-                            assert expectedOperationsPerItem[slot].get() >= 1 : "Caused by: " + e.getMessage();
+                            assert expectedOperationsPerItem[slot].get() >= 1 : "slot[" + slot + "] can't be lower than one. Caused by: " + e.getMessage();
                             if (expectedOperationsPerItem[slot].decrementAndGet() == 0) {
                                 reduce(slot, percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
                             }
                         }
                     } catch (Throwable t) {
-                        logger.error("{} Percolate original reduce error", e, shardId);
+                        logger.error("{} Percolate original reduce error, original error {}", t, shardId, e);
                         listener.onFailure(t);
                     }
                 }

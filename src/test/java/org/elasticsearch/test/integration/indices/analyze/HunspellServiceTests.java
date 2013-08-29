@@ -43,11 +43,11 @@ public class HunspellServiceTests extends AbstractNodesTests {
     public void closeNodes() {
         closeAllNodes();
     }
-
+    
     @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("indices.analysis.hunspell.dictionary.lazy", true)
                 .put("indices.analysis.hunspell.dictionary.ignore_case", true)
                 .build();
@@ -64,7 +64,7 @@ public class HunspellServiceTests extends AbstractNodesTests {
     @Test
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("indices.analysis.hunspell.dictionary.lazy", true)
                 .put("indices.analysis.hunspell.dictionary.ignore_case", true)
                 .put("indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing", false)
@@ -90,7 +90,7 @@ public class HunspellServiceTests extends AbstractNodesTests {
     @Test
     public void testCustomizeLocaleDirectory() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("indices.analysis.hunspell.dictionary.location", getClass().getResource("/indices/analyze/conf_dir/hunspell").getFile())
+                .put("indices.analysis.hunspell.dictionary.location", getResource("/indices/analyze/conf_dir/hunspell"))
                 .build();
 
         Node node = startNode("node1", settings);

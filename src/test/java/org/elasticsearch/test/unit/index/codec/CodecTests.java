@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
 import org.apache.lucene.codecs.lucene40.Lucene40Codec;
 import org.apache.lucene.codecs.lucene41.Lucene41Codec;
-import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
 import org.apache.lucene.codecs.memory.DirectPostingsFormat;
 import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
@@ -46,15 +45,21 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.test.integration.ElasticsearchLuceneTestCase;
+import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
-public class CodecTests {
+public class CodecTests extends ElasticsearchLuceneTestCase {
+    
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        forceDefaultCodec(); // we test against default codec so never get a random one here!
+    }
 
     @Test
     public void testResolveDefaultCodecs() throws Exception {
@@ -72,7 +77,7 @@ public class CodecTests {
         assertThat(postingsFormatService.get("default").get(), instanceOf(ElasticSearch090PostingsFormat.class));
 
         // Should fail when upgrading Lucene with codec changes
-        assertThat(((ElasticSearch090PostingsFormat)postingsFormatService.get("default").get()).getDefaultWrapped(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));
+        assertThat(((ElasticSearch090PostingsFormat)postingsFormatService.get("default").get()).getDefaultWrapped(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField("").getClass()));
         assertThat(postingsFormatService.get("Lucene41"), instanceOf(PreBuiltPostingsFormatProvider.class));
         // Should fail when upgrading Lucene with codec changes
         assertThat(postingsFormatService.get("Lucene41").get(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));

@@ -24,22 +24,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HunspellTokenFilterFactoryTests {
-
+public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
 
     @Test
     public void testDedup() throws IOException {
         Settings settings = settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.locale", "en_US")
                 .build();
@@ -51,7 +50,7 @@ public class HunspellTokenFilterFactoryTests {
         assertThat(hunspellTokenFilter.dedup(), is(true));
 
         settings = settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.dedup", false)
                 .put("index.analysis.filter.en_US.locale", "en_US")
@@ -67,7 +66,7 @@ public class HunspellTokenFilterFactoryTests {
     @Test
     public void testDefaultRecursionLevel() throws IOException {
         Settings settings = settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.locale", "en_US")
                 .build();
@@ -82,7 +81,7 @@ public class HunspellTokenFilterFactoryTests {
     @Test
     public void testCustomRecursionLevel() throws IOException {
         Settings settings = settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.recursion_level", 0)
                 .put("index.analysis.filter.en_US.locale", "en_US")
@@ -98,7 +97,7 @@ public class HunspellTokenFilterFactoryTests {
     @Test(expected = ProvisionException.class)
     public void negativeRecursionLevelShouldFail() throws IOException {
         Settings settings = settingsBuilder()
-                .put("path.conf", getClass().getResource("/indices/analyze/conf_dir").getFile())
+                .put("path.conf", getResource("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.recursion_level", -1)
                 .put("index.analysis.filter.en_US.locale", "en_US")

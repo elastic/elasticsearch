@@ -28,6 +28,8 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.io.File;
+import java.net.URI;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -67,6 +69,18 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     
     public static String randomNumericType(Random random) {
         return numericTypes[random.nextInt(numericTypes.length)];
+    }
+    
+    /**
+     * Returns a {@link File} pointing to the class path relative resource given
+     * as the first argument. In contrast to
+     * <code>getClass().getResource(...).getFile()</code> this method will not
+     * return URL encoded paths if the parent path contains spaces or other
+     * non-standard characters.
+     */
+    public File getResource(String relativePath) {
+        URI uri = URI.create(getClass().getResource(relativePath).toString());
+        return new File(uri);
     }
 
   }

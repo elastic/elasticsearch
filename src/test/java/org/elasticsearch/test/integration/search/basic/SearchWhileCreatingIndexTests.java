@@ -64,6 +64,12 @@ public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
     }
 
     private void searchWhileCreatingIndex(int numberOfShards, int numberOfReplicas) throws Exception {
+
+        // make sure we have enough nodes to guaranty default QUORUM consistency.
+        // TODO: add a smarter choice based on actual consistency (when that is randomized)
+        int shardsNo = numberOfReplicas + 1;
+        int neededNodes = shardsNo <= 2 ? 1 : shardsNo / 2 + 1;
+        cluster().ensureAtLeastNumNodes(randomIntBetween(neededNodes, shardsNo));
         for (int i = 0; i < 20; i++) {
             logger.info("running iteration {}", i);
             if (numberOfShards > 0) {

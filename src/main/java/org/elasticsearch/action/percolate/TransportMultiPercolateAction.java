@@ -137,15 +137,13 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
     private void multiPercolate(MultiPercolateRequest multiPercolateRequest, final AtomicReferenceArray<Object> percolateRequests,
                                 final ActionListener<MultiPercolateResponse> listener, ClusterState clusterState) {
 
-        final AtomicInteger[] expectedOperationsPerItem = new AtomicInteger[percolateRequests.length()];
+        final AtomicReferenceArray<AtomicInteger> expectedOperationsPerItem = new AtomicReferenceArray<AtomicInteger>(percolateRequests.length());
         final AtomicReferenceArray<AtomicReferenceArray> responsesByItemAndShard = new AtomicReferenceArray<AtomicReferenceArray>(multiPercolateRequest.requests().size());
         final AtomicArray<Object> reducedResponses = new AtomicArray<Object>(percolateRequests.length());
 
-        // Keep track what slots belong to what shard, in case a request to a shard fails on all copies
-        final ConcurrentMap<ShardId, AtomicIntegerArray> shardToSlots = ConcurrentCollections.newConcurrentMap();
-
         // Resolving concrete indices and routing and grouping the requests by shard
         Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard = new HashMap<ShardId, TransportShardMultiPercolateAction.Request>();
+        // Keep track what slots belong to what shard, in case a request to a shard fails on all copies
         Map<ShardId, TIntArrayList> shardToSlotsBuilder = new HashMap<ShardId, TIntArrayList>();
         int expectedResults = 0;
         for (int i = 0;  i < percolateRequests.length(); i++) {
@@ -161,7 +159,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                 );
 
                 responsesByItemAndShard.set(i, new AtomicReferenceArray(shards.size()));
-                expectedOperationsPerItem[i] = new AtomicInteger(shards.size());
+                expectedOperationsPerItem.set(i, new AtomicInteger(shards.size()));
                 for (ShardIterator shard : shards) {
                     ShardId shardId = shard.shardId();
                     TransportShardMultiPercolateAction.Request requests = requestsByShard.get(shardId);
@@ -180,7 +178,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
             } else if (element instanceof Throwable) {
                 reducedResponses.set(i, element);
                 responsesByItemAndShard.set(i, new AtomicReferenceArray(0));
-                expectedOperationsPerItem[i] = new AtomicInteger(0);
+                expectedOperationsPerItem.set(i, new AtomicInteger(0));
             }
         }
 
@@ -189,6 +187,8 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
             return;
         }
 
+        // Move slot to shard tracking from normal map to concurrent save map
+        final ConcurrentMap<ShardId, AtomicIntegerArray> shardToSlots = ConcurrentCollections.newConcurrentMap();
         for (Map.Entry<ShardId, TIntArrayList> entry : shardToSlotsBuilder.entrySet()) {
             shardToSlots.put(entry.getKey(), new AtomicIntegerArray(entry.getValue().toArray()));
         }
@@ -215,8 +215,8 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                                 shardResults.set(shardId.id(), item.response());
                             }
 
-                            assert expectedOperationsPerItem[item.slot()].get() >= 1 : "slot[" + item.slot() + "] can't be lower than one";
-                            if (expectedOperationsPerItem[item.slot()].decrementAndGet() == 0) {
+                            assert expectedOperationsPerItem.get(item.slot()).get() >= 1 : "slot[" + item.slot() + "] can't be lower than one";
+                            if (expectedOperationsPerItem.get(item.slot()).decrementAndGet() == 0) {
                                 // Failure won't bubble up, since we fail the whole request now via the catch clause below,
                                 // so expectedOperationsPerItem will not be decremented twice.
                                 reduce(item.slot(), percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
@@ -242,8 +242,8 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                             }
 
                             shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, e));
-                            assert expectedOperationsPerItem[slot].get() >= 1 : "slot[" + slot + "] can't be lower than one. Caused by: " + e.getMessage();
-                            if (expectedOperationsPerItem[slot].decrementAndGet() == 0) {
+                            assert expectedOperationsPerItem.get(slot).get() >= 1 : "slot[" + slot + "] can't be lower than one. Caused by: " + e.getMessage();
+                            if (expectedOperationsPerItem.get(slot).decrementAndGet() == 0) {
                                 reduce(slot, percolateRequests, expectedOperations, reducedResponses, listener, responsesByItemAndShard);
                             }
                         }

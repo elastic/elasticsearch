@@ -31,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -100,8 +101,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         PercolateResponse percolate = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc")
-                .field("field1", "value1")
-                .endObject().endObject())
+                        .field("field1", "value1")
+                        .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
@@ -120,8 +121,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         percolate = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc")
-                .field("field1", "value1")
-                .endObject().endObject())
+                        .field("field1", "value1")
+                        .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
@@ -153,8 +154,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         PercolateResponse percolate = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc")
-                .field("field1", "value1")
-                .endObject().endObject())
+                        .field("field1", "value1")
+                        .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
@@ -184,8 +185,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         percolate = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc")
-                .field("field1", "value1")
-                .endObject().endObject())
+                        .field("field1", "value1")
+                        .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), emptyArray());
 
@@ -203,8 +204,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         percolate = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder().startObject().startObject("doc")
-                .field("field1", "value1")
-                .endObject().endObject())
+                        .field("field1", "value1")
+                        .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
@@ -370,7 +371,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                             for (MultiPercolateResponse.Item item : response) {
                                 assertThat(item.isFailure(), equalTo(false));
                                 assertNoFailures(item.getResponse());
-                                assertThat(item.getResponse().getSuccessfulShards(), equalTo(2));
+                                assertThat(item.getResponse().getSuccessfulShards(), equalTo(item.getResponse().getTotalShards()));
                                 assertThat(item.getResponse().getCount(), equalTo((long) numQueries));
                                 assertThat(item.getResponse().getMatches().length, equalTo(numQueries));
                             }
@@ -390,7 +391,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                                         .execute().actionGet();
                             }
                             assertNoFailures(response);
-                            assertThat(response.getSuccessfulShards(), equalTo(2));
+                            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                             assertThat(response.getCount(), equalTo((long) numQueries));
                             assertThat(response.getMatches().length, equalTo(numQueries));
                         }
@@ -407,33 +408,38 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         new Thread(r).start();
 
         try {
+            // 1 index, 2 primaries, 2 replicas per primary
             for (int i = 0; i < 4; i++) {
                 closeNode("node3");
-                client.admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
+                        .setTimeout(TimeValue.timeValueMinutes(2))
                         .setWaitForYellowStatus()
-                        .setWaitForNodes("2")
+                        .setWaitForActiveShards(4) // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
                 closeNode("node2");
-                client.admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
+                        .setTimeout(TimeValue.timeValueMinutes(2))
                         .setWaitForYellowStatus()
-                        .setWaitForNodes("1")
+                        .setWaitForActiveShards(2) // 1 node, so 2 shards (2 primaries, 0 replicas)
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
                 startNode("node3");
-                client.admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
+                        .setTimeout(TimeValue.timeValueMinutes(2))
                         .setWaitForYellowStatus()
-                        .setWaitForNodes("2")
+                        .setWaitForActiveShards(4)  // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
                 startNode("node2");
-                client.admin().cluster().prepareHealth()
+                client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
-                        .setWaitForYellowStatus()
-                        .setWaitForNodes("3")
+                        .setTimeout(TimeValue.timeValueMinutes(2))
+                        .setWaitForGreenStatus() // We're confirm the shard settings, so green instead of yellow
+                        .setWaitForActiveShards(6) // 3 nodes, so 6 shards (2 primaries, 4 replicas)
                         .execute().actionGet();
                 assertThat(error.get(), nullValue());
             }

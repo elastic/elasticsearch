@@ -704,6 +704,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         }
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("No eligable node found to assign shard [{}] decision [{}]", shard, decision.type());
+                        }
                     } else if (logger.isTraceEnabled()) {
                         logger.trace("No Node found to assign shard [{}]", shard);
                     }
@@ -727,6 +730,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         private boolean tryRelocateShard(Operation operation, ModelNode minNode, ModelNode maxNode, String idx, float minCost) {
             final ModelIndex index = maxNode.getIndex(idx);
+            Decision decision = null;
             if (index != null) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Try relocating shard for index index [{}] from node [{}] to node [{}]", idx, maxNode.getNodeId(),
@@ -734,7 +738,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
                 final RoutingNode node = allocation.routingNodes().node(minNode.getNodeId());
                 MutableShardRouting candidate = null;
-                Decision decision = null;
                 final AllocationDeciders deciders = allocation.deciders();
                 /* make a copy since we modify this list in the loop */
                 final ArrayList<MutableShardRouting> shards = new ArrayList<MutableShardRouting>(index.getAllShards());
@@ -789,8 +792,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("Couldn't find shard to relocate from node [{}] to node [{}]", maxNode.getNodeId(),
-                        minNode.getNodeId());
+                logger.trace("Couldn't find shard to relocate from node [{}] to node [{}] allocation decision [{}]", maxNode.getNodeId(),
+                        minNode.getNodeId(), decision == null ? "NO" : decision.type().name());
             }
             return false;
         }

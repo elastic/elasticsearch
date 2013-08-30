@@ -48,22 +48,40 @@ import static org.junit.Assert.fail;
  *
  */
 public class ElasticsearchAssertions {
-    
-    
+
+
     public static void assertAcked(DeleteIndexRequestBuilder builder) {
         assertAcked(builder.get());
     }
-    
+
     public static void assertAcked(CreateIndexRequestBuilder builder) {
         assertAcked(builder.get());
     }
-    
+
     public static void assertAcked(DeleteIndexResponse response) {
         assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
     }
-    
+
     public static void assertAcked(CreateIndexResponse response) {
         assertThat("Create Index failed - not acked", response.isAcknowledged(), equalTo(true));
+    }
+
+    public static String formatShardStatus(BroadcastOperationResponse response) {
+        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() +
+                " & " + response.getFailedShards() + " shard failures:";
+        for (ShardOperationFailedException failure : response.getShardFailures()) {
+            msg += "\n " + failure.toString();
+        }
+        return msg;
+    }
+
+    public static String formatShardStatus(SearchResponse response) {
+        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() +
+                " & " + response.getFailedShards() + " shard failures:";
+        for (ShardSearchFailure failure : response.getShardFailures()) {
+            msg += "\n " + failure.toString();
+        }
+        return msg;
     }
 
     /*
@@ -71,33 +89,25 @@ public class ElasticsearchAssertions {
      */
     public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
         if (searchResponse.getHits().totalHits() != expectedHitCount) {
-            String msg = "Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " +
-                    searchResponse.getFailedShards() + " shard failures:";
-            for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-                msg += "\n " + failure.toString();
-            }
-            fail(msg);
+            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(searchResponse));
         }
     }
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
-        assertThat("Expected different hit count", searchResponse.getHits().hits().length, equalTo(ids.length));
+        String shardStatus = formatShardStatus(searchResponse);
+        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
 
         Set<String> idsSet = new HashSet<String>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat("Expected id: " + hit.getId() + " in the result but wasn't", idsSet.remove(hit.getId()), equalTo(true));
+            assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()), equalTo(true));
         }
-        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs", idsSet.size(), equalTo(0));
+        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs." + shardStatus, idsSet.size(), equalTo(0));
     }
 
     public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
         if (countResponse.getCount() != expectedHitCount) {
-            String msg = "Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " +
-                    countResponse.getFailedShards() + " shard failures:";
-            for (ShardOperationFailedException failure : countResponse.getShardFailures()) {
-                msg += "\n " + failure.toString();
-            }
-            fail(msg);
+            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " +
+                    formatShardStatus(countResponse));
         }
     }
 

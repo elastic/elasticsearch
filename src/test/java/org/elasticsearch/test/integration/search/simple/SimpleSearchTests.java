@@ -32,8 +32,8 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleSearchTests extends AbstractSharedClusterTest {
 
@@ -53,23 +53,24 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
 
         }
     }
-    
+
     @Test
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1,3))).get();
-        indexRandom("test", true, 
-        client().prepareIndex("test", "type", "1").setSource("field", "value"),
-        client().prepareIndex("test", "type", "2").setSource("field", "value"),
-        client().prepareIndex("test", "type", "3").setSource("field", "value"),
-        client().prepareIndex("test", "type", "4").setSource("field", "value"),
-        client().prepareIndex("test", "type", "5").setSource("field", "value"),
-        client().prepareIndex("test", "type", "6").setSource("field", "value"));
-        
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1, 3))).get();
+        indexRandom("test", true,
+                client().prepareIndex("test", "type", "1").setSource("field", "value"),
+                client().prepareIndex("test", "type", "2").setSource("field", "value"),
+                client().prepareIndex("test", "type", "3").setSource("field", "value"),
+                client().prepareIndex("test", "type", "4").setSource("field", "value"),
+                client().prepareIndex("test", "type", "5").setSource("field", "value"),
+                client().prepareIndex("test", "type", "6").setSource("field", "value"));
+
         int iters = atLeast(10);
         for (int i = 0; i < iters; i++) {
             // id is not indexed, but lets see that we automatically convert to
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomUnicodeOfLengthBetween(0, 4)).get();
-            assertThat(searchResponse.getHits().totalHits(), equalTo(6l));
+            assertHitCount(searchResponse, 6l);
+
         }
     }
 
@@ -90,7 +91,7 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
                 .setQuery(boolQuery().must(rangeQuery("from").lt("192.168.0.7")).must(rangeQuery("to").gt("192.168.0.7")))
                 .execute().actionGet();
 
-        assertThat(search.getHits().totalHits(), equalTo(1l));
+        assertHitCount(search, 1l);
     }
 
     @Test
@@ -100,17 +101,17 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
         // id is not indexed, but lets see that we automatically convert to
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX1")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
 
         // id is not index, but we can automatically support prefix as well
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
     }
 
     @Test
@@ -122,9 +123,9 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
 
         // test include upper on ranges to include the full day on the upper bound
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2l);
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
     }
 
     @Test
@@ -137,9 +138,9 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         // test include upper on ranges to include the full day on the upper bound (disabled here though...)
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
     }
 
     @Test
@@ -151,10 +152,10 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2l);
 
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2l);
     }
 
     @Test
@@ -184,12 +185,14 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
             SearchResponse searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
                     .execute().actionGet();
-            assertThat(searchResponse.getHits().totalHits(), equalTo(10l));
+            assertHitCount(searchResponse, 10l);
+
 
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
                     .execute().actionGet();
-            assertThat(searchResponse.getHits().totalHits(), equalTo(20l));
+            assertHitCount(searchResponse, 20l);
+
         }
     }
 }

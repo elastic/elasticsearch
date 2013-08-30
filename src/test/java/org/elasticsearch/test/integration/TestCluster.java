@@ -47,14 +47,15 @@ import java.io.Closeable;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 public class TestCluster {
-    
+
     /* some random options to consider
      *  "action.auto_create_index"
      *  "node.local"
@@ -64,23 +65,24 @@ public class TestCluster {
     private Map<String, NodeAndClient> nodes = newHashMap();
 
     private final String clusterName;
-    
+
     private final AtomicBoolean open = new AtomicBoolean(true);
-    
-    
+
 
     private final Settings defaultSettings;
 
-    
+
     private NodeAndClient clientNode;
 
     private Random random;
     private ClientFactory clientFactory;
 
+    private AtomicInteger nextNodeId = new AtomicInteger(0);
+
 
     public TestCluster(Random random) {
-        
-        this(random, "shared-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "CHILD_VM=[" + ElasticsearchTestCase.CHILD_VM_ID + "]"+ "_" + System.currentTimeMillis(), ImmutableSettings.settingsBuilder().build());
+
+        this(random, "shared-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "CHILD_VM=[" + ElasticsearchTestCase.CHILD_VM_ID + "]" + "_" + System.currentTimeMillis(), ImmutableSettings.settingsBuilder().build());
     }
 
     private TestCluster(Random random, String clusterName, Settings defaultSettings) {
@@ -117,6 +119,7 @@ public class TestCluster {
     public void ensureAtLeastNumNodes(int num) {
         int size = nodes.size();
         for (int i = size; i < num; i++) {
+            logger.info("increasing cluster size from {} to {}", size, num);
             buildNode().start();
         }
     }
@@ -126,8 +129,9 @@ public class TestCluster {
             return;
         }
         Collection<NodeAndClient> values = nodes.values();
-        Iterator<NodeAndClient> limit = Iterators.limit(values.iterator(),  nodes.size() - num);
-        while(limit.hasNext()) {
+        Iterator<NodeAndClient> limit = Iterators.limit(values.iterator(), nodes.size() - num);
+        logger.info("reducing cluster size from {} to {}", nodes.size() - num, num);
+        while (limit.hasNext()) {
             NodeAndClient next = limit.next();
             limit.remove();
             next.close();
@@ -156,7 +160,7 @@ public class TestCluster {
 
     public Node buildNode(Settings settings) {
         ensureOpen();
-        String name = UUID.randomUUID().toString();
+        String name = "node_" + nextNodeId.getAndIncrement();
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
         Settings finalSettings = settingsBuilder().loadFromClasspath(settingsSource).put(defaultSettings).put(settings).put("name", name)
                 .build();
@@ -272,7 +276,7 @@ public class TestCluster {
 
     public static class RandomClientFactory extends ClientFactory {
         private final Random random;
-        
+
         public RandomClientFactory(Random random) {
             this.random = random;
         }
@@ -280,12 +284,12 @@ public class TestCluster {
         @Override
         public Client client(Node node, String clusterName) {
             switch (random.nextInt(10)) {
-            case 5:
-                return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName);
-            case 3:
-                return TransportClientFactory.SNIFF_CLIENT_FACTORY.client(node, clusterName);
-            default:
-                return node.client();
+                case 5:
+                    return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName);
+                case 3:
+                    return TransportClientFactory.SNIFF_CLIENT_FACTORY.client(node, clusterName);
+                default:
+                    return node.client();
             }
         }
     }
@@ -346,7 +350,7 @@ public class TestCluster {
         };
 
     }
-    
+
     public Set<String> allButN(int numNodes) {
         return nRandomNodes(numNodes() - numNodes);
     }
@@ -366,28 +370,28 @@ public class TestCluster {
             Node node = nodeBuilder().settings(finalSettings).build();
             node.start();
             this.clientNode = new NodeAndClient(name, node, clientFactory);
-            
+
         }
         return clientNode.client();
     }
 
     public Set<String> nodesInclude(String index) {
         if (clusterService().state().routingTable().hasIndex(index)) {
-        List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
-        DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-        Set<String> nodes = new HashSet<String>();
-        for (ShardRouting shardRouting : allShards) {
-            if (shardRouting.assignedToNode()) {
-                DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                nodes.add(discoveryNode.getName());
+            List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
+            DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
+            Set<String> nodes = new HashSet<String>();
+            for (ShardRouting shardRouting : allShards) {
+                if (shardRouting.assignedToNode()) {
+                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
+                    nodes.add(discoveryNode.getName());
+                }
             }
+            return nodes;
         }
-        return nodes;
-        } 
         return Collections.emptySet();
     }
-    
-    
+
+
     public Set<String> nodeExclude(String index) {
         final Set<String> nodesInclude = nodesInclude(index);
         return Sets.newHashSet(Iterators.transform(Iterators.filter(nodes.values().iterator(), new Predicate<NodeAndClient>() {
@@ -395,7 +399,7 @@ public class TestCluster {
             public boolean apply(NodeAndClient nodeAndClient) {
                 return !nodesInclude.contains(nodeAndClient.name);
             }
-            
+
         }), new Function<NodeAndClient, String>() {
             @Override
             public String apply(NodeAndClient nodeAndClient) {

@@ -157,8 +157,8 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
         int shards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size();
         assertThat(shards, equalTo(totalNumShards));
         final int numNodes = clusterState.nodes().size();
-        final int upperBound = (int) Math.round(((shards / numNodes) * 1.05));
-        final int lowerBound = (int) Math.round(((shards / numNodes) * 0.05));
+        final int upperBound = (int) Math.round(((shards / numNodes) * 1.10));
+        final int lowerBound = (int) Math.round(((shards / numNodes) * 0.90));
         for (int i = 0; i < nodeIdCounter; i++) {
             if (clusterState.getRoutingNodes().node("NODE_" + i) == null) {
                 continue;

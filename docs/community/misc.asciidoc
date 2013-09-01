@@ -1,3 +1,4 @@
+[[misc]]
 == Misc
 
 * https://github.com/electrical/puppet-elasticsearch[Puppet]:

@@ -1,3 +1,4 @@
+[[front-ends]]
 == Front Ends
 
 * https://chrome.google.com/webstore/detail/sense/doinijnbnggojdlcjifpdckfokbbfpbo[Sense]:

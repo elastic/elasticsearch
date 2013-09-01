@@ -1,3 +1,4 @@
+[[health]]
 == Health and Performance Monitoring
 
 * https://github.com/lukas-vlcek/bigdesk[bigdesk]:

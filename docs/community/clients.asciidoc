@@ -1,3 +1,4 @@
+[[clients]]
 == Clients
 
 [float]

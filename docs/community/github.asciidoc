@@ -1,3 +1,4 @@
+[[github]]
 == GitHub
 
 GitHub is a place where a lot of development is done around

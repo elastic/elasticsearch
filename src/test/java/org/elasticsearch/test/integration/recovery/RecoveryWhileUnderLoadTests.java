@@ -293,24 +293,41 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
     }
 
     private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, int iterations) {
-
         CountResponse[] iterationResults = new CountResponse[iterations];
-
+        boolean error = false;
         for (int i = 0; i < iterations; i++) {
             CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            logCountResponse(numberOfShards, numberOfDocs, i, countResponse);
             iterationResults[i] = countResponse;
-            logger.info("iteration [{}] - successful shards: {} (expected {})", i, countResponse.getSuccessfulShards(), numberOfShards);
-            logger.info("iteration [{}] - failed shards: {} (expected 0)", i, countResponse.getFailedShards());
-            if (countResponse.getShardFailures() != null && countResponse.getShardFailures().length > 0) {
-                logger.info("iteration [{}] - shard failures: {}", i, Arrays.toString(countResponse.getShardFailures()));
+            if (countResponse.getCount() != numberOfDocs) {
+                error = true;
             }
-            logger.info("iteration [{}] - returned documents: {} (expected {})", i, countResponse.getCount(), numberOfDocs);
         }
 
-        for (int i = 0; i < iterations; i++) {
-            CountResponse countResponse = iterationResults[i];
-            assertHitCount(countResponse, numberOfDocs);
+        //if there was an error we try to refresh again and run another iteration
+        //we want to find out if we had a refresh problem or if we are missing documents on a shard
+        if (error) {
+            logger.info("--> refreshing again");
+            refresh();
+            for (int i = 0; i < iterations; i++) {
+                CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+                logCountResponse(numberOfShards, numberOfDocs, i, countResponse);
+            }
         }
+
+        //lets now make the test fail if it was supposed to fail
+        for (int i = 0; i < iterations; i++) {
+            assertHitCount(iterationResults[i], numberOfDocs);
+        }
+    }
+
+    private void logCountResponse(int numberOfShards, long numberOfDocs, int iteration, CountResponse countResponse) {
+        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration, countResponse.getSuccessfulShards(), numberOfShards);
+        logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, countResponse.getFailedShards());
+        if (countResponse.getShardFailures() != null && countResponse.getShardFailures().length > 0) {
+            logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(countResponse.getShardFailures()));
+        }
+        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, countResponse.getCount(), numberOfDocs);
     }
 
     private void refreshAndAssert(final int numberOfShards) throws InterruptedException {

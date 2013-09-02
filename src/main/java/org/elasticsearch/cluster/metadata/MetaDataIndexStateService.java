@@ -96,14 +96,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(index));
                     }
-                    IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
-                    for (IndexShardRoutingTable shard : indexRoutingTable) {
-                        if (!shard.primaryAllocatedPostApi()) {
-                            throw new IndexPrimaryShardNotAllocatedException(new Index(index));
-                        }
-                    }
 
                     if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
+                        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
+                        for (IndexShardRoutingTable shard : indexRoutingTable) {
+                            if (!shard.primaryAllocatedPostApi()) {
+                                throw new IndexPrimaryShardNotAllocatedException(new Index(index));
+                            }
+                        }
                         indicesToClose.add(index);
                     }
                 }

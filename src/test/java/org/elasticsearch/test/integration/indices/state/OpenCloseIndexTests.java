@@ -227,9 +227,9 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsClosed("test1");
 
         //no problem if we try to close an index that's already in close state
-        OpenIndexResponse openIndexResponse1 = client.admin().indices().prepareOpen("test1").execute().actionGet();
-        assertThat(openIndexResponse1.isAcknowledged(), equalTo(true));
-        assertIndexIsOpened("test1");
+        closeIndexResponse = client.admin().indices().prepareClose("test1").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsClosed("test1");
     }
 
     @Test

@@ -19,7 +19,6 @@
 package org.elasticsearch.test.unit.index.mapper.completion;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -64,6 +63,8 @@ public class CompletionFieldMapperTests {
                 .field("payloads", true)
                 .field("preserve_separators", false)
                 .field("preserve_position_increments", true)
+                .field("max_input_len", 14)
+
                 .endObject().endObject()
                 .endObject().endObject().string();
 
@@ -83,6 +84,7 @@ public class CompletionFieldMapperTests {
         assertThat(Boolean.valueOf(configMap.get("payloads").toString()), is(true));
         assertThat(Boolean.valueOf(configMap.get("preserve_separators").toString()), is(false));
         assertThat(Boolean.valueOf(configMap.get("preserve_position_increments").toString()), is(true));
+        assertThat(Integer.valueOf(configMap.get("max_input_len").toString()), is(14));
     }
 
     @Test

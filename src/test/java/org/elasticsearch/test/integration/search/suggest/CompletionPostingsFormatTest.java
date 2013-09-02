@@ -91,7 +91,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         LookupFactory load = provider.load(input);
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
-        Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true), new CompletionSuggestionContext(null));
+        Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE), new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
         assertThat(result.get(0).key.toString(), equalTo("Generator - Foo Fighters"));
         assertThat(result.get(0).payload.utf8ToString(), equalTo("id:10"));
@@ -176,7 +176,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
         final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
-                preserveSeparators, preservePositionIncrements);
+                preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE);
         Lookup buildAnalyzingLookup = buildAnalyzingLookup(mapper, titles, titles, weights);
         Field field = buildAnalyzingLookup.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
         field.setAccessible(true);
@@ -265,7 +265,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         LookupFactory load = provider.load(input);
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new ElasticSearch090PostingsFormat());
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
-        assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true), new CompletionSuggestionContext(null)));
+        assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE), new CompletionSuggestionContext(null)));
         dir.close();
     }
 

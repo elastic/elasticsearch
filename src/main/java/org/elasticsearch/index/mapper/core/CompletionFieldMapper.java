@@ -31,16 +31,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.CompletionPostingsFormatProvider;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +60,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         public static final boolean DEFAULT_PRESERVE_SEPARATORS = true;
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
         public static final boolean DEFAULT_HAS_PAYLOADS = false;
+        public static final int DEFAULT_MAX_INPUT_LENGTH = 50;
     }
 
     public static class Fields {
@@ -72,6 +71,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         public static final String PRESERVE_POSITION_INCREMENTS = "preserve_position_increments";
         public static final String PAYLOADS = "payloads";
         public static final String TYPE = "type";
+        public static final String MAX_INPUT_LENGTH = "max_input_len";
     }
 
     public static class Builder extends AbstractFieldMapper.OpenBuilder<Builder, CompletionFieldMapper> {
@@ -81,6 +81,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean payloads = Defaults.DEFAULT_HAS_PAYLOADS;
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
+        private int maxInputLength = Defaults.DEFAULT_MAX_INPUT_LENGTH;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -110,10 +111,19 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             this.preservePositionIncrements = preservePositionIncrements;
             return this;
         }
+        
+        public Builder maxInputLength(int maxInputLength) {
+            if (maxInputLength <= 0) {
+                throw new ElasticSearchIllegalArgumentException(Fields.MAX_INPUT_LENGTH + " must be > 0 but was [" + maxInputLength + "]");
+            }
+            this.maxInputLength = maxInputLength;
+            return this;
+        }
 
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
-            return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, provider, similarity, payloads, preserveSeparators, preservePositionIncrements);
+            return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, provider, similarity, payloads,
+                    preserveSeparators, preservePositionIncrements, maxInputLength);
         }
     }
 
@@ -129,18 +139,23 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     continue;
                 }
                 if (fieldName.equals("analyzer")) {
-                    builder.indexAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
-                    builder.searchAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
+                    NamedAnalyzer analyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
+                    builder.indexAnalyzer(analyzer);
+                    builder.searchAnalyzer(analyzer);
                 } else if (fieldName.equals(Fields.INDEX_ANALYZER) || fieldName.equals("indexAnalyzer")) {
-                    builder.indexAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
+                    builder.indexAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
                 } else if (fieldName.equals(Fields.SEARCH_ANALYZER) || fieldName.equals("searchAnalyzer")) {
-                    builder.searchAnalyzer(parserContext.analysisService().analyzer(fieldNode.toString()));
+                    builder.searchAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
                 } else if (fieldName.equals(Fields.PAYLOADS)) {
                     builder.payloads(Boolean.parseBoolean(fieldNode.toString()));
                 } else if (fieldName.equals(Fields.PRESERVE_SEPARATORS) || fieldName.equals("preserveSeparators")) {
                     builder.preserveSeparators(Boolean.parseBoolean(fieldNode.toString()));
                 } else if (fieldName.equals(Fields.PRESERVE_POSITION_INCREMENTS) || fieldName.equals("preservePositionIncrements")) {
                     builder.preservePositionIncrements(Boolean.parseBoolean(fieldNode.toString()));
+                } else if (fieldName.equals(Fields.MAX_INPUT_LENGTH) || fieldName.equals("maxInputLen")) {
+                    builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
+                } else {
+                    throw new MapperParsingException("Unknown field [" + fieldName + "]");
                 }
             }
 
@@ -155,6 +170,14 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             builder.postingsFormat(parserContext.postingFormatService().get("default"));
             return builder;
         }
+
+        private NamedAnalyzer getNamedAnalyzer(ParserContext parserContext, String name) {
+            NamedAnalyzer analyzer = parserContext.analysisService().analyzer(name);
+            if (analyzer == null) {
+                throw new ElasticSearchIllegalArgumentException("Can't find default or mapped analyzer with name [" + name +"]");
+            }
+            return analyzer;
+        }
     }
 
     private static final BytesRef EMPTY = new BytesRef();
@@ -164,15 +187,17 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     private final boolean payloads;
     private final boolean preservePositionIncrements;
     private final boolean preserveSeparators;
+    private int maxInputLength;
 
     public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider provider, SimilarityProvider similarity, boolean payloads,
-                                 boolean preserveSeparators, boolean preservePositionIncrements) {
+                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength) {
         super(names, 1.0f, Defaults.FIELD_TYPE, indexAnalyzer, searchAnalyzer, provider, similarity, null);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
         this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", provider, analyzingSuggestLookupProvider);
         this.preserveSeparators = preserveSeparators;
         this.payloads = payloads;
         this.preservePositionIncrements = preservePositionIncrements;
+        this.maxInputLength = maxInputLength;
     }
 
 
@@ -251,7 +276,19 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     public Field getCompletionField(String input, BytesRef payload) {
+        if (input.length() > maxInputLength) {
+            final int len = correctSubStringLen(input, Math.min(maxInputLength, input.length()));
+            input = input.substring(0, len);    
+        }
         return new SuggestField(names().fullName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
+    }
+    
+    public static int correctSubStringLen(String input, int len) {
+        if (Character.isHighSurrogate(input.charAt(len-1))) {
+            assert input.length() >= len+1  && Character.isLowSurrogate(input.charAt(len));
+            return len + 1;
+        }
+        return len;
     }
 
     public BytesRef buildPayload(BytesRef surfaceForm, long weight, BytesRef payload) throws IOException {
@@ -262,6 +299,12 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     private static final class SuggestField extends Field {
         private final BytesRef payload;
         private final CompletionTokenStream.ToFiniteStrings toFiniteStrings;
+        
+        public SuggestField(String name, Reader value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
+            super(name, value, type);
+            this.payload = payload;
+            this.toFiniteStrings = toFiniteStrings;
+        }
 
         public SuggestField(String name, String value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
             super(name, value, type);
@@ -287,12 +330,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             builder.field(Fields.INDEX_ANALYZER, indexAnalyzer.name())
                     .field(Fields.SEARCH_ANALYZER, searchAnalyzer.name());
         }
-        builder.field(Fields.PAYLOADS, this.payloads)
-                .field(Fields.PRESERVE_SEPARATORS, this.preserveSeparators)
-                .field(Fields.PRESERVE_POSITION_INCREMENTS, this.preservePositionIncrements)
-                .endObject();
-
-        return builder;
+        builder.field(Fields.PAYLOADS, this.payloads);
+        builder.field(Fields.PRESERVE_SEPARATORS, this.preserveSeparators);
+        builder.field(Fields.PRESERVE_POSITION_INCREMENTS, this.preservePositionIncrements);
+        builder.field(Fields.MAX_INPUT_LENGTH, this.maxInputLength);    
+        return builder.endObject();
     }
 
     @Override
@@ -327,5 +369,23 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     public boolean isStoringPayloads() {
         return payloads;
+    }
+    
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
+        if (payloads != fieldMergeWith.payloads) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different payload values");
+        }
+        if (preservePositionIncrements != fieldMergeWith.preservePositionIncrements) { 
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'preserve_position_increments' values");
+        }
+        if (preserveSeparators != fieldMergeWith.preserveSeparators) {    
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'preserve_separators' values");
+        }
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.maxInputLength = fieldMergeWith.maxInputLength;
+        }
     }
 }

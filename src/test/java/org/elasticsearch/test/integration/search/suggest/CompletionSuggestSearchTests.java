@@ -32,11 +32,13 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -716,5 +718,61 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 assertThat(1, equalTo(shardSegments.getSegments().size()));
             }
         }
+    }
+    
+    @Test
+    public void testMaxFieldLength() throws IOException {
+        client().admin().indices().prepareCreate(INDEX).get();
+        int iters = atLeast(10);
+        for (int i = 0; i < iters; i++) {
+            int len = between(3, 50);
+            String str = randomRealisticUnicodeOfCodepointLengthBetween(len+1, atLeast(len + 2));
+            ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                    .startObject(TYPE).startObject("properties")
+                    .startObject(FIELD)
+                    .field("type", "completion")
+                    .field("max_input_len", len)
+                    // upgrade mapping each time
+                    .field("analyzer", "keyword")
+                    .endObject()
+                    .endObject().endObject()
+                    .endObject()));
+            ensureYellow();
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .startArray("input").value(str).endArray()
+                    .field("output", "foobar")
+                    .endObject().endObject()
+            ).setRefresh(true).get();
+            int prefixLen = CompletionFieldMapper.correctSubStringLen(str, between(1, len - 1));
+            assertSuggestions(str.substring(0, prefixLen), "foobar");
+            if (len + 1 < str.length()) {
+                assertSuggestions(str.substring(0, CompletionFieldMapper.correctSubStringLen(str,
+                        len + (Character.isHighSurrogate(str.charAt(len-1)) ? 2 : 1))));
+            }
+        }        
+    }
+    
+    @Test
+    // see #3596
+    public void testVeryLongInput()  throws IOException {
+        client().admin().indices().prepareCreate(INDEX).get();
+        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .endObject()
+                .endObject().endObject()
+                .endObject()));
+        ensureYellow();
+        // can cause stack overflow without the default max_input_len
+        String longString = randomRealisticUnicodeOfLength(atLeast(5000));
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value(longString).endArray()
+                .field("output", "foobar")
+                .endObject().endObject()
+        ).setRefresh(true).get();
+        
     }
 }

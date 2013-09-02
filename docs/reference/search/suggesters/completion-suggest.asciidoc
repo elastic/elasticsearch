@@ -65,7 +65,7 @@ Mapping supports the following parameters:
 `payloads`:: 
     Enables the storing of payloads, defaults to `false`
 
-`preserve_separators`: 
+`preserve_separators`::
     Preserves the separators, defaults to `true`.
     If disabled, you could find a field starting with `Foo Fighters`, if you
     suggest for `foof`.
@@ -78,6 +78,14 @@ Mapping supports the following parameters:
     `The Beatles`, no need to change a simple analyzer, if you are able to
     enrich your data.
 
+`max_input_len`::
+    Limits the length of a single input, defaults to `50` UTF-16 code points.
+    This limit is only used at index time to reduce the total number of
+    characters per input string in order to prevent massive inputs from
+    bloating the underlying datastructure. The most usecases won't be influenced
+    by the default value since prefix completions hardly grow beyond prefixes longer
+    than a handful of characters.
+    
 ==== Indexing
 
 [source,js]

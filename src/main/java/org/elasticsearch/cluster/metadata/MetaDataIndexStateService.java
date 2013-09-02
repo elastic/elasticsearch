@@ -42,11 +42,10 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
 
-
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 
 /**
@@ -87,6 +86,10 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 IndexMetaData indexMetaData = currentState.metaData().index(request.index);
                 if (indexMetaData == null) {
                     throw new IndexMissingException(new Index(request.index));
+                }
+
+                if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                    return currentState;
                 }
 
                 IndexRoutingTable indexRoutingTable = currentState.routingTable().index(request.index);
@@ -148,7 +151,6 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-
                 IndexMetaData indexMetaData = currentState.metaData().index(request.index);
                 if (indexMetaData == null) {
                     throw new IndexMissingException(new Index(request.index));
@@ -179,7 +181,6 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 waitForOtherNodes(newClusterState, listener, request.timeout);
 
                 return newClusterState;
-
             }
 
             @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.indices.IndexMissingException;
@@ -124,10 +123,10 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsClosed("test1");
 
-        //no problem if we try to close an index that's already in close state
-        OpenIndexResponse openIndexResponse1 = client.admin().indices().prepareOpen("test1").execute().actionGet();
-        assertThat(openIndexResponse1.isAcknowledged(), equalTo(true));
-        assertIndexIsOpened("test1");
+        //no problem if we try to close an index that's already in closed state
+        closeIndexResponse = client.admin().indices().prepareClose("test1").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsClosed("test1");
     }
 
     @Test

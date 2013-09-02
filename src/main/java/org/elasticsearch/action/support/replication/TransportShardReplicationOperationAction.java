@@ -386,7 +386,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     continue;
                 }
                 if (!shard.active() || !clusterState.nodes().nodeExists(shard.currentNodeId())) {
-                    logger.debug("primary shard [{}] is not yet active or we do not know that node it is assigned to [{}]. Scheduling a retry.", shard.shardId(), shard.currentNodeId());
+                    logger.debug("primary shard [{}] is not yet active or we do not know the node it is assigned to [{}]. Scheduling a retry.", shard.shardId(), shard.currentNodeId());
                     retry(fromClusterEvent, null);
                     return false;
                 }

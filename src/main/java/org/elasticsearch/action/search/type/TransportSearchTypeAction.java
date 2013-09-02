@@ -231,6 +231,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         void onFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result, ShardIterator shardIt) {
             result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
             processFirstPhaseResult(shardIndex, shard, result);
+
             // increment all the "future" shards to update the total ops since we some may work and some may not...
             // and when that happens, we break on total ops, so we must maintain them
             int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
@@ -387,6 +388,17 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         final void innerMoveToSecondPhase() throws Exception {
+            if (logger.isDebugEnabled()) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < firstResults.length(); i++) {
+                    SearchShardTarget shard = firstResults.get(i).shardTarget();
+                    if (i > 0) {
+                        sb.append(",");
+                    }
+                    sb.append(shard);
+                }
+                logger.debug("Moving to second phase, based on results from: {}", sb);
+            }
             moveToSecondPhase();
         }
 

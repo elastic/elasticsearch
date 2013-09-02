@@ -257,10 +257,11 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
         @Override
         public void onAliasesUpdated(NodeAliasesUpdatedAction.NodeAliasesUpdatedResponse response) {
             if (version <= response.version()) {
-                logger.trace("Received NodeAliasesUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
+                logger.debug("Received NodeAliasesUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
                 if (countDown.decrementAndGet() == 0) {
                     aliasOperationPerformedAction.remove(this);
                     if (notified.compareAndSet(false, true)) {
+                        logger.debug("NodeAliasUpdated was acknowledged by all expected nodes, returning");
                         listener.onResponse(new Response(true));
                     }
                 }

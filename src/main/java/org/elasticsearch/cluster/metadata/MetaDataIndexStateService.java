@@ -258,10 +258,11 @@ public class MetaDataIndexStateService extends AbstractComponent {
         @Override
         public void onIndexStateUpdated(NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse response) {
             if (version <= response.version()) {
-                logger.trace("Received NodeIndexStateUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
+                logger.debug("Received NodeIndexStateUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
                 if (countDown.decrementAndGet() == 0) {
                     indicesStateUpdatedAction.remove(this);
                     if (notified.compareAndSet(false, true)) {
+                        logger.debug("NodeIndexStateUpdated was acknowledged by all expected nodes, returning");
                         listener.onResponse(new Response(true));
                     }
                 }

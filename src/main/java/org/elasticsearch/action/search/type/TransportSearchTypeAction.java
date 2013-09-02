@@ -390,13 +390,20 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         final void innerMoveToSecondPhase() throws Exception {
             if (logger.isDebugEnabled()) {
                 StringBuilder sb = new StringBuilder();
+                boolean hadOne = false;
                 for (int i = 0; i < firstResults.length(); i++) {
-                    SearchShardTarget shard = firstResults.get(i).shardTarget();
-                    if (i > 0) {
-                        sb.append(",");
+                    FirstResult result = firstResults.get(i);
+                    if (result == null) {
+                        continue; // failure
                     }
-                    sb.append(shard);
+                    if (hadOne) {
+                        sb.append(",");
+                    } else {
+                        hadOne = true;
+                    }
+                    sb.append(result.shardTarget());
                 }
+
                 logger.debug("Moving to second phase, based on results from: {}", sb);
             }
             moveToSecondPhase();

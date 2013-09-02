@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -300,19 +301,15 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
             iterationResults[i] = countResponse;
             logger.info("iteration [{}] - successful shards: {} (expected {})", i, countResponse.getSuccessfulShards(), numberOfShards);
             logger.info("iteration [{}] - failed shards: {} (expected 0)", i, countResponse.getFailedShards());
-            if (countResponse.getShardFailures() != null && countResponse.getShardFailures().length > 1) {
+            if (countResponse.getShardFailures() != null && countResponse.getShardFailures().length > 0) {
                 logger.info("iteration [{}] - shard failures: {}", i, Arrays.toString(countResponse.getShardFailures()));
             }
             logger.info("iteration [{}] - returned documents: {} (expected {})", i, countResponse.getCount(), numberOfDocs);
         }
 
         for (int i = 0; i < iterations; i++) {
-            CountResponse actionGet = iterationResults[i];
-            assertNoFailures(actionGet);
-            //checking that we are not missing any shard
-            assertThat(actionGet.getSuccessfulShards(), equalTo(numberOfShards));
-            //if it fails here it means that some shard is missing documents (not refreshed?)
-            assertThat("iteration: " + i + " failed", actionGet.getCount(), equalTo(numberOfDocs));
+            CountResponse countResponse = iterationResults[i];
+            assertHitCount(countResponse, numberOfDocs);
         }
     }
 

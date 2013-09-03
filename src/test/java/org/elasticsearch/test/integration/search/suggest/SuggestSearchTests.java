@@ -20,26 +20,25 @@
 package org.elasticsearch.test.integration.search.suggest;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Resources;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.ImmutableSettings.Builder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -49,330 +48,200 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionSize;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
+ * Integration tests for term and phrase suggestions.  Many of these tests many requests that vary only slightly from one another.  Where
+ * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
+ * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
 public class SuggestSearchTests extends AbstractSharedClusterTest {
-    
     @Test // see #3037
     public void testSuggestModes() throws IOException {
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
-        builder.put("index.analysis.analyzer.biword.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase");
-        builder.put("index.analysis.filter.shingler.type", "shingle");
-        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
-        builder.put("index.analysis.filter.shingler.max_shingle_size", 3);
-        
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-        .startObject("properties")
-        .startObject("name")
-            .field("type", "multi_field")
-            .field("path", "just_name")
-            .startObject("fields")
-                .startObject("name")
-                    .field("type", "string")
-                .endObject()
-                .startObject("name_shingled")
-                    .field("type", "string")
-                    .field("index_analyzer", "biword")
-                    .field("search_analyzer", "standard")
-                .endObject()
-            .endObject()
-        .endObject()
-        .endObject()
-        .endObject().endObject();
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like iced tea").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1")
-        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like tea.").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1")
-        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like ice cream.").endObject()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        Suggest searchSuggest = searchSuggest(
-                client(),
-                "ice tea",
-                phraseSuggestion("did_you_mean").field("name_shingled")
-                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
-                        .gramSize(3));
-        ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
-        searchSuggest = searchSuggest(
-                client(),
-                "ice tea",
-                phraseSuggestion("did_you_mean").field("name_shingled")
-                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).maxEdits(2))
-                        .gramSize(3));
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.analyzer.biword.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
+                .put("index.analysis.filter.shingler.type", "shingle")
+                .put("index.analysis.filter.shingler.min_shingle_size", 2)
+                .put("index.analysis.filter.shingler.max_shingle_size", 3));
+        addMapping(builder, "type1", new Object[] {"name",
+                "type", "multi_field",
+                "path", "just_name",
+                "fields", ImmutableMap.of(
+                        "name", ImmutableMap.of("type", "string"),
+                        "name_shingled", ImmutableMap.of(
+                                "type", "string",
+                                "index_analyzer", "biword",
+                                "search_analyzer", "standard"))});
+        builder.get();
+        ensureGreen();
+
+        index("test", "type1", "1", "name", "I like iced tea");
+        index("test", "type1", "2", "name", "I like tea.");
+        index("test", "type1", "3", "name", "I like ice cream.");
+        refresh();
+
+        DirectCandidateGenerator generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2);
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name_shingled")
+                .addCandidateGenerator(generator)
+                .gramSize(3);
+        Suggest searchSuggest = searchSuggest(client(), "ice tea", phraseSuggestion);
+        assertSuggestion(searchSuggest, 0, "did_you_mean", "iced tea");
+
+        generator.suggestMode(null);
+        searchSuggest = searchSuggest(client(), "ice tea", phraseSuggestion);
         assertSuggestionSize(searchSuggest, 0, 0, "did_you_mean");
     }
     
     @Test // see #2729
     public void testSizeOneShard() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test", "type1")
-            .setSource(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("text", "abc" + i)
-                    .endObject()
-            )
-            .execute().actionGet();
-        }
-        
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        
-        SearchResponse _search = client().prepareSearch()
-        .setQuery(matchQuery("text", "spellchecker")).execute().actionGet();
-        assertThat("didn't ask for suggestions but got some", _search.getSuggest(), nullValue());
-        
-        Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
-                                .text("abcd")
-                                .field("text").size(10));
-        
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
-        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(10));
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 1,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
 
+        for (int i = 0; i < 15; i++) {
+            index("test", "type1", Integer.toString(i), "text", "abc" + i);
+        }
+        refresh();
+
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellchecker")).get();
+        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
         
-        suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
-                        .text("abcd")
-                        .field("text").size(10).shardSize(5));
-        
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
-        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(5));
+        TermSuggestionBuilder termSuggestion = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("abcd")
+                .field("text")
+                .size(10);
+        Suggest suggest = searchSuggest(client(), termSuggestion);
+        assertSuggestion(suggest, 0, "test", 10, "abc0");
+
+        termSuggestion.text("abcd").shardSize(5);
+        suggest = searchSuggest(client(), termSuggestion);
+        assertSuggestion(suggest, 0, "test", 5, "abc0");
     }
     
     @Test
     public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
-        int numShards = between(1,5);
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", numShards).put("index.number_of_replicas", between(0, numberOfNodes() - 1));
-        builder.put("index.analysis.analyzer.biword.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase");
-        builder.put("index.analysis.filter.shingler.type", "shingle");
-        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
-        builder.put("index.analysis.filter.shingler.max_shingle_size", 3);
-        
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-        .startObject("properties")
-        .startObject("name")
-            .field("type", "multi_field")
-            .field("path", "just_name")
-            .startObject("fields")
-                .startObject("name")
-                    .field("type", "string")
-                .endObject()
-                .startObject("name_shingled")
-                    .field("type", "string")
-                    .field("index_analyzer", "biword")
-                    .field("search_analyzer", "standard")
-                .endObject()
-            .endObject()
-        .endObject()
-        .endObject()
-        .endObject().endObject();
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, between(1,5))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, numberOfNodes() - 1))
+                .put("index.analysis.analyzer.biword.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
+                .put("index.analysis.filter.shingler.type", "shingle")
+                .put("index.analysis.filter.shingler.min_shingle_size", 2)
+                .put("index.analysis.filter.shingler.max_shingle_size", 3));
+        addMapping(builder, "type1", new Object[] {"name",
+                "type", "multi_field",
+                "path", "just_name",
+                "fields", ImmutableMap.of(
+                        "name", ImmutableMap.of("type", "string"),
+                        "name_shingled", ImmutableMap.of(
+                                "type", "string",
+                                "index_analyzer", "biword",
+                                "search_analyzer", "standard"))});
+        builder.get();
+        ensureGreen();
+
         indexRandom("test", true,
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like iced tea").endObject()),
-        client().prepareIndex("test", "type1")
-        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like tea.").endObject()),
-        client().prepareIndex("test", "type1")
-        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like ice cream.").endObject()));
-        Suggest searchSuggest = searchSuggest(client(),
-                "ice tea",
-                phraseSuggestion("did_you_mean").field("name_shingled")
-                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
-                        .gramSize(3));
-        ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
+        client().prepareIndex("test", "type1").setSource("name", "I like iced tea"),
+        client().prepareIndex("test", "type1").setSource("name", "I like tea."),
+        client().prepareIndex("test", "type1").setSource("name", "I like ice cream."));
+        refresh();
+
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name_shingled")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                .gramSize(3);
+        Suggest searchSuggest = searchSuggest(client(), "ice tea", phraseSuggestion);
+        assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
+
+        phraseSuggestion.field("nosuchField");
         {
             SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
             suggestBuilder.setSuggestText("tetsting sugestion");
-            suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("nosuchField")
-                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
-                    .gramSize(3));
+            suggestBuilder.addSuggestion(phraseSuggestion);
             assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
         }
         {
             SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
             suggestBuilder.setSuggestText("tetsting sugestion");
-            suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("nosuchField")
-                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
-                    .gramSize(3));
+            suggestBuilder.addSuggestion(phraseSuggestion);
             assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
         }
     }
 
     @Test
     public void testSimple() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 5)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 1,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
 
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("text", "abcd")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("text", "aacd")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("text", "abbd")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("text", "abcc")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        index("test", "type1", "1", "text", "abcd");
+        index("test", "type1", "2", "text", "aacd");
+        index("test", "type1", "3", "text", "abbd");
+        index("test", "type1", "4", "text", "abcc");
+        refresh();
         
-        SearchResponse _search = client().prepareSearch()
-        .setQuery(matchQuery("text", "spellcecker")).execute().actionGet();
-        assertThat("didn't ask for suggestions but got some", _search.getSuggest(), nullValue());
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellcecker")).get();
+        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
         
-        Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
-                                .text("abcd")
-                                .field("text"));
-
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
-        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        TermSuggestionBuilder termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("abcd")
+                .field("text");
+        Suggest suggest = searchSuggest(client(), termSuggest);
+        assertSuggestion(suggest, 0, "test", "aacd", "abbd", "abcc");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("aacd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
 
-        suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
-                                .text("abcd")
-                                .field("text"));
-
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
-        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("aacd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
+        suggest = searchSuggest(client(), termSuggest);
+        assertSuggestion(suggest, 0, "test", "aacd","abbd", "abcc");
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
     }
 
     @Test
     public void testEmpty() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 5)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type1", "1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 5,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
 
-        Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
-                                .text("abcd")
-                                .field("text"));
+        index("test", "type1", "1", "foo", "bar");
+        refresh();
 
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
-        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        TermSuggestionBuilder termSuggest = termSuggestion("test")
+                .suggestMode("always") // Always, otherwise the results can vary between requests.
+                .text("abcd")
+                .field("text");
+        Suggest suggest = searchSuggest(client(), termSuggest);
+        assertSuggestionSize(suggest, 0, 0, "test");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
 
-        searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
-                                .text("abcd")
-                                .field("text"));
-
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
-        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
+        suggest = searchSuggest(client(), termSuggest);
+        assertSuggestionSize(suggest, 0, 0, "test");
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
     }
 
     @Test
     public void testWithMultipleCommands() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 5)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 5,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
 
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field1", "prefix_abcd")
-                        .field("field2", "prefix_efgh")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field1", "prefix_aacd")
-                        .field("field2", "prefix_eeeh")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field1", "prefix_abbd")
-                        .field("field2", "prefix_efff")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field1", "prefix_abcc")
-                        .field("field2", "prefix_eggg")
-                        .endObject()
-                )
-                .execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        index("test", "typ1", "1", "field1", "prefix_abcd", "field2", "prefix_efgh");
+        index("test", "typ1", "2", "field1", "prefix_aacd", "field2", "prefix_eeeh");
+        index("test", "typ1", "3", "field1", "prefix_abbd", "field2", "prefix_efff");
+        index("test", "typ1", "4", "field1", "prefix_abcc", "field2", "prefix_eggg");
+        refresh();
 
-        Suggest suggest = searchSuggest(client(), termSuggestion("size1")
+        Suggest suggest = searchSuggest(client(),
+                termSuggestion("size1")
                         .size(1).text("prefix_abcd").maxTermFreq(10).prefixLength(1).minDocFreq(0)
                         .field("field1").suggestMode("always"),
                 termSuggestion("field2")
@@ -381,39 +250,20 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 termSuggestion("accuracy")
                         .field("field2").text("prefix_efgh").setAccuracy(1f)
                         .maxTermFreq(10).minDocFreq(0).suggestMode("always"));
-
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(3));
-        assertThat(suggest.getSuggestion("size1").getName(), equalTo("size1"));
-        assertThat(suggest.getSuggestion("size1").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("size1").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("size1").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(suggest.getSuggestion("field2").getName(), equalTo("field2"));
-        assertThat(suggest.getSuggestion("field2").getEntries().size(), equalTo(2));
+        assertSuggestion(suggest, 0, "size1", "prefix_aacd");
         assertThat(suggest.getSuggestion("field2").getEntries().get(0).getText().string(), equalTo("prefix_eeeh"));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getOffset(), equalTo(0));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getLength(), equalTo(11));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertSuggestion(suggest, 0, "field2", "prefix_efgh");
         assertThat(suggest.getSuggestion("field2").getEntries().get(1).getText().string(), equalTo("prefix_efgh"));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOffset(), equalTo(12));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getLength(), equalTo(11));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().size(), equalTo(3));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().get(0).getText().string(), equalTo("prefix_eeeh"));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().get(1).getText().string(), equalTo("prefix_efff"));
-        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().get(2).getText().string(), equalTo("prefix_eggg"));
-        assertThat(suggest.getSuggestion("accuracy").getName(), equalTo("accuracy"));
-        assertThat(suggest.getSuggestion("accuracy").getEntries().get(0).getOptions().isEmpty(), equalTo(true));
+        assertSuggestion(suggest, 1, "field2", "prefix_eeeh", "prefix_efff", "prefix_eggg");
+        assertSuggestionSize(suggest, 0, 0, "accuracy");
     }
 
     @Test
     public void testSizeAndSort() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 5)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 5,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
 
         Map<String, Integer> termsAndDocCount = new HashMap<String, Integer>();
         termsAndDocCount.put("prefix_aaad", 20);
@@ -425,25 +275,18 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         termsAndDocCount.put("prefix_abaa", 8);
         termsAndDocCount.put("prefix_dbca", 6);
         termsAndDocCount.put("prefix_cbad", 4);
-
         termsAndDocCount.put("prefix_aacd", 1);
         termsAndDocCount.put("prefix_abcc", 1);
         termsAndDocCount.put("prefix_accd", 1);
 
         for (Map.Entry<String, Integer> entry : termsAndDocCount.entrySet()) {
             for (int i = 0; i < entry.getValue(); i++) {
-                client().prepareIndex("test", "type1")
-                        .setSource(XContentFactory.jsonBuilder()
-                                .startObject()
-                                .field("field1", entry.getKey())
-                                .endObject()
-                        )
-                        .execute().actionGet();
+                index("test", "type1", entry.getKey() + i, "field1", entry.getKey());
             }
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
-        Suggest suggest = searchSuggest(client(),"prefix_abcd",
+        Suggest suggest = searchSuggest(client(), "prefix_abcd",
                 termSuggestion("size3SortScoreFirst")
                         .size(3).minDocFreq(0).field("field1").suggestMode("always"),
                 termSuggestion("size10SortScoreFirst")
@@ -455,637 +298,487 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                         .size(10).sort("frequency").shardSize(1000)
                         .minDocFreq(0).field("field1").suggestMode("always"));
 
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(4));
-        assertThat(suggest.getSuggestion("size3SortScoreFirst").getName(), equalTo("size3SortScoreFirst"));
-        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
-        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
+        // The commented out assertions fail sometimes because suggestions are based off of shard frequencies instead of index frequencies.
+        assertSuggestion(suggest, 0, "size3SortScoreFirst", "prefix_aacd", "prefix_abcc", "prefix_accd");
+        assertSuggestion(suggest, 0, "size10SortScoreFirst", 10, "prefix_aacd", "prefix_abcc", "prefix_accd" /*, "prefix_aaad" */);
+        assertSuggestion(suggest, 0, "size3SortScoreFirstMaxEdits1", "prefix_aacd", "prefix_abcc", "prefix_accd");
+        assertSuggestion(suggest, 0, "size10SortFrequencyFirst", "prefix_aaad", "prefix_abbb", "prefix_aaca", "prefix_abba",
+                "prefix_accc", "prefix_addd", "prefix_abaa", "prefix_dbca", "prefix_cbad", "prefix_aacd");
 
-        assertThat(suggest.getSuggestion("size10SortScoreFirst").getName(), equalTo("size10SortScoreFirst"));
-        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().size(), equalTo(10));
-        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
-        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
-        // This fails sometimes. Depending on how the docs are sharded. The suggested suggest corrections get the df on shard level, which
-        // isn't correct comparing it to the index level.
-//        assertThat(search.suggest().suggestions().get(1).getSuggestedWords().get("prefix_abcd").get(3).getTerm(), equalTo("prefix_aaad"));
-
-        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getName(), equalTo("size3SortScoreFirstMaxEdits1"));
-        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
-        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
-
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getName(), equalTo("size10SortFrequencyFirst"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().size(), equalTo(10));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aaad"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abbb"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_aaca"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(3).getText().string(), equalTo("prefix_abba"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(4).getText().string(), equalTo("prefix_accc"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(5).getText().string(), equalTo("prefix_addd"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(6).getText().string(), equalTo("prefix_abaa"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(7).getText().string(), equalTo("prefix_dbca"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(8).getText().string(), equalTo("prefix_cbad"));
-        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(9).getText().string(), equalTo("prefix_aacd"));
-//        assertThat(search.suggest().suggestions().get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_abcc"));
-//        assertThat(search.suggest().suggestions().get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_accd"));
+        // assertThat(suggest.get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_abcc"));
+        // assertThat(suggest.get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_accd"));
     }
     
     @Test // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        Builder builder = ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("body", "this is a test").endObject()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 1,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
 
-        Suggest searchSuggest = searchSuggest(
-                client(),
-                "a an the",
+        index("test", "typ1", "1", "body", "this is a test");
+        refresh();
+
+        Suggest searchSuggest = searchSuggest(client(), "a an the",
                 phraseSuggestion("simple_phrase").field("body").gramSize(1)
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                         .size(1));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
     }
     
     @Test
-    public void testPrefixLength() throws ElasticSearchException, IOException {
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
-        builder.put("index.analysis.analyzer.reverse.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse");
-        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
-        builder.put("index.analysis.analyzer.bigram.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
-        builder.put("index.analysis.filter.my_shingle.type", "shingle");
-        builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
-        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
-        
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
-        .startObject("properties")
-        .startObject("body").field("type", "string").field("analyzer", "body").endObject()
-        .startObject("body_reverse").field("type", "string").field("analyzer", "reverse").endObject()
-        .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
-        .endObject()
-        .endObject().endObject();
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello world").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1")
-        .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello world").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1")
-        .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello words").endObject()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        Suggest searchSuggest = searchSuggest(
-                client(),
-                "hello word",
+    public void testPrefixLength() throws ElasticSearchException, IOException {  // Stopped here
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.analyzer.reverse.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
+                .put("index.analysis.analyzer.body.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .put("index.analysis.analyzer.bigram.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", false)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
+        addMapping(builder, "type1",
+                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
+                new Object[] {"body", "type", "string", "analyzer", "body"},
+                new Object[] {"body_reverse", "type", "string", "analyzer", "reverse"},
+                new Object[] {"bigram", "type", "string", "analyzer", "bigram"});
+        builder.get();
+        ensureGreen();
+
+        index("test", "type1", "1", "body", "hello world");
+        index("test", "type1", "2", "body", "hello world");
+        index("test", "type1", "3", "body", "hello words");
+        refresh();
+
+        Suggest searchSuggest = searchSuggest(client(), "hello word",
                 phraseSuggestion("simple_phrase").field("body")
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(4).minWordLength(1).suggestMode("always"))
                         .size(1).confidence(1.0f));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("hello word"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("hello words"));
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "hello words");
         
-        
-        searchSuggest = searchSuggest(
-                client(),
-                "hello word",
+        searchSuggest = searchSuggest(client(), "hello word",
                 phraseSuggestion("simple_phrase").field("body")
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(2).minWordLength(1).suggestMode("always"))
                         .size(1).confidence(1.0f));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("hello word"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("hello world"));
-        
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "hello world");
     }
     
     
     @Test
     public void testMarvelHerosPhraseSuggest() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.analysis.analyzer.reverse.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse");
-        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
-        builder.put("index.analysis.analyzer.bigram.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
-        builder.put("index.analysis.filter.my_shingle.type", "shingle");
-        builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
-        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
-        
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
-        .startObject("properties")
-        .startObject("body").field("type", "string").field("analyzer", "body").endObject()
-        .startObject("body_reverse").field("type", "string").field("analyzer", "reverse").endObject()
-        .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
-        .endObject()
-        .endObject().endObject();
-        
-        
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
-        String line = null;
-        while ((line = reader.readLine()) != null) {
-            client().prepareIndex("test", "type1")
-            .setSource(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("body", line)
-                    .field("body_reverse", line)
-                    .field("bigram", line)
-                    .endObject()
-            )
-            .execute().actionGet();
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put("index.analysis.analyzer.reverse.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
+                .put("index.analysis.analyzer.body.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .put("index.analysis.analyzer.bigram.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", false)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
+        addMapping(builder, "type1",
+                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
+                new Object[] {"body", "type", "string", "analyzer", "body"},
+                new Object[] {"body_reverse", "type", "string", "analyzer", "reverse"},
+                new Object[] {"bigram", "type", "string", "analyzer", "bigram"});
+        builder.get();
+        ensureGreen();
+
+        for (String line: Resources.readLines(SuggestSearchTests.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
+            index("test", "type1", line, "body", line, "body_reverse", line, "bigram", line);
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        
-        Suggest searchSuggest = searchSuggest(client(), "american ame", phraseSuggestion("simple_phrase")
+        refresh();
+
+        PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("simple_phrase")
                 .field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .size(1));
-
-        
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                .size(1);
+        Suggest searchSuggest = searchSuggest(client(), "american ame", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "american ace");
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
-        
-        
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                        phraseSuggestion("simple_phrase").
-                            realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                            .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                            .maxErrors(0.5f)
-                            .size(1));
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        phraseSuggest.realWordErrorLikelihood(0.95f);
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        // Check the "text" field this one time.
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
+
         // Ask for highlighting
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                    realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                    .maxErrors(0.5f)
-                    .size(1)
-                    .highlight("<em>", "</em>"));
-
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        phraseSuggest.highlight("<em>", "</em>");
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getHighlighted().string(), equalTo("<em>xorr</em> the <em>god</em> jewel"));
 
-        
         // pass in a correct phrase
-        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .maxErrors(0.5f)
-                .confidence(0.f)
-                .size(1));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
-        
+        phraseSuggest.highlight(null, null).confidence(0f).size(1).maxErrors(0.5f);
+        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+
         // pass in a correct phrase - set confidence to 2
-        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .maxErrors(0.5f)
-                .confidence(2.f));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
-        
-        
+        phraseSuggest.confidence(2f);
+        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+
         // pass in a correct phrase - set confidence to 0.99
-        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",
-                phraseSuggestion("simple_phrase").
-                    realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                    .maxErrors(0.5f)
-                    .confidence(0.99f));
+        phraseSuggest.confidence(0.99f);
+        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
-        
         //test reverse suggestions with pre & post filter
-        searchSuggest = searchSuggest(client(), "xor the yod-Jewel",
-                phraseSuggestion("simple_phrase").
-                    realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse").postFilter("reverse"))
-                    .maxErrors(0.5f)
-                    .size(1));
+        phraseSuggest
+            .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
+            .addCandidateGenerator(candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse").postFilter("reverse"));
+        searchSuggest = searchSuggest(client(), "xor the yod-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("xor the yod-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
         // set all mass to trigrams (not indexed)
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(1,0,0))
-                .maxErrors(0.5f)
-                .size(1));
+        phraseSuggest.clearCandidateGenerators()
+            .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
+            .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(1,0,0));
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
-        
-        
         // set all mass to bigrams
-        searchSuggest =  searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0,1,0))
-                .maxErrors(0.5f)
-                .size(1));
+        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0,1,0));
+        searchSuggest =  searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
         // distribute mass
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2))
-                .maxErrors(0.5f)
-                .size(1));
+        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2));
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
-        searchSuggest = searchSuggest(client(), "american ame",
-                phraseSuggestion("simple_phrase")
-                .field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2))
-                .size(1));;
-
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
-
+        searchSuggest = searchSuggest(client(), "american ame", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "american ace");
         
         // try all smoothing methods
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2))
-                .maxErrors(0.5f)
-                .size(1));
+        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2));
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.Laplace(0.2))
-                .maxErrors(0.5f)
-                .size(1));
+        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.Laplace(0.2));
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
 
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
-                .maxErrors(0.5f).tokenLimit(5)
-                .size(1));
-        
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
+        phraseSuggest.smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1));
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+
         // check tokenLimit
-        
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
-                .maxErrors(0.5f)
-                .size(1).tokenLimit(4));
-        
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
-        
-        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
-                .maxErrors(0.5f)
-                .size(1).tokenLimit(15));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        phraseSuggest.smoothingModel(null).tokenLimit(4);
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+
+        phraseSuggest.tokenLimit(15).smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1));
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel xorr the god jewel xorr the god jewel");
+        // Check the name this time because we're repeating it which is funky
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel xorr the god jewel xorr the god jewel"));
-        
     }
     
     @Test
     public void testSizePararm() throws IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", 1);
-        builder.put("index.number_of_replicas", 1);
-        builder.put("index.analysis.analyzer.reverse.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse");
-        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
-        builder.put("index.analysis.analyzer.bigram.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
-        builder.put("index.analysis.filter.my_shingle.type", "shingle");
-        builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
-        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put("index.analysis.analyzer.reverse.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
+                .put("index.analysis.analyzer.body.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .put("index.analysis.analyzer.bigram.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", false)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
+        addMapping(builder, "type1",
+                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
+                new Object[] {"body", "type", "string", "analyzer", "body"},
+                new Object[] {"body_reverse", "type", "string", "analyzer", "reverse"},
+                new Object[] {"bigram", "type", "string", "analyzer", "bigram"});
+        builder.get();
+        ensureGreen();
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_all")
-                .field("store", "yes").field("termVector", "with_positions_offsets").endObject().startObject("properties")
-                .startObject("body").field("type", "string").field("analyzer", "body").endObject().startObject("body_reverse")
-                .field("type", "string").field("analyzer", "reverse").endObject().startObject("bigram").field("type", "string")
-                .field("analyzer", "bigram").endObject().endObject().endObject().endObject();
-
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         String line = "xorr the god jewel";
-        client().prepareIndex("test", "type1")
-                .setSource(
-                        XContentFactory.jsonBuilder().startObject().field("body", line).field("body_reverse", line).field("bigram", line)
-                                .endObject()).execute().actionGet();
+        index("test", "type1", "1", "body", line, "body_reverse", line, "bigram", line);
         line = "I got it this time";
-        client().prepareIndex("test", "type1")
-                .setSource(
-                        XContentFactory.jsonBuilder().startObject().field("body", line).field("body_reverse", line).field("bigram", line)
-                                .endObject()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        Suggest searchSuggest = searchSuggest(client(), "Xorr the Gut-Jewel", phraseSuggestion("simple_phrase")
+        index("test", "type1", "2", "body", line, "body_reverse", line, "bigram", line);
+        refresh();
+
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("simple_phrase")
                 .realWordErrorLikelihood(0.95f)
                 .field("bigram")
                 .gramSize(2)
                 .analyzer("body")
-                .addCandidateGenerator(
-                        PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).prefixLength(1)
-                                .suggestMode("always").size(1).accuracy(0.1f))
-                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1)).maxErrors(1.0f).size(5));
-     
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(1).accuracy(0.1f))
+                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
+                .maxErrors(1.0f)
+                .size(5);
+        Suggest searchSuggest = searchSuggest(client(), "Xorr the Gut-Jewel", phraseSuggestion);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
-        searchSuggest = searchSuggest(client(), "Xorr the Gut-Jewel",// we allow a size of 2 now on the shard generator level so "god" will be found since it's LD2
-                        phraseSuggestion("simple_phrase")
-                                .realWordErrorLikelihood(0.95f)
-                                .field("bigram")
-                                .gramSize(2)
-                                .analyzer("body")
-                                .addCandidateGenerator(
-                                        PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).prefixLength(1)
-                                                .suggestMode("always").size(2).accuracy(0.1f))
-                                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1)).maxErrors(1.0f).size(5));
-        assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the Gut-Jewel"));
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(),
-                equalTo("xorr the god jewel"));
+        // we allow a size of 2 now on the shard generator level so "god" will be found since it's LD2
+        phraseSuggestion.clearCandidateGenerators()
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(2).accuracy(0.1f));
+        searchSuggest = searchSuggest(client(), "Xorr the Gut-Jewel", phraseSuggestion);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
     }
-    
-    
-    
     
     @Test
     public void testPhraseBoundaryCases() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
-        builder.put("index.analysis.analyzer.bigram.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
-        builder.put("index.analysis.analyzer.ngram.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.ngram.filter", "my_shingle2", "lowercase");
-        builder.put("index.analysis.analyzer.myDefAnalyzer.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.myDefAnalyzer.filter", "shingle", "lowercase");
-        builder.put("index.analysis.filter.my_shingle.type", "shingle");
-        builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
-        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle2.type", "shingle");
-        builder.put("index.analysis.filter.my_shingle2.output_unigrams", true);
-        builder.put("index.analysis.filter.my_shingle2.min_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle2.max_shingle_size", 2);
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
-        .startObject("properties")
-        .startObject("body").field("type", "string").field("analyzer", "body").endObject()
-        .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
-        .startObject("ngram").field("type", "string").field("analyzer", "ngram").endObject()
-        .endObject()
-        .endObject().endObject();
-        
-        
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
-        String line = null;
-        while ((line = reader.readLine()) != null) {
-            client().prepareIndex("test", "type1")
-            .setSource(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("body", line)
-                    .field("bigram", line)
-                    .field("ngram", line)
-                    .endObject()
-            )
-            .execute().actionGet();
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put("index.analysis.analyzer.body.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.body.filter", "lowercase")
+                .put("index.analysis.analyzer.bigram.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase")
+                .put("index.analysis.analyzer.ngram.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.ngram.filter", "my_shingle2", "lowercase")
+                .put("index.analysis.analyzer.myDefAnalyzer.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.myDefAnalyzer.filter", "shingle", "lowercase")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", false)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle2.type", "shingle")
+                .put("index.analysis.filter.my_shingle2.output_unigrams", true)
+                .put("index.analysis.filter.my_shingle2.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle2.max_shingle_size", 2));
+        addMapping(builder, "type1",
+                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
+                new Object[] {"body", "type", "string", "analyzer", "body"},
+                new Object[] {"bigram", "type", "string", "analyzer", "bigram"},
+                new Object[] {"ngram", "type", "string", "analyzer", "ngram"});
+        builder.get();
+        ensureGreen();
+
+        for (String line: Resources.readLines(SuggestSearchTests.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
+            index("test", "type1", line, "body", line, "bigram", line, "ngram", line);
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
-       
+        refresh();
+
+        // Lets make sure some things throw exceptions
+        PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("simple_phrase")
+                .field("bigram")
+                .analyzer("body")
+                .addCandidateGenerator(candidateGenerator("does_not_exist").minWordLength(1).suggestMode("always"))
+                .realWordErrorLikelihood(0.95f)
+                .maxErrors(0.5f)
+                .size(1);
         try {
-            searchSuggest(client(), "Xor the Got-Jewel", 5, 
-                            phraseSuggestion("simple_phrase")
-                                    .realWordErrorLikelihood(0.95f)
-                                    .field("bigram")
-                                    .gramSize(2)
-                                    .analyzer("body")
-                                    .addCandidateGenerator(
-                                            PhraseSuggestionBuilder.candidateGenerator("does_not_exists").minWordLength(1)
-                                                    .suggestMode("always")).maxErrors(0.5f).size(1));
-            
+            searchSuggest(client(), "Xor the Got-Jewel", 5, phraseSuggestion);
             assert false : "field does not exists";
         } catch (SearchPhaseExecutionException e) {}
-        
-        try {
-            searchSuggest(client(), "Xor the Got-Jewel", 5,
-                    phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").maxErrors(0.5f).size(1));
 
-            assert false : "analyzer does only produce ngrams";
-        } catch (SearchPhaseExecutionException e) {
-        }
-        
+        phraseSuggestion.clearCandidateGenerators().analyzer(null);
         try {
-            searchSuggest(client(), "Xor the Got-Jewel", 5,
-                        phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("bigram").maxErrors(0.5f)
-                                .size(1));
+            searchSuggest(client(), "Xor the Got-Jewel", 5, phraseSuggestion);
             assert false : "analyzer does only produce ngrams";
         } catch (SearchPhaseExecutionException e) {
         }
-        
-        // don't force unigrams
+
+        phraseSuggestion.analyzer("bigram");
+        try {
+            searchSuggest(client(), "Xor the Got-Jewel", 5, phraseSuggestion);
+            assert false : "analyzer does only produce ngrams";
+        } catch (SearchPhaseExecutionException e) {
+        }
+
+        // Now we'll make sure some things don't
+        phraseSuggestion.forceUnigrams(false);
+        searchSuggest(client(), "Xor the Got-Jewel", phraseSuggestion);
+
+        // Field doesn't produce unigrams but the analyzer does
+        phraseSuggestion.forceUnigrams(true).field("bigram").analyzer("ngram");
         searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("bigram").forceUnigrams(false).maxErrors(0.5f)
-                        .size(1));
-        
-        
-        searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("ngram").maxErrors(0.5f)
-                        .size(1));
-     
-        Suggest suggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram").analyzer("myDefAnalyzer")
-                  .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                        .size(1));
-        
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
-        suggest = searchSuggest(client(), "Xor the Got-Jewel",
-                phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram")
-                  .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                        .size(1));
-        
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
-        
+                phraseSuggestion);
+
+        phraseSuggestion.field("ngram").analyzer("myDefAnalyzer")
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"));
+        Suggest suggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggestion);
+        assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
+
+        phraseSuggestion.analyzer(null);
+        suggest = searchSuggest(client(), "Xor the Got-Jewel", phraseSuggestion);
+        assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
     }
-    
+
+    @Test
+    public void testDifferentShardSize() throws Exception {
+        prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 5)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        ensureGreen();
+
+        client().prepareIndex("text", "type1", "1").setSource("field1", "foobar1").setRouting("1").get();
+        client().prepareIndex("text", "type1", "2").setSource("field1", "foobar2").setRouting("2").get();
+        client().prepareIndex("text", "type1", "3").setSource("field1", "foobar3").setRouting("3").get();
+        refresh();
+
+        Suggest suggest = searchSuggest(client(), "foobar",
+                termSuggestion("simple")
+                        .size(10).minDocFreq(0).field("field1").suggestMode("always"));
+        ElasticsearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
+    }
+
+    @Test // see #3469
+    public void testShardFailures() throws IOException, InterruptedException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, numberOfNodes() - 1))
+                .put("index.analysis.analyzer.suggest.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .put("index.analysis.filter.shingler.type", "shingle")
+                .put("index.analysis.filter.shingler.min_shingle_size", 2)
+                .put("index.analysis.filter.shingler.max_shingle_size", 5)
+                .put("index.analysis.filter.shingler.output_unigrams", true));
+        addMapping(builder, "type1", new Object[] {"name",
+                "type", "multi_field",
+                "path", "just_name",
+                "fields", ImmutableMap.of(
+                        "name", ImmutableMap.of(
+                                "type", "string",
+                                "analyzer", "suggest"))});
+        builder.get();
+        ensureGreen();
+
+        index("test", "type2", "1", "foo", "bar");
+        index("test", "type2", "2", "foo", "bar");
+        index("test", "type2", "3", "foo", "bar");
+        index("test", "type2", "4", "foo", "bar");
+        index("test", "type2", "5", "foo", "bar");
+        index("test", "type2", "1", "name", "Just testing the suggestions api");
+        index("test", "type2", "2", "name", "An other title about equal length");
+        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
+        refresh();
+
+        // When searching on a shard with a non existing mapping, we should fail
+        SearchRequestBuilder request = client().prepareSearch().setSearchType(SearchType.COUNT)
+            .setSuggestText("tetsting sugestion")
+            .addSuggestion(phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f));
+        assertThrows(request, SearchPhaseExecutionException.class);
+
+        // When searching on a shard which does not hold yet any document of an existing type, we should not fail
+        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT)
+            .setSuggestText("tetsting sugestion")
+            .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
+            .get();
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+    }
+
+    @Test // see #3469
+    public void testEmptyShards() throws IOException, InterruptedException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 5)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.analyzer.suggest.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .put("index.analysis.filter.shingler.type", "shingle")
+                .put("index.analysis.filter.shingler.min_shingle_size", 2)
+                .put("index.analysis.filter.shingler.max_shingle_size", 5)
+                .put("index.analysis.filter.shingler.output_unigrams", true));
+        addMapping(builder, "type1", new Object[] {"name",
+                "type", "multi_field",
+                "path", "just_name",
+                "fields", ImmutableMap.of(
+                        "name", ImmutableMap.of(
+                                "type", "string",
+                                "analyzer", "suggest"))});
+        builder.get();
+        ensureGreen();
+
+        index("text", "type2", "1", "foo", "bar");
+        index("text", "type2", "2", "foo", "bar");
+        index("text", "type1", "1", "name", "Just testing the suggestions api");
+        index("text", "type1", "2", "name", "An other title about equal length");
+        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setSearchType(SearchType.COUNT)
+                .setSuggestText("tetsting sugestion")
+                .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
+                .get();
+
+        assertNoFailures(searchResponse);
+        assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+    }
+
+    /**
+     * Searching for a rare phrase shouldn't provide any suggestions if confidence > 1.  This was possible before we rechecked the cutoff
+     * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
+     */
+    @Test
+    public void testSearchForRarePhrase() throws ElasticSearchException, IOException {
+        // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
+        int chafPerShard = 100;
+        int numberOfShards = between(2, 5);
+
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, numberOfNodes() - 1))
+                .put("index.analysis.analyzer.body.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", true)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
+        addMapping( builder, "type1", new Object[] {"body",
+                "store", true,
+                "termVector", "with_positions_offsets",
+                "type", "string",
+                "analyzer", "body"});
+        builder.get();
+        ensureGreen();
+
+        List<String> phrases = new ArrayList<String>();
+        Collections.addAll(phrases, "nobel prize", "noble gases", "somethingelse prize", "pride and joy", "notes are fun");
+        for (int i = 0; i < 8; i++) {
+            phrases.add("noble somethingelse" + i);
+        }
+        for (int i = 0; i < numberOfShards * chafPerShard; i++) {
+            phrases.add("chaff" + i);
+        }
+        for (String phrase: phrases) {
+            index("test", "type1", phrase, "body", phrase);
+        }
+        refresh();
+
+        Suggest searchSuggest = searchSuggest(client(), "nobel prize", phraseSuggestion("simple_phrase")
+                .field("body")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
+                .confidence(2f)
+                .maxErrors(5f)
+                .size(1));
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+
+        searchSuggest = searchSuggest(client(), "noble prize", phraseSuggestion("simple_phrase")
+                .field("body")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
+                .confidence(2f)
+                .maxErrors(5f)
+                .size(1));
+        assertSuggestion(searchSuggest, 0, 0, "simple_phrase", "nobel prize");
+    }
+
+    @Override
+    protected int numberOfNodes() {
+        return 3;
+    }
+
     protected Suggest searchSuggest(Client client, SuggestionBuilder<?>... suggestion) {
         return searchSuggest(client(), null, suggestion);
     }
-    
+
     protected Suggest searchSuggest(Client client, String suggestText, SuggestionBuilder<?>... suggestions) {
         return searchSuggest(client(), suggestText, 0, suggestions);
     }
-    
+
     protected Suggest searchSuggest(Client client, String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
         SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
         if (suggestText != null) {
@@ -1097,226 +790,5 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         SearchResponse actionGet = builder.execute().actionGet();
         assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
         return actionGet.getSuggest();
-    }
-    
-    @Test
-    public void testDifferentShardSize() throws Exception {
-        // test suggestion with explicitly added different shard sizes
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 5)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-
-        client().prepareIndex("test", "type1", "1")
-        .setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field1", "foobar1")
-                .endObject()
-        ).setRouting("1").execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2")
-        .setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field1", "foobar2")
-                .endObject()
-        ).setRouting("2").execute().actionGet();
-        
-        client().prepareIndex("test", "type1", "3")
-        .setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field1", "foobar3")
-                .endObject()
-        ).setRouting("1").execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        Suggest suggest = searchSuggest(client(), "foobar",
-                termSuggestion("simple")
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always"));
-
-        assertThat(suggest, notNullValue());
-        assertThat(suggest.size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple").getName(), equalTo("simple"));
-        assertThat(suggest.getSuggestion("simple").getEntries().size(), equalTo(1));
-        assertThat(suggest.getSuggestion("simple").getEntries().get(0).getOptions().size(), equalTo(3));
-    }
-    
-    @Test // see #3469
-    public void testShardFailures() throws IOException, InterruptedException {
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", between(1, 5)).put("index.number_of_replicas", between(0, numberOfNodes() - 1));
-        builder.put("index.analysis.analyzer.suggest.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler");
-        builder.put("index.analysis.filter.shingler.type", "shingle");
-        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
-        builder.put("index.analysis.filter.shingler.max_shingle_size", 5);
-        builder.put("index.analysis.filter.shingler.output_unigrams", true);
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "multi_field")
-                .field("path", "just_name")
-                .startObject("fields")
-                .startObject("name")
-                .field("type", "string")
-                .field("analyzer", "suggest")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject();
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type2", "1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "2")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "3")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "4")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "5")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "Just testing the suggestions api").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "2")
-            .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title about equal length").endObject()).execute().actionGet();
-        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        // When searching on a shard with a non existing mapping, we should fail
-        SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
-        suggestBuilder.setSuggestText("tetsting sugestion");
-        suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f));
-        assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
-        // When searching on a shard which does not hold yet any document of an existing type, we should not fail
-        suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
-        suggestBuilder.setSuggestText("tetsting sugestion");
-        suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f));
-        SearchResponse searchResponse = suggestBuilder.execute().actionGet();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
-     
-    }
-    
-    @Test // see #3469
-    public void testEmptyShards() throws IOException, InterruptedException {
-        Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", 5).put("index.number_of_replicas", 0);
-        builder.put("index.analysis.analyzer.suggest.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler");
-        builder.put("index.analysis.filter.shingler.type", "shingle");
-        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
-        builder.put("index.analysis.filter.shingler.max_shingle_size", 5);
-        builder.put("index.analysis.filter.shingler.output_unigrams", true);
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "multi_field")
-                .field("path", "just_name")
-                .startObject("fields")
-                .startObject("name")
-                .field("type", "string")
-                .field("analyzer", "suggest")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject();
-        client().admin().indices().prepareDelete().execute().actionGet();
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type2", "1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type2", "2")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "1")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "Just testing the suggestions api").endObject()).execute().actionGet();
-        client().prepareIndex("test", "type1", "2")
-                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "An other title about equal length").endObject()).execute().actionGet();
-        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
-        suggestBuilder.setSuggestText("tetsting sugestion");
-        suggestBuilder.addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f));
-        SearchResponse searchResponse = suggestBuilder.execute().actionGet();
-
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
-    }
-
-    /**
-     * Searching for a rare phrase shouldn't provide any suggestions if confidence > 1.  This was possible before we rechecked the cutoff
-     * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
-     */
-    @Test
-    public void testSearchForRarePhrase() throws ElasticSearchException, IOException {
-        // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
-        int chafPerShard = 100;
-        Builder builder = ImmutableSettings.builder();
-        int numberOfShards = between(2, 5);
-        builder.put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", between(0, numberOfNodes() - 1));
-        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
-        builder.putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle");
-        builder.put("index.analysis.filter.my_shingle.type", "shingle");
-        builder.put("index.analysis.filter.my_shingle.output_unigrams", true);
-        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
-        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
-        .startObject("properties")
-        .startObject("body").field("type", "string").field("analyzer", "body").endObject()
-        .endObject()
-        .endObject().endObject();
-
-        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        ensureGreen();
-        List<String> phrases = new ArrayList<String>();
-        Collections.addAll(phrases, "nobel prize", "noble gases", "somethingelse prize", "pride and joy", "notes are fun");
-        for (int i = 0; i < 8; i++) {
-            phrases.add("noble somethingelse" + i);
-        }
-        for (int i = 0; i < numberOfShards * chafPerShard; i++) {
-            phrases.add("chaff" + i);
-        }
-        for (String phrase: phrases) {
-            client().prepareIndex("test", "type1")
-            .setSource(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("body", phrase)
-                    .endObject()
-            )
-            .execute().actionGet();
-        }
-        refresh();
-
-        Suggest searchSuggest = searchSuggest(client(), "nobel prize", phraseSuggestion("simple_phrase")
-                .field("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
-                .confidence(2f)
-                .maxErrors(5f)
-                .size(1));
-        ElasticsearchAssertions.assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
-
-        searchSuggest = searchSuggest(client(), "noble prize", phraseSuggestion("simple_phrase")
-                .field("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always").maxTermFreq(.99f))
-                .confidence(2f)
-                .maxErrors(5f)
-                .size(1));
-        ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "simple_phrase", "nobel prize");
-    }
-
-    @Override
-    protected int numberOfNodes() {
-        return 3;
     }
 }

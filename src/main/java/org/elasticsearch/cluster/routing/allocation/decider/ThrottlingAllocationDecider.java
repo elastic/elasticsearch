@@ -74,16 +74,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
-            boolean primaryUnassigned = false;
-            List<MutableShardRouting> unassigned = allocation.routingNodes().unassigned();
-            for (int i1 = 0; i1 < unassigned.size(); i1++) {
-                MutableShardRouting shard = unassigned.get(i1);
-                if (shard.shardId().equals(shardRouting.shardId())) {
-                    primaryUnassigned = true;
-                    break;
-                }
-            }
-            if (primaryUnassigned) {
+            assert shardRouting.unassigned() || shardRouting.active();
+            if (shardRouting.unassigned()) {
                 // primary is unassigned, means we are going to do recovery from gateway
                 // count *just the primary* currently doing recovery on the node and check against concurrent_recoveries
                 int primariesInRecovery = 0;

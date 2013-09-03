@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.unit.cluster.routing.allocation;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -45,7 +44,6 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(PreferPrimaryAllocationTests.class);
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "seems like unassigned is cleared so throttling for primaries is not properly working")
     @Test
     public void testPreferPrimaryAllocationOverReplicas() {
         logger.info("create an allocation with 1 initial recoveries");

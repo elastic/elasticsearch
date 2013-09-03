@@ -29,7 +29,7 @@ directly constructs a `byte[]`.
 
 Nothing really difficult here but note that you will have to encode
 dates regarding to the
-link:{ref}/mapping-date-format.html[Date Format].
+{ref}/mapping-date-format.html[Date Format].
 
 [source,java]
 --------------------------------------------------
@@ -185,7 +185,7 @@ List<String> matches = response.matches();
 --------------------------------------------------
 
 For more information on the index operation, check out the REST
-link:{ref}/docs-index_.html[index] docs.
+{ref}/docs-index_.html[index] docs.
 
 
 === Operation Threading

@@ -2,7 +2,7 @@
 == Count API
 
 The count API is very similar to the
-link:{java}/count.html[Java count API]. The Groovy
+{java}/count.html[Java count API]. The Groovy
 extension allows to provide the query to execute as a `Closure` (similar
 to GORM criteria builder):
 
@@ -19,4 +19,4 @@ def count = client.count {
 }
 --------------------------------------------------
 
-The query follows the same link:{ref}/query-dsl.html[Query DSL].
+The query follows the same {ref}/query-dsl.html[Query DSL].

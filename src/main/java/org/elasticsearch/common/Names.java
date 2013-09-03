@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import com.google.common.base.Charsets;
 import jsr166y.ThreadLocalRandom;
 
 import java.io.BufferedReader;
@@ -27,10 +28,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Random;
-
-import org.elasticsearch.common.io.Streams;
-
-import com.google.common.base.Charsets;
 
 /**
  *

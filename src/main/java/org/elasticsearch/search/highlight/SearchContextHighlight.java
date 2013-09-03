@@ -40,7 +40,7 @@ public class SearchContextHighlight {
     }
 
     public static class Field {
-
+        // Fields that default to null or -1 are often set to their real default in HighlighterParseElement#parse
         private final String field;
 
         private int fragmentCharSize = -1;
@@ -66,9 +66,12 @@ public class SearchContextHighlight {
         private String fragmenter;
 
         private int boundaryMaxScan = -1;
+
         private Character[] boundaryChars = null;
 
         private Query highlightQuery;
+
+        private int noMatchSize = -1;
 
         private Map<String, Object> options;
 
@@ -190,6 +193,14 @@ public class SearchContextHighlight {
 
         public void highlightQuery(Query highlightQuery) {
             this.highlightQuery = highlightQuery;
+        }
+
+        public int noMatchSize() {
+            return noMatchSize;
+        }
+
+        public void noMatchSize(int noMatchSize) {
+            this.noMatchSize = noMatchSize;
         }
 
         public Map<String, Object> options() {

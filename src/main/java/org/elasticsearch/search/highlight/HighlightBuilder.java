@@ -56,6 +56,8 @@ public class HighlightBuilder implements ToXContent {
 
     private QueryBuilder highlightQuery;
 
+    private Integer noMatchSize;
+
     private Map<String, Object> options;
 
     /**
@@ -213,6 +215,17 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
+     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
+     * highlight and the field doesn't also define noMatchSize.
+     * @param noMatchSize integer to set or null to leave out of request.  default is null.
+     * @return this for chaining
+     */
+    public HighlightBuilder noMatchSize(Integer noMatchSize) {
+        this.noMatchSize = noMatchSize;
+        return this;
+    }
+
+    /**
      * Allows to set custom options for custom highlighters.
      */
     public HighlightBuilder options(Map<String, Object> options) {
@@ -249,6 +262,9 @@ public class HighlightBuilder implements ToXContent {
         }
         if (highlightQuery != null) {
             builder.field("highlight_query", highlightQuery);
+        }
+        if (noMatchSize != null) {
+            builder.field("no_match_size", noMatchSize);
         }
         if (options != null && options.size() > 0) {
             builder.field("options", options);
@@ -296,6 +312,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.highlightQuery != null) {
                     builder.field("highlight_query", field.highlightQuery);
                 }
+                if (field.noMatchSize != null) {
+                    builder.field("no_match_size", field.noMatchSize);
+                }
                 if (field.options != null && field.options.size() > 0) {
                     builder.field("options", field.options);
                 }
@@ -324,6 +343,7 @@ public class HighlightBuilder implements ToXContent {
         String highlighterType;
         String fragmenter;
         QueryBuilder highlightQuery;
+        Integer noMatchSize;
         Map<String, Object> options;
 
         public Field(String name) {
@@ -423,6 +443,17 @@ public class HighlightBuilder implements ToXContent {
          */
         public Field highlightQuery(QueryBuilder highlightQuery) {
             this.highlightQuery = highlightQuery;
+            return this;
+        }
+
+        /**
+         * Sets the size of the fragment to return from the beginning of the field if there are no matches to
+         * highlight.
+         * @param noMatchSize integer to set or null to leave out of request.  default is null.
+         * @return this for chaining
+         */
+        public Field noMatchSize(Integer noMatchSize) {
+            this.noMatchSize = noMatchSize;
             return this;
         }
 

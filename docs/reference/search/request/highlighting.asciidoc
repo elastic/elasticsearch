@@ -164,6 +164,28 @@ is required. Note that `fragment_size` is ignored in this case.
 When using `fast-vector-highlighter` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
+coming[0.90.6]
+It is also possible to ask Elasticsearch to return a fragment from the
+beginning of the field in the case where there are no matches by setting
+`no_match_size` to something greater than 0.  The default is 0.
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "fields" : {
+            "content" : {
+                "fragment_size" : 150,
+                "number_of_fragments" : 3,
+                "no_match_size": 150
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
 ==== Highlight query
 
 It is also possible to highlight against a query other than the search

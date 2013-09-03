@@ -19,7 +19,7 @@ import org.elasticsearch.index.query.FilterBuilders.*;
 Note that you can easily print (aka debug) JSON generated queries using
 `toString()` method on `FilterBuilder` object.
 
-[float]
+
 === And Filter
 
 See link:{ref}/query-dsl-and-filter.html[And Filter]
@@ -36,7 +36,7 @@ FilterBuilders.andFilter(
 Note that you can cache the result using
 `AndFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Bool Filter
 
 See link:{ref}/query-dsl-bool-filter.html[Bool Filter]
@@ -54,7 +54,7 @@ FilterBuilders.boolFilter()
 Note that you can cache the result using
 `BoolFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Exists Filter
 
 See link:{ref}/query-dsl-exists-filter.html[Exists Filter].
@@ -65,7 +65,7 @@ See link:{ref}/query-dsl-exists-filter.html[Exists Filter].
 FilterBuilders.existsFilter("user");
 --------------------------------------------------
 
-[float]
+
 === Ids Filter
 
 See link:{ref}/query-dsl-ids-filter.html[IDs Filter]
@@ -79,7 +79,7 @@ FilterBuilders.idsFilter("my_type", "type2").addIds("1", "4", "100");
 FilterBuilders.idsFilter().addIds("1", "4", "100");
 --------------------------------------------------
 
-[float]
+
 === Limit Filter
 
 See link:{ref}/query-dsl-limit-filter.html[Limit Filter]
@@ -90,7 +90,7 @@ See link:{ref}/query-dsl-limit-filter.html[Limit Filter]
 FilterBuilders.limitFilter(100);
 --------------------------------------------------
 
-[float]
+
 === Type Filter
 
 See link:{ref}/query-dsl-type-filter.html[Type Filter]
@@ -101,7 +101,7 @@ See link:{ref}/query-dsl-type-filter.html[Type Filter]
 FilterBuilders.typeFilter("my_type");
 --------------------------------------------------
 
-[float]
+
 === Geo Bounding Box Filter
 
 See link:{ref}/query-dsl-geo-bounding-box-filter.html[Geo
@@ -118,7 +118,7 @@ Note that you can cache the result using
 `GeoBoundingBoxFilterBuilder#cache(boolean)` method. See
 <<query-dsl-filters-caching>>.
 
-[float]
+
 === GeoDistance Filter
 
 See link:{ref}/query-dsl-geo-distance-filter.html[Geo
@@ -137,7 +137,7 @@ Note that you can cache the result using
 `GeoDistanceFilterBuilder#cache(boolean)` method. See
 <<query-dsl-filters-caching>>.
 
-[float]
+
 === Geo Distance Range Filter
 
 See link:{ref}/query-dsl-geo-distance-range-filter.html[Geo
@@ -159,7 +159,7 @@ Note that you can cache the result using
 `GeoDistanceRangeFilterBuilder#cache(boolean)` method. See
 <<query-dsl-filters-caching>>.
 
-[float]
+
 === Geo Polygon Filter
 
 See link:{ref}/query-dsl-geo-polygon-filter.html[Geo Polygon
@@ -177,7 +177,7 @@ Note that you can cache the result using
 `GeoPolygonFilterBuilder#cache(boolean)` method. See
 <<query-dsl-filters-caching>>.
 
-[float]
+
 === Geo Shape Filter
 
 See link:{ref}/query-dsl-geo-shape-filter.html[Geo Shape
@@ -236,7 +236,7 @@ filter = FilterBuilders.geoShapeFilter("location", "New Zealand", "countries")
     .relation(ShapeRelation.DISJOINT);
 --------------------------------------------------
 
-[float]
+
 === Has Child / Has Parent Filters
 
 See: 
@@ -254,7 +254,7 @@ QFilterBuilders.hasParentFilter("blog",
     QueryBuilders.termQuery("tag", "something"));
 --------------------------------------------------
 
-[float]
+
 === Match All Filter
 
 See link:{ref}/query-dsl-match-all-filter.html[Match All Filter]
@@ -264,7 +264,7 @@ See link:{ref}/query-dsl-match-all-filter.html[Match All Filter]
 FilterBuilders.matchAllFilter();
 --------------------------------------------------
 
-[float]
+
 === Missing Filter
 
 See link:{ref}/query-dsl-missing-filter.html[Missing Filter]
@@ -277,7 +277,7 @@ FilterBuilders.missingFilter("user")
     .nullValue(true);
 --------------------------------------------------
 
-[float]
+
 === Not Filter
 
 See link:{ref}/query-dsl-not-filter.html[Not Filter]
@@ -289,7 +289,7 @@ FilterBuilders.notFilter(
     FilterBuilders.rangeFilter("price").from("1").to("2"));
 --------------------------------------------------
 
-[float]
+
 === Numeric Range Filter
 
 See link:{ref}/query-dsl-numeric-range-filter.html[Numeric
@@ -308,7 +308,7 @@ Note that you can cache the result using
 `NumericRangeFilterBuilder#cache(boolean)` method. See
 <<query-dsl-filters-caching>>.
 
-[float]
+
 === Or Filter
 
 See link:{ref}/query-dsl-or-filter.html[Or Filter]
@@ -325,7 +325,7 @@ FilterBuilders.orFilter(
 Note that you can cache the result using
 `OrFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Prefix Filter
 
 See link:{ref}/query-dsl-prefix-filter.html[Prefix Filter]
@@ -339,7 +339,7 @@ FilterBuilders.prefixFilter("user", "ki");
 Note that you can cache the result using
 `PrefixFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Query Filter
 
 See link:{ref}/query-dsl-query-filter.html[Query Filter]
@@ -355,7 +355,7 @@ FilterBuilders.queryFilter(
 Note that you can cache the result using
 `QueryFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Range Filter
 
 See link:{ref}/query-dsl-range-filter.html[Range Filter]
@@ -378,7 +378,7 @@ FilterBuilders.rangeFilter("age")
 Note that you can ask not to cache the result using
 `RangeFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Script Filter
 
 See link:{ref}/query-dsl-script-filter.html[Script Filter]
@@ -394,7 +394,7 @@ FilterBuilder filter = FilterBuilders.scriptFilter(
 Note that you can cache the result using
 `ScriptFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Term Filter
 
 See link:{ref}/query-dsl-term-filter.html[Term Filter]
@@ -408,7 +408,7 @@ FilterBuilders.termFilter("user", "kimchy");
 Note that you can ask not to cache the result using
 `TermFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Terms Filter
 
 See link:{ref}/query-dsl-terms-filter.html[Terms Filter]
@@ -424,7 +424,7 @@ FilterBuilders.termsFilter("user", "kimchy", "elasticsearch")
 Note that you can ask not to cache the result using
 `TermsFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
-[float]
+
 === Nested Filter
 
 See link:{ref}/query-dsl-nested-filter.html[Nested Filter]
@@ -443,7 +443,7 @@ Note that you can ask not to cache the result using
 `NestedFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 [[query-dsl-filters-caching]]
-[float]
+
 === Caching
 
 By default, some filters are cached or not cached. You can have a fine

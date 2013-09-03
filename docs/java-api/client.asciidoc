@@ -28,7 +28,7 @@ and cluster sides. You may hit some incompatibilities issues when mixing
 major versions.
 ______________________________________________________________________________________________________________________________________________________________
 
-[float]
+
 === Node Client
 
 Instantiating a node based client is the simplest way to get a `Client`
@@ -119,7 +119,7 @@ Client client = node.client();
 node.close();
 --------------------------------------------------
 
-[float]
+
 === Transport Client
 
 The `TransportClient` connects remotely to an elasticsearch cluster

@@ -20,7 +20,7 @@ CountResponse response = client.prepareCount("test")
 For more information on the count operation, check out the REST
 link:{ref}/search-count.html[count] docs.
 
-[float]
+
 === Operation Threading
 
 The count API allows to set the threading model the operation will be

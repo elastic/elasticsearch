@@ -28,7 +28,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -137,6 +138,8 @@ public class RollingRestartStressTest {
     }
 
     public void run() throws Exception {
+        Random random = new Random(0);
+
         Node[] nodes = new Node[numberOfNodes];
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = NodeBuilder.nodeBuilder().settings(settings).node();
@@ -150,7 +153,7 @@ public class RollingRestartStressTest {
 
         logger.info("********** [START] INDEXING INITIAL DOCS");
         for (long i = 0; i < initialNumberOfDocs; i++) {
-            indexDoc();
+            indexDoc(random);
         }
         logger.info("********** [DONE ] INDEXING INITIAL DOCS");
 
@@ -295,13 +298,14 @@ public class RollingRestartStressTest {
 
         @Override
         public void run() {
+            Random random = new Random(0);
             while (true) {
                 if (close) {
                     closed = true;
                     return;
                 }
                 try {
-                    indexDoc();
+                    indexDoc(random);
                     Thread.sleep(indexerThrottle.millis());
                 } catch (Exception e) {
                     logger.warn("failed to index / sleep", e);
@@ -310,7 +314,7 @@ public class RollingRestartStressTest {
         }
     }
 
-    private void indexDoc() throws Exception {
+    private void indexDoc(Random random) throws Exception {
         StringBuilder sb = new StringBuilder();
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                 .field("field", "value" + ThreadLocalRandom.current().nextInt());
@@ -321,7 +325,7 @@ public class RollingRestartStressTest {
             int tokens = ThreadLocalRandom.current().nextInt() % textTokens;
             sb.setLength(0);
             for (int j = 0; j < tokens; j++) {
-                sb.append(UUID.randomBase64UUID()).append(' ');
+                sb.append(Strings.randomBase64UUID(random)).append(' ');
             }
             json.field("text_" + i, sb.toString());
         }

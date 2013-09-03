@@ -50,8 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 public class TestCluster {
@@ -169,7 +169,11 @@ public class TestCluster {
         ensureOpen();
         String name = "node_" + nextNodeId.getAndIncrement();
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
-        Settings finalSettings = settingsBuilder().loadFromClasspath(settingsSource).put(defaultSettings).put(settings).put("name", name)
+        Settings finalSettings = settingsBuilder()
+                .loadFromClasspath(settingsSource)
+                .put(defaultSettings).put(settings)
+                .put("name", name)
+                .put("discovery.id.seed", random.nextLong())
                 .build();
         Node node = nodeBuilder().settings(finalSettings).build();
         nodes.put(name, new NodeAndClient(name, node, clientFactory));

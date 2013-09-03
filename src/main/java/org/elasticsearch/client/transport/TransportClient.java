@@ -69,7 +69,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.monitor.MonitorService;
@@ -283,7 +282,6 @@ public class TransportClient extends AbstractClient {
         injector.getInstance(CacheRecycler.class).close();
 
         CachedStreams.clear();
-        ThreadLocals.clearReferencesThreadLocals();
     }
 
     @Override

@@ -2,8 +2,7 @@
 == Suggesters
 
 The suggest feature suggests similar looking terms based on a provided
-text by using a suggester. The suggest feature is available from version
-`0.90.0.Beta1`. Parts of the suggest feature are still under
+text by using a suggester. Parts of the suggest feature are still under
 development.
 
 The suggest request part is either defined alongside the query part in a

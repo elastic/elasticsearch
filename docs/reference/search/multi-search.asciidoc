@@ -2,8 +2,7 @@
 == Multi Search API
 
 The multi search API allows to execute several search requests within
-the same API. The endpoint for it is `_msearch` (available from `0.19`
-onwards).
+the same API. The endpoint for it is `_msearch`.
 
 The format of the request is similar to the bulk API format, and the
 structure is as follows (the structure is specifically optimized to

@@ -6,7 +6,7 @@ The operation gets the document (collocated with the shard) from the
 index, runs the script (with optional script language and parameters),
 and index back the result (also allows to delete, or ignore the
 operation). It uses versioning to make sure no updates have happened
-during the "get" and "reindex". (available from `0.19` onwards).
+during the "get" and "reindex".
 
 Note, this operation still means full reindex of the document, it just
 removes some network roundtrips and reduces chances of version conflicts
@@ -92,7 +92,7 @@ ctx._source.tags.contains(tag) ? (ctx.op = \"none\") : ctx._source.tags += tag
 if (ctx._source.tags.contains(tag)) { ctx.op = \"none\" } else { ctx._source.tags += tag }
 --------------------------------------------------
 
-The update API also support passing a partial document (since 0.20),
+The update API also support passing a partial document,
 which will be merged into the existing document (simple recursive merge,
 inner merging of objects, replacing core "keys/values" and arrays). For
 example:
@@ -109,7 +109,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
-There is also support for `upsert` (since 0.20). If the document does
+There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to
 index the fresh doc:
 
@@ -126,7 +126,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
-Last it also supports `doc_as_upsert` (since 0.90.2). So that the
+Last it also supports `doc_as_upsert`. So that the
 provided document will be inserted if the document does not already
 exist. This will reduce the amount of data that needs to be sent to
 elasticsearch.
@@ -164,8 +164,8 @@ including:
                 so that the updated document appears in search results 
                 immediately.
 
-`fields`::      return the relevant fields from the document updated 
-                (since 0.20). Support `_source` to return the full updated 
+`fields`::      return the relevant fields from the updated document.
+                Support `_source` to return the full updated 
                 source.
 
                 

@@ -70,7 +70,7 @@ in the resulting boolean query should match. It can be an absolute value
 both>>.
 
 |`lenient` |If set to `true` will cause format based failures (like
-providing text to a numeric field) to be ignored. (since 0.19.4).
+providing text to a numeric field) to be ignored. 
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets
@@ -128,7 +128,7 @@ search on all "city" fields:
 
 Another option is to provide the wildcard fields search in the query
 string itself (properly escaping the `*` sign), for example:
-`city.\*:something`. (since 0.19.4).
+`city.\*:something`. 
 
 When running the `query_string` query against multiple fields, the
 following additional parameters are allowed:

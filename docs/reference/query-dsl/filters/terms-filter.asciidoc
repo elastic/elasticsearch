@@ -90,8 +90,6 @@ Potentially the amount of user ids specified in the terms filter can be
 a lot. In this scenario it makes sense to use the terms filter's terms
 lookup mechanism.
 
-The terms lookup mechanism is supported from version `0.90.0.Beta1`.
-
 The terms lookup mechanism supports the following options:
 
 [horizontal]

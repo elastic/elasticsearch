@@ -17,11 +17,6 @@ http://www.vividsolutions.com/jts/jtshome.htm[JTS], both of which are
 optional dependencies. Consequently you must add Spatial4J v0.3 and JTS
 v1.12 to your classpath in order to use this type.
 
-Note, the implementation of geo_shape was modified in an API breaking
-way in 0.90. Implementations prior to this version had significant
-issues and users are recommended to update to the latest version of
-Elasticsearch if they wish to use the geo_shape functionality.
-
 [float]
 ==== Mapping Options
 

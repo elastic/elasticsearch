@@ -11,8 +11,6 @@ include::modules/http.asciidoc[]
 
 include::modules/indices.asciidoc[]
 
-include::modules/jmx.asciidoc[]
-
 include::modules/memcached.asciidoc[]
 
 include::modules/network.asciidoc[]

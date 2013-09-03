@@ -16,7 +16,7 @@ type:
 
 |`max_gram` |Maximum size in codepoints of a single n-gram |`2`.
 
-|`token_chars` |(Since `0.90.2`) Characters classes to keep in the
+|`token_chars` | Characters classes to keep in the
 tokens, Elasticsearch will split on characters that don't belong to any
 of these classes. |`[]` (Keep all characters)
 |=======================================================================

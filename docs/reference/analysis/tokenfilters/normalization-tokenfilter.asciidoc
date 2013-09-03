@@ -11,5 +11,3 @@ http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/
 or the
 http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/fa/PersianNormalizer.html[PersianNormalizer]
 documentation.
-
-*Note:* This filters are available since `0.90.2`

@@ -50,7 +50,7 @@ the index to be bigger):
 }
 --------------------------------------------------
 
-Since `0.20.2` the field name support wildcard notation, for example,
+The field name supports wildcard notation, for example,
 using `comment_*` which will cause all fields that match the expression
 to be highlighted.
 

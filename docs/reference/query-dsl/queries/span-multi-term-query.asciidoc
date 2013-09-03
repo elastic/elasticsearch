@@ -28,5 +28,3 @@ A boost can also be associated with the query:
     }
 }
 --------------------------------------------------
-
-The `span_multi` query is supported from version `0.90.1`

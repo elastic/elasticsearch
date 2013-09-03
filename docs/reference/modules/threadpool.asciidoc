@@ -7,29 +7,28 @@ pools, but the important ones include:
 
 [horizontal]
 `index`:: 
-    For index/delete operations, defaults to `fixed` type since
-    `0.90.0`, size `# of available processors`. (previously type `cached`)
+    For index/delete operations, defaults to `fixed`, 
+    size `# of available processors`. 
 
 `search`:: 
-    For count/search operations, defaults to `fixed` type since
-    `0.90.0`, size `3x # of available processors`. (previously type
-    `cached`)
+    For count/search operations, defaults to `fixed`,
+    size `3x # of available processors`. 
 
 `get`:: 
-    For get operations, defaults to `fixed` type since `0.90.0`,
-    size `# of available processors`. (previously type `cached`)
+    For get operations, defaults to `fixed`
+    size `# of available processors`.
 
 `bulk`:: 
-    For bulk operations, defaults to `fixed` type since `0.90.0`,
-    size `# of available processors`. (previously type `cached`)
+    For bulk operations, defaults to `fixed`
+    size `# of available processors`.
 
 `warmer`:: 
-    For segment warm-up operations, defaults to `scaling` since
-    `0.90.0` with a `5m` keep-alive. (previously type `cached`)
+    For segment warm-up operations, defaults to `scaling`
+    with a `5m` keep-alive. 
 
 `refresh`:: 
-    For refresh operations, defaults to `scaling` since
-    `0.90.0` with a `5m` keep-alive. (previously type `cached`)
+    For refresh operations, defaults to `scaling`
+    with a `5m` keep-alive. 
 
 Changing a specific thread pool can be done by setting its type and
 specific type parameters, for example, changing the `index` thread pool

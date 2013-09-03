@@ -13,8 +13,7 @@ and "remove" (`-`), for example: `+test*,-test3`.
 
 All multi indices API support the `ignore_indices` option. Setting it to
 `missing` will cause indices that do not exists to be ignored from the
-execution. By default, when its not set, the request will fail. Note,
-this feature is available since 0.20 version.
+execution. By default, when its not set, the request will fail. 
 
 [float]
 == Routing

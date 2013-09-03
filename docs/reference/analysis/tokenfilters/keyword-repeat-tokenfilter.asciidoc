@@ -9,8 +9,6 @@ subsequent stemmer will be indexed twice. Therefore, consider adding a
 `unique` filter with `only_on_same_position` set to `true` to drop
 unnecessary duplicates.
 
-Note: this is available from `0.90.0.Beta2` on.
-
 Here is an example:
 
 [source,js]

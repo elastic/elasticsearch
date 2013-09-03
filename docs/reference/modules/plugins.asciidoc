@@ -17,8 +17,14 @@ Installing plugins can either be done manually by placing them under the
 be found under the https://github.com/elasticsearch[elasticsearch]
 organization in GitHub, starting with `elasticsearch-`.
 
-Starting from 0.90.2, installing plugins typically take the form of
-`plugin --install <org>/<user/component>/<version>`. The plugins will be
+Installing plugins typically take the following form:
+
+[source,shell]
+-----------------------------------
+plugin --install <org>/<user/component>/<version>
+-----------------------------------
+
+The plugins will be
 automatically downloaded in this case from `download.elasticsearch.org`,
 and in case they don't exist there, from maven (central and sonatype).
 
@@ -26,17 +32,16 @@ Note that when the plugin is located in maven central or sonatype
 repository, `<org>` is the artifact `groupId` and `<user/component>` is
 the `artifactId`.
 
-For prior version, the older form is
-`plugin -install <org>/<user/component>/<version>`
-
 A plugin can also be installed directly by specifying the URL for it,
 for example:
-`bin/plugin --url file://path/to/plugin --install plugin-name` or
-`bin/plugin -url file://path/to/plugin -install plugin-name` for older
-version.
 
-Starting from 0.90.2, for more information about plugins, you can run
-`bin/plugin -h`.
+[source,shell]
+-----------------------------------
+bin/plugin --url file://path/to/plugin --install plugin-name
+-----------------------------------
+
+
+You can run `bin/plugin -h`.
 
 [float]
 ==== Site Plugins
@@ -56,13 +61,8 @@ running:
 
 [source,js]
 --------------------------------------------------
-# From 0.90.2
 bin/plugin --install mobz/elasticsearch-head
 bin/plugin --install lukas-vlcek/bigdesk
-
-# From a prior version
-bin/plugin -install mobz/elasticsearch-head
-bin/plugin -install lukas-vlcek/bigdesk
 --------------------------------------------------
 
 Will install both of those site plugins, with `elasticsearch-head`

@@ -1,8 +1,7 @@
 [[indices-types-exists]]
 == Types Exists
 
-Used to check if a type/types exists in an index/indices (available
-since 0.20).
+Used to check if a type/types exists in an index/indices.
 
 [source,js]
 --------------------------------------------------

@@ -7,7 +7,7 @@ document based access to those values. The field data cache can be
 expensive to build for a field, so its recommended to have enough memory
 to allocate it, and to keep it loaded.
 
-From version 0.90 onwards, the amount of memory used for the field
+The amount of memory used for the field
 data cache can be controlled using `indices.fielddata.cache.size`. Note:
 reloading  the field data which does not fit into your cache will be expensive
 and  perform poorly.
@@ -116,24 +116,6 @@ The `frequency` and `regex` filters can be combined:
     }
 }
 --------------------------------------------------
-
-[float]
-=== Settings before v0.90
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`index.cache.field.type` |The default type for the field data cache is
-`resident` (because of the cost of rebuilding it). Other types include
-`soft`
-
-|`index.cache.field.max_size` |The max size (count, not byte size) of
-the cache (per search segment in a shard). Defaults to not set (`-1`).
-
-|`index.cache.field.expire` |A time based setting that expires filters
-after a certain time of inactivity. Defaults to `-1`. For example, can
-be set to `5m` for a 5 minute expiry.
-|=======================================================================
 
 [float]
 === Monitoring field data

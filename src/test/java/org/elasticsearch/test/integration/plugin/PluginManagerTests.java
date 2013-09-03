@@ -124,7 +124,7 @@ public class PluginManagerTests extends AbstractNodesTests {
     }
 
     private void assertPluginAvailable(String pluginName) {
-        HttpClient httpClient = new HttpClient("http://localhost:9200/");
+        HttpClient httpClient = new HttpClient("http://127.0.0.1:9200/");
         HttpClientResponse response = httpClient.request("_plugin/" + pluginName + "/");
         assertThat(response.errorCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
     }

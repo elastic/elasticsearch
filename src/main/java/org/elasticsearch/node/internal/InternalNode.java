@@ -51,7 +51,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -356,7 +355,6 @@ public final class InternalNode implements Node {
         Injectors.close(injector);
 
         CachedStreams.clear();
-        ThreadLocals.clearReferencesThreadLocals();
 
         logger.info("closed");
     }

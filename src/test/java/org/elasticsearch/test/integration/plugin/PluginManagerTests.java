@@ -30,7 +30,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.rest.helper.HttpClient;
 import org.elasticsearch.test.integration.rest.helper.HttpClientResponse;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,12 +37,14 @@ import org.junit.Test;
 import java.io.File;
 import java.net.URL;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class PluginManagerTests extends AbstractNodesTests {
 
-    private static final String PLUGIN_DIR = "target/plugins";
+    private static final String PLUGIN_DIR = "plugins";
+    private static final String NODE_NAME = "plugin-test-node";
 
     @Test
     public void testLocalPluginInstallSingleFolder() throws Exception {
@@ -100,7 +101,7 @@ public class PluginManagerTests extends AbstractNodesTests {
 
     private static void downloadAndExtract(String pluginName, String pluginUrl) throws Exception {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().put("path.plugins", PLUGIN_DIR).build(), false);
+                ImmutableSettings.settingsBuilder()/*.put("path.plugins", PLUGIN_DIR)*/.build(), false);
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
@@ -109,9 +110,9 @@ public class PluginManagerTests extends AbstractNodesTests {
     }
 
     private void startNode() {
-        startNode("plugin-test-node", ImmutableSettings.settingsBuilder()
+        startNode(NODE_NAME, ImmutableSettings.settingsBuilder()
                 .put("discovery.zen.ping.multicast.enabled", false)
-                .put("path.plugins", PLUGIN_DIR));
+                /*.put("path.plugins", PLUGIN_DIR)*/);
     }
 
     private void assertPluginLoaded(String pluginName) {
@@ -125,8 +126,13 @@ public class PluginManagerTests extends AbstractNodesTests {
 
     private void assertPluginAvailable(String pluginName) {
         HttpClient httpClient = new HttpClient("http://127.0.0.1:9200/");
-        HttpClientResponse response = httpClient.request("_plugin/" + pluginName + "/");
-        assertThat(response.errorCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        //checking that the http connector is working properly
+        HttpClientResponse response = httpClient.request("");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.response(), containsString(NODE_NAME));
+        //checking now that the plugin is available
+        response = httpClient.request("_plugin/" + pluginName + "/");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     @Before

@@ -2,7 +2,7 @@
 == Query DSL - Filters
 
 elasticsearch provides a full Java query dsl in a similar manner to the
-REST link:{ref}/query-dsl.html[Query DSL]. The factory for filter
+REST {ref}/query-dsl.html[Query DSL]. The factory for filter
 builders is `FilterBuilders`.
 
 Once your query is ready, you can use the <<search,Search API>>.
@@ -22,7 +22,7 @@ Note that you can easily print (aka debug) JSON generated queries using
 
 === And Filter
 
-See link:{ref}/query-dsl-and-filter.html[And Filter]
+See {ref}/query-dsl-and-filter.html[And Filter]
 
 
 [source,java]
@@ -39,7 +39,7 @@ Note that you can cache the result using
 
 === Bool Filter
 
-See link:{ref}/query-dsl-bool-filter.html[Bool Filter]
+See {ref}/query-dsl-bool-filter.html[Bool Filter]
 
 
 [source,java]
@@ -57,7 +57,7 @@ Note that you can cache the result using
 
 === Exists Filter
 
-See link:{ref}/query-dsl-exists-filter.html[Exists Filter].
+See {ref}/query-dsl-exists-filter.html[Exists Filter].
 
 
 [source,java]
@@ -68,7 +68,7 @@ FilterBuilders.existsFilter("user");
 
 === Ids Filter
 
-See link:{ref}/query-dsl-ids-filter.html[IDs Filter]
+See {ref}/query-dsl-ids-filter.html[IDs Filter]
 
 
 [source,java]
@@ -82,7 +82,7 @@ FilterBuilders.idsFilter().addIds("1", "4", "100");
 
 === Limit Filter
 
-See link:{ref}/query-dsl-limit-filter.html[Limit Filter]
+See {ref}/query-dsl-limit-filter.html[Limit Filter]
 
 
 [source,java]
@@ -93,7 +93,7 @@ FilterBuilders.limitFilter(100);
 
 === Type Filter
 
-See link:{ref}/query-dsl-type-filter.html[Type Filter]
+See {ref}/query-dsl-type-filter.html[Type Filter]
 
 
 [source,java]
@@ -104,7 +104,7 @@ FilterBuilders.typeFilter("my_type");
 
 === Geo Bounding Box Filter
 
-See link:{ref}/query-dsl-geo-bounding-box-filter.html[Geo
+See {ref}/query-dsl-geo-bounding-box-filter.html[Geo
 Bounding Box Filter]
 
 [source,java]
@@ -121,7 +121,7 @@ Note that you can cache the result using
 
 === GeoDistance Filter
 
-See link:{ref}/query-dsl-geo-distance-filter.html[Geo
+See {ref}/query-dsl-geo-distance-filter.html[Geo
 Distance Filter]
 
 [source,java]
@@ -140,7 +140,7 @@ Note that you can cache the result using
 
 === Geo Distance Range Filter
 
-See link:{ref}/query-dsl-geo-distance-range-filter.html[Geo
+See {ref}/query-dsl-geo-distance-range-filter.html[Geo
 Distance Range Filter]
 
 [source,java]
@@ -162,7 +162,7 @@ Note that you can cache the result using
 
 === Geo Polygon Filter
 
-See link:{ref}/query-dsl-geo-polygon-filter.html[Geo Polygon
+See {ref}/query-dsl-geo-polygon-filter.html[Geo Polygon
 Filter]
 
 [source,java]
@@ -180,7 +180,7 @@ Note that you can cache the result using
 
 === Geo Shape Filter
 
-See link:{ref}/query-dsl-geo-shape-filter.html[Geo Shape
+See {ref}/query-dsl-geo-shape-filter.html[Geo Shape
 Filter]
 
 Note: the `geo_shape` type uses `Spatial4J` and `JTS`, both of which are
@@ -240,8 +240,8 @@ filter = FilterBuilders.geoShapeFilter("location", "New Zealand", "countries")
 === Has Child / Has Parent Filters
 
 See: 
- * link:{ref}/query-dsl-has-child-filter.html[Has Child Filter]
- * link:{ref}/query-dsl-has-parent-filter.html[Has Parent Filter]
+ * {ref}/query-dsl-has-child-filter.html[Has Child Filter]
+ * {ref}/query-dsl-has-parent-filter.html[Has Parent Filter]
 
 [source,java]
 --------------------------------------------------
@@ -257,7 +257,7 @@ QFilterBuilders.hasParentFilter("blog",
 
 === Match All Filter
 
-See link:{ref}/query-dsl-match-all-filter.html[Match All Filter]
+See {ref}/query-dsl-match-all-filter.html[Match All Filter]
 
 [source,java]
 --------------------------------------------------
@@ -267,7 +267,7 @@ FilterBuilders.matchAllFilter();
 
 === Missing Filter
 
-See link:{ref}/query-dsl-missing-filter.html[Missing Filter]
+See {ref}/query-dsl-missing-filter.html[Missing Filter]
 
 
 [source,java]
@@ -280,7 +280,7 @@ FilterBuilders.missingFilter("user")
 
 === Not Filter
 
-See link:{ref}/query-dsl-not-filter.html[Not Filter]
+See {ref}/query-dsl-not-filter.html[Not Filter]
 
 
 [source,java]
@@ -292,7 +292,7 @@ FilterBuilders.notFilter(
 
 === Numeric Range Filter
 
-See link:{ref}/query-dsl-numeric-range-filter.html[Numeric
+See {ref}/query-dsl-numeric-range-filter.html[Numeric
 Range Filter]
 
 [source,java]
@@ -311,7 +311,7 @@ Note that you can cache the result using
 
 === Or Filter
 
-See link:{ref}/query-dsl-or-filter.html[Or Filter]
+See {ref}/query-dsl-or-filter.html[Or Filter]
 
 
 [source,java]
@@ -328,7 +328,7 @@ Note that you can cache the result using
 
 === Prefix Filter
 
-See link:{ref}/query-dsl-prefix-filter.html[Prefix Filter]
+See {ref}/query-dsl-prefix-filter.html[Prefix Filter]
 
 
 [source,java]
@@ -342,7 +342,7 @@ Note that you can cache the result using
 
 === Query Filter
 
-See link:{ref}/query-dsl-query-filter.html[Query Filter]
+See {ref}/query-dsl-query-filter.html[Query Filter]
 
 
 [source,java]
@@ -358,7 +358,7 @@ Note that you can cache the result using
 
 === Range Filter
 
-See link:{ref}/query-dsl-range-filter.html[Range Filter]
+See {ref}/query-dsl-range-filter.html[Range Filter]
 
 
 [source,java]
@@ -381,7 +381,7 @@ Note that you can ask not to cache the result using
 
 === Script Filter
 
-See link:{ref}/query-dsl-script-filter.html[Script Filter]
+See {ref}/query-dsl-script-filter.html[Script Filter]
 
 
 [source,java]
@@ -397,7 +397,7 @@ Note that you can cache the result using
 
 === Term Filter
 
-See link:{ref}/query-dsl-term-filter.html[Term Filter]
+See {ref}/query-dsl-term-filter.html[Term Filter]
 
 
 [source,java]
@@ -411,7 +411,7 @@ Note that you can ask not to cache the result using
 
 === Terms Filter
 
-See link:{ref}/query-dsl-terms-filter.html[Terms Filter]
+See {ref}/query-dsl-terms-filter.html[Terms Filter]
 
 
 [source,java]
@@ -427,7 +427,7 @@ Note that you can ask not to cache the result using
 
 === Nested Filter
 
-See link:{ref}/query-dsl-nested-filter.html[Nested Filter]
+See {ref}/query-dsl-nested-filter.html[Nested Filter]
 
 
 [source,java]

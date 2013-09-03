@@ -39,12 +39,12 @@ SearchResponse response = client.prepareSearch().execute().actionGet();
 --------------------------------------------------
 
 For more information on the search operation, check out the REST
-link:{ref}/search.html[search] docs.
+{ref}/search.html[search] docs.
 
 
 === Using scrolls in Java
 
-Read the link:{ref}/search-request-scroll.html[scroll documentation]
+Read the {ref}/search-request-scroll.html[scroll documentation]
 first!
 
 [source,java]
@@ -92,7 +92,7 @@ The default mode is `SINGLE_THREAD`.
 
 === MultiSearch API
 
-See link:{ref}/search-multi-search.html[MultiSearch API Query]
+See {ref}/search-multi-search.html[MultiSearch API Query]
 documentation
 
 [source,java]

@@ -14,7 +14,7 @@ DeleteResponse response = client.prepareDelete("twitter", "tweet", "1")
 --------------------------------------------------
 
 For more information on the delete operation, check out the
-link:{ref}/docs-delete.html[delete API] docs.
+{ref}/docs-delete.html[delete API] docs.
 
 
 === Operation Threading

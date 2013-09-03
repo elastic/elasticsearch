@@ -21,7 +21,6 @@ package org.elasticsearch.test.integration.indices.wamer;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
@@ -40,13 +39,10 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleWarmerTests() {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
@@ -61,8 +57,6 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
 
     @Test
     public void templateWarmer() {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().preparePutTemplate("template_1")
                 .setSource("{\n" +
                         "    \"template\" : \"*\",\n" +
@@ -82,8 +76,7 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
@@ -96,8 +89,6 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
 
     @Test
     public void createIndexWarmer() {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test")
                 .setSource("{\n" +
                         "    \"settings\" : {\n" +
@@ -127,8 +118,6 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
 
     @Test
     public void deleteNonExistentIndexWarmerTest() {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
         try {
@@ -141,12 +130,10 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
 
     @Test // issue 3246
     public void ensureThatIndexWarmersCanBeChangedOnRuntime() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1, "index.number_of_replicas", 0))
                 .execute().actionGet();
-
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
@@ -154,10 +141,11 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
 
         client().prepareIndex("test", "test", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
 
+        logger.info("--> Disabling warmers execution");
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put("index.warmer.enabled", false)).execute().actionGet();
 
         long warmerRunsAfterDisabling = getWarmerRuns();
-        assertThat(getWarmerRuns(), greaterThanOrEqualTo(1L));
+        assertThat(warmerRunsAfterDisabling, greaterThanOrEqualTo(1L));
 
         client().prepareIndex("test", "test", "2").setSource("foo2", "bar2").setRefresh(true).execute().actionGet();
 

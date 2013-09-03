@@ -179,6 +179,23 @@ public class ElasticsearchAssertions {
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));
     }
 
+    /**
+     * Assert suggestion returns exactly the provided text.
+     */
+    public static void assertSuggestion(Suggest searchSuggest, int entry, String key, String... text) {
+        assertSuggestion(searchSuggest, entry, key, text.length, text);
+    }
+
+    /**
+     * Assert suggestion returns size suggestions and the first are the provided text.
+     */
+    public static void assertSuggestion(Suggest searchSuggest, int entry, String key, int size, String... text) {
+        assertSuggestionSize(searchSuggest, entry, size, key);
+        for( int i = 0; i < text.length; i++) {
+            assertSuggestion(searchSuggest, entry, i, key, text[i]);
+        }
+    }
+
     /*
      * matchers
      */

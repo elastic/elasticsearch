@@ -22,12 +22,14 @@ package org.elasticsearch.common;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import gnu.trove.set.hash.THashSet;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.*;
 
 /**
@@ -48,24 +50,32 @@ public class Strings {
     private static final char EXTENSION_SEPARATOR = '.';
 
     public static void tabify(int tabs, String from, StringBuilder to) throws Exception {
-        BufferedReader reader = new BufferedReader(new FastStringReader(from));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            for (int i = 0; i < tabs; i++) {
-                to.append('\t');
+        final BufferedReader reader = new BufferedReader(new FastStringReader(from));
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                for (int i = 0; i < tabs; i++) {
+                    to.append('\t');
+                }
+                to.append(line).append('\n');
             }
-            to.append(line).append('\n');
+        } finally {
+            reader.close();
         }
     }
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        BufferedReader reader = new BufferedReader(new FastStringReader(from));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            for (int i = 0; i < spaces; i++) {
-                to.append(' ');
+        final BufferedReader reader = new BufferedReader(new FastStringReader(from));
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                for (int i = 0; i < spaces; i++) {
+                    to.append(' ');
+                }
+                to.append(line).append('\n');
             }
-            to.append(line).append('\n');
+        } finally {
+            reader.close();
         }
     }
 
@@ -1479,17 +1489,6 @@ public class Strings {
         return (array == null || array.length == 0);
     }
 
-    /**
-     * Return <code>true</code> if the supplied Collection is <code>null</code>
-     * or empty. Otherwise, return <code>false</code>.
-     *
-     * @param collection the Collection to check
-     * @return whether the given Collection is empty
-     */
-    private static boolean isEmpty(Collection collection) {
-        return (collection == null || collection.isEmpty());
-    }
-
     private Strings() {
 
     }
@@ -1503,5 +1502,50 @@ public class Strings {
         final byte[] bytes = new byte[spare.length];
         System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
         return bytes;
+    }
+    
+    private static class SecureRandomHolder {
+        private static final SecureRandom INSTANCE = new SecureRandom();
+    }
+
+    /**
+     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
+     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
+     */
+    public static String randomBase64UUID() {
+        return randomBase64UUID(SecureRandomHolder.INSTANCE);
+    }
+    
+    /**
+     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
+     * randomly initialized by the given {@link Random} instance
+     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
+     */
+    public static String randomBase64UUID(Random random) {
+        final byte[] randomBytes = new byte[16];
+        random.nextBytes(randomBytes);
+        
+        /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
+         * The randomly or pseudo-randomly generated version.
+         * The version number is in the most significant 4 bits of the time
+         * stamp (bits 4 through 7 of the time_hi_and_version field).*/
+        randomBytes[6] &= 0x0f;  /* clear the 4 most significant bits for the version  */
+        randomBytes[6] |= 0x40;  /* set the version to 0100 / 0x40 */
+        
+        /* Set the variant: 
+         * The high field of th clock sequence multiplexed with the variant.
+         * We set only the MSB of the variant*/
+        randomBytes[8] &= 0x3f;  /* clear the 2 most significant bits */
+        randomBytes[8] |= 0x80;  /* set the variant (MSB is set)*/
+        try {
+            byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
+            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
+            assert encoded[encoded.length - 1] == '=';
+            assert encoded[encoded.length - 2] == '=';
+            // we always have padding of two at the end, encode it differently
+            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalStateException("should not be thrown");
+        }
     }
 }

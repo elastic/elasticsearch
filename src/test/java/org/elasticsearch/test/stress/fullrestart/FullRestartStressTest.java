@@ -25,7 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -40,6 +40,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 
 import java.io.File;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -114,6 +115,7 @@ public class FullRestartStressTest {
 
     public void run() throws Exception {
         long numberOfRounds = 0;
+        Random random = new Random(0);
         long testStart = System.currentTimeMillis();
         while (true) {
             Node[] nodes = new Node[numberOfNodes];
@@ -180,7 +182,7 @@ public class FullRestartStressTest {
                         int tokens = ThreadLocalRandom.current().nextInt() % textTokens;
                         sb.setLength(0);
                         for (int j = 0; j < tokens; j++) {
-                            sb.append(UUID.randomBase64UUID()).append(' ');
+                            sb.append(Strings.randomBase64UUID(random)).append(' ');
                         }
                         json.field("text_" + i, sb.toString());
                     }

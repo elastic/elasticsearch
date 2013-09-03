@@ -90,8 +90,9 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
                     .put(getClassDefaultSettings())
                     .put(settings)
                     .put("name", id)
+                    .put("discovery.id.seed", randomLong())
                     .build();
-    
+            
             if (finalSettings.get("gateway.type") == null) {
                 // default to non gateway
                 finalSettings = settingsBuilder().put(finalSettings).put("gateway.type", "none").build();

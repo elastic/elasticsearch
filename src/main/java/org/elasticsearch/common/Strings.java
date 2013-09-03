@@ -1025,7 +1025,6 @@ public class Strings {
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
-        int i = 0;      // number of the current substring.
         for (; pos < len; pos++) {
             if (chars[pos] == c) {
                 int size = pos - start;
@@ -1303,15 +1302,15 @@ public class Strings {
      * @param suffix the String to end each element with
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
         return collectionToDelimitedString(coll, delim, prefix, suffix, new StringBuilder());
     }
 
-    public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
         if (Iterables.isEmpty(coll)) {
             return "";
         }
-        Iterator it = coll.iterator();
+        Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);
             if (it.hasNext()) {
@@ -1329,7 +1328,7 @@ public class Strings {
      * @param delim the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable coll, String delim) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
         return collectionToDelimitedString(coll, delim, "", "");
     }
 
@@ -1340,7 +1339,7 @@ public class Strings {
      * @param coll the Collection to display
      * @return the delimited String
      */
-    public static String collectionToCommaDelimitedString(Iterable coll) {
+    public static String collectionToCommaDelimitedString(Iterable<?> coll) {
         return collectionToDelimitedString(coll, ",");
     }
 
@@ -1490,7 +1489,6 @@ public class Strings {
     }
 
     private Strings() {
-
     }
     
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
@@ -1505,6 +1503,7 @@ public class Strings {
     }
     
     private static class SecureRandomHolder {
+        // class loading is atomic - this is a lazy & safe singleton
         private static final SecureRandom INSTANCE = new SecureRandom();
     }
 

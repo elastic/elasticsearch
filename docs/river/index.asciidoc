@@ -13,7 +13,7 @@ that it is running). The name uniquely identifies the river within the
 cluster. For example, one can run a river called `my_river` with type
 `dummy`, and another river called `my_other_river` with type `dummy`.
 
-[float]
+
 == How it Works
 
 A river instance (and its name) is a type within the `_river` index. All
@@ -43,7 +43,7 @@ associated with it):
 curl -XDELETE 'localhost:9200/_river/my_river/'
 --------------------------------------------------
 
-[float]
+
 == Cluster Allocation
 
 Rivers are singletons within the cluster. They get allocated
@@ -56,7 +56,7 @@ it. The `node.river` can also include a comma separated list of either
 river names or types controlling the rivers allowed to run on it. For
 example: `my_river1,my_river2`, or `dummy,twitter`.
 
-[float]
+
 == Status
 
 Each river (regardless of the implementation) exposes a high level

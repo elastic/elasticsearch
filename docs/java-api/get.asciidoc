@@ -15,7 +15,7 @@ GetResponse response = client.prepareGet("twitter", "tweet", "1")
 For more information on the index operation, check out the REST
 link:{ref}/docs-get.html[get] docs.
 
-[float]
+
 === Operation Threading
 
 The get API allows to set the threading model the operation will be

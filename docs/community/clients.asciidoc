@@ -1,13 +1,13 @@
 [[clients]]
 == Clients
 
-[float]
+
 === Perl
 
 * http://github.com/clintongormley/ElasticSearch.pm[ElasticSearch.pm]:
   Perl client.
 
-[float]
+
 === Python
 
 * http://github.com/aparo/pyes[pyes]:
@@ -28,7 +28,7 @@
 * http://intridea.github.io/surfiki-refine-elasticsearch/[Surfiki Refine]:
   Python Map-Reduce engine targeting Elasticsearch indices.
 
-[float]
+
 === Ruby
 
 * http://github.com/karmi/tire[Tire]:
@@ -43,7 +43,7 @@
 * https://github.com/wireframe/elastic_searchable/[elastic_searchable]:
   Ruby client + Rails integration.
 
-[float]
+
 === PHP
 
 * http://github.com/ruflin/Elastica[Elastica]:
@@ -54,13 +54,13 @@
 * http://github.com/polyfractal/Sherlock[Sherlock]:
   PHP client, one-to-one mapping with query DSL, fluid interface.
 
-[float]
+
 === Java
 
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
 
-[float]
+
 === Javascript
 
 * https://github.com/fullscale/elastic.js[Elastic.js]:
@@ -72,7 +72,7 @@
 * https://github.com/ramv/node-elastical[node-elastical]:
   Node.js client for the ElasticSearch REST API
 
-[float]
+
 === .Net
 
 * https://github.com/Yegoroff/PlainElastic.Net[PlainElastic.Net]:
@@ -84,7 +84,7 @@
 * https://github.com/medcl/ElasticSearch.Net[ElasticSearch.NET]:
   .NET client.
 
-[float]
+
 === Scala
 
 * https://github.com/sksamuel/elastic4s[elastic4s]:
@@ -96,13 +96,13 @@
 * https://github.com/bsadeh/scalastic[scalastic]:
   Scala client.
 
-[float]
+
 === Clojure
 
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
-[float]
+
 === Go
 
 * https://github.com/mattbaird/elastigo[elastigo]:
@@ -111,7 +111,7 @@
 * https://github.com/belogik/goes[goes]:
   Go lib.
 
-[float]
+
 === Erlang
 
 * http://github.com/tsloughter/erlastic_search[erlastic_search]:
@@ -125,13 +125,13 @@
   http://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
   environment.
 
-[float]
+
 === EventMachine
 
 * http://github.com/vangberg/em-elasticsearch[em-elasticsearch]:
   elasticsearch library for eventmachine.
 
-[float]
+
 === Command Line
 
 * https://github.com/elasticsearch/es2unix[es2unix]:
@@ -140,13 +140,13 @@
 * https://github.com/javanna/elasticshell[elasticshell]:
   command line shell for elasticsearch.
 
-[float]
+
 === OCaml
 
 * https://github.com/tovbinm/ocaml-elasticsearch[ocaml-elasticsearch]:
   OCaml client for Elasticsearch
 
-[float]
+
 === Smalltalk
 
 * http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -

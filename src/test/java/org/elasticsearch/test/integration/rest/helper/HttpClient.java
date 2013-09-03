@@ -105,10 +105,12 @@ public class HttpClient {
         } catch (IOException e) {
             InputStream errStream = urlConnection.getErrorStream();
             String body = null;
-            try {
-                body = Streams.copyToString(new InputStreamReader(errStream, Charsets.UTF_8));
-            } catch (IOException e1) {
-                throw new ElasticSearchException("problem reading error stream", e1);
+            if (errStream != null) {
+                try {
+                    body = Streams.copyToString(new InputStreamReader(errStream, Charsets.UTF_8));
+                } catch (IOException e1) {
+                    throw new ElasticSearchException("problem reading error stream", e1);
+                }
             }
             return new HttpClientResponse(body, errorCode, respHeaders, e);
         } finally {

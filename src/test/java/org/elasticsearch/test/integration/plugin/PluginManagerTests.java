@@ -24,6 +24,9 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
@@ -53,10 +56,10 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_single_folder.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        startNode();
+        Node node = startNode();
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
+        assertPluginAvailable(node, pluginName);
     }
 
     @Test
@@ -67,10 +70,10 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_folder_site.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        startNode();
+        Node node = startNode();
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
+        assertPluginAvailable(node, pluginName);
     }
 
     @Test
@@ -80,10 +83,10 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_without_folders.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        startNode();
+        Node node = startNode();
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
+        assertPluginAvailable(node, pluginName);
     }
 
     @Test
@@ -93,15 +96,15 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_folder_file.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        startNode();
+        Node node = startNode();
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
+        assertPluginAvailable(node, pluginName);
     }
 
     private static void downloadAndExtract(String pluginName, String pluginUrl) throws Exception {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(
-                ImmutableSettings.settingsBuilder()/*.put("path.plugins", PLUGIN_DIR)*/.build(), false);
+                ImmutableSettings.settingsBuilder().build(), false);
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
@@ -109,10 +112,9 @@ public class PluginManagerTests extends AbstractNodesTests {
         pluginManager.downloadAndExtract(pluginName, false);
     }
 
-    private void startNode() {
-        startNode(NODE_NAME, ImmutableSettings.settingsBuilder()
-                .put("discovery.zen.ping.multicast.enabled", false)
-                /*.put("path.plugins", PLUGIN_DIR)*/);
+    private Node startNode() {
+        return startNode(NODE_NAME, ImmutableSettings.settingsBuilder()
+                .put("discovery.zen.ping.multicast.enabled", false));
     }
 
     private void assertPluginLoaded(String pluginName) {
@@ -124,8 +126,9 @@ public class PluginManagerTests extends AbstractNodesTests {
         assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().get(0).isSite(), equalTo(true));
     }
 
-    private void assertPluginAvailable(String pluginName) {
-        HttpClient httpClient = new HttpClient("http://127.0.0.1:9200/");
+    private void assertPluginAvailable(Node node, String pluginName) {
+        HttpServerTransport httpServerTransport = ((InternalNode) node).injector().getInstance(HttpServerTransport.class);
+        HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
         //checking that the http connector is working properly
         HttpClientResponse response = httpClient.request("");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));

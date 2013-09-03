@@ -4,7 +4,7 @@
 The index API allows one to index a typed JSON document into a specific
 index and make it searchable.
 
-[float]
+
 === Generate JSON document
 
 There are different way of generating JSON document:
@@ -24,7 +24,7 @@ to a `byte[]`). Therefore, if the object is in this form already, then
 use it. The `jsonBuilder` is highly optimized JSON generator that
 directly constructs a `byte[]`.
 
-[float]
+
 ==== Do It Yourself
 
 Nothing really difficult here but note that you will have to encode
@@ -40,7 +40,7 @@ String json = "{" +
     "}";
 --------------------------------------------------
 
-[float]
+
 ==== Using Map
 
 Map is a key:values pair collection. It represents very well a JSON
@@ -54,7 +54,7 @@ json.put("postDate",new Date());
 json.put("message","trying out Elastic Search");
 --------------------------------------------------
 
-[float]
+
 ==== Serialize your beans
 
 Elasticsearch already use Jackson but shade it under
@@ -87,7 +87,7 @@ ObjectMapper mapper = new ObjectMapper(); // create once, reuse
 String json = mapper.writeValueAsString(yourbeaninstance);
 --------------------------------------------------
 
-[float]
+
 ==== Use Elasticsearch helpers
 
 Elasticsearch provides built-in helpers to generate JSON content.
@@ -117,7 +117,7 @@ If you need to see the generated JSON content, you can use the
 String json = builder.string();
 --------------------------------------------------
 
-[float]
+
 === Index document
 
 The following example indexes a JSON document into an index called
@@ -187,7 +187,7 @@ List<String> matches = response.matches();
 For more information on the index operation, check out the REST
 link:{ref}/docs-index_.html[index] docs.
 
-[float]
+
 === Operation Threading
 
 The index API allows to set the threading model the operation will be

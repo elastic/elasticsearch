@@ -5,7 +5,7 @@ Once a <<client,GClient>> has been
 obtained, all of ElasticSearch APIs can be executed on it. Each Groovy
 API is exposed using three different mechanisms.
 
-[float]
+
 === Closure Request
 
 The first type is to simply provide the request as a Closure, which
@@ -56,7 +56,7 @@ indexR.failure = {Throwable t ->
 }
 --------------------------------------------------
 
-[float]
+
 === Request
 
 This option allows to pass the actual instance of the request (instead
@@ -80,7 +80,7 @@ def indexR = client.index (new IndexRequest(
 println "Indexed $indexR.response.id into $indexR.response.index/$indexR.response.type"
 --------------------------------------------------
 
-[float]
+
 === Java Like
 
 The last option is to provide an actual instance of the API request, and

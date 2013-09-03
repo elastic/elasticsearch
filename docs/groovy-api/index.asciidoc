@@ -16,7 +16,7 @@ link:{java}[Java API] exposing it in a groovier
 manner. The execution options for each API follow a similar manner and
 covered in <<anatomy>>.
 
-[float]
+
 ==== Maven Repository
 
 The Groovy API is hosted on

@@ -26,17 +26,17 @@ in your class:
 import org.elasticsearch.search.facet.FacetBuilders.*;
 --------------------------------------------------
 
-[float]
+
 === Facets
 
-[float]
+
 ==== Terms Facet
 
 Here is how you can use
 link:{ref}/search-facets-terms-facet.html[Terms Facet]
 with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -48,7 +48,7 @@ FacetBuilders.termsFacet("f")
     .size(10);
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -74,14 +74,14 @@ for (TermsFacet.Entry entry : f) {
 }
 --------------------------------------------------
 
-[float]
+
 ==== Range Facet
 
 Here is how you can use
 link:{ref}/search-facets-range-facet.html[Range Facet]
 with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -95,7 +95,7 @@ FacetBuilders.rangeFacet("f")
     .addUnboundedTo(6);     // from 6 to +infinity
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -122,14 +122,14 @@ for (RangeFacet.Entry entry : f) {
 }
 --------------------------------------------------
 
-[float]
+
 ==== Histogram Facet
 
 Here is how you can use
 link:{ref}/search-facets-histogram-facet.html[Histogram
 Facet] with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -141,7 +141,7 @@ HistogramFacetBuilder facet = FacetBuilders.histogramFacet("f")
     .interval(1);
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -163,14 +163,14 @@ for (HistogramFacet.Entry entry : f) {
 }
 --------------------------------------------------
 
-[float]
+
 ==== Date Histogram Facet
 
 Here is how you can use
 link:{ref}/search-facets-date-histogram-facet.html[Date
 Histogram Facet] with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -183,7 +183,7 @@ FacetBuilders.dateHistogramFacet("f")
                         // "hour" and "minute" or notation like "1.5h" or "2w"
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -205,7 +205,7 @@ for (DateHistogramFacet.Entry entry : f) {
 }
 --------------------------------------------------
 
-[float]
+
 ==== Filter Facet (not facet filter)
 
 Here is how you can use
@@ -215,7 +215,7 @@ with Java API.
 If you are looking on how to apply a filter to a facet, have a look at
 link:#facet-filter[facet filter] using Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -229,7 +229,7 @@ FacetBuilders.filterFacet("f",
 See <<query-dsl-filters,Filters>> to
 learn how to build filters using Java.
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -247,14 +247,14 @@ FilterFacet f = (FilterFacet) sr.facets().facetsAsMap().get("f");
 f.getCount();   // Number of docs that matched
 --------------------------------------------------
 
-[float]
+
 ==== Query Facet
 
 Here is how you can use
 link:{ref}/search-facets-query-facet.html[Query Facet]
 with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -265,7 +265,7 @@ FacetBuilders.queryFacet("f",
     QueryBuilders.matchQuery("brand", "heineken"));
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -286,14 +286,14 @@ f.getCount();   // Number of docs that matched
 See <<query-dsl-queries,Queries>> to
 learn how to build queries using Java.
 
-[float]
+
 ==== Statistical
 
 Here is how you can use
 link:{ref}/search-facets-statistical-facet.html[Statistical
 Facet] with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -304,7 +304,7 @@ FacetBuilders.statisticalFacet("f")
    .field("price");
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -329,14 +329,14 @@ f.getSumOfSquares();    // Sum of Squares
 f.getVariance();        // Variance
 --------------------------------------------------
 
-[float]
+
 ==== Terms Stats Facet
 
 Here is how you can use
 link:{ref}/search-facets-terms-stats-facet.html[Terms
 Stats Facet] with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -348,7 +348,7 @@ FacetBuilders.termsStatsFacet("f")
     .valueField("price");
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -377,14 +377,14 @@ for (TermsStatsFacet.Entry entry : f) {
 }
 --------------------------------------------------
 
-[float]
+
 ==== Geo Distance Facet
 
 Here is how you can use
 link:{ref}/search-facets-geo-distance-facet.html[Geo
 Distance Facet] with Java API.
 
-[float]
+
 ===== Prepare facet request
 
 Here is an example on how to create the facet request:
@@ -401,7 +401,7 @@ FacetBuilders.geoDistanceFacet("f")
     .unit(DistanceUnit.KILOMETERS);     // All distances are in kilometers. Can be MILES
 --------------------------------------------------
 
-[float]
+
 ===== Use facet response
 
 Import Facet definition classes:
@@ -428,7 +428,7 @@ for (GeoDistanceFacet.Entry entry : f) {
 }
 --------------------------------------------------
 
-[float]
+
 === Facet filters (not Filter Facet)
 
 By default, facets are applied on the query resultset whatever filters
@@ -468,7 +468,7 @@ SearchResponse sr = node.client().prepareSearch()
 See documentation on how to build
 <<query-dsl-filters,Filters>>.
 
-[float]
+
 === Scope
 
 By default, facets are computed within the query resultset. But, you can

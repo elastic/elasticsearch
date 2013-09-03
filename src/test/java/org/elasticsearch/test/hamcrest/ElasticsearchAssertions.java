@@ -189,10 +189,16 @@ public class ElasticsearchAssertions {
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
         assertNoFailures(resp);
         assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
-        assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field), notNullValue());
+        assertThat(resp.getHits().hits()[hit].getHighlightFields(), hasKey(field));
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));
         assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(), matcher);
         assertVersionSerializable(resp);
+    }
+
+    public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {
+        assertNoFailures(resp);
+        assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
+        assertThat(resp.getHits().hits()[hit].getHighlightFields(), not(hasKey(field)));
     }
 
     public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {

@@ -82,6 +82,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String globalFragmenter = null;
         Map<String, Object> globalOptions = null;
         Query globalHighlightQuery = null;
+        int globalNoMatchSize = 0;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -131,6 +132,8 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalHighlighterType = parser.text();
                 } else if ("fragmenter".equals(topLevelFieldName)) {
                     globalFragmenter = parser.text();
+                } else if ("no_match_size".equals(topLevelFieldName) || "noMatchSize".equals(topLevelFieldName)) {
+                    globalNoMatchSize = parser.intValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
                 globalOptions = parser.map();
@@ -186,6 +189,8 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.highlighterType(parser.text());
                                     } else if ("fragmenter".equals(fieldName)) {
                                         field.fragmenter(parser.text());
+                                    } else if ("no_match_size".equals(fieldName) || "noMatchSize".equals(fieldName)) {
+                                        field.noMatchSize(parser.intValue());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
@@ -250,6 +255,9 @@ public class HighlighterParseElement implements SearchParseElement {
             }
             if (field.highlightQuery() == null && globalHighlightQuery != null) {
                 field.highlightQuery(globalHighlightQuery);
+            }
+            if (field.noMatchSize() == -1) {
+                field.noMatchSize(globalNoMatchSize);
             }
         }
 

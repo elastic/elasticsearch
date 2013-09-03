@@ -692,6 +692,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
+     * highlight and the field doesn't also define noMatchSize.
+     * @param noMatchSize integer to set or null to leave out of request.  default is null.
+     * @return this builder for chaining
+     */
+    public SearchRequestBuilder setHighlighterNoMatchSize(Integer noMatchSize) {
+        highlightBuilder().noMatchSize(noMatchSize);
+        return this;
+    }
+
     public SearchRequestBuilder setHighlighterOptions(Map<String, Object> options) {
         highlightBuilder().options(options);
         return this;

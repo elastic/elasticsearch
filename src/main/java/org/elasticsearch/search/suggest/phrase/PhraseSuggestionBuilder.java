@@ -18,18 +18,14 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -125,6 +121,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         list.add(generator);
         return this;
     }
+
+    /**
+     * Clear the candidate generators.
+     */
+    public PhraseSuggestionBuilder clearCandidateGenerators() {
+        this.generators.clear();
+        return this;
+    }
     
     /**
      * If set to <code>true</code> the phrase suggester will fail if the analyzer only
@@ -154,8 +158,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * is returned with suggestions wrapping changed tokens with preTag and postTag.
      */
     public PhraseSuggestionBuilder highlight(String preTag, String postTag) {
-        if (preTag == null || postTag == null) {
-            throw new ElasticSearchIllegalArgumentException("Pre and post tag must not be null.");
+        if ((preTag == null) != (postTag == null)) {
+            throw new ElasticSearchIllegalArgumentException("Pre and post tag must both be null or both not be null.");
         }
         this.preTag = preTag;
         this.postTag = postTag;

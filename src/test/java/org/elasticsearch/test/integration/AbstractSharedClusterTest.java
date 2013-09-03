@@ -217,8 +217,24 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public CreateIndexRequestBuilder addMapping(CreateIndexRequestBuilder builder, String type, Object[]... mapping) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject().startObject(type).startObject("properties");
+        mappingBuilder.startObject().startObject(type);
         for (Object[] objects : mapping) {
+            if (!objects[0].toString().equals("_all")) {
+                continue;
+            }
+            mappingBuilder.startObject("_all");
+            for (int i = 1; i < objects.length; i++) {
+                String name = objects[i++].toString();
+                Object value = objects[i];
+                mappingBuilder.field(name, value);
+            }
+            mappingBuilder.endObject();
+        }
+        mappingBuilder.startObject("properties");
+        for (Object[] objects : mapping) {
+            if (objects[0].toString().equals("_all")) {
+                continue;
+            }
             mappingBuilder.startObject(objects[0].toString());
             for (int i = 1; i < objects.length; i++) {
                 String name = objects[i++].toString();
@@ -323,7 +339,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return client().prepareIndex(index, type).setSource(source).execute().actionGet();
     }
 
-    protected IndexResponse index(String index, String type, String id, Map<String, Object> source) {
+    protected IndexResponse index(String index, String type, String id, Map<String, ? extends Object> source) {
         return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
     }
 
@@ -336,8 +352,8 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
     }
 
-    protected IndexResponse index(String index, String type, String id, String field, Object value) {
-        return client().prepareIndex(index, type, id).setSource(field, value).execute().actionGet();
+    protected IndexResponse index(String index, String type, String id, Object... source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
     }
 
     protected RefreshResponse refresh() {

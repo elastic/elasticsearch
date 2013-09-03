@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -62,6 +62,7 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -112,6 +113,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private volatile Thread currentJoinThread;
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
+    
 
     @Nullable
     private NodeService nodeService;
@@ -153,7 +155,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
     }
-
+    
     @Override
     public void setNodeService(@Nullable NodeService nodeService) {
         this.nodeService = nodeService;
@@ -168,7 +170,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     protected void doStart() throws ElasticSearchException {
         Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
-        String nodeId = UUID.randomBase64UUID();
+        final String nodeId = getNodeUUID(settings);
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         nodesFD.updateNodes(latestDiscoNodes);
@@ -339,9 +341,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 // send join request
-                ClusterState joinClusterStateX;
                 try {
-                    joinClusterStateX = membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
+                    membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
                 } catch (Exception e) {
                     if (e instanceof ElasticSearchException) {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
@@ -887,6 +888,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 handleMinimumMasterNodesChanged(minimumMasterNodes);
             }
         }
+    }
+    
+    private final String getNodeUUID(Settings settings) {
+        String seed = settings.get("discovery.id.seed");
+        if (seed != null) {
+            logger.warn("using stable discover node UUIDs with seed: [{}]", seed);
+            Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
+        }
+        return Strings.randomBase64UUID();
     }
 
 }

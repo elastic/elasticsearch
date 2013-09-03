@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
-import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,7 +65,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> {
-
+    
     /**
      * Operation type controls if the type of the index operation.
      */
@@ -607,7 +607,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         // generate id if not already provided and id generation is allowed
         if (allowIdGeneration) {
             if (id == null) {
-                id(UUID.randomBase64UUID());
+                id(Strings.randomBase64UUID());
                 // since we generate the id, change it to CREATE
                 opType(IndexRequest.OpType.CREATE);
             }

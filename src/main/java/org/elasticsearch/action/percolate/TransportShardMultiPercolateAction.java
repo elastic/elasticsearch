@@ -99,16 +99,16 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         Response response = new Response();
         response.items = new ArrayList<Response.Item>(request.items.size());
         for (Request.Item item : request.items) {
-            Response.Item responseItem = new Response.Item();
-            responseItem.slot = item.slot;
+            Response.Item responseItem;
+            int slot = item.slot;
             try {
-                responseItem.response = percolatorService.percolate(item.request);
+                responseItem = new Response.Item(slot, percolatorService.percolate(item.request));
             } catch (Throwable e) {
                 logger.debug("[{}][{}] failed to multi percolate", e, request.index(), request.shardId());
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw new ElasticSearchException("", e);
                 } else {
-                    responseItem.error = new StringText(ExceptionsHelper.detailedMessage(e));
+                    responseItem = new Response.Item(slot, new StringText(ExceptionsHelper.detailedMessage(e)));
                 }
             }
             response.items.add(responseItem);
@@ -122,6 +122,8 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         private int shardId;
         private String preference;
         private List<Item> items;
+
+        private volatile boolean done = false;
 
         public Request() {
         }
@@ -153,13 +155,13 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             int size = in.readVInt();
             items = new ArrayList<Item>(size);
             for (int i = 0; i < size; i++) {
-                Item item = new Item();
-                item.slot = in.readVInt();
-                item.request = new PercolateShardRequest(index(), shardId);
-                item.request.documentType(in.readString());
-                item.request.source(in.readBytesReference());
-                item.request.docSource(in.readBytesReference());
-                item.request.onlyCount(in.readBoolean());
+                int slot = in.readVInt();
+                PercolateShardRequest shardRequest = new PercolateShardRequest(index(), shardId);
+                shardRequest.documentType(in.readString());
+                shardRequest.source(in.readBytesReference());
+                shardRequest.docSource(in.readBytesReference());
+                shardRequest.onlyCount(in.readBoolean());
+                Item item = new Item(slot, shardRequest);
                 items.add(item);
             }
         }
@@ -181,11 +183,8 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
         public static class Item {
 
-            private int slot;
-            private PercolateShardRequest request;
-
-            Item() {
-            }
+            private final int slot;
+            private final PercolateShardRequest request;
 
             public Item(int slot, PercolateShardRequest request) {
                 this.slot = slot;
@@ -234,23 +233,34 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             int size = in.readVInt();
             items = new ArrayList<Item>(size);
             for (int i = 0; i < size; i++) {
-                Item item = new Item();
-                item.slot = in.readVInt();
+                int slot = in.readVInt();
                 if (in.readBoolean()) {
-                    item.response = new PercolateShardResponse();
-                    item.response.readFrom(in);
+                    PercolateShardResponse shardResponse = new PercolateShardResponse();
+                    shardResponse.readFrom(in);
+                    items.add(new Item(slot, shardResponse));
                 } else {
-                    item.error = in.readText();
+                    items.add(new Item(slot, in.readText()));
                 }
-                items.add(item);
             }
         }
 
         public static class Item {
 
-            private int slot;
-            private PercolateShardResponse response;
-            private Text error;
+            private final int slot;
+            private final PercolateShardResponse response;
+            private final Text error;
+
+            public Item(Integer slot, PercolateShardResponse response) {
+                this.slot = slot;
+                this.response = response;
+                this.error = null;
+            }
+
+            public Item(Integer slot, Text error) {
+                this.slot = slot;
+                this.error = error;
+                this.response = null;
+            }
 
             public int slot() {
                 return slot;

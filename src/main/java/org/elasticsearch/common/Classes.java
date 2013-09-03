@@ -67,13 +67,13 @@ public class Classes {
      * @return the package name, or the empty String if the class
      *         is defined in the default package
      */
-    public static String getPackageName(Class clazz) {
+    public static String getPackageName(Class<?> clazz) {
         String className = clazz.getName();
         int lastDotIndex = className.lastIndexOf(PACKAGE_SEPARATOR);
         return (lastDotIndex != -1 ? className.substring(0, lastDotIndex) : "");
     }
 
-    public static String getPackageNameNoDomain(Class clazz) {
+    public static String getPackageNameNoDomain(Class<?> clazz) {
         String fullPackage = getPackageName(clazz);
         if (fullPackage.startsWith("org.") || fullPackage.startsWith("com.") || fullPackage.startsWith("net.")) {
             return fullPackage.substring(4);

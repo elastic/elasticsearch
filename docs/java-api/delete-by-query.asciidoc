@@ -17,5 +17,5 @@ DeleteByQueryResponse response = client.prepareDeleteByQuery("test")
 --------------------------------------------------
 
 For more information on the delete by query operation, check out the
-link:{ref}/docs-delete-by-query.html[delete_by_query API]
+{ref}/docs-delete-by-query.html[delete_by_query API]
 docs.

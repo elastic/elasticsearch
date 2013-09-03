@@ -2,7 +2,7 @@
 == Query DSL - Queries
 
 elasticsearch provides a full Java query dsl in a similar manner to the
-REST link:{ref}/query-dsl.html[Query DSL]. The factory for query
+REST {ref}/query-dsl.html[Query DSL]. The factory for query
 builders is `QueryBuilders`. Once your query is ready, you can use the
 <<search,Search API>>.
 
@@ -24,7 +24,7 @@ such as `count` and `search`.
 
 === Match Query
 
-See link:{ref}/query-dsl-match-query.html[Match Query]
+See {ref}/query-dsl-match-query.html[Match Query]
 
 
 [source,java]
@@ -35,7 +35,7 @@ QueryBuilder qb = QueryBuilders.matchQuery("name", "kimchy elasticsearch");
 
 === MultiMatch Query
 
-See link:{ref}/query-dsl-multi-match-query.html[MultiMatch
+See {ref}/query-dsl-multi-match-query.html[MultiMatch
 Query] 
 
 [source,java]
@@ -49,7 +49,7 @@ QueryBuilder qb = QueryBuilders.multiMatchQuery(
 
 === Boolean Query
 
-See link:{ref}/query-dsl-bool-query.html[Boolean Query]
+See {ref}/query-dsl-bool-query.html[Boolean Query]
 
 
 [source,java]
@@ -65,7 +65,7 @@ QueryBuilder qb = QueryBuilders
 
 === Boosting Query
 
-See link:{ref}/query-dsl-boosting-query.html[Boosting Query]
+See {ref}/query-dsl-boosting-query.html[Boosting Query]
 
 
 [source,java]
@@ -79,7 +79,7 @@ QueryBuilders.boostingQuery()
 
 === IDs Query
 
-See link:{ref}/query-dsl-ids-query.html[IDs Query]
+See {ref}/query-dsl-ids-query.html[IDs Query]
 
 
 [source,java]
@@ -90,7 +90,7 @@ QueryBuilders.idsQuery().ids("1", "2");
 
 === Custom Score Query
 
-See link:{ref}/query-dsl-custom-score-query.html[Custom Score
+See {ref}/query-dsl-custom-score-query.html[Custom Score
 Query] 
 
 [source,java]
@@ -109,7 +109,7 @@ QueryBuilders.customScoreQuery(QueryBuilders.matchAllQuery())
 === Custom Boost Factor Query
 
 See
-link:{ref}/query-dsl-custom-boost-factor-query.html[Custom
+{ref}/query-dsl-custom-boost-factor-query.html[Custom
 Boost Factor Query] 
 
 [source,java]
@@ -121,7 +121,7 @@ QueryBuilders.customBoostFactorQuery(QueryBuilders.matchAllQuery()) // Your quer
 
 === Constant Score Query
 
-See link:{ref}/query-dsl-constant-score-query.html[Constant
+See {ref}/query-dsl-constant-score-query.html[Constant
 Score Query] 
 
 [source,java]
@@ -138,7 +138,7 @@ QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("name","kimchy"))
 
 === Disjunction Max Query
 
-See link:{ref}/query-dsl-dis-max-query.html[Disjunction Max
+See {ref}/query-dsl-dis-max-query.html[Disjunction Max
 Query] 
 
 [source,java]
@@ -153,7 +153,7 @@ QueryBuilders.disMaxQuery()
 
 === Field Query
 
-See link:{ref}/query-dsl-field-query.html[Field Query]
+See {ref}/query-dsl-field-query.html[Field Query]
 
 
 [source,java]
@@ -168,8 +168,8 @@ QueryBuilders.queryString("+kimchy -dadoonet").field("name");
 === Fuzzy Like This (Field) Query (flt and flt_field)
 
 See: 
- * link:{ref}/query-dsl-flt-query.html[Fuzzy Like This Query]  
- * link:{ref}/query-dsl-flt-field-query.html[Fuzzy Like This Field Query] 
+ * {ref}/query-dsl-flt-query.html[Fuzzy Like This Query]  
+ * {ref}/query-dsl-flt-field-query.html[Fuzzy Like This Field Query] 
 
 [source,java]
 --------------------------------------------------
@@ -188,7 +188,7 @@ QueryBuilders.fuzzyLikeThisFieldQuery("name.first")             // Only on singl
 
 === FuzzyQuery
 
-See link:{ref}/query-dsl-fuzzy-query.html[Fuzzy Query]
+See {ref}/query-dsl-fuzzy-query.html[Fuzzy Query]
 
 
 [source,java]
@@ -200,8 +200,8 @@ QueryBuilder qb = QueryBuilders.fuzzyQuery("name", "kimzhy");
 === Has Child / Has Parent
 
 See: 
- * link:{ref}/query-dsl-has-child-query.html[Has Child Query]
- * link:{ref}/query-dsl-has-parent-query.html[Has Parent]
+ * {ref}/query-dsl-has-child-query.html[Has Child Query]
+ * {ref}/query-dsl-has-parent-query.html[Has Parent]
 
 [source,java]
 --------------------------------------------------
@@ -217,7 +217,7 @@ QueryBuilders.hasParentQuery("blog",
 
 === MatchAll Query
 
-See link:{ref}/query-dsl-match-all-query.html[Match All
+See {ref}/query-dsl-match-all-query.html[Match All
 Query] 
 
 [source,java]
@@ -229,8 +229,8 @@ QueryBuilder qb = QueryBuilders.matchAllQuery();
 === Fuzzy Like This (Field) Query (flt and flt_field)
 
 See: 
- * link:{ref}/query-dsl-mlt-query.html[More Like This Query]
- * link:{ref}/query-dsl-mlt-field-query.html[More Like This Field Query]
+ * {ref}/query-dsl-mlt-query.html[More Like This Query]
+ * {ref}/query-dsl-mlt-field-query.html[More Like This Field Query]
 
 [source,java]
 --------------------------------------------------
@@ -251,7 +251,7 @@ QueryBuilders.moreLikeThisFieldQuery("name.first")              // Only on singl
 
 === Prefix Query
 
-See link:{ref}/query-dsl-prefix-query.html[Prefix Query]
+See {ref}/query-dsl-prefix-query.html[Prefix Query]
 
 [source,java]
 --------------------------------------------------
@@ -261,7 +261,7 @@ QueryBuilders.prefixQuery("brand", "heine");
 
 === QueryString Query
 
-See link:{ref}/query-dsl-query-string-query.html[QueryString Query] 
+See {ref}/query-dsl-query-string-query.html[QueryString Query] 
 
 [source,java]
 --------------------------------------------------
@@ -271,7 +271,7 @@ QueryBuilder qb = QueryBuilders.queryString("+kimchy -elasticsearch");
 
 === Range Query
 
-See link:{ref}/query-dsl-range-query.html[Range Query]
+See {ref}/query-dsl-range-query.html[Range Query]
 
 [source,java]
 --------------------------------------------------
@@ -287,11 +287,11 @@ QueryBuilder qb = QueryBuilders
 === Span Queries (first, near, not, or, term)
 
 See: 
- * link:{ref}/query-dsl-span-first-query.html[Span First Query] 
- * link:{ref}/query-dsl-span-near-query.html[Span Near Query]
- * link:{ref}/query-dsl-span-not-query.html[Span Not Query]
- * link:{ref}/query-dsl-span-or-query.html[Span Or Query]
- * link:{ref}/query-dsl-span-term-query.html[Span Term Query]
+ * {ref}/query-dsl-span-first-query.html[Span First Query] 
+ * {ref}/query-dsl-span-near-query.html[Span Near Query]
+ * {ref}/query-dsl-span-not-query.html[Span Not Query]
+ * {ref}/query-dsl-span-or-query.html[Span Or Query]
+ * {ref}/query-dsl-span-term-query.html[Span Term Query]
 
 [source,java]
 --------------------------------------------------
@@ -328,7 +328,7 @@ QueryBuilders.spanTermQuery("user","kimchy");
 
 === Term Query
 
-See link:{ref}/query-dsl-term-query.html[Term Query]
+See {ref}/query-dsl-term-query.html[Term Query]
 
 [source,java]
 --------------------------------------------------
@@ -338,7 +338,7 @@ QueryBuilder qb = QueryBuilders.termQuery("name", "kimchy");
 
 === Terms Query
 
-See link:{ref}/query-dsl-terms-query.html[Terms Query]
+See {ref}/query-dsl-terms-query.html[Terms Query]
 
 [source,java]
 --------------------------------------------------
@@ -350,7 +350,7 @@ QueryBuilders.termsQuery("tags",    // field
 
 === Top Children Query
 
-See link:{ref}/query-dsl-top-children-query.html[Top Children Query] 
+See {ref}/query-dsl-top-children-query.html[Top Children Query] 
 
 [source,java]
 --------------------------------------------------
@@ -366,7 +366,7 @@ QueryBuilders.topChildrenQuery(
 
 === Wildcard Query
 
-See link:{ref}/query-dsl-wildcard-query.html[Wildcard Query]
+See {ref}/query-dsl-wildcard-query.html[Wildcard Query]
 
 
 [source,java]
@@ -377,7 +377,7 @@ QueryBuilders.wildcardQuery("user", "k?mc*");
 
 === Nested Query
 
-See link:{ref}/query-dsl-nested-query.html[Nested Query]
+See {ref}/query-dsl-nested-query.html[Nested Query]
 
 
 [source,java]
@@ -394,7 +394,7 @@ QueryBuilders.nestedQuery("obj1",               // Path
 === Custom Filters Score Query
 
 See
-link:{ref}/query-dsl-custom-filters-score-query.html[Custom Filters Score Query] 
+{ref}/query-dsl-custom-filters-score-query.html[Custom Filters Score Query] 
 
 [source,java]
 --------------------------------------------------
@@ -409,7 +409,7 @@ QueryBuilders.customFiltersScoreQuery(
 
 === Indices Query
 
-See link:{ref}/query-dsl-indices-query.html[Indices Query]
+See {ref}/query-dsl-indices-query.html[Indices Query]
 
 
 [source,java]
@@ -432,7 +432,7 @@ QueryBuilders.indicesQuery(
 
 === GeoShape Query
 
-See link:{ref}/query-dsl-geo-shape-query.html[GeoShape Query]
+See {ref}/query-dsl-geo-shape-query.html[GeoShape Query]
 
 
 Note: the `geo_shape` type uses `Spatial4J` and `JTS`, both of which are

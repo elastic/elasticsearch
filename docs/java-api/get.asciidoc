@@ -13,7 +13,7 @@ GetResponse response = client.prepareGet("twitter", "tweet", "1")
 --------------------------------------------------
 
 For more information on the index operation, check out the REST
-link:{ref}/docs-get.html[get] docs.
+{ref}/docs-get.html[get] docs.
 
 
 === Operation Threading

@@ -12,7 +12,7 @@ asynchronous in nature (they either accept a listener, or return a
 future).
 
 The Groovy API is a wrapper on top of the
-link:{java}[Java API] exposing it in a groovier
+{java}[Java API] exposing it in a groovier
 manner. The execution options for each API follow a similar manner and
 covered in <<anatomy>>.
 

@@ -82,17 +82,16 @@ extraction from _source, like `obj1.obj2`.
 [float]
 === Getting the _source directly
 
-Since version `0.90.1` there is a new rest end point that allows the
-source to be returned directly without any additional content around it.
-The get endpoint has the following structure:
-`{index}/{type}/{id}/_source`. Curl example:
+Use the `/{index}/{type}/{id}/_source` endpoint to get
+just the `_source` field of the document,
+without any additional content around it. For example:
 
 [source,js]
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/twitter/tweet/1/_source'
 --------------------------------------------------
 
-Note, there is also a HEAD variant for the new _source endpoint. Curl
+Note, there is also a HEAD variant for the _source endpoint. Curl
 example:
 
 [source,js]

@@ -30,7 +30,7 @@ query the `total_hits` is always correct.
 [float]
 ==== Scoring capabilities
 
-The `has_child` also has scoring support from version `0.20.2`. The
+The `has_child` also has scoring support. The
 supported score types are `max`, `sum`, `avg` or `none`. The default is
 `none` and yields the same behaviour as in previous versions. If the
 score type is set to another value than `none`, the scores of all the
@@ -44,30 +44,6 @@ inside the `has_child` query:
     "has_child" : {
         "type" : "blog_tag",
         "score_type" : "sum",
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
-        }
-    }
-}
---------------------------------------------------
-
-[float]
-==== Scope
-
-The `_scope` support has been removed from version `0.90.beta1`. See:
-https://github.com/elasticsearch/elasticsearch/issues/2606
-
-A `_scope` can be defined on the filter allowing to run facets on the
-same scope name that will work against the child documents. For example:
-
-[source,js]
---------------------------------------------------
-{
-    "has_child" : {
-        "_scope" : "my_scope",
-        "type" : "blog_tag",
         "query" : {
             "term" : {
                 "tag" : "something"

@@ -7,9 +7,6 @@ type. This filter return child documents which associated parents have
 matched. For the rest `has_parent` filter has the same options and works
 in the same manner as the `has_child` filter.
 
-The `has_parent` filter is available from version `0.19.10`. This is an
-experimental filter.
-
 [float]
 ==== Filter example
 

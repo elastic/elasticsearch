@@ -10,8 +10,6 @@ Configuring custom postings formats is an expert feature and most likely
 using the builtin postings formats will suite your needs as is described
 in the <<mapping-core-types,mapping section>>
 
-Codecs are available in Elasticsearch from version `0.90.0.beta1`.
-
 [float]
 === Configuring a custom postings format
 

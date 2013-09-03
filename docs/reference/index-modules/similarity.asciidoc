@@ -9,8 +9,6 @@ Configuring a custom similarity is considered a expert feature and the
 builtin similarities are most likely sufficient as is described in the
 <<mapping-core-types,mapping section>>
 
-Configuring similarities is a `0.90.0.Beta1` feature.
-
 [float]
 === Configuring a similarity
 

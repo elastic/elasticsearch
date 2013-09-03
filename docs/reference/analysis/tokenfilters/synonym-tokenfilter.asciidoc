@@ -36,8 +36,7 @@ settings are: `ignore_case` (defaults to `false`), and `expand`
 The `tokenizer` parameter controls the tokenizers that will be used to
 tokenize the synonym, and defaults to the `whitespace` tokenizer.
 
-As of elasticsearch 0.17.9 two synonym formats are supported: Solr,
-WordNet.
+Two synonym formats are supported: Solr, WordNet.
 
 [float]
 ==== Solr synonyms

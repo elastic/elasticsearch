@@ -91,7 +91,6 @@ The hunspell token filter accepts four options:
     Configures the recursion level a
     stemmer can go into. Defaults to `2`. Some languages (for example czech)
     give better results when set to `1` or `0`, so you should test it out.
-    (since 0.90.3) 
 
 NOTE: As opposed to the snowball stemmers (which are algorithm based)
 this is a dictionary lookup based stemmer and therefore the quality of

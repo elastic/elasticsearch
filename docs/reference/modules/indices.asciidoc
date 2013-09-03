@@ -56,10 +56,7 @@ The following settings can be set to manage recovery policy:
     defaults to `true`.
 
 `indices.recovery.max_bytes_per_sec`::
-    since 0.90.1, defaults to `20mb`.
-
-`indices.recovery.max_size_per_sec`::
-    deprecated from 0.90.1. Replaced by `indices.recovery.max_bytes_per_sec`.
+    defaults to `20mb`.
 
 [float]
 === Store level throttling

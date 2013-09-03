@@ -82,8 +82,6 @@ include::queries/top-children-query.asciidoc[]
 
 include::queries/wildcard-query.asciidoc[]
 
-include::queries/text-query.asciidoc[]
-
 include::queries/minimum-should-match.asciidoc[]
 
 include::queries/multi-term-rewrite.asciidoc[]

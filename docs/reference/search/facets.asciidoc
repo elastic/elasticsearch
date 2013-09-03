@@ -209,15 +209,6 @@ And, here is a sample data:
 --------------------------------------------------
 
 
-.Nested Query Facets
-[NOTE]
---
-Scoped filters and queries have been removed from version `0.90.0.Beta1`
-instead the facet / queries need be repeated as `facet_filter`. More
-information about this can be found in
-https://github.com/elasticsearch/elasticsearch/issues/2606[issue 2606]
---
-
 [float]
 ==== All Nested Matching Root Documents
 

@@ -177,7 +177,7 @@ curl -XPUT localhost:9200/test/_settings -d '{
 }' 
 --------------------------------------------------
 
-From version 0.90, `index.routing.allocation.require.*` can be used to 
+`index.routing.allocation.require.*` can be used to 
 specify a number of rules, all of which MUST match in order for a shard
 to be  allocated to a node. This is in contrast to `include` which will
 include a node if ANY rule matches.

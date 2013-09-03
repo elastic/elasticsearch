@@ -58,8 +58,7 @@ change in structure, `message` is the field name):
 }
 --------------------------------------------------
 
-zero_terms_query
-
+.zero_terms_query
 If the analyzer used removes all tokens in a query like a `stop` filter
 does, the default behavior is to match no documents at all. In order to
 change that the `zero_terms_query` option can be used, which accepts
@@ -78,9 +77,8 @@ change that the `zero_terms_query` option can be used, which accepts
 }
 --------------------------------------------------
 
-cutoff_frequency
-
-Since `0.90.0` match query supports a `cutoff_frequency` that allows
+.cutoff_frequency
+The match query supports a `cutoff_frequency` that allows
 specifying an absolute or relative document frequency where high
 frequent terms are moved into an optional subquery and are only scored 
 if one of the low frequent (below the cutoff) terms in the case of an 

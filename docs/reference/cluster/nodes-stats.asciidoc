@@ -83,7 +83,7 @@ The `all` flag can be set to return all the stats.
 [float]
 === Field data statistics
 
-From 0.90, you can get information about field data memory usage on node
+You can get information about field data memory usage on node
 level or on index level.
 
 [source,js]

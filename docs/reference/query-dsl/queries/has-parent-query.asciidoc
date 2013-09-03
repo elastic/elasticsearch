@@ -6,8 +6,7 @@ The `has_parent` query works the same as the
 filter, by automatically wrapping the filter with a constant_score (when
 using the default score type). It has the same syntax as the
 <<query-dsl-has-parent-filter,has_parent>>
-filter. This query is experimental and is available from version
-`0.19.10`.
+filter. 
 
 [source,js]
 --------------------------------------------------
@@ -26,7 +25,7 @@ filter. This query is experimental and is available from version
 [float]
 ==== Scoring capabilities
 
-The `has_parent` also has scoring support from version `0.20.2`. The
+The `has_parent` also has scoring support. The
 supported score types are `score` or `none`. The default is `none` and
 this ignores the score from the parent document. The score is in this
 case equal to the boost on the `has_parent` query (Defaults to 1). If
@@ -41,31 +40,6 @@ matching parent document. The score type can be specified with the
     "has_parent" : {
         "parent_type" : "blog",
         "score_type" : "score",
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
-        }
-    }
-}
---------------------------------------------------
-
-[float]
-==== Scope
-
-The `_scope` support has been removed from version `0.90.beta1`. See:
-https://github.com/elasticsearch/elasticsearch/issues/2606
-
-A `_scope` can be defined on the filter allowing to run facets on the
-same scope name that will work against the parent documents. For
-example:
-
-[source,js]
---------------------------------------------------
-{
-    "has_parent" : {
-        "_scope" : "my_scope",
-        "parent_type" : "blog",
         "query" : {
             "term" : {
                 "tag" : "something"

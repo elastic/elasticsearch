@@ -30,6 +30,7 @@ import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -164,8 +166,49 @@ public class PlainHighlighter implements Highlighter {
         if (fragments != null && fragments.length > 0) {
             return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
         }
-
+        int noMatchSize = highlighterContext.field.noMatchSize();
+        if (noMatchSize > 0 && textsToHighlight.size() >= 1) {
+            // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
+            String fieldContents = textsToHighlight.get(0).toString();
+            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+            int end;
+            try {
+                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(mapper.names().indexName(), fieldContents));
+            } catch (Exception e) {
+                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            }
+            if (end > 0) {
+                return new HighlightField(highlighterContext.fieldName, new Text[] { new StringText(fieldContents.substring(0, end)) });
+            }
+        }
         return null;
+    }
+
+    private int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {
+        try {
+            if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
+                // Can't split on term boundaries without offsets
+                return -1;
+            }
+            int end = -1;
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
+                OffsetAttribute attr = tokenStream.getAttribute(OffsetAttribute.class);
+                if (attr.endOffset() >= noMatchSize) {
+                    // Jump to the end of this token if it wouldn't put us past the boundary
+                    if (attr.endOffset() == noMatchSize) {
+                        end = noMatchSize;
+                    }
+                    return end;
+                }
+                end = attr.endOffset();
+            }
+            // We've exhausted the token stream so we should just highlight everything.
+            return end;
+        } finally {
+            tokenStream.end();
+            tokenStream.close();
+        }
     }
 
     private static class Encoders {

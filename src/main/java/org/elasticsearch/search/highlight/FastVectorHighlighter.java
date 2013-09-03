@@ -23,6 +23,7 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.vectorhighlight.*;
+import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragme
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -150,11 +152,21 @@ public class FastVectorHighlighter implements Highlighter {
             if (fragments != null && fragments.length > 0) {
                 return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
             }
+            int noMatchSize = highlighterContext.field.noMatchSize();
+            if (noMatchSize > 0) {
+                // Essentially we just request that a fragment is built from 0 to noMatchSize using the normal fragmentsBuilder
+                FieldFragList fieldFragList = new SimpleFieldFragList(-1 /*ignored*/);
+                fieldFragList.add(0, noMatchSize, Collections.<WeightedPhraseInfo>emptyList());
+                fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(), mapper.names().indexName(),
+                        fieldFragList, 1, field.preTags(), field.postTags(), encoder);
+                if (fragments != null && fragments.length > 0) {
+                    return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
+                }
+            }
+            return null;
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
-
-        return null;
     }
 
     private class MapperHighlightEntry {

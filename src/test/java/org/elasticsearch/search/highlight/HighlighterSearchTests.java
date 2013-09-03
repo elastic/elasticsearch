@@ -50,8 +50,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -1602,17 +1601,8 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
     @Test
     public void testHighlightUsesHighlightQuery() throws IOException {
         prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject()
-                    .startObject("type")
-                        .startObject("properties")
-                            .startObject("text")
-                                .field("type", "string")
-                                .field("store", "yes")
-                                .field("term_vector", "with_positions_offsets")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()).get();
+                .addMapping("type1", "text", "type=string,store=yes,term_vector=with_positions_offsets")
+                .get();
         ensureGreen();
 
         index("test", "type1", "1", "text", "some stuff stuff stuff stuff stuff to highlight against the stuff phrase");
@@ -1621,7 +1611,7 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         // Make sure the fvh doesn't highlight in the same way as we're going to do with a scoreQuery because
         // that would invalidate the test results.
         Matcher<String> highlightedMatcher = anyOf(
-                containsString("<em>stuff phrase</em>"),            // FHV normally does this
+                containsString("<em>stuff phrase</em>"),            //t FHV normally does this
                 containsString("<em>stuff</em> <em>phrase</em>"));  // Plain normally does this
         HighlightBuilder.Field field = new HighlightBuilder.Field("text")
                 .fragmentSize(20)
@@ -1661,5 +1651,182 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         response = search.get();
         assertHighlight(response, 0, "text", 0, highlightedMatcher);
         // Note that the plain highlighter doesn't join the highlighted elements for us
+    }
+
+    public void testHighlightNoMatchSize() throws IOException {
+        prepareCreate("test")
+            .addMapping("type1", "text", "type=string,store=yes,term_vector=with_positions_offsets")
+            .get();
+        ensureGreen();
+
+        String text = "I am pretty long so some of me should get cut off";
+        index("test", "type1", "1", "text", text);
+        refresh();
+
+        // When you don't set noMatchSize you don't get any results if there isn't anything to highlight.
+        HighlightBuilder.Field field = new HighlightBuilder.Field("text")
+                .fragmentSize(21)
+                .numOfFragments(1)
+                .highlighterType("plain");
+        SearchResponse response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNotHighlighted(response, 0, "text");
+
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNotHighlighted(response, 0, "text");
+
+        // When noMatchSize is set to 0 you also shouldn't get any
+        field.highlighterType("plain").noMatchSize(0);
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNotHighlighted(response, 0, "text");
+
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNotHighlighted(response, 0, "text");
+
+        // When noMatchSize is between 0 and the size of the string
+        field.highlighterType("plain").noMatchSize(21);
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo("I am pretty long so"));
+
+        // The FVH also works but the fragment is longer than the plain highlighter because of boundary_max_scan
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo("I am pretty long so some"));
+
+        // We can also ask for a fragment longer than the input string and get the whole string
+        field.highlighterType("plain").noMatchSize(text.length() * 2);
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo(text));
+
+        // Same for the fvh
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo(text));
+
+        // We can also ask for a fragment exactly the size of the input field and get the whole field
+        field.highlighterType("plain").noMatchSize(text.length());
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo(text));
+
+        // Same for the fvh
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo(text));
+
+        // You can set noMatchSize globally in the highlighter as well
+        field.highlighterType("plain").noMatchSize(null);
+        response = client().prepareSearch("test").setHighlighterNoMatchSize(21).addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo("I am pretty long so"));
+
+        // Same for the fvh
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").setHighlighterNoMatchSize(21).addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo("I am pretty long so some"));
+    }
+
+    @Test
+    public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException {
+        prepareCreate("test")
+            .addMapping("type1", jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("properties")
+                            .startObject("text")
+                                .field("type", "string")
+                                .field("store", "yes")
+                                .field("term_vector", "with_positions_offsets")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject())
+            .get();
+        ensureGreen();
+
+        String text1 = "I am pretty long so some of me should get cut off";
+        String text2 = "I am short";
+        index("test", "type1", "1", "text", new String[] {text1, text2});
+        refresh();
+
+        // The no match fragment should come from the first field of a multi-valued field
+        HighlightBuilder.Field field = new HighlightBuilder.Field("text")
+                .fragmentSize(21)
+                .numOfFragments(1)
+                .highlighterType("plain")
+                .noMatchSize(21);
+        SearchResponse response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo("I am pretty long so"));
+
+        // And the fvh should work as well
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertHighlight(response, 0, "text", 0, equalTo("I am pretty long so some"));
+
+        // And noMatchSize returns nothing when the first entry is empty string!
+        assert(!client().prepareDelete("test", "type1", "1").get().isNotFound());
+        index("test", "type1", "1", "text", new String[] {"", text2});
+        refresh();
+        field.highlighterType("plain");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("text")));
+
+        // And the fvh should work as well
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("text")));
+
+        // But if the field was actually empty then you should get no highlighting field
+        assert(!client().prepareDelete("test", "type1", "1").get().isNotFound());
+        index("test", "type1", "1", "text", new String[] {});
+        refresh();
+        field.highlighterType("plain");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("text")));
+
+        // And the fvh should work as well
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("text")));
+
+        // Same for if the field doesn't even exist
+        assert(!client().prepareDelete("test", "type1", "1").get().isNotFound());
+        index("test", "type1", "1");
+        refresh();
+        field.highlighterType("plain");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("text")));
+
+        // And the fvh should work as well
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("text")));
+
+        // Again same if the field isn't mapped
+        field = new HighlightBuilder.Field("unmapped")
+                .highlighterType("plain")
+                .noMatchSize(21);
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("unmapped")));
+
+        // And the fvh should work as well
+        field.highlighterType("fvh");
+        response = client().prepareSearch("test").addHighlightedField(field).get();
+        assertNoFailures(response);
+        assertThat("not enough hits", response.getHits().hits().length, greaterThan(0));
+        assertThat(response.getHits().hits()[0].getHighlightFields(), not(hasKey("unmapped")));
     }
 }

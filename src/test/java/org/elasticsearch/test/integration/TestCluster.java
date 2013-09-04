@@ -378,7 +378,7 @@ public class TestCluster {
     public Client nodeClient() {
         ensureOpen();
         if (clientNode == null) {
-            String name = buildNodeName();
+            String name = "client_" + buildNodeName();
             String settingsSource = getClass().getName().replace('.', '/') + ".yml";
             Settings finalSettings = settingsBuilder().loadFromClasspath(settingsSource).put(defaultSettings).put("node.client", true).put("name", name)
                     .build();

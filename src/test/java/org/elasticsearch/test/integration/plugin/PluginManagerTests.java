@@ -38,11 +38,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class PluginManagerTests extends AbstractNodesTests {
 
@@ -102,14 +101,17 @@ public class PluginManagerTests extends AbstractNodesTests {
         assertPluginAvailable(node, pluginName);
     }
 
-    private static void downloadAndExtract(String pluginName, String pluginUrl) throws Exception {
+    private static PluginManager pluginManager(String pluginUrl) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
-        PluginManager pluginManager = new PluginManager(initialSettings.v2(), pluginUrl);
-        pluginManager.downloadAndExtract(pluginName, false);
+        return new PluginManager(initialSettings.v2(), pluginUrl);
+    }
+
+    private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {
+        pluginManager(pluginUrl).downloadAndExtract(pluginName, false);
     }
 
     private Node startNode() {
@@ -151,5 +153,31 @@ public class PluginManagerTests extends AbstractNodesTests {
 
     private void deletePluginsFolder() {
         FileSystemUtils.deleteRecursively(new File(PLUGIN_DIR));
+    }
+
+    private void singlePluginInstallAndRemove(String pluginName, String pluginCoordinates) throws IOException {
+        PluginManager pluginManager = pluginManager(pluginCoordinates);
+        pluginManager.downloadAndExtract("plugin", false);
+        File[] plugins = pluginManager.getListInstalledPlugins();
+        assertThat(plugins, notNullValue());
+        assertThat(plugins.length, is(1));
+
+        // We remove it
+        pluginManager.removePlugin(pluginName);
+        plugins = pluginManager.getListInstalledPlugins();
+        assertThat(plugins, notNullValue());
+        assertThat(plugins.length, is(0));
+    }
+
+    @Test
+    public void testRemovePlugin() throws Exception {
+        // We want to remove plugin with plugin short name
+        singlePluginInstallAndRemove("plugin", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+
+        // We want to remove plugin with groupid/artifactid/version form
+        singlePluginInstallAndRemove("groupid/plugin/1.0.0", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+
+        // We want to remove plugin with groupid/artifactid form
+        singlePluginInstallAndRemove("groupid/plugin", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
     }
 }

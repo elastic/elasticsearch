@@ -404,7 +404,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     sb.append(result.shardTarget());
                 }
 
-                logger.debug("Moving to second phase, based on results from: {}", sb);
+                logger.debug("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterState.version());
             }
             moveToSecondPhase();
         }

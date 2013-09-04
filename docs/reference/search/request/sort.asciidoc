@@ -9,7 +9,7 @@ field name for `_score` to sort by score.
 --------------------------------------------------
 {
     "sort" : [
-        { "post_date" : {"order" : "asc"} },
+        { "post_date" : {"order" : "asc"}},
         "user",
         { "name" : "desc" },
         { "age" : "desc" },
@@ -31,13 +31,13 @@ the response.
 From version `0.90.0.Beta1` Elasticsearch supports sorting by array
 fields which is also known as multi-valued fields. The `mode` option
 controls what array value is picked for sorting the document it belongs
-to. The `mode` option can have the following values: 
+to. The `mode` option can have the following values:
 
 [horizontal]
-`min`:: Pick the lowest value. 
+`min`:: Pick the lowest value.
 `max`:: Pick the highest value.
 `sum`:: Use the sum of all values as sort value. Only applicable for
-        number based array fields. 
+        number based array fields.
 `avg`:: Use the average of all values as sort value. Only applicable
         for number based array fields.
 
@@ -64,15 +64,15 @@ curl -XPOST 'localhost:9200/_search' -d '{
 Also from version `0.90.0.Beta1` Elasticsearch supports sorting by
 fields that are inside one or more nested objects. The sorting by nested
 field support has the following parameters on top of the already
-existing sort options: 
+existing sort options:
 
-`nested_path`:: 
+`nested_path`::
     Defines the on what nested object to sort. The actual
     sort field must be a direct field inside this nested object. The default
     is to use the most immediate inherited nested object from the sort
-    field. 
+    field.
 
-`nested_filter`:: 
+`nested_filter`::
     A filter the inner objects inside the nested path
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
@@ -110,8 +110,9 @@ scripts and sorting by geo distance.
 
 ==== Missing Values
 
-Numeric fields support specific handling for missing fields in a doc.
-The `missing` value can be `_last`, `_first`, or a custom value (that
+The `missing` parameter specifies how docs which are missing
+the field should be treated: The `missing` value can be
+set to `_last`, `_first`, or a custom value (that
 will be used for missing docs as the sort value). For example:
 
 [source,js]

@@ -1,6 +1,8 @@
 [[query-dsl-custom-score-query]]
 === Custom Score Query
 
+deprecated[1.00.Beta,Replaced by <<query-dsl-function-score-query>>]
+
 `custom_score` query allows to wrap another query and customize the
 scoring of it optionally with a computation derived from other field
 values in the doc (numeric ones) using

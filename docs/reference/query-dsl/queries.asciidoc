@@ -18,8 +18,6 @@ include::queries/common-terms-query.asciidoc[]
 
 include::queries/custom-filters-score-query.asciidoc[]
 
-include::queries/ids-query.asciidoc[]
-
 include::queries/custom-score-query.asciidoc[]
 
 include::queries/custom-boost-factor-query.asciidoc[]
@@ -36,6 +34,8 @@ include::queries/flt-query.asciidoc[]
 
 include::queries/flt-field-query.asciidoc[]
 
+include::queries/function-score-query.asciidoc[]
+
 include::queries/fuzzy-query.asciidoc[]
 
 include::queries/geo-shape-query.asciidoc[]
@@ -43,6 +43,8 @@ include::queries/geo-shape-query.asciidoc[]
 include::queries/has-child-query.asciidoc[]
 
 include::queries/has-parent-query.asciidoc[]
+
+include::queries/ids-query.asciidoc[]
 
 include::queries/indices-query.asciidoc[]
 

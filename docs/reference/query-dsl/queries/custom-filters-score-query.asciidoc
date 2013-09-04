@@ -1,6 +1,8 @@
 [[query-dsl-custom-filters-score-query]]
 === Custom Filters Score Query
 
+deprecated[1.00.Beta,Replaced by <<query-dsl-function-score-query>>]
+
 A `custom_filters_score` query allows to execute a query, and if the hit
 matches a provided filter (ordered), use either a boost or a script
 associated with it to compute the score. Here is an example:

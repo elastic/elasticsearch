@@ -90,6 +90,19 @@ A list of the currently loaded plugins can be retrieved using the
 <<cluster-nodes-info,Node Info API>>.
 
 [float]
+==== Removing plugins
+
+Removing plugins can either be done manually by removing them under the
+`plugins` directory, or using the `plugin` script.
+
+Removing plugins typically take the following form:
+
+[source,shell]
+-----------------------------------
+plugin --remove <pluginname>
+-----------------------------------
+
+[float]
 === Known Plugins
 
 [float]

@@ -35,10 +35,9 @@ import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -97,7 +96,13 @@ public class PluginManager {
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
         }
 
-        File pluginFile = new File(environment.pluginsFile(), name + ".zip");
+        PluginHandle pluginHandle = PluginHandle.parse(name);
+        File pluginFile = pluginHandle.distroFile(environment);
+        // extract the plugin
+        File extractLocation = pluginHandle.extractedDir(environment);
+        if (extractLocation.exists()) {
+            throw new IOException("plugin directory " + extractLocation.getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
+        }
 
         // first, try directly from the URL provided
         boolean downloaded = false;
@@ -116,92 +121,17 @@ public class PluginManager {
             }
         }
 
-        // now, try as a path name...
         if (!downloaded) {
-            if (name.indexOf('/') != -1) {
-                // github repo
-                String[] elements = name.split("/");
-                String userName = elements[0];
-                String repoName = elements[1];
-                String version = null;
-                if (elements.length > 2) {
-                    version = elements[2];
-                }
-                // the installation file should not include the userName, just the repoName
-                name = repoName;
-                if (name.startsWith("elasticsearch-")) {
-                    // remove elasticsearch- prefix
-                    name = name.substring("elasticsearch-".length());
-                } else if (name.startsWith("es-")) {
-                    // remove es- prefix
-                    name = name.substring("es-".length());
-                }
-
-                // update the plugin file name to reflect the extracted name
-                pluginFile = new File(environment.pluginsFile(), name + ".zip");
-
-                if (version != null) {
-                    URL pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
-                    System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                    try {
-                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                        downloaded = true;
-                    } catch (Exception e) {
-                        if (verbose) {
-                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                        }
-                    }
-                    if (!downloaded) {
-                        // try maven, see if its there... (both central and sonatype)
-                        pluginUrl = new URL("http://search.maven.org/remotecontent?filepath=" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
-                        System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                        try {
-                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                            downloaded = true;
-                        } catch (Exception e) {
-                            if (verbose) {
-                                System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                            }
-                        }
-                        if (!downloaded) {
-                            pluginUrl = new URL("https://oss.sonatype.org/service/local/repositories/releases/content/" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
-                            System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
-                            try {
-                                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                                downloaded = true;
-                            } catch (Exception e) {
-                                if (verbose) {
-                                    System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
-                                }
-                            }
-                        }
-                    }
-                    if (!downloaded) {
-                        // try it as a site plugin tagged
-                        pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/archive/v" + version + ".zip");
-                        System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
-                        try {
-                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                            downloaded = true;
-                        } catch (Exception e1) {
-                            // ignore
-                            if (verbose) {
-                                System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e1));
-                            }
-                        }
-                    }
-                } else {
-                    // assume site plugin, download master....
-                    URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/archive/master.zip");
-                    System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
-                    try {
-                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
-                        downloaded = true;
-                    } catch (Exception e2) {
-                        // ignore
-                        if (verbose) {
-                            System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e2));
-                        }
+            // We try all possible locations
+            for (URL url: pluginHandle.urls()) {
+                System.out.println("Trying " + url.toExternalForm() + "...");
+                try {
+                    downloadHelper.download(url, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                    downloaded = true;
+                    break;
+                } catch (Exception e) {
+                    if (verbose) {
+                        System.out.println("Failed: " + ExceptionsHelper.detailedMessage(e));
                     }
                 }
             }
@@ -211,11 +141,6 @@ public class PluginManager {
             throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
         }
 
-        // extract the plugin
-        File extractLocation = new File(environment.pluginsFile(), name);
-        if (extractLocation.exists()) {
-            throw new IOException("plugin directory " + extractLocation.getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
-        }
         ZipFile zipFile = null;
         try {
             zipFile = new ZipFile(pluginFile);
@@ -259,7 +184,7 @@ public class PluginManager {
 
         File binFile = new File(extractLocation, "bin");
         if (binFile.exists() && binFile.isDirectory()) {
-            File toLocation = new File(new File(environment.homeFile(), "bin"), name);
+            File toLocation = pluginHandle.binDir(environment);
             System.out.println("Found bin, moving to " + toLocation.getAbsolutePath());
             FileSystemUtils.deleteRecursively(toLocation);
             binFile.renameTo(toLocation);
@@ -282,22 +207,38 @@ public class PluginManager {
     }
 
     public void removePlugin(String name) throws IOException {
-        File pluginToDelete = new File(environment.pluginsFile(), name);
+        PluginHandle pluginHandle = PluginHandle.parse(name);
+        boolean removed = false;
+
+        File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             FileSystemUtils.deleteRecursively(pluginToDelete, true);
+            removed = true;
         }
-        pluginToDelete = new File(environment.pluginsFile(), name + ".zip");
+        pluginToDelete = pluginHandle.distroFile(environment);
         if (pluginToDelete.exists()) {
             pluginToDelete.delete();
+            removed = true;
         }
-        File binLocation = new File(new File(environment.homeFile(), "bin"), name);
+        File binLocation = pluginHandle.binDir(environment);
         if (binLocation.exists()) {
             FileSystemUtils.deleteRecursively(binLocation);
+            removed = true;
         }
+        if (removed) {
+            System.out.println("Removed " + name);
+        } else {
+            System.out.println("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
+    }
+    }
+
+    public File[] getListInstalledPlugins() {
+        File[] plugins = environment.pluginsFile().listFiles();
+        return plugins;
     }
 
     public void listInstalledPlugins() {
-        File[] plugins = environment.pluginsFile().listFiles();
+        File[] plugins = getListInstalledPlugins();
         System.out.println("Installed plugins:");
         if (plugins == null || plugins.length == 0) {
             System.out.println("    - No plugin detected in " + environment.pluginsFile().getAbsolutePath());
@@ -461,4 +402,95 @@ public class PluginManager {
             System.out.println("   " + message);
         }
     }
+
+    /**
+     * Helper class to extract properly user name, repository name, version and plugin name
+     * from plugin name given by a user.
+     */
+    static class PluginHandle {
+
+        final String name;
+        final String version;
+        final String user;
+        final String repo;
+
+        PluginHandle(String name, String version, String user, String repo) {
+            this.name = name;
+            this.version = version;
+            this.user = user;
+            this.repo = repo;
+        }
+
+        List<URL> urls() {
+            List<URL> urls = new ArrayList<URL>();
+            if (version != null) {
+                // Elasticsearch download service
+                addUrl(urls, "http://download.elasticsearch.org/" + user + "/" + repo + "/" + repo + "-" + version + ".zip");
+                // Maven central repository
+                addUrl(urls, "http://search.maven.org/remotecontent?filepath=" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
+                // Sonatype repository
+                addUrl(urls, "https://oss.sonatype.org/service/local/repositories/releases/content/" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
+                // Github repository
+                addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/v" + version + ".zip");
+            }
+            // Github repository for master branch (assume site)
+            addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/master.zip");
+            return urls;
+        }
+
+        private static void addUrl(List<URL> urls, String url) {
+            try {
+                URL _url = new URL(url);
+                urls.add(new URL(url));
+            } catch (MalformedURLException e) {
+                // We simply ignore malformed URL
+            }
+        }
+
+        File distroFile(Environment env) {
+            return new File(env.pluginsFile(), name + ".zip");
+        }
+
+        File extractedDir(Environment env) {
+            return new File(env.pluginsFile(), name);
+        }
+
+        File binDir(Environment env) {
+            return new File(new File(env.homeFile(), "bin"), name);
+        }
+
+        static PluginHandle parse(String name) {
+            String[] elements = name.split("/");
+            // We first consider the simplest form: pluginname
+            String repo = elements[0];
+            String user = null;
+            String version = null;
+
+            // We consider the form: username/pluginname
+            if (elements.length > 1) {
+                user = elements[0];
+                repo = elements[1];
+
+                // We consider the form: username/pluginname/version
+                if (elements.length > 2) {
+                    version = elements[2];
+                }
+            }
+
+            if (repo.startsWith("elasticsearch-")) {
+                // remove elasticsearch- prefix
+                String endname = repo.substring("elasticsearch-".length());
+                return new PluginHandle(endname, version, user, repo);
+            }
+
+            if (name.startsWith("es-")) {
+                // remove es- prefix
+                String endname = repo.substring("es-".length());
+                return new PluginHandle(endname, version, user, repo);
+            }
+
+            return new PluginHandle(repo, version, user, repo);
+        }
+    }
+
 }

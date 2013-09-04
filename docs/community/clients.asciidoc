@@ -72,6 +72,8 @@
 * https://github.com/ramv/node-elastical[node-elastical]:
   Node.js client for the ElasticSearch REST API
 
+* https://github.com/printercu/elastics[elastics]: Simple tiny client that just works
+
 
 === .Net
 

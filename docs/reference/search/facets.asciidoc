@@ -101,9 +101,9 @@ http://en.wikipedia.org/wiki/Faceted_search[_faceted navigation_],
 allowing the user to refine her query based on the insight from the
 facet, i.e. restrict the search to a specific category, price or date
 range. Facets can be used, however, for other purposes: computing
-histograms, statistical aggregations, and more. See the blog about 
+histograms, statistical aggregations, and more. See the blog about
 link:/blog/data-visualization-with-elasticsearch-and-protovis/[data visualization].for inspiration.
- 
+
 
 
 [float]
@@ -118,13 +118,14 @@ values computed across all documents in the index:
 --------------------------------------------------
 {
     "facets" : {
-        "<FACET NAME>" : {
-            "<FACET TYPE>" : { ... },
-            "global" : true
+        "my_facets" : {
+            "terms" : { ... },
+            "global" : true <1>
         }
     }
 }
 --------------------------------------------------
+<1> The `global` keyword can be used with any facet type.
 
 There's one *important distinction* to keep in mind. While search
 _queries_ restrict both the returned documents and facet counts, search

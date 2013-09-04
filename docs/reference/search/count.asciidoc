@@ -37,6 +37,9 @@ The query is optional, and when not provided, it will use `match_all` to
 count all the docs.
 
 
+NOTE: in contrast to <<search-search>> the query being sent in the body must 
+*not* be nested in a `query` key.
+
 [float]
 === Multi index, Multi type
 

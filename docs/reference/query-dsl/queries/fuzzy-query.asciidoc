@@ -1,8 +1,8 @@
 [[query-dsl-fuzzy-query]]
 === Fuzzy Query
 
-A fuzzy based query that uses similarity based on Levenshtein (edit
-distance) algorithm.
+A fuzzy query that uses similarity based on Levenshtein (edit
+distance) algorithm. This maps to Lucene's `FuzzyQuery`.
 
 Warning: this query is not very scalable with its default prefix length
 of 0 - in this case, *every* term will be enumerated and cause an edit

@@ -30,7 +30,7 @@ The above result includes the `_index`, `_type`, and `_id` of the
 document we wish to retrieve, including the actual source of the
 document that was indexed.
 
-The API also allows to check for the existance of a document using
+The API also allows to check for the existence of a document using
 `HEAD`, for example:
 
 [source,js]

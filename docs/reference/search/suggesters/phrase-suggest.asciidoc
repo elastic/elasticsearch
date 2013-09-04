@@ -37,7 +37,11 @@ curl -XPOST 'localhost:9200/_search' -d {
           "field" : "body",
           "suggest_mode" : "always",
           "min_word_len" : 1
-        } ]
+        } ],
+        "highlight": {
+          "pre_tag": "<em>",
+          "post_tag": "</em>"
+        }
       }
     }
   }
@@ -73,9 +77,11 @@ can contain misspellings (See parameter descriptions below).
       "length" : 17,
       "options" : [ {
         "text" : "xorr the god jewel",
+        "highlighted": "<em>xorr</em> the <em>god</em> jewel",
         "score" : 0.17877324
       }, {
         "text" : "xor the god jewel",
+        "highlighted": "xor the <em>god</em> jewel",
         "score" : 0.14231323
       } ]
     } ]
@@ -143,6 +149,14 @@ can contain misspellings (See parameter descriptions below).
 
 `text`:: 
     Sets the text / query to provide suggestions for.
+
+`highlight`::
+    Sets up suggestion highlighting.  If not provided then
+    no `highlighted` field is returned.  If provided must
+    contain exactly `pre_tag` and `post_tag` which are
+    wrapped around the changed tokens.  If multiple tokens
+    in a row are changed the entire phrase of changed tokens
+    is wrapped rather than each token. added[0.90.4]
 
 ==== Smoothing Models
 

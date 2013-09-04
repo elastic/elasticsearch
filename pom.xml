@@ -33,6 +33,7 @@
         <lucene.version>4.4.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
+        <tests.output>onerror</tests.output>
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -337,7 +338,7 @@
                                 <report-text
                                         showThrowable="true"
                                         showStackTraces="true"
-                                        showOutput="onerror"
+                                        showOutput="${tests.output}"
                                         showStatusOk="false"
                                         showStatusError="true"
                                         showStatusFailure="true"

@@ -51,10 +51,10 @@ curl -X PUT localhost:9200/music/song/_mapping -d '{
 
 Mapping supports the following parameters:
 
-`index_analyzer`:: 
+`index_analyzer`::
     The index analyzer to use, defaults to `simple`.
 
-`search_analyzer`:: 
+`search_analyzer`::
     The search analyzer to use, defaults to `simple`.
     In case you are wondering why we did not opt for the `standard`
     analyzer: We try to have easy to understand behaviour here, and if you
@@ -62,7 +62,7 @@ Mapping supports the following parameters:
     suggestions for `a`, nor for `d` (the first non stopword).
 
 
-`payloads`:: 
+`payloads`::
     Enables the storing of payloads, defaults to `false`
 
 `preserve_separators`::
@@ -70,7 +70,7 @@ Mapping supports the following parameters:
     If disabled, you could find a field starting with `Foo Fighters`, if you
     suggest for `foof`.
 
-`preserve_position_increments`:: 
+`preserve_position_increments`::
     Enables position increments, defaults
     to `true`. If disabled and using stopwords analyzer, you could get a
     field starting with `The Beatles`, if you suggest for `b`. *Note*: You
@@ -85,14 +85,14 @@ Mapping supports the following parameters:
     bloating the underlying datastructure. The most usecases won't be influenced
     by the default value since prefix completions hardly grow beyond prefixes longer
     than a handful of characters.
-    
+
 ==== Indexing
 
 [source,js]
 --------------------------------------------------
 curl -X PUT 'localhost:9200/music/song/1?refresh=true' -d '{
     "name" : "Nevermind",
-    "suggest" : { 
+    "suggest" : {
         "input": [ "Nevermind", "Nirvana" ],
         "output": "Nirvana - Nevermind",
         "payload" : { "artistId" : 2321 },
@@ -103,22 +103,22 @@ curl -X PUT 'localhost:9200/music/song/1?refresh=true' -d '{
 
 The following parameters are supported:
 
-`input`:: 
+`input`::
     The input to store, this can be a an array of strings or just
     a string. This field is mandatory.
 
-`output`:: 
+`output`::
     The string to return, if a suggestion matches. This is very
     useful to normalize outputs (i.e. have them always in the format
     `artist - songname`. This is optional.
 
-`payload`:: 
+`payload`::
     An arbitrary JSON object, which is simply returned in the
     suggest option. You could store data like the id of a document, in order
     to load it from elasticsearch without executing another search (which
     might not yield any results, if `input` and `output` differ strongly).
 
-`weight`:: 
+`weight`::
     A positive integer, which defines a weight and allows you to
     rank your suggestions. This field is optional.
 
@@ -173,3 +173,47 @@ appropriately. If you configured a weight for a suggestion, this weight
 is used as `score`. Also the `text` field uses the `output` of your
 indexed suggestion, if configured, otherwise the matched part of the
 `input` field.
+
+
+==== Fuzzy queries
+
+The completion suggester also supports fuzzy queries - this means,
+you can actually have a typo in your search and still get results back.
+
+[source,js]
+--------------------------------------------------
+curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+    "song-suggest" : {
+        "text" : "n",
+        "completion" : {
+            "field" : "suggest",
+            "fuzzy" : {
+                "edit_distance" : 2
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+The fuzzy query can take specific fuzzy parameters.
+The following parameters are supported:
+
+[horizontal]
+`edit_distance`::
+    Maximum edit distance, defaults to `1`
+
+`transpositions`::
+    Sets if transpositions should be counted
+    as one or two changes, defaults to `true`
+
+`min_length`::
+    Minimum length of the input before fuzzy
+    suggestions are returned, defaults `3`
+
+`prefix_length`::
+    Minimum length of the input, which is not
+    checked for fuzzy alternatives, defaults to `1`
+
+NOTE: If you want to stick with the default values, but
+      still use fuzzy, you can either use `fuzzy: {}`
+      or `fuzzy: true`.

@@ -8,6 +8,18 @@ will be pretty formatted (use it for debugging only!). Another option is
 to set `format=yaml` which will cause the result to be returned in the
 (sometimes) more readable yaml format.
 
+
+=== Human readable output
+
+Statistics are returned in a format suitable for humans
+(eg `"exists_time": "1h"` or `"size": "1kb"`) and for computers
+(eg `"exists_time_in_millis": 3600000`` or `"size_in_bytes": 1024`).
+The human readable values can be turned off by adding `?human=false`
+to the query string. This makes sense when the stats results are
+being consumed by a monitoring tool, rather than intended for human
+consumption.  The default for the `human` flag is
+`true`. added[0.90.4]
+
 === Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the

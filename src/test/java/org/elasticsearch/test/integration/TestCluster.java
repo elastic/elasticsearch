@@ -167,7 +167,7 @@ public class TestCluster {
 
     public Node buildNode(Settings settings) {
         ensureOpen();
-        String name = "node_" + nextNodeId.getAndIncrement();
+        String name = buildNodeName();
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
         Settings finalSettings = settingsBuilder()
                 .loadFromClasspath(settingsSource)
@@ -178,6 +178,10 @@ public class TestCluster {
         Node node = nodeBuilder().settings(finalSettings).build();
         nodes.put(name, new NodeAndClient(name, node, clientFactory));
         return node;
+    }
+
+    private String buildNodeName() {
+        return "node_" + nextNodeId.getAndIncrement();
     }
 
     public void setClientFactory(ClientFactory factory) {
@@ -374,7 +378,7 @@ public class TestCluster {
     public Client nodeClient() {
         ensureOpen();
         if (clientNode == null) {
-            String name = UUID.randomUUID().toString();
+            String name = buildNodeName();
             String settingsSource = getClass().getName().replace('.', '/') + ".yml";
             Settings finalSettings = settingsBuilder().loadFromClasspath(settingsSource).put(defaultSettings).put("node.client", true).put("name", name)
                     .build();

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.junit.annotations.Network;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
@@ -47,18 +48,26 @@ import static org.hamcrest.CoreMatchers.*;
 @ClusterScope(scope=Scope.TEST, numNodes=0)
 public class PluginManagerTests extends AbstractIntegrationTest {
     private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
-    .put("discovery.zen.ping.multicast.enabled", false).build();
+        .put("discovery.zen.ping.multicast.enabled", false).build();
     private static final String PLUGIN_DIR = "plugins";
 
-    
-    
+    @After
+    public void afterTest() {
+        deletePluginsFolder();
+    }
+
+    @Before
+    public void beforeTest() {
+        deletePluginsFolder();
+    }
+
     @Test
     public void testLocalPluginInstallSingleFolder() throws Exception {
         //When we have only a folder in top-level (no files either) we remove that folder while extracting
         String pluginName = "plugin-test";
         URL url = PluginManagerTests.class.getResource("plugin_single_folder.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
-        
+
         String nodeName = cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
@@ -146,32 +155,79 @@ public class PluginManagerTests extends AbstractIntegrationTest {
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
-    @Before
-    public void beforeTest() {
-        deletePluginsFolder();
+    @Test
+    public void testListInstalledEmpty() throws IOException {
+        File[] plugins = pluginManager(null).getListInstalledPlugins();
+        assertThat(plugins, notNullValue());
+        assertThat(plugins.length, is(0));
     }
 
-    @After
-    public void afterTest() {
-        deletePluginsFolder();
+    @Test(expected = IOException.class)
+    public void testInstallPluginNull() throws IOException {
+        pluginManager(null).downloadAndExtract("");
     }
 
-    private void deletePluginsFolder() {
-        FileSystemUtils.deleteRecursively(new File(PLUGIN_DIR));
+
+    @Test
+    public void testInstallPlugin() throws IOException {
+        PluginManager pluginManager = pluginManager("file://".concat(PluginManagerTests.class.getResource("plugin_with_classfile.zip").getFile()));
+
+        pluginManager.downloadAndExtract("plugin");
+        File[] plugins = pluginManager.getListInstalledPlugins();
+        assertThat(plugins, notNullValue());
+        assertThat(plugins.length, is(1));
     }
 
-    private void singlePluginInstallAndRemove(String pluginName, String pluginCoordinates) throws IOException {
+    @Test
+    public void testInstallSitePlugin() throws IOException {
+        PluginManager pluginManager = pluginManager("file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+
+        pluginManager.downloadAndExtract("plugin-site");
+        File[] plugins = pluginManager.getListInstalledPlugins();
+        assertThat(plugins, notNullValue());
+        assertThat(plugins.length, is(1));
+
+        // We want to check that Plugin Manager moves content to _site
+        String pluginDir = PLUGIN_DIR.concat("/plugin-site/_site");
+        assertThat(FileSystemUtils.exists(new File(pluginDir)), is(true));
+    }
+
+
+    private void singlePluginInstallAndRemove(String pluginShortName, String pluginCoordinates) throws IOException {
         PluginManager pluginManager = pluginManager(pluginCoordinates);
-        pluginManager.downloadAndExtract(pluginName);
+        pluginManager.downloadAndExtract(pluginShortName);
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
 
         // We remove it
-        pluginManager.removePlugin(pluginName);
+        pluginManager.removePlugin(pluginShortName);
         plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(0));
+    }
+
+    /**
+     * We are ignoring by default these tests as they require to have an internet access
+     * To activate the test, use -Dtests.network=true
+     */
+    @Test @Network
+    public void testInstallPluginWithInternet() throws IOException {
+        // We test regular form: username/reponame/version
+        // It should find it in download.elasticsearch.org service
+        singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+
+        // We test regular form: groupId/artifactId/version
+        // It should find it in maven central service
+        singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+
+        // We test site plugins from github: userName/repoName
+        // It should find it on github
+        singlePluginInstallAndRemove("elasticsearch/kibana", null);
+    }
+
+    private void deletePluginsFolder() {
+        FileSystemUtils.deleteRecursively(new File(PLUGIN_DIR));
     }
 
     @Test

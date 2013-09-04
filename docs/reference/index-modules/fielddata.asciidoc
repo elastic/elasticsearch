@@ -85,7 +85,9 @@ expression which matches terms beginning with `#`:
         analyzer:  "whitespace"
         fielddata: {
             filter: {
-                regex: "^#.*"
+                regex: {
+                    pattern: "^#.*"
+                }
             }
         }
     }
@@ -105,7 +107,9 @@ The `frequency` and `regex` filters can be combined:
         analyzer:  "whitespace"
         fielddata: {
             filter: {
-                regex:                "^#.*",
+                regex: {
+                    pattern:          "^#.*",
+                },
                 frequency: {
                     min:              0.001,
                     max:              0.1,

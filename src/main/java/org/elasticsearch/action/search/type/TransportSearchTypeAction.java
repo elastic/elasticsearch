@@ -388,7 +388,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         final void innerMoveToSecondPhase() throws Exception {
-            if (logger.isDebugEnabled()) {
+            if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 boolean hadOne = false;
                 for (int i = 0; i < firstResults.length(); i++) {
@@ -404,7 +404,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     sb.append(result.shardTarget());
                 }
 
-                logger.debug("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterState.version());
+                logger.trace("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterState.version());
             }
             moveToSecondPhase();
         }

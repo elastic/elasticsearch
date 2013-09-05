@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
 import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.MultiOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -118,7 +119,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                     assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
                     LongsRef ref = docs.getOrds(docId);
                     assertThat(ref.offset, equalTo(0));
-                    
+
                     for (int i = ref.offset; i < ref.length; i++) {
                         assertThat("index: " + i + " offset: " + ref.offset + " len: " + ref.length, ref.longs[i], equalTo(docOrds.get(i)));
                     }
@@ -160,17 +161,22 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            if (this == obj) {
                 return true;
-            if (obj == null)
+            }
+            if (obj == null) {
                 return false;
-            if (getClass() != obj.getClass())
+            }
+            if (getClass() != obj.getClass()) {
                 return false;
+            }
             OrdAndId other = (OrdAndId) obj;
-            if (id != other.id)
+            if (id != other.id) {
                 return false;
-            if (ord != other.ord)
+            }
+            if (ord != other.ord) {
                 return false;
+            }
             return true;
         }
     }
@@ -196,15 +202,15 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
             builder.nextOrdinal();
             builder.addDoc(5).addDoc(6);
         }
-        
-        long[][] ordinalPlan = new long[][] {
+
+        long[][] ordinalPlan = new long[][]{
                 {2, 4},
                 {1},
                 {3},
                 {},
                 {1, 3, 4, 5, 6},
-                {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32},
-                {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}
+                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
+                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
         };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
@@ -249,18 +255,18 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                 builder.addDoc(6);
             }
         }
-      
-        long[][] ordinalPlan = new long[][] {
-                {1,2,3,4,5,6,7,8,9,10},
-                {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15},
+
+        long[][] ordinalPlan = new long[][]{
+                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
                 {1},
-                {1,2,3,4,5},
-                {1,2,3,4,5,6},
+                {1, 2, 3, 4, 5},
+                {1, 2, 3, 4, 5, 6},
                 {2},
-                {1,2,3,4,5,6,7,8,9,10}
+                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
         };
-        
-        Ordinals ordinals = new MultiOrdinals(builder);
+
+        Ordinals ordinals = new MultiOrdinals(builder, PackedInts.FASTEST);
         Ordinals.Docs docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }

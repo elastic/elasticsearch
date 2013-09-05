@@ -40,11 +40,14 @@ import java.util.Comparator;
  */
 public final class OrdinalsBuilder implements Closeable {
 
-    /** Default acceptable overhead ratio. {@link OrdinalsBuilder} memory usage is mostly transient so it is likely a better trade-off to
-     *  trade memory for speed in order to resize less often. */
+    /**
+     * Default acceptable overhead ratio. {@link OrdinalsBuilder} memory usage is mostly transient so it is likely a better trade-off to
+     * trade memory for speed in order to resize less often.
+     */
     public static final float DEFAULT_ACCEPTABLE_OVERHEAD_RATIO = PackedInts.FAST;
 
-    /** The following structure is used to store ordinals. The idea is to store ords on levels of increasing sizes. Level 0 stores
+    /**
+     * The following structure is used to store ordinals. The idea is to store ords on levels of increasing sizes. Level 0 stores
      * 1 value and 1 pointer to level 1. Level 1 stores 2 values and 1 pointer to level 2, ..., Level n stores 2**n values and
      * 1 pointer to level n+1. If at some point an ordinal or a pointer has 0 as a value, this means that there are no remaining
      * values. On the first level, ordinals.get(docId) is the first ordinal for docId or 0 if the document has no ordinals. On
@@ -67,7 +70,7 @@ public final class OrdinalsBuilder implements Closeable {
      * with document 2: it has 2 more ordinals on level 1: 3 and 4 and its next level index is 1 meaning that there are remaining
      * ordinals on the next level. On level 2 at index 1, we can read [5  0  0  0] meaning that 5 is an ordinal as well, but the
      * fact that it is followed by zeros means that there are no more ordinals. In the end, document 2 has 2, 3, 4 and 5 as ordinals.
-     *
+     * <p/>
      * In addition to these structures, there is another array which stores the current position (level + slice + offset in the slice)
      * in order to be able to append data in constant time.
      */
@@ -75,7 +78,9 @@ public final class OrdinalsBuilder implements Closeable {
 
         private static final int PAGE_SIZE = 1 << 12;
 
-        /** Number of slots at <code>level</code> */
+        /**
+         * Number of slots at <code>level</code>
+         */
         private static int numSlots(int level) {
             return 1 << level;
         }
@@ -84,34 +89,46 @@ public final class OrdinalsBuilder implements Closeable {
             return numSlots(level) - 1;
         }
 
-        /** Encode the position for the given level and offset. The idea is to encode the level using unary coding in the lower bits and
-         *  then the offset in the higher bits. */
+        /**
+         * Encode the position for the given level and offset. The idea is to encode the level using unary coding in the lower bits and
+         * then the offset in the higher bits.
+         */
         private static long position(int level, long offset) {
             assert level >= 1;
             return (1 << (level - 1)) | (offset << level);
         }
 
-        /** Decode the level from an encoded position. */
+        /**
+         * Decode the level from an encoded position.
+         */
         private static int level(long position) {
             return 1 + Long.numberOfTrailingZeros(position);
         }
 
-        /** Decode the offset from the position. */
+        /**
+         * Decode the offset from the position.
+         */
         private static long offset(long position, int level) {
             return position >>> level;
         }
 
-        /** Get the ID of the slice given an offset. */
+        /**
+         * Get the ID of the slice given an offset.
+         */
         private static long sliceID(int level, long offset) {
             return offset >>> level;
         }
 
-        /** Compute the first offset of the given slice. */
+        /**
+         * Compute the first offset of the given slice.
+         */
         private static long startOffset(int level, long slice) {
             return slice << level;
         }
 
-        /** Compute the number of ordinals stored for a value given its current position. */
+        /**
+         * Compute the number of ordinals stored for a value given its current position.
+         */
         private static int numOrdinals(int level, long offset) {
             return (1 << level) + (int) (offset & slotsMask(level));
         }
@@ -141,7 +158,9 @@ public final class OrdinalsBuilder implements Closeable {
             Arrays.fill(sizes, 1); // reserve the 1st slice on every level
         }
 
-        /** Allocate a new slice and return its ID. */
+        /**
+         * Allocate a new slice and return its ID.
+         */
         private long newSlice(int level) {
             final long newSlice = sizes[level]++;
             // Lazily allocate ordinals
@@ -257,7 +276,7 @@ public final class OrdinalsBuilder implements Closeable {
         ordinals = new OrdinalsStore(maxDoc, startBitsPerValue, acceptableOverheadRatio);
         spare = new LongsRef();
     }
-    
+
     public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) throws IOException {
         this(-1, maxDoc, acceptableOverheadRatio);
     }
@@ -275,7 +294,9 @@ public final class OrdinalsBuilder implements Closeable {
         return spare;
     }
 
-    /** Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal if it exists and 0 otherwise. */
+    /**
+     * Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal if it exists and 0 otherwise.
+     */
     public PackedInts.Reader getFirstOrdinals() {
         return ordinals.firstOrdinals;
     }
@@ -287,7 +308,7 @@ public final class OrdinalsBuilder implements Closeable {
     public long nextOrdinal() {
         return ++currentOrd;
     }
-    
+
     /**
      * Retruns the current ordinal or <tt>0</tt> if this build has not been advanced via
      * {@link #nextOrdinal()}.
@@ -297,7 +318,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Associates the given document id with the current ordinal. 
+     * Associates the given document id with the current ordinal.
      */
     public OrdinalsBuilder addDoc(int doc) {
         totalNumOrds++;
@@ -346,7 +367,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Returns the number of distinct ordinals in this builder.  
+     * Returns the number of distinct ordinals in this builder.
      */
     public long getNumOrds() {
         return currentOrd;
@@ -370,13 +391,13 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Builds an {@link Ordinals} instance from the builders current state. 
+     * Builds an {@link Ordinals} instance from the builders current state.
      */
     public Ordinals build(Settings settings) {
-        final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getNumOrds())) {
+        final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FASTEST);
+        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getNumOrds(), acceptableOverheadRatio)) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
-            return new MultiOrdinals(this);
+            return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {
             return new SinglePackedOrdinals(this, acceptableOverheadRatio);
         }
@@ -388,9 +409,10 @@ public final class OrdinalsBuilder implements Closeable {
     public int maxDoc() {
         return maxDoc;
     }
-    
+
     /**
      * A {@link TermsEnum} that iterates only full precision prefix coded 64 bit values.
+     *
      * @see #buildFromTerms(TermsEnum, Bits)
      */
     public static TermsEnum wrapNumeric64Bit(TermsEnum termsEnum) {
@@ -405,11 +427,12 @@ public final class OrdinalsBuilder implements Closeable {
 
     /**
      * A {@link TermsEnum} that iterates only full precision prefix coded 32 bit values.
+     *
      * @see #buildFromTerms(TermsEnum, Bits)
      */
     public static TermsEnum wrapNumeric32Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {
-            
+
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
                 // we stop accepting terms once we moved across the prefix codec terms - redundant values!
@@ -444,7 +467,7 @@ public final class OrdinalsBuilder implements Closeable {
                     docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
                     nextOrdinal();
                     int docId;
-                    while((docId = docsEnum.nextDoc()) != DocsEnum.NO_MORE_DOCS) {
+                    while ((docId = docsEnum.nextDoc()) != DocsEnum.NO_MORE_DOCS) {
                         addDoc(docId);
                     }
                 }
@@ -457,7 +480,7 @@ public final class OrdinalsBuilder implements Closeable {
             }
         };
     }
-    
+
     /**
      * Closes this builder and release all resources.
      */

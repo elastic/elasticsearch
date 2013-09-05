@@ -22,9 +22,9 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.packed.AppendingLongBuffer;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.XAppendingPackedLongBuffer;
+import org.apache.lucene.util.packed.XMonotonicAppendingLongBuffer;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 
 /**
@@ -38,13 +38,16 @@ public class MultiOrdinals implements Ordinals {
     /**
      * Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%.
      */
-    public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds) {
-        final int bitsPerOrd = PackedInts.bitsRequired(numOrds);
+    public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds, float acceptableOverheadRatio) {
+        int bitsPerOrd = PackedInts.bitsRequired(numOrds);
+        bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue;
         // Compute the worst-case number of bits per value for offsets in the worst case, eg. if no docs have a value at the
         // beginning of the block and all docs have one at the end of the block
         final float avgValuesPerDoc = (float) numDocsWithValue / maxDoc;
         final int maxDelta = (int) Math.ceil(OFFSETS_PAGE_SIZE * (1 - avgValuesPerDoc) * avgValuesPerDoc);
-        final int bitsPerOffset = PackedInts.bitsRequired(maxDelta) + 1; // +1 because of the sign
+        int bitsPerOffset = PackedInts.bitsRequired(maxDelta) + 1; // +1 because of the sign
+        bitsPerOffset = PackedInts.fastestFormatAndBits(maxDoc, bitsPerOffset, acceptableOverheadRatio).bitsPerValue;
+
         final long expectedMultiSizeInBytes = (long) numDocsWithValue * bitsPerOrd + (long) maxDoc * bitsPerOffset;
         final long expectedSingleSizeInBytes = (long) maxDoc * bitsPerOrd;
         return expectedMultiSizeInBytes < 0.8f * expectedSingleSizeInBytes;
@@ -52,14 +55,14 @@ public class MultiOrdinals implements Ordinals {
 
     private final boolean multiValued;
     private final long numOrds;
-    private final MonotonicAppendingLongBuffer endOffsets;
-    private final AppendingLongBuffer ords;
+    private final XMonotonicAppendingLongBuffer endOffsets;
+    private final XAppendingPackedLongBuffer ords;
 
-    public MultiOrdinals(OrdinalsBuilder builder) {
+    public MultiOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         multiValued = builder.getNumMultiValuesDocs() > 0;
         numOrds = builder.getNumOrds();
-        endOffsets = new MonotonicAppendingLongBuffer();
-        ords = new AppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE);
+        endOffsets = new XMonotonicAppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        ords = new XAppendingPackedLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
         long lastEndOffset = 0;
         for (int i = 0; i < builder.maxDoc(); ++i) {
             final LongsRef docOrds = builder.docOrds(i);
@@ -117,8 +120,8 @@ public class MultiOrdinals implements Ordinals {
     static class MultiDocs implements Ordinals.Docs {
 
         private final MultiOrdinals ordinals;
-        private final MonotonicAppendingLongBuffer endOffsets;
-        private final AppendingLongBuffer ords;
+        private final XMonotonicAppendingLongBuffer endOffsets;
+        private final XAppendingPackedLongBuffer ords;
         private final LongsRef longsScratch;
         private final MultiIter iter;
 
@@ -195,10 +198,10 @@ public class MultiOrdinals implements Ordinals {
 
     static class MultiIter implements Iter {
 
-        final AppendingLongBuffer ordinals;
+        final XAppendingPackedLongBuffer ordinals;
         long offset, endOffset;
 
-        MultiIter(AppendingLongBuffer ordinals) {
+        MultiIter(XAppendingPackedLongBuffer ordinals) {
             this.ordinals = ordinals;
         }
 

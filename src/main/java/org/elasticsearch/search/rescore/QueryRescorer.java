@@ -32,9 +32,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
-import java.lang.Math;
 
-final class QueryRescorer implements Rescorer {
+public final class QueryRescorer implements Rescorer {
 
     private static enum ScoreMode {
         Avg {
@@ -189,7 +188,7 @@ final class QueryRescorer implements Rescorer {
         return rescoreContext;
     }
     
-    static class QueryRescoreContext extends RescoreSearchContext {
+    public static class QueryRescoreContext extends RescoreSearchContext {
         
         public QueryRescoreContext(QueryRescorer rescorer) {
             super(NAME, 10, rescorer);

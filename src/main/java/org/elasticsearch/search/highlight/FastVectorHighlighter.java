@@ -125,13 +125,13 @@ public class FastVectorHighlighter implements Highlighter {
                 if (field.requireFieldMatch()) {
                     if (cache.fieldMatchFieldQuery == null) {
                         // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                        cache.fieldMatchFieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                        cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.highlightQuery, hitContext.topLevelReader(), true, field.requireFieldMatch());
                     }
                     fieldQuery = cache.fieldMatchFieldQuery;
                 } else {
                     if (cache.noFieldMatchFieldQuery == null) {
                         // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                        cache.noFieldMatchFieldQuery = new CustomFieldQuery(context.parsedQuery().query(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                        cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.highlightQuery, hitContext.topLevelReader(), true, field.requireFieldMatch());
                     }
                     fieldQuery = cache.noFieldMatchFieldQuery;
                 }

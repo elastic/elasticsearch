@@ -24,6 +24,7 @@ import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedIndexInput;
 import org.elasticsearch.common.compress.CompressedStreamInput;
@@ -48,7 +49,11 @@ public class LZFCompressor implements Compressor {
     private ChunkDecoder decoder;
 
     public LZFCompressor() {
-        this.decoder = ChunkDecoderFactory.optimalInstance();
+        if (Constants.SUN_OS) {
+            this.decoder = ChunkDecoderFactory.safeInstance();
+        } else {
+            this.decoder = ChunkDecoderFactory.optimalInstance();
+        }
         Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
     }
 

@@ -28,8 +28,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.action.termvector.TermVectorResponse;
@@ -46,14 +44,13 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorUnitTests extends org.elasticsearch.test.integration.ElasticsearchTestCase {
+public class TermVectorUnitTests extends org.elasticsearch.test.integration.ElasticsearchLuceneTestCase {
 
     @Test
     public void streamResponse() throws Exception {
@@ -94,7 +91,7 @@ public class TermVectorUnitTests extends org.elasticsearch.test.integration.Elas
 
     private void writeEmptyTermVector(TermVectorResponse outResponse) throws IOException {
 
-        Directory dir = new RAMDirectory();
+        Directory dir = newDirectory();
         IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
         conf.setOpenMode(OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);
@@ -119,12 +116,14 @@ public class TermVectorUnitTests extends org.elasticsearch.test.integration.Elas
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(fields, null, flags, fields);
         outResponse.setExists(true);
+        dr.close();
+        dir.close();
 
     }
 
     private void writeStandardTermVector(TermVectorResponse outResponse) throws IOException {
 
-        Directory dir = FSDirectory.open(new File("/tmp/foo"));
+        Directory dir = newDirectory();
         IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
 
         conf.setOpenMode(OpenMode.CREATE);
@@ -151,6 +150,8 @@ public class TermVectorUnitTests extends org.elasticsearch.test.integration.Elas
         Fields termVectors = dr.getTermVectors(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(termVectors, null, flags, termVectors);
+        dr.close();
+        dir.close();
 
     }
 
@@ -221,14 +222,14 @@ public class TermVectorUnitTests extends org.elasticsearch.test.integration.Elas
 
         for (int i = 0; i < 10; i++) {
             TermVectorRequest request = new TermVectorRequest("index", "type", "id");
-            request.offsets(randomBoolean());
-            request.fieldStatistics(randomBoolean());
-            request.payloads(randomBoolean());
-            request.positions(randomBoolean());
-            request.termStatistics(randomBoolean());
-            String parent = randomBoolean() ? "someParent" : null;
+            request.offsets(random().nextBoolean());
+            request.fieldStatistics(random().nextBoolean());
+            request.payloads(random().nextBoolean());
+            request.positions(random().nextBoolean());
+            request.termStatistics(random().nextBoolean());
+            String parent = random().nextBoolean() ? "someParent" : null;
             request.parent(parent);
-            String pref = randomBoolean() ? "somePreference" : null;
+            String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
 
             // write

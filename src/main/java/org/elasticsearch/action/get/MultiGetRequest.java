@@ -264,11 +264,15 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         return this;
     }
 
-    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
-        add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length));
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
+        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length), true);
     }
 
-    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data) throws Exception {
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data) throws Exception {
+        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, data, true);
+    }
+
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data, boolean allowExplicitIndex) throws Exception {
         XContentParser parser = XContentFactory.xContent(data).createParser(data);
         try {
             XContentParser.Token token;
@@ -298,6 +302,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if ("_index".equals(currentFieldName)) {
+                                        if (!allowExplicitIndex) {
+                                            throw new ElasticSearchIllegalArgumentException("explicit index in multi get is not allowed");
+                                        }
                                         index = parser.text();
                                     } else if ("_type".equals(currentFieldName)) {
                                         type = parser.text();
@@ -388,6 +395,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         } finally {
             parser.close();
         }
+        return this;
     }
 
     @Override

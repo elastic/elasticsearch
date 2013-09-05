@@ -245,7 +245,7 @@ public class BulkProcessor {
     }
 
     public synchronized BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, payload);
+        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, payload, true);
         executeIfNeeded();
         return this;
     }

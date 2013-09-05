@@ -40,6 +40,7 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -1140,6 +1141,70 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testDisableFastVectorHighlighter() throws Exception {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        ensureGreen();
+        
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724").execute().actionGet();
+        }
+        refresh();
+        SearchResponse search = client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "test for the workaround"))
+                .addHighlightedField("title", 50, 1, 10)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+
+        assertThat(search.getHits().totalHits(), equalTo(5l));
+        assertThat(search.getHits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.getHits()) {
+            // Because of SOLR-3724 nothing is highlighted when FVH is used
+            assertThat(hit.highlightFields().isEmpty(), equalTo(true));
+        }
+
+        // Using plain highlighter instead of FVH
+        search = client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "test for the workaround"))
+                .addHighlightedField("title", 50, 1, 10)
+                .setHighlighterType("highlighter")
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+
+        assertThat(search.getHits().totalHits(), equalTo(5l));
+        assertThat(search.getHits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.getHits()) {
+            // With plain highlighter terms are highlighted correctly
+            assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a <em>test</em> for the <em>workaround</em> for the fast vector highlighting SOLR-3724"));
+        }
+
+        // Using plain highlighter instead of FVH on the field level
+        search = client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "test for the workaround"))
+                .addHighlightedField(new HighlightBuilder.Field("title").highlighterType("highlighter"))
+                .setHighlighterType("highlighter")
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+
+        assertThat(search.getHits().totalHits(), equalTo(5l));
+        assertThat(search.getHits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.getHits()) {
+            // With plain highlighter terms are highlighted correctly
+            assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a <em>test</em> for the <em>workaround</em> for the fast vector highlighting SOLR-3724"));
+        }
+    }
+
+    @Test
     public void testFSHHighlightAllMvFragments() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
@@ -1526,56 +1591,6 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().totalHits(), equalTo(1L));
         // PatternAnalyzer will throw an exception if it is resetted twice
         assertThat(response.getFailedShards(), equalTo(0));
-    }
-
-    @Test
-    public void testHighlightComplexPhraseQuery() throws Exception {
-        prepareCreate("test")
-            .setSettings(ImmutableSettings.builder()
-                .put("analysis.analyzer.code.type", "custom")
-                .put("analysis.analyzer.code.tokenizer", "code")
-                .put("analysis.analyzer.code.filter", "code,lowercase")
-                .put("analysis.tokenizer.code.type", "pattern")
-                .put("analysis.tokenizer.code.pattern", "[.,:;/\"<>(){}\\[\\]\\s]")
-                .put("analysis.filter.code.type", "word_delimiter")
-                .put("analysis.filter.code.generate_word_parts", "true")
-                .put("analysis.filter.code.generate_number_parts", "true")
-                .put("analysis.filter.code.catenate_words", "false")
-                .put("analysis.filter.code.catenate_numbers", "false")
-                .put("analysis.filter.code.catenate_all", "false")
-                .put("analysis.filter.code.split_on_case_change", "true")
-                .put("analysis.filter.code.preserve_original", "true")
-                .put("analysis.filter.code.split_on_numerics", "true")
-                .put("analysis.filter.code.stem_english_possessive", "false")
-                .build())
-            .addMapping("type", jsonBuilder()
-                    .startObject()
-                        .startObject("type")
-                            .startObject("properties")
-                                .startObject("text")
-                                    .field("type", "string")
-                                    .field("analyzer", "code")
-                                    .field("term_vector", "with_positions_offsets")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject())
-                .execute().actionGet();
-
-        ensureGreen();
-        client().prepareIndex("test", "type", "1")
-            .setSource(jsonBuilder().startObject()
-                    .field("text", "def log_worker_status( worker )\n  pass")
-                .endObject())
-            .setRefresh(true)
-            .execute().actionGet();
-
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.matchPhraseQuery("text", "def log_worker_status( worker )"))
-                .addHighlightedField("text").execute().actionGet();
-        assertThat(response.getFailedShards(), equalTo(0));
-        assertThat(response.getHits().totalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).getHighlightFields().get("text").fragments()[0].string(), equalTo("<em>def log_worker_status( worker</em> )\n  pass"));
     }
 
 }

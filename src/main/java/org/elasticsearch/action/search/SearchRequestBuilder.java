@@ -671,6 +671,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Sets a query to be used for highlighting all fields instead of the search query.
+     */
+    public SearchRequestBuilder setHighlighterQuery(QueryBuilder highlightQuery) {
+        highlightBuilder().highlightQuery(highlightQuery);
+        return this;
+    }
+
     public SearchRequestBuilder setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
         highlightBuilder().requireFieldMatch(requireFieldMatch);
         return this;

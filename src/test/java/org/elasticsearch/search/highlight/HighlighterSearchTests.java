@@ -22,6 +22,7 @@ package org.elasticsearch.search.highlight;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.hamcrest.Matcher;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -50,8 +52,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHighlight;
 import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -1598,4 +1599,67 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         assertThat(response.getFailedShards(), equalTo(0));
     }
 
+    @Test
+    public void testHighlightUsesHighlightQuery() throws IOException {
+        prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject()
+                    .startObject("type")
+                        .startObject("properties")
+                            .startObject("text")
+                                .field("type", "string")
+                                .field("store", "yes")
+                                .field("term_vector", "with_positions_offsets")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()).get();
+        ensureGreen();
+
+        index("test", "type1", "1", "text", "some stuff stuff stuff stuff stuff to highlight against the stuff phrase");
+        refresh();
+
+        // Make sure the fvh doesn't highlight in the same way as we're going to do with a scoreQuery because
+        // that would invalidate the test results.
+        Matcher<String> highlightedMatcher = anyOf(
+                containsString("<em>stuff phrase</em>"),            // FHV normally does this
+                containsString("<em>stuff</em> <em>phrase</em>"));  // Plain normally does this
+        HighlightBuilder.Field field = new HighlightBuilder.Field("text")
+                .fragmentSize(20)
+                .numOfFragments(1)
+                .highlighterType("fvh");
+        SearchRequestBuilder search = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "stuff"))
+                .setHighlighterOrder("score")
+                .addHighlightedField(field);
+        SearchResponse response = search.get();
+        assertHighlight(response, 0, "text", 0, not(highlightedMatcher));
+
+        // And do the same for the plain highlighter
+        field.highlighterType("plain");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, not(highlightedMatcher));
+
+        // Make sure the fvh takes the highlightQuery into account
+        field.highlighterType("fvh").highlightQuery(matchPhraseQuery("text", "stuff phrase"));
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, highlightedMatcher);
+
+        // And do the same for the plain highlighter
+        field.highlighterType("plain");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, highlightedMatcher);
+        // Note that the plain highlighter doesn't join the highlighted elements for us
+
+        // Make sure the fvh takes the highlightQuery into account when it is set on the highlight context instead of the field
+        search.setHighlighterQuery(matchPhraseQuery("text", "stuff phrase"));
+        field.highlighterType("fvh").highlightQuery(null);
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, highlightedMatcher);
+
+        // And do the same for the plain highlighter
+        field.highlighterType("plain");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, highlightedMatcher);
+        // Note that the plain highlighter doesn't join the highlighted elements for us
+    }
 }

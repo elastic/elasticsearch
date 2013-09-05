@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,6 +53,8 @@ public class HighlightBuilder implements ToXContent {
     private String highlighterType;
 
     private String fragmenter;
+
+    private QueryBuilder highlightQuery;
 
     private Map<String, Object> options;
 
@@ -202,6 +205,14 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
+     * Sets a query to be used for highlighting all fields instead of the search query.
+     */
+    public HighlightBuilder highlightQuery(QueryBuilder highlightQuery) {
+        this.highlightQuery = highlightQuery;
+        return this;
+    }
+
+    /**
      * Allows to set custom options for custom highlighters.
      */
     public HighlightBuilder options(Map<String, Object> options) {
@@ -235,6 +246,9 @@ public class HighlightBuilder implements ToXContent {
         }
         if (fragmenter != null) {
             builder.field("fragmenter", fragmenter);
+        }
+        if (highlightQuery != null) {
+            builder.field("highlight_query", highlightQuery);
         }
         if (options != null && options.size() > 0) {
             builder.field("options", options);
@@ -279,6 +293,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.fragmenter != null) {
                     builder.field("fragmenter", field.fragmenter);
                 }
+                if (field.highlightQuery != null) {
+                    builder.field("highlight_query", field.highlightQuery);
+                }
                 if (field.options != null && field.options.size() > 0) {
                     builder.field("options", field.options);
                 }
@@ -306,6 +323,7 @@ public class HighlightBuilder implements ToXContent {
         char[] boundaryChars;
         String highlighterType;
         String fragmenter;
+        QueryBuilder highlightQuery;
         Map<String, Object> options;
 
         public Field(String name) {
@@ -397,6 +415,14 @@ public class HighlightBuilder implements ToXContent {
          */
         public Field fragmenter(String fragmenter) {
             this.fragmenter = fragmenter;
+            return this;
+        }
+
+        /**
+         * Sets a query to use for highlighting this field instead of the search query.
+         */
+        public Field highlightQuery(QueryBuilder highlightQuery) {
+            this.highlightQuery = highlightQuery;
             return this;
         }
 

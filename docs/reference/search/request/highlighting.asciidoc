@@ -142,6 +142,73 @@ order by score:
 }
 --------------------------------------------------
 
+It is also possible to highlight against a query other than the search
+query by setting `highlight_query`.  This is especially useful if you
+use a rescore query because those are not taken into account by
+highlighting by default.  Elasticsearch does not validate that
+`highlight_query` contains the search query in any way so it is possible
+to define it so legitimate query results aren't highlighted at all.
+Generally it is better to include the search query in the
+`highlight_query`.  Here is an example of including both the search
+query and the rescore query in `highlight_query`.
+[source,js]
+--------------------------------------------------
+{
+    "fields": [ "_id" ],
+    "query" : {
+        "match": {
+            "content": {
+                "query": "foo bar"
+            }
+        }
+    },
+    "rescore": {
+        "window_size": 50,
+        "query": {
+            "rescore_query" : {
+                "match_phrase": {
+                    "content": {
+                        "query": "foo bar",
+                        "phrase_slop": 1
+                    }
+                }
+            },
+            "rescore_query_weight" : 10
+        }
+    },
+    "highlight" : {
+        "order" : "score",
+        "fields" : {
+            "content" : {
+                "fragment_size" : 150,
+                "number_of_fragments" : 3,
+                "highlight_query": {
+                    "bool": {
+                        "must": {
+                            "match": {
+                                "content": {
+                                    "query": "foo bar"
+                                }
+                            }
+                        },
+                        "should": {
+                            "match_phrase": {
+                                "content": {
+                                    "query": "foo bar",
+                                    "phrase_slop": 1,
+                                    "boost": 10.0
+                                }
+                            }
+                        },
+                        "minimum_should_match": 0
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
 Note the score of text fragment in this case is calculated by Lucene
 highlighting framework. For implementation details you can check
 `ScoreOrderFragmentsBuilder.java` class.

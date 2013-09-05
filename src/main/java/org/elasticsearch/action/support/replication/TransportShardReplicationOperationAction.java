@@ -493,7 +493,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
                     @Override
                     public void postAdded() {
-                        logger.debug("ShardRepOp: listener to cluster state added. Trying again");
+                        logger.debug("Listener to cluster state added. Trying to index again.");
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
@@ -508,7 +508,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override
                     public void clusterChanged(ClusterChangedEvent event) {
-                        logger.debug("ShardRepOp: cluster changed (version {}). Trying again", event.state().version());
+                        logger.debug("Cluster changed (version {}). Trying to index again.", event.state().version());
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
@@ -535,7 +535,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 });
             } else {
-                logger.debug("ShardRepOp: retry scheduling ignored as it was executed from an active cluster state listener");
+                logger.debug("Retry scheduling ignored as it as we already have a listener in place.");
             }
         }
 

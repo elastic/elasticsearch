@@ -236,6 +236,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
     }
 
     public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, BytesReference data) throws Exception {
+        add(defaultIndex, defaultType, defaultFields, data, true);
+    }
+
+    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, BytesReference data, boolean allowExplicitIndex) throws Exception {
         XContentParser parser = XContentFactory.xContent(data).createParser(data);
         try {
             XContentParser.Token token;
@@ -260,6 +264,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if ("_index".equals(currentFieldName)) {
+                                        if (!allowExplicitIndex) {
+                                            throw new ElasticSearchIllegalArgumentException("explicit index in multi get is not allowed");
+                                        }
                                         index = parser.text();
                                     } else if ("_type".equals(currentFieldName)) {
                                         type = parser.text();

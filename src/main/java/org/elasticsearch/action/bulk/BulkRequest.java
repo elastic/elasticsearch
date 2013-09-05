@@ -155,6 +155,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         }
         return this;
     }
+
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */

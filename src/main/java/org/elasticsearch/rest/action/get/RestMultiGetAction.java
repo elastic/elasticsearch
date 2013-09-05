@@ -39,6 +39,8 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
 
 public class RestMultiGetAction extends BaseRestHandler {
 
+    private final boolean allowExplicitIndex;
+
     @Inject
     public RestMultiGetAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -48,6 +50,8 @@ public class RestMultiGetAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_mget", this);
         controller.registerHandler(GET, "/{index}/{type}/_mget", this);
         controller.registerHandler(POST, "/{index}/{type}/_mget", this);
+
+        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 
     @Override
@@ -65,7 +69,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         }
 
         try {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, request.content());
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, request.content(), allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

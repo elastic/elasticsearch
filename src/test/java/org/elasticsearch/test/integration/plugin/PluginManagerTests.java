@@ -41,7 +41,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.CoreMatchers.*;
 
 public class PluginManagerTests extends AbstractNodesTests {
 
@@ -107,11 +107,11 @@ public class PluginManagerTests extends AbstractNodesTests {
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
-        return new PluginManager(initialSettings.v2(), pluginUrl);
+        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT);
     }
 
     private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {
-        pluginManager(pluginUrl).downloadAndExtract(pluginName, false);
+        pluginManager(pluginUrl).downloadAndExtract(pluginName);
     }
 
     private Node startNode() {
@@ -157,7 +157,7 @@ public class PluginManagerTests extends AbstractNodesTests {
 
     private void singlePluginInstallAndRemove(String pluginName, String pluginCoordinates) throws IOException {
         PluginManager pluginManager = pluginManager(pluginCoordinates);
-        pluginManager.downloadAndExtract("plugin", false);
+        pluginManager.downloadAndExtract("plugin");
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));

@@ -26,3 +26,6 @@
 
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy]:
   Plugin to watch Lucene segment merges across your cluster
+
+* https://github.com/mattweber/es2graphite[es2graphite]:
+  Send cluster and indices stats and status to Graphite for monitoring and graphing.

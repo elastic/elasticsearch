@@ -321,7 +321,7 @@
 # 2. Configure an initial list of master nodes in the cluster
 #    to perform discovery when new nodes (master or data) are started:
 #
-# discovery.zen.ping.unicast.hosts: ["host1", "host2:port", "host3[portX-portY]"]
+# discovery.zen.ping.unicast.hosts: ["host1", "host2:port"]
 
 # EC2 discovery allows to use AWS EC2 API in order to perform discovery.
 #

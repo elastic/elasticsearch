@@ -36,10 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
+import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -199,16 +196,24 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             return;
         }
         // call the post added notification on the same event thread
-        updateTasksExecutor.execute(new PrioritizedRunnable(Priority.HIGH) {
-            @Override
-            public void run() {
-                NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-                notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-                onGoingTimeouts.add(notifyTimeout);
-                clusterStateListeners.add(listener);
-                listener.postAdded();
+        try {
+            updateTasksExecutor.execute(new PrioritizedRunnable(Priority.HIGH) {
+                @Override
+                public void run() {
+                    NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+                    notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+                    onGoingTimeouts.add(notifyTimeout);
+                    clusterStateListeners.add(listener);
+                    listener.postAdded();
+                }
+            });
+        } catch (EsRejectedExecutionException e) {
+            if (lifecycle.stoppedOrClosed()) {
+                listener.onClose();
+            } else {
+                throw e;
             }
-        });
+        }
     }
 
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
@@ -219,22 +224,30 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         if (!lifecycle.started()) {
             return;
         }
-        final UpdateTask task = new UpdateTask(source, priority, updateTask);
-        if (updateTask instanceof TimeoutClusterStateUpdateTask) {
-            final TimeoutClusterStateUpdateTask timeoutUpdateTask = (TimeoutClusterStateUpdateTask) updateTask;
-            updateTasksExecutor.execute(task, threadPool.scheduler(), timeoutUpdateTask.timeout(), new Runnable() {
-                @Override
-                public void run() {
-                    threadPool.generic().execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            timeoutUpdateTask.onFailure(task.source, new ProcessClusterEventTimeoutException(timeoutUpdateTask.timeout(), task.source));
-                        }
-                    });
-                }
-            });
-        } else {
-            updateTasksExecutor.execute(task);
+        try {
+            final UpdateTask task = new UpdateTask(source, priority, updateTask);
+            if (updateTask instanceof TimeoutClusterStateUpdateTask) {
+                final TimeoutClusterStateUpdateTask timeoutUpdateTask = (TimeoutClusterStateUpdateTask) updateTask;
+                updateTasksExecutor.execute(task, threadPool.scheduler(), timeoutUpdateTask.timeout(), new Runnable() {
+                    @Override
+                    public void run() {
+                        threadPool.generic().execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                timeoutUpdateTask.onFailure(task.source, new ProcessClusterEventTimeoutException(timeoutUpdateTask.timeout(), task.source));
+                            }
+                        });
+                    }
+                });
+            } else {
+                updateTasksExecutor.execute(task);
+            }
+        } catch (EsRejectedExecutionException e) {
+            // ignore cases where we are shutting down..., there is really nothing interesting
+            // to be done here...
+            if (!lifecycle.stoppedOrClosed()) {
+                throw e;
+            }
         }
     }
 

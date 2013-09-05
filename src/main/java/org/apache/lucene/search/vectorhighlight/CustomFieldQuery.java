@@ -40,7 +40,7 @@ import java.util.List;
  *
  */
 // LUCENE MONITOR
-public class CustomFieldQuery extends XFieldQuery {
+public class CustomFieldQuery extends FieldQuery {
 
     private static Field multiTermQueryWrapperFilterQueryField;
 
@@ -55,7 +55,7 @@ public class CustomFieldQuery extends XFieldQuery {
 
     public static final ThreadLocal<Boolean> highlightFilters = new ThreadLocal<Boolean>();
 
-    public CustomFieldQuery(Query query, IndexReader reader, XFastVectorHighlighter highlighter) throws IOException {
+    public CustomFieldQuery(Query query, IndexReader reader, FastVectorHighlighter highlighter) throws IOException {
         this(query, reader, highlighter.isPhraseHighlight(), highlighter.isFieldMatch());
     }
 

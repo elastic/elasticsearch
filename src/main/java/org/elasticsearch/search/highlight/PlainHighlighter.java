@@ -70,9 +70,7 @@ public class PlainHighlighter implements Highlighter {
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
-            // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
-            // let the highlighter handle MultiTerm ones
-            Query query = context.parsedQuery().query();
+            Query query = highlighterContext.highlightQuery;
             QueryScorer queryScorer = new CustomQueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;

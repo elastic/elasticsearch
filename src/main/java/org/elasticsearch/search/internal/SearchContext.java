@@ -343,6 +343,9 @@ public class SearchContext implements Releasable {
         this.suggest = suggest;
     }
 
+    /**
+     * @return the rescore context or null if rescoring wasn't specified or isn't supported
+     */
     public RescoreSearchContext rescore() {
         return this.rescore;
     }

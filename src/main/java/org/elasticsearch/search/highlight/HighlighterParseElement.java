@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
@@ -80,6 +81,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String globalHighlighterType = null;
         String globalFragmenter = null;
         Map<String, Object> globalOptions = null;
+        Query globalHighlightQuery = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -185,13 +187,19 @@ public class HighlighterParseElement implements SearchParseElement {
                                     } else if ("fragmenter".equals(fieldName)) {
                                         field.fragmenter(parser.text());
                                     }
-                                } else if (fieldName.equals("options")) {
-                                    field.options(parser.map());
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
+                                        field.highlightQuery(context.queryParserService().parse(parser).query());
+                                    } else if (fieldName.equals("options")) {
+                                        field.options(parser.map());
+                                    }
                                 }
                             }
                             fields.add(field);
                         }
                     }
+                } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
+                    globalHighlightQuery = context.queryParserService().parse(parser).query();
                 }
             }
         }
@@ -239,6 +247,9 @@ public class HighlighterParseElement implements SearchParseElement {
             }
             if (field.options() == null || field.options().size() == 0) {
                 field.options(globalOptions);
+            }
+            if (field.highlightQuery() == null && globalHighlightQuery != null) {
+                field.highlightQuery(globalHighlightQuery);
             }
         }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.apache.lucene.search.Query;
+
 import java.util.List;
 import java.util.Map;
 
@@ -65,6 +67,8 @@ public class SearchContextHighlight {
 
         private int boundaryMaxScan = -1;
         private Character[] boundaryChars = null;
+
+        private Query highlightQuery;
 
         private Map<String, Object> options;
 
@@ -178,6 +182,14 @@ public class SearchContextHighlight {
 
         public void boundaryChars(Character[] boundaryChars) {
             this.boundaryChars = boundaryChars;
+        }
+
+        public Query highlightQuery() {
+            return highlightQuery;
+        }
+
+        public void highlightQuery(Query highlightQuery) {
+            this.highlightQuery = highlightQuery;
         }
 
         public Map<String, Object> options() {

@@ -233,10 +233,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null);
+        return add(data, contentUnsafe, defaultIndex, defaultType, null, true);
     }
 
-    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
+        return add(data, contentUnsafe, defaultIndex, defaultType, null, allowExplicitIndex);
+    }
+
+    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -286,6 +293,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if ("_index".equals(currentFieldName)) {
+                            if (!allowExplicitIndex) {
+                                throw new ElasticSearchIllegalArgumentException("explicit index in bulk is not allowed");
+                            }
                             index = parser.text();
                         } else if ("_type".equals(currentFieldName)) {
                             type = parser.text();
@@ -328,6 +338,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request. All index requests are still unsafe if applicable.
                     if ("index".equals(action)) {
+                        if (!allowExplicitIndex) {
+                            throw new ElasticSearchIllegalArgumentException("explicit index in bulk is not allowed");
+                        }
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                     .source(data.slice(from, nextMarker - from), contentUnsafe)

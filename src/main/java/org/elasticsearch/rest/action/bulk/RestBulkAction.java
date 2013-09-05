@@ -54,6 +54,8 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
  */
 public class RestBulkAction extends BaseRestHandler {
 
+    private final boolean allowExplicitIndex;
+
     @Inject
     public RestBulkAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -64,6 +66,8 @@ public class RestBulkAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/{index}/_bulk", this);
         controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
+
+        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 
     @Override
@@ -83,7 +87,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         try {
-            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType);
+            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

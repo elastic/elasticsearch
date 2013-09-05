@@ -103,6 +103,26 @@ plugin --remove <pluginname>
 -----------------------------------
 
 [float]
+==== Silent/Verbose mode
+
+When running the `plugin` script, you can get more information (debug mode) using `--verbose`.
+On the opposite, if you want `plugin` script to be silent, use `--silent` option.
+
+Note that exit codes could be:
+
+* `0`: everything was OK
+* `64`: unknown command or incorrect option parameter
+* `74`: IO error
+* `70`: other errors
+
+[source,shell]
+-----------------------------------
+bin/plugin --install mobz/elasticsearch-head --verbose
+plugin --remove head --silent
+-----------------------------------
+
+
+[float]
 === Known Plugins
 
 [float]

@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -161,18 +162,29 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
         assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
     }
     
-    
-    
     @Test 
     public void testMultiPhraseCutoff() throws ElasticSearchException, IOException {
         /*
          * MultiPhraseQuery can literally kill an entire node if there are too many terms in the
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
-        run(addMapping(prepareCreate("test"), "test",
-                new Object[] {
-                "body", "type", "string", "index_analyzer", "custom_analyzer", "search_analyzer", "custom_analyzer",
-                        "term_vector", "with_positions_offsets" }).setSettings(
+        XContentBuilder builder = jsonBuilder().
+                startObject().
+                    field("test").
+                    startObject().
+                        field("properties").
+                        startObject().
+                            field("body").
+                            startObject().
+                                field("type", "string").
+                                field("index_analyzer", "custom_analyzer").
+                                field("search_analyzer", "custom_analyzer").
+                                field("term_vector", "with_positions_offsets").
+                            endObject().
+                        endObject().
+                    endObject().
+                endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("test", builder).setSettings(
                 ImmutableSettings.settingsBuilder()                .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
@@ -183,8 +195,8 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .put("analysis.filter.wordDelimiter.catenate_numbers", true)
                 .put("analysis.filter.wordDelimiter.catenate_all", false)
                 .put("analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")));
-
+                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter"))
+                );
         ensureGreen();
         client().prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()

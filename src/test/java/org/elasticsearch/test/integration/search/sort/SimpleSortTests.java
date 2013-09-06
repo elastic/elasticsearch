@@ -631,9 +631,13 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertNoFailures(searchResponse);
     }
     
-    @Test 
+    @Test
+    // see #2920
     public void testSortScript() throws IOException {
-       createIndexMapped("test", "test", "value", "string");
+       assertAcked(prepareCreate("test").addMapping("test", 
+               jsonBuilder().startObject().startObject("test").startObject("properties")
+                   .startObject("value").field("type", "string").endObject()
+                   .endObject().endObject().endObject()));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()

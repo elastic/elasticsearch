@@ -33,12 +33,12 @@ public class EsExecutors {
     /**
      * Returns the number of processors available but at most <tt>32</tt>.
      */
-    public static int boundedNumberOfProcessors() {
+    public static int boundedNumberOfProcessors(Settings settings) {
         /* This relates to issues where machines with large number of cores
          * ie. >= 48 create too many threads and run into OOM see #3478
          * We just use an 32 core upper-bound here to not stress the system
          * too much with too many created threads */
-        return Math.min(32, Runtime.getRuntime().availableProcessors());
+        return settings.getAsInt("processors", Math.min(32, Runtime.getRuntime().availableProcessors()));
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(ThreadFactory threadFactory) {

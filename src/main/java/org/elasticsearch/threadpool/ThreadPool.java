@@ -99,7 +99,7 @@ public class ThreadPool extends AbstractComponent {
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 
-        int availableProcessors = EsExecutors.boundedNumberOfProcessors();
+        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         int halfProcMaxAt5 = Math.min(((availableProcessors + 1) / 2), 5);
         int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
@@ -296,7 +296,7 @@ public class ThreadPool extends AbstractComponent {
             Executor executor = EsExecutors.newCached(keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, -1, -1, keepAlive, null));
         } else if ("fixed".equals(type)) {
-            int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors());
+            int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors(settings));
             SizeValue defaultQueueSize = defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null));
 
             if (previousExecutorHolder != null) {
@@ -327,7 +327,7 @@ public class ThreadPool extends AbstractComponent {
         } else if ("scaling".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             int defaultMin = defaultSettings.getAsInt("min", 1);
-            int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors());
+            int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors(settings));
             if (previousExecutorHolder != null) {
                 if ("scaling".equals(previousInfo.getType())) {
                     TimeValue updatedKeepAlive = settings.getAsTime("keep_alive", previousInfo.getKeepAlive());

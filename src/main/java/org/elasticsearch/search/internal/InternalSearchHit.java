@@ -381,7 +381,7 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
         static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
         static final XContentBuilderString SORT = new XContentBuilderString("sort");
-        static final XContentBuilderString MATCH_FILTERS = new XContentBuilderString("matched_queries");
+        static final XContentBuilderString MATCHED_QUERIES = new XContentBuilderString("matched_queries");
         static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
@@ -458,7 +458,7 @@ public class InternalSearchHit implements SearchHit {
             builder.endArray();
         }
         if (matchedQueries.length > 0) {
-            builder.startArray(Fields.MATCH_FILTERS);
+            builder.startArray(Fields.MATCHED_QUERIES);
             for (String matchedFilter : matchedQueries) {
                 builder.value(matchedFilter);
             }

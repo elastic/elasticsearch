@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.search.matchedfilters;
+package org.elasticsearch.test.integration.search.matchedqueries;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;

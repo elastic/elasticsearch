@@ -358,27 +358,8 @@ public class InternalSearchHit implements SearchHit {
         this.shard = target;
     }
 
-
-    /**
-     * @deprecated In favor for {@link #matchedQueries(String[])}
-     */
-    @Deprecated
-    public void matchedFilters(String[] matchedFilters) {
-        this.matchedQueries = matchedFilters;
-    }
-
-    @Deprecated
-    public String[] matchedFilters() {
-        return this.matchedQueries;
-    }
-
-    @Deprecated
-    public String[] getMatchedFilters() {
-        return this.matchedQueries;
-    }
-
-    public void matchedQueries(String[] matchedFilters) {
-        this.matchedQueries = matchedFilters;
+    public void matchedQueries(String[] matchedQueries) {
+        this.matchedQueries = matchedQueries;
     }
 
     @Override
@@ -400,7 +381,7 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
         static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
         static final XContentBuilderString SORT = new XContentBuilderString("sort");
-        static final XContentBuilderString MATCH_FILTERS = new XContentBuilderString("matched_filters");
+        static final XContentBuilderString MATCH_FILTERS = new XContentBuilderString("matched_queries");
         static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");

@@ -152,8 +152,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private volatile BoundTransportAddress boundAddress;
 
-    private final KeyedLock<String> connectionLock = new KeyedLock<String >();
-    
+    private final KeyedLock<String> connectionLock = new KeyedLock<String>();
+
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
     private final ReadWriteLock globalLock = new ReentrantReadWriteLock();
@@ -169,7 +169,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
         }
 
-        this.workerCount = componentSettings.getAsInt("worker_count", EsExecutors.boundedNumberOfProcessors() * 2);
+        this.workerCount = componentSettings.getAsInt("worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
         this.bossCount = componentSettings.getAsInt("boss_count", 1);
         this.blockingServer = settings.getAsBoolean("transport.tcp.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.blockingClient = settings.getAsBoolean("transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
@@ -591,7 +591,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null) {
                 return;
-            } 
+            }
             connectionLock.acquire(node.id());
             try {
                 if (!lifecycle.started()) {
@@ -755,12 +755,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (nodeChannels != null) {
             connectionLock.acquire(node.id());
             try {
-                    try {
-                        nodeChannels.close();
-                    } finally {
-                        logger.debug("disconnected from [{}]", node);
-                        transportServiceAdapter.raiseNodeDisconnected(node);
-                    }
+                try {
+                    nodeChannels.close();
+                } finally {
+                    logger.debug("disconnected from [{}]", node);
+                    transportServiceAdapter.raiseNodeDisconnected(node);
+                }
             } finally {
                 connectionLock.release(node.id());
             }
@@ -774,7 +774,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
             connectionLock.acquire(node.id());
-            if (!nodeChannels.hasChannel(channel)){ //might have been removed in the meanwhile, safety check
+            if (!nodeChannels.hasChannel(channel)) { //might have been removed in the meanwhile, safety check
                 assert !connectedNodes.containsKey(node);
             } else {
                 try {

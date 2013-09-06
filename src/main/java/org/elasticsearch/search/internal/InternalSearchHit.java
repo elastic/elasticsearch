@@ -78,7 +78,7 @@ public class InternalSearchHit implements SearchHit {
 
     private Object[] sortValues = EMPTY_SORT_VALUES;
 
-    private String[] matchedFilters = Strings.EMPTY_ARRAY;
+    private String[] matchedQueries = Strings.EMPTY_ARRAY;
 
     private Explanation explanation;
 
@@ -348,17 +348,37 @@ public class InternalSearchHit implements SearchHit {
         this.shard = target;
     }
 
+
+    /**
+     * @deprecated In favor for {@link #matchedQueries(String[])}
+     */
+    @Deprecated
     public void matchedFilters(String[] matchedFilters) {
-        this.matchedFilters = matchedFilters;
+        this.matchedQueries = matchedFilters;
     }
 
+    @Deprecated
     public String[] matchedFilters() {
-        return this.matchedFilters;
+        return this.matchedQueries;
+    }
+
+    @Deprecated
+    public String[] getMatchedFilters() {
+        return this.matchedQueries;
+    }
+
+    public void matchedQueries(String[] matchedFilters) {
+        this.matchedQueries = matchedFilters;
     }
 
     @Override
-    public String[] getMatchedFilters() {
-        return this.matchedFilters;
+    public String[] matchedQueries() {
+        return this.matchedQueries;
+    }
+
+    @Override
+    public String[] getMatchedQueries() {
+        return this.matchedQueries;
     }
 
     public static class Fields {
@@ -446,9 +466,9 @@ public class InternalSearchHit implements SearchHit {
             }
             builder.endArray();
         }
-        if (matchedFilters.length > 0) {
+        if (matchedQueries.length > 0) {
             builder.startArray(Fields.MATCH_FILTERS);
-            for (String matchedFilter : matchedFilters) {
+            for (String matchedFilter : matchedQueries) {
                 builder.value(matchedFilter);
             }
             builder.endArray();
@@ -599,9 +619,9 @@ public class InternalSearchHit implements SearchHit {
 
         size = in.readVInt();
         if (size > 0) {
-            matchedFilters = new String[size];
+            matchedQueries = new String[size];
             for (int i = 0; i < size; i++) {
-                matchedFilters[i] = in.readString();
+                matchedQueries[i] = in.readString();
             }
         }
 
@@ -694,11 +714,11 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (matchedFilters.length == 0) {
+        if (matchedQueries.length == 0) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(matchedFilters.length);
-            for (String matchedFilter : matchedFilters) {
+            out.writeVInt(matchedQueries.length);
+            for (String matchedFilter : matchedQueries) {
                 out.writeString(matchedFilter);
             }
         }

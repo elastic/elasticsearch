@@ -126,7 +126,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         createIndex("test");
         indexRandom("test", true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
-        refresh();
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick"))).get();
         SearchHits hits = searchResponse.getHits();
         assertThat(hits.totalHits(), equalTo(2l));
@@ -134,19 +134,19 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
             assertThat(searchHit.getScore(), equalTo(1.0f));
         }
         
-        searchResponse = client().prepareSearch().setQuery(
+        searchResponse = client().prepareSearch("test").setQuery(
                 QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
                 QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat()))).get();
         hits = searchResponse.getHits();
         assertThat(hits.totalHits(), equalTo(2l));
         assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
         
-        client().prepareSearch().setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat())).get();
+        client().prepareSearch("test").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat())).get();
         hits = searchResponse.getHits();
         assertThat(hits.totalHits(), equalTo(2l));
         assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
         
-        searchResponse = client().prepareSearch().setQuery(
+        searchResponse = client().prepareSearch("test").setQuery(
                 QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
                 QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat()))))).get();
         hits = searchResponse.getHits();
@@ -163,6 +163,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         }
         createIndex("test_1");
         indexRandom("test_1", true, builders);
+        ensureYellow();
         int queryRounds = atLeast(10);
         for (int i = 0; i < queryRounds; i++) {
             MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("f", English.intToEnglish(between(0, num)));
@@ -962,7 +963,10 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testEmptyTermsFilter() throws Exception {
-        createIndexMapped("test", "type", "term", "string");
+        assertAcked(prepareCreate("test").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("term").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
@@ -984,9 +988,19 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testTermsLookupFilter() throws Exception {
-        createIndexMapped("lookup", "type", "terms", "string", "other", "string");
-        createIndexMapped("lookup2", "type", "term", "string");
-        createIndexMapped("test", "type", "term", "string");
+        assertAcked(prepareCreate("lookup").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .startObject("other").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup2").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
         client().prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();
@@ -1511,41 +1525,41 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                         .put("index.number_of_replicas", 0)
         ).addMapping("s", jsonBuilder()
                 .startObject()
-                .startObject("s")
-                .startObject("_routing")
-                .field("required", true)
-                .field("path", "bs")
-                .endObject()
-                .startObject("properties")
-                .startObject("online")
-                .field("type", "boolean")
-                .endObject()
-                .startObject("ts")
-                .field("type", "date")
-                .field("ignore_malformed", false)
-                .field("format", "dateOptionalTime")
-                .endObject()
-                .startObject("bs")
-                .field("type", "string")
-                .field("index", "not_analyzed")
-                .endObject()
-                .endObject()
-                .endObject()
+                    .startObject("s")
+                        .startObject("_routing")
+                            .field("required", true)
+                            .field("path", "bs")
+                        .endObject()
+                        .startObject("properties")
+                            .startObject("online")
+                                .field("type", "boolean")
+                            .endObject()
+                            .startObject("ts")
+                                .field("type", "date")
+                                .field("ignore_malformed", false)
+                                .field("format", "dateOptionalTime")
+                            .endObject()
+                            .startObject("bs")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
                 .endObject())
                 .addMapping("bs", jsonBuilder()
                         .startObject()
-                        .startObject("s")
-                        .startObject("properties")
-                        .startObject("online")
-                        .field("type", "boolean")
-                        .endObject()
-                        .startObject("ts")
-                        .field("type", "date")
-                        .field("ignore_malformed", false)
-                        .field("format", "dateOptionalTime")
-                        .endObject()
-                        .endObject()
-                        .endObject()
+                            .startObject("s")
+                                .startObject("properties")
+                                    .startObject("online")
+                                        .field("type", "boolean")
+                                    .endObject()
+                                    .startObject("ts")
+                                        .field("type", "date")
+                                        .field("ignore_malformed", false)
+                                        .field("format", "dateOptionalTime")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
                         .endObject())
                 .execute().actionGet();
         ensureGreen();

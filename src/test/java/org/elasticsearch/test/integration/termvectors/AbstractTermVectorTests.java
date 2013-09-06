@@ -118,6 +118,7 @@ public abstract class AbstractTermVectorTests extends AbstractSharedClusterTest 
 
         public TestDoc(String id, TestFieldSetting[] fieldSettings, String[] fieldContent) {
             this.id = id;
+            assert fieldSettings.length == fieldContent.length;
             this.fieldSettings = fieldSettings;
             this.fieldContent = fieldContent;
         }

@@ -53,11 +53,9 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.junit.*;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,21 +184,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         }
     }
 
-    public void createIndexMapped(String name, String type, String... simpleMapping) throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject().startObject(type).startObject("properties");
-        for (int i = 0; i < simpleMapping.length; i++) {
-            builder.startObject(simpleMapping[i++]).field("type", simpleMapping[i]).endObject();
-        }
-        builder.endObject().endObject().endObject();
-        try {
-            prepareCreate(name).setSettings(getSettings()).addMapping(type, builder).execute().actionGet();
-            return;
-        } catch (IndexAlreadyExistsException ex) {
-            wipeIndex(name);
-        }
-        prepareCreate(name).setSettings(getSettings()).addMapping(type, builder).execute().actionGet();
-    }
-
     public CreateIndexRequestBuilder prepareCreate(String index, int numNodes) {
         return prepareCreate(index, numNodes, ImmutableSettings.builder());
     }
@@ -213,39 +196,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
             getExcludeSettings(index, numNodes, builder);
         }
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
-    }
-
-    public CreateIndexRequestBuilder addMapping(CreateIndexRequestBuilder builder, String type, Object[]... mapping) throws IOException {
-        XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject().startObject(type);
-        for (Object[] objects : mapping) {
-            if (!objects[0].toString().equals("_all")) {
-                continue;
-            }
-            mappingBuilder.startObject("_all");
-            for (int i = 1; i < objects.length; i++) {
-                String name = objects[i++].toString();
-                Object value = objects[i];
-                mappingBuilder.field(name, value);
-            }
-            mappingBuilder.endObject();
-        }
-        mappingBuilder.startObject("properties");
-        for (Object[] objects : mapping) {
-            if (objects[0].toString().equals("_all")) {
-                continue;
-            }
-            mappingBuilder.startObject(objects[0].toString());
-            for (int i = 1; i < objects.length; i++) {
-                String name = objects[i++].toString();
-                Object value = objects[i];
-                mappingBuilder.field(name, value);
-            }
-            mappingBuilder.endObject();
-        }
-        mappingBuilder.endObject().endObject().endObject();
-        builder.addMapping(type, mappingBuilder);
-        return builder;
     }
 
     private ImmutableSettings.Builder getExcludeSettings(String index, int num, ImmutableSettings.Builder builder) {
@@ -339,7 +289,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return client().prepareIndex(index, type).setSource(source).execute().actionGet();
     }
 
-    protected IndexResponse index(String index, String type, String id, Map<String, ? extends Object> source) {
+    protected IndexResponse index(String index, String type, String id, Map<String, Object> source) {
         return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
     }
 
@@ -426,13 +376,14 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         Collections.shuffle(list, random);
         for (IndexRequestBuilder indexRequestBuilder : list) {
             indexRequestBuilder.execute().actionGet();
-            if (frequently()) {
+            if (rarely()) {
                 if (rarely()) {
+                    client().admin().indices().prepareRefresh(index).execute().get();
+                } else if (rarely()) {
                     client().admin().indices().prepareFlush(index).execute().get();
                 } else if (rarely()) {
-                    client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute().get();
+                    client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute().get();                  
                 }
-                client().admin().indices().prepareRefresh(index).execute().get();
             }
         }
         if (forceRefresh) {

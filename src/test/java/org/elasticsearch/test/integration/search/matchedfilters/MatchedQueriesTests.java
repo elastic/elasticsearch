@@ -35,10 +35,10 @@ import static org.hamcrest.Matchers.hasItemInArray;
 /**
  *
  */
-public class MatchedFiltersTests extends AbstractSharedClusterTest {
+public class MatchedQueriesTests extends AbstractSharedClusterTest {
 
     @Test
-    public void simpleMatchedFilterFromFilteredQuery() throws Exception {
+    public void simpleMatchedQueryFromFilteredQuery() throws Exception {
 
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -69,11 +69,11 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
-                assertThat(hit.matchedFilters().length, equalTo(1));
-                assertThat(hit.matchedFilters(), hasItemInArray("test1"));
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("test1"));
             } else if (hit.id().equals("3")) {
-                assertThat(hit.matchedFilters().length, equalTo(1));
-                assertThat(hit.matchedFilters(), hasItemInArray("test2"));
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("test2"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -88,11 +88,11 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
-                assertThat(hit.matchedFilters().length, equalTo(1));
-                assertThat(hit.matchedFilters(), hasItemInArray("test1"));
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("test1"));
             } else if (hit.id().equals("3")) {
-                assertThat(hit.matchedFilters().length, equalTo(1));
-                assertThat(hit.matchedFilters(), hasItemInArray("test2"));
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("test2"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -100,7 +100,7 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void simpleMatchedFilterFromTopLevelFilter() throws Exception {
+    public void simpleMatchedQueryFromTopLevelFilter() throws Exception {
 
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -132,12 +132,12 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
-                assertThat(hit.matchedFilters().length, equalTo(2));
-                assertThat(hit.matchedFilters(), hasItemInArray("name"));
-                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+                assertThat(hit.matchedQueries().length, equalTo(2));
+                assertThat(hit.matchedQueries(), hasItemInArray("name"));
+                assertThat(hit.matchedQueries(), hasItemInArray("title"));
             } else if (hit.id().equals("2") || hit.id().equals("3")) {
-                assertThat(hit.matchedFilters().length, equalTo(1));
-                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("name"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -155,12 +155,12 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
-                assertThat(hit.matchedFilters().length, equalTo(2));
-                assertThat(hit.matchedFilters(), hasItemInArray("name"));
-                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+                assertThat(hit.matchedQueries().length, equalTo(2));
+                assertThat(hit.matchedQueries(), hasItemInArray("name"));
+                assertThat(hit.matchedQueries(), hasItemInArray("title"));
             } else if (hit.id().equals("2") || hit.id().equals("3")) {
-                assertThat(hit.matchedFilters().length, equalTo(1));
-                assertThat(hit.matchedFilters(), hasItemInArray("name"));
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("name"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -168,7 +168,7 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void simpleMatchedFilterFromTopLevelFilterAndFilteredQuery() throws Exception {
+    public void simpleMatchedQueryFromTopLevelFilterAndFilteredQuery() throws Exception {
 
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -200,9 +200,9 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
-                assertThat(hit.matchedFilters().length, equalTo(2));
-                assertThat(hit.matchedFilters(), hasItemInArray("name"));
-                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+                assertThat(hit.matchedQueries().length, equalTo(2));
+                assertThat(hit.matchedQueries(), hasItemInArray("name"));
+                assertThat(hit.matchedQueries(), hasItemInArray("title"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -218,9 +218,9 @@ public class MatchedFiltersTests extends AbstractSharedClusterTest {
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
-                assertThat(hit.matchedFilters().length, equalTo(2));
-                assertThat(hit.matchedFilters(), hasItemInArray("name"));
-                assertThat(hit.matchedFilters(), hasItemInArray("title"));
+                assertThat(hit.matchedQueries().length, equalTo(2));
+                assertThat(hit.matchedQueries(), hasItemInArray("name"));
+                assertThat(hit.matchedQueries(), hasItemInArray("title"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }

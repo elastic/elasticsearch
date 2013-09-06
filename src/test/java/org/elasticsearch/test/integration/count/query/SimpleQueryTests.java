@@ -40,8 +40,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 /**
  *
@@ -673,7 +672,10 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testEmptyTermsFilter() throws Exception {
-        createIndexMapped("test", "type", "term", "string");
+        assertAcked(prepareCreate("test").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
@@ -695,9 +697,19 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testTermsLookupFilter() throws Exception {
-        createIndexMapped("lookup", "type", "terms", "string", "other", "string");
-        createIndexMapped("lookup2", "type", "term", "string");
-        createIndexMapped("test", "type", "term", "string");
+        assertAcked(prepareCreate("lookup").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .startObject("other").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup2").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("terms").field("type", "string").endObject()
+                    .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
         client().prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();

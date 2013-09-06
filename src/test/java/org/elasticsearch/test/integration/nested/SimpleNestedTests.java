@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Assert;
 import org.junit.Test;
@@ -53,7 +55,21 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleNested() throws Exception {
-        run(addMapping(prepareCreate("test"), "type1", new Object[] {"nested1", "type", "nested"}));
+        XContentBuilder builder = jsonBuilder().
+                startObject().
+                    field("type1").
+                    startObject().
+                        field("properties").
+                        startObject().
+                            field("nested1").
+                            startObject().
+                                field("type").
+                                value("nested").
+                            endObject().
+                        endObject().
+                    endObject().
+                endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", builder));
         ensureGreen();
 
         // check on no data, see it works

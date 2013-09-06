@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
@@ -119,8 +121,12 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
     @SuppressWarnings("unchecked")
     @Test
     public void updateIncludeExclude() throws Exception {
-        createIndexMapped("test", "type", "normal", "long", "exclude", "long", "include", "long");
-
+        assertAcked(prepareCreate("test").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("normal").field("type", "long").endObject()
+                    .startObject("exclude").field("type", "long").endObject()
+                    .startObject("include").field("type", "long").endObject()
+                    .endObject().endObject().endObject()));
         ensureGreen(); // make sure that replicas are initialized so the refresh command will work them too
 
         logger.info("Index doc");

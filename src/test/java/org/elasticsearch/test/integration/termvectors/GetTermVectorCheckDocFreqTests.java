@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -45,13 +46,21 @@ public class GetTermVectorCheckDocFreqTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleTermVectors() throws ElasticSearchException, IOException {
-
-        run(addMapping(prepareCreate("test"), "type1",
-                new Object[] { "field", "type", "string", "term_vector", "with_positions_offsets_payloads", "analyzer", "tv_test" })
-                .setSettings(
-                        ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)
-                                .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace").put("index.number_of_replicas", 0)
-                                .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("term_vector", "with_positions_offsets_payloads")
+                            .field("analyzer", "tv_test")
+                        .endObject()
+                .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
+                ImmutableSettings.settingsBuilder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                    .put("index.number_of_replicas", 0)
+                    .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureGreen();
         int numDocs = 15;
         for (int i = 0; i < numDocs; i++) {

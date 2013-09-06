@@ -28,11 +28,13 @@ import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -47,9 +49,15 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
     @Test
     public void testNoSuchDoc() throws Exception {
-
-        run(addMapping(prepareCreate("test"), "type1", new Object[]{"field", "type", "string", "term_vector",
-                "with_positions_offsets_payloads"}));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("term_vector", "with_positions_offsets_payloads")
+                        .endObject()
+                .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
         ensureYellow();
 
@@ -67,9 +75,15 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     
     @Test
     public void testExistingFieldWithNoTermVectorsNoNPE() throws Exception {
-
-        run(addMapping(prepareCreate("test"), "type1", new Object[] { "existingfield", "type", "string", "term_vector",
-                "with_positions_offsets_payloads" }));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                        .startObject("existingfield")
+                            .field("type", "string")
+                            .field("term_vector", "with_positions_offsets_payloads")
+                        .endObject()
+                .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
         ensureYellow();
         // when indexing a field that simply has a question mark, the term
@@ -89,9 +103,15 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     @Test
     public void testExistingFieldButNotInDocNPE() throws Exception {
 
-        run(addMapping(prepareCreate("test"), "type1", new Object[] { "existingfield", "type", "string", "term_vector",
-                "with_positions_offsets_payloads" }));
-
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                        .startObject("existingfield")
+                            .field("type", "string")
+                            .field("term_vector", "with_positions_offsets_payloads")
+                        .endObject()
+                .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureYellow();
         // when indexing a field that simply has a question mark, the term
         // vectors will be null
@@ -110,12 +130,19 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
     @Test
     public void testSimpleTermVectors() throws ElasticSearchException, IOException {
-
-        run(addMapping(prepareCreate("test"), "type1",
-                new Object[]{"field", "type", "string", "term_vector", "with_positions_offsets_payloads", "analyzer", "tv_test"})
-                .setSettings(
-                        ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                                .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("term_vector", "with_positions_offsets_payloads")
+                            .field("analyzer", "tv_test")
+                        .endObject()
+                .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureYellow();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
@@ -215,9 +242,18 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         ft.setStoreTermVectorPositions(storePositions);
 
         String optionString = AbstractFieldMapper.termVectorOptionsToString(ft);
-        run(addMapping(prepareCreate("test"), "type1",
-                new Object[]{"field", "type", "string", "term_vector", optionString, "analyzer", "tv_test"}).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("term_vector", optionString)
+                            .field("analyzer", "tv_test")
+                        .endObject()
+                .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureYellow();
         for (int i = 0; i < 10; i++) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.test.integration.search.suggest;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -29,6 +28,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -69,17 +70,28 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 3));
-        addMapping(builder, "type1", new Object[] {"name",
-                "type", "multi_field",
-                "path", "just_name",
-                "fields", ImmutableMap.of(
-                        "name", ImmutableMap.of("type", "string"),
-                        "name_shingled", ImmutableMap.of(
-                                "type", "string",
-                                "index_analyzer", "biword",
-                                "search_analyzer", "standard"))});
-        builder.get();
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                .startObject("name")
+                    .field("type", "multi_field")
+                    .field("path", "just_name")
+                    .startObject("fields")
+                        .startObject("name")
+                            .field("type", "string")
+                        .endObject()
+                        .startObject("name_shingled")
+                            .field("type", "string")
+                            .field("index_analyzer", "biword")
+                            .field("search_analyzer", "standard")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
+        
 
         index("test", "type1", "1", "name", "I like iced tea");
         index("test", "type1", "2", "name", "I like tea.");
@@ -136,16 +148,25 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 3));
-        addMapping(builder, "type1", new Object[] {"name",
-                "type", "multi_field",
-                "path", "just_name",
-                "fields", ImmutableMap.of(
-                        "name", ImmutableMap.of("type", "string"),
-                        "name_shingled", ImmutableMap.of(
-                                "type", "string",
-                                "index_analyzer", "biword",
-                                "search_analyzer", "standard"))});
-        builder.get();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                .startObject("name")
+                    .field("type", "multi_field")
+                    .field("path", "just_name")
+                    .startObject("fields")
+                        .startObject("name")
+                            .field("type", "string")
+                        .endObject()
+                        .startObject("name_shingled")
+                            .field("type", "string")
+                            .field("index_analyzer", "biword")
+                            .field("search_analyzer", "standard")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         indexRandom("test", true,
@@ -341,12 +362,15 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
-        addMapping(builder, "type1",
-                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
-                new Object[] {"body", "type", "string", "analyzer", "body"},
-                new Object[] {"body_reverse", "type", "string", "analyzer", "reverse"},
-                new Object[] {"bigram", "type", "string", "analyzer", "bigram"});
-        builder.get();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+                .startObject("properties")
+                .startObject("body").field("type", "string").field("analyzer", "body").endObject()
+                .startObject("body_reverse").field("type", "string").field("analyzer", "reverse").endObject()
+                .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         index("test", "type1", "1", "body", "hello world");
@@ -381,12 +405,27 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
-        addMapping(builder, "type1",
-                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
-                new Object[] {"body", "type", "string", "analyzer", "body"},
-                new Object[] {"body_reverse", "type", "string", "analyzer", "reverse"},
-                new Object[] {"bigram", "type", "string", "analyzer", "bigram"});
-        builder.get();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                    .startObject("_all")
+                        .field("store", "yes")
+                        .field("termVector", "with_positions_offsets")
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("body").
+                            field("type", "string").
+                            field("analyzer", "body")
+                        .endObject()
+                        .startObject("body_reverse").
+                            field("type", "string").
+                            field("analyzer", "reverse")
+                         .endObject()
+                         .startObject("bigram").
+                             field("type", "string").
+                             field("analyzer", "bigram")
+                         .endObject()
+                     .endObject()
+                .endObject().endObject();
+        ElasticsearchAssertions.assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         for (String line: Resources.readLines(SuggestSearchTests.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
@@ -496,12 +535,31 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
-        addMapping(builder, "type1",
-                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
-                new Object[] {"body", "type", "string", "analyzer", "body"},
-                new Object[] {"body_reverse", "type", "string", "analyzer", "reverse"},
-                new Object[] {"bigram", "type", "string", "analyzer", "bigram"});
-        builder.get();
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("_all")
+                            .field("store", "yes")
+                            .field("termVector", "with_positions_offsets")
+                        .endObject()
+                        .startObject("properties")
+                            .startObject("body")
+                                .field("type", "string")
+                                .field("analyzer", "body")
+                            .endObject()
+                         .startObject("body_reverse")
+                             .field("type", "string")
+                             .field("analyzer", "reverse")
+                         .endObject()
+                         .startObject("bigram")
+                             .field("type", "string")
+                             .field("analyzer", "bigram")
+                         .endObject()
+                     .endObject()
+                 .endObject()
+             .endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         String line = "xorr the god jewel";
@@ -548,12 +606,17 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.my_shingle2.output_unigrams", true)
                 .put("index.analysis.filter.my_shingle2.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle2.max_shingle_size", 2));
-        addMapping(builder, "type1",
-                new Object[] {"_all", "store", "yes", "termVector", "with_positions_offsets"},
-                new Object[] {"body", "type", "string", "analyzer", "body"},
-                new Object[] {"bigram", "type", "string", "analyzer", "bigram"},
-                new Object[] {"ngram", "type", "string", "analyzer", "ngram"});
-        builder.get();
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                    .startObject().startObject("type1")
+                    .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+                .startObject("properties")
+                .startObject("body").field("type", "string").field("analyzer", "body").endObject()
+                .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
+                .startObject("ngram").field("type", "string").field("analyzer", "ngram").endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         for (String line: Resources.readLines(SuggestSearchTests.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
@@ -613,11 +676,10 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
-
-        client().prepareIndex("text", "type1", "1").setSource("field1", "foobar1").setRouting("1").get();
-        client().prepareIndex("text", "type1", "2").setSource("field1", "foobar2").setRouting("2").get();
-        client().prepareIndex("text", "type1", "3").setSource("field1", "foobar3").setRouting("3").get();
-        refresh();
+        indexRandom("text", true,
+                client().prepareIndex("text", "type1", "1").setSource("field1", "foobar1").setRouting("1"),
+                client().prepareIndex("text", "type1", "2").setSource("field1", "foobar2").setRouting("2"),
+                client().prepareIndex("text", "type1", "3").setSource("field1", "foobar3").setRouting("3"));
 
         Suggest suggest = searchSuggest(client(), "foobar",
                 termSuggestion("simple")
@@ -636,14 +698,22 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
                 .put("index.analysis.filter.shingler.output_unigrams", true));
-        addMapping(builder, "type1", new Object[] {"name",
-                "type", "multi_field",
-                "path", "just_name",
-                "fields", ImmutableMap.of(
-                        "name", ImmutableMap.of(
-                                "type", "string",
-                                "analyzer", "suggest"))});
-        builder.get();
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                    .startObject("name")
+                        .field("type", "multi_field")
+                        .field("path", "just_name")
+                        .startObject("fields")
+                            .startObject("name")
+                                .field("type", "string")
+                                .field("analyzer", "suggest")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         index("test", "type2", "1", "foo", "bar");
@@ -673,7 +743,24 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
 
     @Test // see #3469
     public void testEmptyShards() throws IOException, InterruptedException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().
+                startObject().
+                    startObject("type1").
+                        startObject("properties").
+                            startObject("name").
+                                field("type", "multi_field").
+                                field("path", "just_name").
+                                startObject("fields").
+                                    startObject("name").
+                                        field("type", "string").
+                                        field("analyzer", "suggest").
+                                    endObject().
+                                endObject().
+                            endObject().
+                        endObject().
+                    endObject().
+                endObject();
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
@@ -681,15 +768,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
-                .put("index.analysis.filter.shingler.output_unigrams", true));
-        addMapping(builder, "type1", new Object[] {"name",
-                "type", "multi_field",
-                "path", "just_name",
-                "fields", ImmutableMap.of(
-                        "name", ImmutableMap.of(
-                                "type", "string",
-                                "analyzer", "suggest"))});
-        builder.get();
+                .put("index.analysis.filter.shingler.output_unigrams", true)).addMapping("type1", mappingBuilder));
         ensureGreen();
 
         index("text", "type2", "1", "foo", "bar");
@@ -728,12 +807,23 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.my_shingle.output_unigrams", true)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
-        addMapping( builder, "type1", new Object[] {"body",
-                "store", true,
-                "termVector", "with_positions_offsets",
-                "type", "string",
-                "analyzer", "body"});
-        builder.get();
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("_all")
+                            .field("store", "yes")
+                            .field("termVector", "with_positions_offsets")
+                        .endObject()
+                        .startObject("properties")
+                            .startObject("body")
+                                .field("type", "string")
+                                .field("analyzer", "body")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+        assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         List<String> phrases = new ArrayList<String>();

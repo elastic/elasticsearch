@@ -39,7 +39,7 @@ import java.util.Map;
 /**
  *
  */
-public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
+public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
@@ -65,16 +65,16 @@ public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
 
-        addMatchedFilters(hitContext, context.parsedQuery().namedFilters(), matchedFilters);
+        addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedFilters);
 
         if (context.parsedFilter() != null) {
-            addMatchedFilters(hitContext, context.parsedFilter().namedFilters(), matchedFilters);
+            addMatchedQueries(hitContext, context.parsedFilter().namedFilters(), matchedFilters);
         }
 
-        hitContext.hit().matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
+        hitContext.hit().matchedQueries(matchedFilters.toArray(new String[matchedFilters.size()]));
     }
 
-    private void addMatchedFilters(HitContext hitContext, ImmutableMap<String, Filter> namedFilters, List<String> matchedFilters) {
+    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Filter> namedFilters, List<String> matchedFilters) {
         for (Map.Entry<String, Filter> entry : namedFilters.entrySet()) {
             String name = entry.getKey();
             Filter filter = entry.getValue();

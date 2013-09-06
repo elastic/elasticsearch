@@ -174,14 +174,26 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     Object[] getSortValues();
 
     /**
-     * The set of filter names the query matched. Mainly makes sense for OR filters.
+     * @deprecated In favor for {@link #matchedQueries()}.
      */
+    @Deprecated
     String[] matchedFilters();
 
     /**
-     * The set of filter names the query matched. Mainly makes sense for OR filters.
+     * @deprecated In favor for {@link #getMatchedQueries()}.
      */
+    @Deprecated
     String[] getMatchedFilters();
+
+    /**
+     * The set of query and filter names the query matched. Mainly makes sense for compound filters and queries.
+     */
+    String[] matchedQueries();
+
+    /**
+     * The set of query and filter names the query matched. Mainly makes sense for compound filters and queries.
+     */
+    String[] getMatchedQueries();
 
     /**
      * The shard of the search hit.

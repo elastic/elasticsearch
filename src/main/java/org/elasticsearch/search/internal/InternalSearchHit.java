@@ -367,8 +367,8 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedQueries;
     }
 
-    public void matchedQueries(String[] matchedFilters) {
-        this.matchedQueries = matchedFilters;
+    public void matchedQueries(String[] matchedQueries) {
+        this.matchedQueries = matchedQueries;
     }
 
     @Override

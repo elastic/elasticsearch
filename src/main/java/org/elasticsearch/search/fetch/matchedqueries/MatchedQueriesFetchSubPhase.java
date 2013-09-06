@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch.matchedfilters;
+package org.elasticsearch.search.fetch.matchedqueries;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -63,19 +63,19 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
-        List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
+        List<String> matchedQueries = Lists.newArrayListWithCapacity(2);
 
-        addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedFilters);
+        addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);
 
         if (context.parsedFilter() != null) {
-            addMatchedQueries(hitContext, context.parsedFilter().namedFilters(), matchedFilters);
+            addMatchedQueries(hitContext, context.parsedFilter().namedFilters(), matchedQueries);
         }
 
-        hitContext.hit().matchedQueries(matchedFilters.toArray(new String[matchedFilters.size()]));
+        hitContext.hit().matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
     }
 
-    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Filter> namedFilters, List<String> matchedFilters) {
-        for (Map.Entry<String, Filter> entry : namedFilters.entrySet()) {
+    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Filter> namedQueriesAndFilters, List<String> matchedQueries) {
+        for (Map.Entry<String, Filter> entry : namedQueriesAndFilters.entrySet()) {
             String name = entry.getKey();
             Filter filter = entry.getValue();
             try {
@@ -84,13 +84,13 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                     Bits bits = docIdSet.bits();
                     if (bits != null) {
                         if (bits.get(hitContext.docId())) {
-                            matchedFilters.add(name);
+                            matchedQueries.add(name);
                         }
                     } else {
                         DocIdSetIterator iterator = docIdSet.iterator();
                         if (iterator != null) {
                             if (iterator.advance(hitContext.docId()) == hitContext.docId()) {
-                                matchedFilters.add(name);
+                                matchedQueries.add(name);
                             }
                         }
                     }

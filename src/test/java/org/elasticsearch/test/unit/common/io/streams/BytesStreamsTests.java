@@ -60,4 +60,17 @@ public class BytesStreamsTests {
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
     }
+
+    @Test
+    public void testGrowLogic() throws Exception {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeBytes(new byte[BytesStreamOutput.DEFAULT_SIZE - 5]);
+        assertThat(out.bufferSize(), equalTo(2048)); // remains the default
+        out.writeBytes(new byte[1 * 1024]);
+        assertThat(out.bufferSize(), equalTo(4608));
+        out.writeBytes(new byte[32 * 1024]);
+        assertThat(out.bufferSize(), equalTo(40320));
+        out.writeBytes(new byte[32 * 1024]);
+        assertThat(out.bufferSize(), equalTo(90720));
+    }
 }

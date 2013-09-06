@@ -31,7 +31,9 @@ import java.io.IOException;
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
-    public static final int DEFAULT_SIZE = 32 * 1024;
+    public static final int DEFAULT_SIZE = 2 * 1024;
+
+    public static final int OVERSIZE_LIMIT = 256 * 1024;
 
     /**
      * The buffer where data is stored.
@@ -73,7 +75,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     public void writeByte(byte b) throws IOException {
         int newcount = count + 1;
         if (newcount > buf.length) {
-            buf = ArrayUtil.grow(buf, newcount);
+            buf = grow(newcount);
         }
         buf[count] = b;
         count = newcount;
@@ -82,7 +84,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     public void skip(int length) {
         int newcount = count + length;
         if (newcount > buf.length) {
-            buf = ArrayUtil.grow(buf, newcount);
+            buf = grow(newcount);
         }
         count = newcount;
     }
@@ -94,10 +96,18 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         }
         int newcount = count + length;
         if (newcount > buf.length) {
-            buf = ArrayUtil.grow(buf, newcount);
+            buf = grow(newcount);
         }
         System.arraycopy(b, offset, buf, count, length);
         count = newcount;
+    }
+
+    private byte[] grow(int newCount) {
+        // try and grow faster while we are small...
+        if (newCount < OVERSIZE_LIMIT) {
+            newCount = Math.max(buf.length << 1, newCount);
+        }
+        return ArrayUtil.grow(buf, newCount);
     }
 
     public void seek(int seekTo) {
@@ -106,6 +116,10 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     public void reset() {
         count = 0;
+    }
+
+    public int bufferSize() {
+        return buf.length;
     }
 
     @Override

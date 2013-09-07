@@ -113,7 +113,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private volatile Thread currentJoinThread;
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
-    
+
 
     @Nullable
     private NodeService nodeService;
@@ -155,7 +155,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
     }
-    
+
     @Override
     public void setNodeService(@Nullable NodeService nodeService) {
         this.nodeService = nodeService;
@@ -889,11 +889,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         }
     }
-    
+
     private final String getNodeUUID(Settings settings) {
         String seed = settings.get("discovery.id.seed");
         if (seed != null) {
-            logger.warn("using stable discover node UUIDs with seed: [{}]", seed);
+            logger.trace("using stable discover node UUIDs with seed: [{}]", seed);
             Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
         }
         return Strings.randomBase64UUID();

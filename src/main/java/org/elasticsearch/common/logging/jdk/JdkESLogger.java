@@ -41,7 +41,9 @@ public class JdkESLogger extends AbstractESLogger {
 
     @Override
     public void setLevel(String level) {
-        if ("error".equalsIgnoreCase(level)) {
+        if (level == null) {
+            logger.setLevel(null);
+        } else if ("error".equalsIgnoreCase(level)) {
             logger.setLevel(Level.SEVERE);
         } else if ("warn".equalsIgnoreCase(level)) {
             logger.setLevel(Level.WARNING);
@@ -52,6 +54,14 @@ public class JdkESLogger extends AbstractESLogger {
         } else if ("trace".equalsIgnoreCase(level)) {
             logger.setLevel(Level.FINE);
         }
+    }
+
+    @Override
+    public String getLevel() {
+        if (logger.getLevel() == null) {
+            return null;
+        }
+        return logger.getLevel().toString();
     }
 
     @Override

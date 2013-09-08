@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -27,6 +28,7 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.junit.listerners.LoggingListener;
 
 import java.io.File;
 import java.net.URI;
@@ -36,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
+@Listeners(LoggingListener.class)
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());

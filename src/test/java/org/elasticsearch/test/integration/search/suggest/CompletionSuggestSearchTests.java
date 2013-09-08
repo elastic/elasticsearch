@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -726,7 +727,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         int iters = atLeast(10);
         for (int i = 0; i < iters; i++) {
             int len = between(3, 50);
-            String str = randomRealisticUnicodeOfCodepointLengthBetween(len+1, atLeast(len + 2));
+            String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(len+1, atLeast(len + 2)), (char)0x01);
             ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
@@ -766,7 +767,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .endObject()));
         ensureYellow();
         // can cause stack overflow without the default max_input_len
-        String longString = randomRealisticUnicodeOfLength(atLeast(5000));
+        String longString = replaceReservedChars(randomRealisticUnicodeOfLength(atLeast(5000)), (char)0x01);
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
                 .startArray("input").value(longString).endArray()
@@ -774,5 +775,38 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .endObject().endObject()
         ).setRefresh(true).get();
         
+    }
+    
+    // see #3648
+    @Test(expected = MapperParsingException.class)
+    public void testReservedChars()  throws IOException {
+        client().admin().indices().prepareCreate(INDEX).get();
+        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .endObject()
+                .endObject().endObject()
+                .endObject()));
+        ensureYellow();
+        // can cause stack overflow without the default max_input_len
+        String string = "foo" + (char)0x00 +  "bar";
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value(string).endArray()
+                .field("output", "foobar")
+                .endObject().endObject()
+        ).setRefresh(true).get();
+        
+    }
+    
+    private static String replaceReservedChars(String input, char replacement) {
+        char[] charArray = input.toCharArray();
+        for (int i = 0; i < charArray.length; i++) {
+            if (CompletionFieldMapper.isReservedChar(charArray[i])) {
+                charArray[i] = replacement;
+            }
+        }
+        return new String(charArray);
     }
 }

@@ -40,6 +40,7 @@ import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -276,9 +277,17 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     public Field getCompletionField(String input, BytesRef payload) {
+        final String originalInput = input;
         if (input.length() > maxInputLength) {
             final int len = correctSubStringLen(input, Math.min(maxInputLength, input.length()));
             input = input.substring(0, len);    
+        }
+        for (int i = 0; i < input.length(); i++) {
+            if (isReservedChar(input.charAt(i))) {
+                throw new ElasticSearchIllegalArgumentException("Illegal input [" + originalInput + "] UTF-16 codepoint  [0x"
+                        + Integer.toHexString((int) input.charAt(i)).toUpperCase(Locale.ROOT)                        
+                        + "] at position " + i + " is a reserved character");
+            }
         }
         return new SuggestField(names().fullName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
     }
@@ -387,5 +396,15 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         if (!mergeContext.mergeFlags().simulate()) {
             this.maxInputLength = fieldMergeWith.maxInputLength;
         }
+    }
+    
+    private static final char END_LABEL = 0x00;
+    
+    // this should be package private but our tests don't allow it.
+    public static boolean isReservedChar(char character) {
+        /* we also use 0xFF as a SEP_LABEL in the suggester but it's not valid UTF-8 so no need to check.
+         *  we also don't need to convert to UTF-8 here to check for the 0x00 end label since all multi-byte
+         *  UTF-8 chars start with 0x10 binary so if the UTF-16 CP is == 0x00 it's the single byte UTF-8 CP */
+        return character == END_LABEL;
     }
 }

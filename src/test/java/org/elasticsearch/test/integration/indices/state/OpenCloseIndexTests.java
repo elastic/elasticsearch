@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.junit.annotations.TestLogging;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -251,7 +252,7 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsOpened("test1");
     }
 
-    @Test
+    @Test @TestLogging("org.elasticsearch.cluster.metadata:TRACE")
     public void testCloseOpenAliasMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2");

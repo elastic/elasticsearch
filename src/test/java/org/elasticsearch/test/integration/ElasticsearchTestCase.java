@@ -28,7 +28,7 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.junit.listerners.LoggingListener;
+import org.elasticsearch.junit.listeners.LoggingListener;
 
 import java.io.File;
 import java.net.URI;

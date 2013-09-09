@@ -44,7 +44,7 @@ script. When set, both override anything set using either `JAVA_OPTS` or
 
 [source,sh]
 --------------------------------------------------
-$ bin/elasticsearch -f -Xmx2g -Xms2g -Des.index.storage.type=memory
+$ bin/elasticsearch -f -Xmx2g -Xms2g -Des.index.store.type=memory
 --------------------------------------------------
 *************************************************************************
 --

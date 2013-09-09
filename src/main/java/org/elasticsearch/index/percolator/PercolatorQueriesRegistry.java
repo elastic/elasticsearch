@@ -227,7 +227,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         private void loadQueries(IndexShard shard) {
             try {
                 shard.refresh(new Engine.Refresh().force(true));
-                Engine.Searcher searcher = shard.searcher();
+                Engine.Searcher searcher = shard.acquireSearcher();
                 try {
                     Query query = new XConstantScoreQuery(
                             indexCache.filter().cache(

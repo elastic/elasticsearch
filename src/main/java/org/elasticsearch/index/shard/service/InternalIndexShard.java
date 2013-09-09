@@ -457,7 +457,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public DocsStats docStats() {
         try {
-            final Engine.Searcher searcher = searcher();
+            final Engine.Searcher searcher = acquireSearcher();
             try {
                 return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
             } finally {
@@ -533,7 +533,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
         try{
-            final Engine.Searcher currentSearcher = searcher();
+            final Engine.Searcher currentSearcher = acquireSearcher();
             try {
                 PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(Completion090PostingsFormat.CODEC_NAME).get();
                 if (postingsFormat instanceof Completion090PostingsFormat) {
@@ -591,7 +591,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Searcher searcher() {
+    public Engine.Searcher acquireSearcher() {
         readAllowed();
         return engine.searcher();
     }

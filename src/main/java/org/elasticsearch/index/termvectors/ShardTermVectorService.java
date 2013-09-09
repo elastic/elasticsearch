@@ -58,7 +58,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     }
 
     public TermVectorResponse getTermVector(TermVectorRequest request) {
-        final Engine.Searcher searcher = indexShard.searcher();
+        final Engine.Searcher searcher = indexShard.acquireSearcher();
         IndexReader topLevelReader = searcher.reader();
         final TermVectorResponse termVectorResponse = new TermVectorResponse(request.index(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));

@@ -2,16 +2,6 @@
 "Script":
 
   - do:
-      catch:      missing
-      update:
-          index:  test_1
-          type:   test
-          id:     1
-          body:
-            script: "ctx._source.foo = bar"
-            params: { bar: 'xxx' }
-
-  - do:
       index:
           index:  test_1
           type:   test

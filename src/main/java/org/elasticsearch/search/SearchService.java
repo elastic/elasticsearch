@@ -456,7 +456,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
-        Engine.Searcher engineSearcher = searcher == null ? indexShard.searcher() : searcher;
+        Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher() : searcher;
         SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler);
         SearchContext.setCurrent(context);
         try {

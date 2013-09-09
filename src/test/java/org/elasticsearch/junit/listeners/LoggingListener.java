@@ -16,7 +16,7 @@
  * the License.
  */
 
-package org.elasticsearch.junit.listerners;
+package org.elasticsearch.junit.listeners;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;

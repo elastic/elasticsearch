@@ -17,29 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.index.store.mock;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.fs.FsIndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
-/**
- *
- */
-public final class SimpleFsIndexStore extends FsIndexStore {
+public class MockFSIndexStore extends FsIndexStore {
 
     @Inject
-    public SimpleFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
+    public MockFSIndexStore(Index index, Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService, indicesStore, nodeEnv);
     }
 
     @Override
     public Class<? extends DirectoryService> shardDirectory() {
-        return SimpleFsDirectoryService.class;
+        return MockFSDirectoryService.class;
     }
+
 }

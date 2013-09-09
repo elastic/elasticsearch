@@ -22,6 +22,7 @@ package org.elasticsearch.search.rescore;
 
 
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -448,6 +449,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
 
     @Test
+    @Slow
     public void testScoring_withFunctionScore() throws Exception {
         client().admin()
                 .indices()

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.update;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -393,6 +394,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
         final boolean useBulkApi = randomBoolean();
         createIndex();

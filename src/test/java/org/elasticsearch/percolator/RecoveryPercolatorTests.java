@@ -21,6 +21,8 @@ package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
@@ -71,6 +72,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testRestartNodePercolator1() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1");
@@ -118,6 +120,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
     @Test
     @AwaitsFix(bugUrl="investigate why this test fails so often")
+    @Slow
     public void testRestartNodePercolator2() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1");

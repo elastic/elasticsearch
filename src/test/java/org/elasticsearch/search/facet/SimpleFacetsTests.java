@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -264,6 +265,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
 
 
     @Test
+    @Slow
     public void testConcurrentFacets() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -427,6 +429,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void testDuelByteFieldDataImpl() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")

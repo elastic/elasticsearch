@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.client.AdminClient;
@@ -54,6 +55,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.junit.*;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -99,7 +101,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     @After
-    public void after() {
+    public void after() throws IOException {
         logger.info("Cleaning up after test.");
         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
@@ -108,6 +110,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .persistentSettings().getAsMap().size(), equalTo(0));
         wipeIndices(); // wipe after to make sure we fail in the test that didn't ack the delete
         wipeTemplates();
+        ensureAllFilesClosed();
     }
 
     public static TestCluster cluster() {
@@ -390,6 +393,12 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         if (forceRefresh) {
             client().admin().indices().prepareRefresh(index).execute().get();
         }
+    }
+    
+    public void clearScroll(String... scrollIds) {
+        ClearScrollResponse clearResponse = client().prepareClearScroll()
+                .setScrollIds(Arrays.asList(scrollIds)).get();
+        assertThat(clearResponse.isSucceeded(), equalTo(true));
     }
 
 }

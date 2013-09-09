@@ -18,19 +18,21 @@
  */
 package org.elasticsearch;
 
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.store.mock.MockDirectoryHelper;
 import org.elasticsearch.junit.listeners.LoggingListener;
+import org.junit.BeforeClass;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +46,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
-
+    
     public void awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
@@ -65,7 +67,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         return breakPredicate.apply(null);
-        
     }
     
     private static final String[] numericTypes = new String[] {"byte", "short", "integer", "long"};
@@ -85,5 +86,40 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         URI uri = URI.create(getClass().getResource(relativePath).toString());
         return new File(uri);
     }
+    
+    public static void ensureAllFilesClosed() throws IOException {
+        try {
+            for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+                if (w.isOpen()) {
+                    w.close();
+                }
+            }
+        } finally {
+            forceClearMockWrappers();
+        }
+    }
+    
+    public static void forceClearMockWrappers() {
+        MockDirectoryHelper.wrappers.clear();
+    }
+    
+    public static boolean hasUnclosedWrapper() {
+        for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+            if (w.isOpen()) {
+                return true;
+            }
+        }
+        return false;
+    }
 
+    
+    @BeforeClass
+    public static void registerMockDirectoryHooks() throws Exception {
+        closeAfterSuite(new Closeable() {
+            @Override
+            public void close() throws IOException {
+                ensureAllFilesClosed();
+            }
+        });
+    }
   }

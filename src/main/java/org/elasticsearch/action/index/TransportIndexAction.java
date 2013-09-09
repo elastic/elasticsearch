@@ -219,7 +219,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         if (request.refresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh().force(false));
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // ignore
             }
         }

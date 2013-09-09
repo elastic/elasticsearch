@@ -565,7 +565,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
         }
     }
-
+    
     private static final int[] EMPTY_DOC_IDS = new int[0];
 
     /**

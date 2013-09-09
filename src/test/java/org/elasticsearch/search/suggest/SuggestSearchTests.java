@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -392,6 +393,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     
     
     @Test
+    @Slow
     public void testMarvelHerosPhraseSuggest() throws ElasticSearchException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")

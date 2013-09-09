@@ -74,23 +74,26 @@ public class SearchScanScrollingTests extends AbstractSharedClusterTest {
                 .setSize(size)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
-
-        // start scrolling, until we get not results
-        while (true) {
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+        try {
             assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
-            for (SearchHit hit : searchResponse.getHits()) {
-                assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
-                ids.add(hit.id());
+    
+            // start scrolling, until we get not results
+            while (true) {
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+                assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                for (SearchHit hit : searchResponse.getHits()) {
+                    assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
+                    ids.add(hit.id());
+                }
+                if (searchResponse.getHits().hits().length == 0) {
+                    break;
+                }
             }
-            if (searchResponse.getHits().hits().length == 0) {
-                break;
-            }
+    
+            assertThat(expectedIds, equalTo(ids));
+        } finally {
+            clearScroll(searchResponse.getScrollId());
         }
-
-        assertThat(expectedIds, equalTo(ids));
     }
 }

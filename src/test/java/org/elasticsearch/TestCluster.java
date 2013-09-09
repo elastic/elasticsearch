@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
@@ -68,13 +69,12 @@ public class TestCluster {
 
     private final AtomicBoolean open = new AtomicBoolean(true);
 
-
     private final Settings defaultSettings;
-
 
     private NodeAndClient clientNode;
 
     private Random random;
+    
     private ClientFactory clientFactory;
 
     private AtomicInteger nextNodeId = new AtomicInteger(0);
@@ -97,7 +97,10 @@ public class TestCluster {
             // decrease the routing schedule so new nodes will be added quickly
             defaultSettings = settingsBuilder().put(defaultSettings).put("cluster.routing.schedule", "50ms").build();
         }
-        this.defaultSettings = ImmutableSettings.settingsBuilder().put(defaultSettings).put("cluster.name", clusterName).build();
+        // TODO once we are reproducible here use MockRamIndexStoreModule
+        this.defaultSettings = ImmutableSettings.settingsBuilder()
+                .put("index.store.type", MockFSIndexStoreModule.class.getName())
+                .put(defaultSettings).put("cluster.name", clusterName).build();
     }
 
 

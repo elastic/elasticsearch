@@ -774,8 +774,6 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         index("text", "type2", "1", "foo", "bar");
         index("text", "type2", "2", "foo", "bar");
         index("text", "type1", "1", "name", "Just testing the suggestions api");
-        index("text", "type1", "2", "name", "An other title about equal length");
-        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()

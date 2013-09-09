@@ -457,14 +457,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public DocsStats docStats() {
         try {
-            final Engine.Searcher searcher = engine.searcher();
+            final Engine.Searcher searcher = searcher();
             try {
                 return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
             } finally {
                 searcher.release();
             }
         } catch (Throwable e) {
-            logger.debug("Can not docStats completion stats from engine shard state [{}]", e, state);
+            logger.debug("Can not build 'doc stats' from engine shard state [{}]", e, state);
             return new DocsStats();
         }
     }
@@ -489,7 +489,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             return store.stats();
         } catch (Throwable e) {
-            logger.debug("Can not build store stats from engine shard state [{}]", e, state);
+            logger.debug("Can not build 'store stats' from engine shard state [{}]", e, state);
             return new StoreStats();
         }
     }
@@ -533,18 +533,18 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
         try{
-            final Engine.Searcher searcher = engine.searcher();
+            final Engine.Searcher currentSearcher = searcher();
             try {
                 PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(Completion090PostingsFormat.CODEC_NAME).get();
                 if (postingsFormat instanceof Completion090PostingsFormat) {
                     Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
-                    completionStats.add(completionPostingsFormat.completionStats(searcher().reader(), fields));
+                    completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
                 }
             } finally {
-                searcher.release();
+                currentSearcher.release();
             }
         } catch (Throwable e) {
-            logger.debug("Can not build completion stats from engine shard state [{}]", e, state);
+            logger.debug("Can not build 'completion stats' from engine shard state [{}]", e, state);
             // if we are called during engine stop / start or before start we can run into Exceptions
             // like the engine is already closed or no saercher is present at this point.
         }

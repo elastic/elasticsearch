@@ -16,7 +16,7 @@
 
   - match:   { _index:   test_1  }
   - match:   { _type:    test    }
-  - match:   { _id:      "1"       }
+  - match:   { _id:      '1'     }
   - match:   { fields.foo:  bar  }
   - is_false:  _source
 

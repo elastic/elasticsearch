@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -47,7 +48,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -158,7 +158,7 @@ public class RecoverySource extends AbstractComponent {
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest, TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
 
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
-                    final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
+                    final AtomicReference<Throwable> lastException = new AtomicReference<Throwable>();
                     int fileIndex = 0;
                     for (final String name : response.phase1FileNames) {
                         ThreadPoolExecutor pool;
@@ -203,16 +203,10 @@ public class RecoverySource extends AbstractComponent {
                                                 TransportRequestOptions.options().withCompress(shouldCompressRequest).withLowType().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
                                     }
-                                } catch (Exception e) {
+                                } catch (Throwable e) {
                                     lastException.set(e);
                                 } finally {
-                                    if (indexInput != null) {
-                                        try {
-                                            indexInput.close();
-                                        } catch (IOException e) {
-                                            // ignore
-                                        }
-                                    }
+                                    IOUtils.closeWhileHandlingException(indexInput);
                                     latch.countDown();
                                 }
                             }

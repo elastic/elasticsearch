@@ -19,6 +19,8 @@
 
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -37,7 +39,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.junit.annotations.TestLogging;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
@@ -50,9 +51,9 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
 import static org.elasticsearch.percolator.TTLPercolatorTests.ensureGreen;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 public class RecoveryPercolatorTests extends AbstractNodesTests {
@@ -79,6 +80,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testRestartNodePercolator1() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1");
@@ -129,6 +131,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testRestartNodePercolator2() throws Exception {
         logger.info("--> cleaning nodes");
         buildNode("node1");
@@ -212,6 +215,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         Settings settings = settingsBuilder()
                 .put("gateway.type", "local").build();
@@ -268,6 +272,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    @Slow
     public void testSinglePercolator_recovery() throws Exception {
         percolatorRecovery(false);
     }
@@ -275,6 +280,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     @Test
     // Need to omit org.elast
     @TestLogging("action.percolate:TRACE")
+    @Slow
     public void testMultiPercolator_recovery() throws Exception {
         percolatorRecovery(true);
     }

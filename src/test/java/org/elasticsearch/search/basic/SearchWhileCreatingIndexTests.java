@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -44,21 +45,25 @@ public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void testIndexCausesIndexCreation() throws Exception {
         searchWhileCreatingIndex(-1, 1); // 1 replica in our default...
     }
 
     @Test
+    @Slow
     public void testNoReplicas() throws Exception {
         searchWhileCreatingIndex(10, 0);
     }
 
     @Test
+    @Slow
     public void testOneReplica() throws Exception {
         searchWhileCreatingIndex(10, 1);
     }
 
     @Test
+    @Slow
     public void testTwoReplicas() throws Exception {
         searchWhileCreatingIndex(10, 2);
     }

@@ -31,7 +31,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 /**
  *
  */
-public class MmapFsIndexStore extends FsIndexStore {
+public final class MmapFsIndexStore extends FsIndexStore {
 
     @Inject
     public MmapFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {

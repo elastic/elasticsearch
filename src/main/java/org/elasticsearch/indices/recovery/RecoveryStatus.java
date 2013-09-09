@@ -23,8 +23,12 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -52,10 +56,10 @@ public class RecoveryStatus {
     }
 
     volatile Thread recoveryThread;
-    volatile boolean canceled;
+    private volatile boolean canceled;
     volatile boolean sentCanceledToSource;
 
-    ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
+    private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     ConcurrentMap<String, String> checksums = ConcurrentCollections.newConcurrentMap();
 
     final long startTime = System.currentTimeMillis();
@@ -97,5 +101,51 @@ public class RecoveryStatus {
 
     public long currentFilesSize() {
         return currentFilesSize.get();
+    }
+    
+    public boolean isCanceled() {
+        return canceled;
+    }
+    
+    public synchronized void cancel() {
+        canceled = true;
+    }
+    
+    public IndexOutput getOpenIndexOutput(String key) {
+        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
+        if (canceled || outputs == null) {
+            return null;
+        }
+        return outputs.get(key);
+    }
+    
+    public synchronized Set<Entry<String, IndexOutput>> cancleAndClearOpenIndexInputs() {
+        cancel();
+        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
+        openIndexOutputs = null;
+        if (outputs == null) {
+            return null;
+        }
+        Set<Entry<String, IndexOutput>> entrySet = outputs.entrySet();
+        return entrySet;
+    }
+    
+
+    public IndexOutput removeOpenIndexOutputs(String name) {
+        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
+        if (outputs == null) {
+            return null;
+        }
+        return outputs.remove(name);
+    }
+
+    public synchronized IndexOutput openAndPutIndexOutput(String key, String name, Store store) throws IOException {
+        if (isCanceled()) {
+            return null;
+        }
+        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
+        IndexOutput indexOutput = store.createOutputRaw(name);
+        outputs.put(key, indexOutput);
+        return indexOutput;
     }
 }

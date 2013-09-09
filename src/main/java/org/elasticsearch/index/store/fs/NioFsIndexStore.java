@@ -31,7 +31,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 /**
  *
  */
-public class NioFsIndexStore extends FsIndexStore {
+public final class NioFsIndexStore extends FsIndexStore {
 
     @Inject
     public NioFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {

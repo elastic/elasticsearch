@@ -771,9 +771,10 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put("index.analysis.filter.shingler.output_unigrams", true)).addMapping("type1", mappingBuilder));
         ensureGreen();
 
-        index("text", "type2", "1", "foo", "bar");
-        index("text", "type2", "2", "foo", "bar");
-        index("text", "type1", "1", "name", "Just testing the suggestions api");
+        index("test", "type2", "1", "foo", "bar");
+        index("test", "type2", "2", "foo", "bar");
+        index("test", "type1", "1", "name", "Just testing the suggestions api");
+        index("test", "type1", "2", "name", "An other title about equal length");
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()

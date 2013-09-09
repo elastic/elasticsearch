@@ -478,7 +478,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                         throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
                     }
                     IndexShard percolatorShard = percolatorIndex.shard(0);
-                    Engine.Searcher percolatorSearcher = percolatorShard.searcher();
+                    Engine.Searcher percolatorSearcher = percolatorShard.acquireSearcher();
                     try {
                         percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, matches));
                     } catch (IOException e) {

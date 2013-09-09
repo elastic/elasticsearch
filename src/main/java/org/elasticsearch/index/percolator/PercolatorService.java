@@ -119,7 +119,7 @@ public class PercolatorService extends AbstractIndexComponent {
         IndexService indexService = percolatorIndexService();
         IndexShard shard = indexService.shard(0);
         shard.refresh(new Engine.Refresh().force(true));
-        Engine.Searcher searcher = shard.searcher();
+        Engine.Searcher searcher = shard.acquireSearcher();
         try {
             // create a query to fetch all queries that are registered under the index name (which is the type
             // in the percolator).

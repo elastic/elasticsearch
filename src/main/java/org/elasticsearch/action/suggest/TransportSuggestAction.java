@@ -149,7 +149,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
-        final Engine.Searcher searcher = indexShard.searcher();
+        final Engine.Searcher searcher = indexShard.acquireSearcher();
         XContentParser parser = null;
         try {
             BytesReference suggest = request.suggest();

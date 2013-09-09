@@ -127,7 +127,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
-    Engine.Searcher searcher();
+    Engine.Searcher acquireSearcher();
 
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)

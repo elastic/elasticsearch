@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.indices.wamer;
+package org.elasticsearch.test.integration.indices.warmer;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;

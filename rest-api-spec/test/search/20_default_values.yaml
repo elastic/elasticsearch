@@ -1,5 +1,5 @@
 ---
-"All indices":
+"Default index":
   - do:
       indices.create:
           index:  test_2
@@ -26,7 +26,6 @@
 
   - do:
       search:
-        index: _all
         type:   test
         body:
           query:

@@ -43,11 +43,6 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -65,43 +60,41 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
-
-        long counter = 0;
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(35));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
-        }
-
-        searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .execute().actionGet();
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(35));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
-        }
-
-        searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .execute().actionGet();
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(30));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+        try {
+            long counter = 0;
+    
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, equalTo(35));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            }
+    
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueMinutes(2))
+                    .execute().actionGet();
+    
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, equalTo(35));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            }
+    
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueMinutes(2))
+                    .execute().actionGet();
+    
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, equalTo(30));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            }
+        } finally {
+            clearScroll(searchResponse.getScrollId());
         }
     }
 
     @Test
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -126,57 +119,56 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
-
-        long counter = 0;
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(3));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
-        }
-
-        for (int i = 0; i < 32; i++) {
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                    .setScroll(TimeValue.timeValueMinutes(2))
-                    .execute().actionGet();
-
+        try {
+            long counter = 0;
+    
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
             assertThat(searchResponse.getHits().hits().length, equalTo(3));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
             }
-        }
-
-        // and now, the last one is one
-        searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .execute().actionGet();
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
-        }
-
-        // a the last is zero
-        searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .execute().actionGet();
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(0));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+    
+            for (int i = 0; i < 32; i++) {
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+                        .setScroll(TimeValue.timeValueMinutes(2))
+                        .execute().actionGet();
+    
+                assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+                assertThat(searchResponse.getHits().hits().length, equalTo(3));
+                for (SearchHit hit : searchResponse.getHits()) {
+                    assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+                }
+            }
+    
+            // and now, the last one is one
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueMinutes(2))
+                    .execute().actionGet();
+    
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, equalTo(1));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            }
+    
+            // a the last is zero
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueMinutes(2))
+                    .execute().actionGet();
+    
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, equalTo(0));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
+            }
+            
+        } finally {
+            clearScroll(searchResponse.getScrollId());
         }
     }
 
     @Test
     public void testScrollAndUpdateIndex() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -199,23 +191,25 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .addSort("postDate", SortOrder.ASC)
                 .execute().actionGet();
-
-
-        do {
-            for (SearchHit searchHit : searchResponse.getHits().hits()) {
-                Map<String, Object> map = searchHit.sourceAsMap();
-                map.put("message", "update");
-                client().prepareIndex("test", "tweet", searchHit.id()).setSource(map).execute().actionGet();
-            }
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-        } while (searchResponse.getHits().hits().length > 0);
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(500l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
+        try {
+            do {
+                for (SearchHit searchHit : searchResponse.getHits().hits()) {
+                    Map<String, Object> map = searchHit.sourceAsMap();
+                    map.put("message", "update");
+                    client().prepareIndex("test", "tweet", searchHit.id()).setSource(map).execute().actionGet();
+                }
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            } while (searchResponse.getHits().hits().length > 0);
+    
+            client().admin().indices().prepareRefresh().execute().actionGet();
+            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(500l));
+            assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
+            assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
+            assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
+            assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+        }
     }
 
     @Test
@@ -391,5 +385,4 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(0l));
         assertThat(searchResponse2.getHits().hits().length, equalTo(0));
     }
-
 }

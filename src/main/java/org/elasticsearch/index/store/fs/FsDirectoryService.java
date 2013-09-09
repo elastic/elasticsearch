@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -48,16 +49,16 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     }
 
     @Override
-    public long throttleTimeInNanos() {
+    public final long throttleTimeInNanos() {
         return rateLimitingTimeInNanos.count();
     }
 
     @Override
-    public StoreRateLimiting rateLimiting() {
+    public final StoreRateLimiting rateLimiting() {
         return indexStore.rateLimiting();
     }
 
-    protected LockFactory buildLockFactory() throws IOException {
+    protected final LockFactory buildLockFactory() throws IOException {
         String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
         LockFactory lockFactory = NoLockFactory.getNoLockFactory();
         if (fsLock.equals("native")) {
@@ -70,10 +71,14 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         }
         return lockFactory;
     }
-
+    
     @Override
-    public void renameFile(Directory dir, String from, String to) throws IOException {
-        File directory = ((RateLimitedFSDirectory) dir).wrappedDirectory().getDirectory();
+    public final void renameFile(Directory dir, String from, String to) throws IOException {
+        final FSDirectory fsDirectory = FilterDirectory.getLeaf(dir, FSDirectory.class);
+        if (fsDirectory == null) {
+            throw new ElasticSearchIllegalArgumentException("Can not rename file on non-filesystem based directory ");
+        }
+        File directory = fsDirectory.getDirectory();
         File old = new File(directory, from);
         File nu = new File(directory, to);
         if (nu.exists())
@@ -102,8 +107,11 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     }
 
     @Override
-    public void fullDelete(Directory dir) throws IOException {
-        FSDirectory fsDirectory = ((RateLimitedFSDirectory) dir).wrappedDirectory();
+    public final void fullDelete(Directory dir) throws IOException {
+        final FSDirectory fsDirectory = FilterDirectory.getLeaf(dir, FSDirectory.class);
+        if (fsDirectory == null) {
+            throw new ElasticSearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
+        }
         FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
         // if we are the last ones, delete also the actual index
         String[] list = fsDirectory.getDirectory().getParentFile().list();
@@ -127,7 +135,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     protected abstract FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException;
 
     @Override
-    public void onPause(long nanos) {
+    public final void onPause(long nanos) {
         rateLimitingTimeInNanos.inc(nanos);
     }
 }

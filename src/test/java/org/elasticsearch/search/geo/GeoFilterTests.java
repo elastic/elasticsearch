@@ -28,6 +28,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -80,11 +81,6 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         withinSupport = testRelationSupport(SpatialOperation.IsWithin);
     }
     
-    @Override
-    protected int numberOfNodes() {
-        return 2;
-    }
-
     private static byte[] unZipData(String path) throws IOException {
         InputStream is = Streams.class.getResourceAsStream(path);
         if (is == null) {
@@ -394,6 +390,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    @Slow
     public void bulktest() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.json");
 

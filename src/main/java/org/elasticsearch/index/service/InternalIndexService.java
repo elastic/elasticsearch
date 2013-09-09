@@ -92,8 +92,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final Settings indexSettings;
 
-    private final NodeEnvironment nodeEnv;
-
     private final ThreadPool threadPool;
 
     private final PluginsService pluginsService;
@@ -135,7 +133,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData) {
         super(index, indexSettings);
         this.injector = injector;
-        this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indexSettings = indexSettings;
         this.analysisService = analysisService;

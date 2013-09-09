@@ -135,7 +135,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private final AtomicInteger flushing = new AtomicInteger();
     private final Lock flushLock = new ReentrantLock();
 
-    private volatile int onGoingRecoveries = 0;
+    private final RecoveryCounter onGoingRecoveries = new RecoveryCounter();
 
 
     // A uid (in the form of BytesRef) to the version map
@@ -751,7 +751,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
         if (flush.type() == Flush.Type.NEW_WRITER || flush.type() == Flush.Type.COMMIT_TRANSLOG) {
             // check outside the lock as well so we can check without blocking on the write lock
-            if (onGoingRecoveries > 0) {
+            if (onGoingRecoveries.get() > 0) {
                 throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush [" + flush.type() + "] is not allowed");
             }
         }
@@ -769,7 +769,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (indexWriter == null) {
                         throw new EngineClosedException(shardId, failedEngine);
                     }
-                    if (onGoingRecoveries > 0) {
+                    if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
                     }
                     // disable refreshing, not dirty
@@ -815,7 +815,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (indexWriter == null) {
                         throw new EngineClosedException(shardId, failedEngine);
                     }
-                    if (onGoingRecoveries > 0) {
+                    if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
                     }
 
@@ -1043,7 +1043,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         // this means that next commits will not be allowed once the lock is released
         rwl.writeLock().lock();
         try {
-            onGoingRecoveries++;
+            if (closed) {
+                throw new EngineClosedException(shardId);
+            }
+            onGoingRecoveries.increment();
         } finally {
             rwl.writeLock().unlock();
         }
@@ -1052,14 +1055,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             phase1Snapshot = deletionPolicy.snapshot();
         } catch (Throwable e) {
-            --onGoingRecoveries;
+            onGoingRecoveries.decrement();
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }
 
         try {
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
-            --onGoingRecoveries;
+            onGoingRecoveries.decrement();
             phase1Snapshot.release();
             if (closed) {
                 e = new EngineClosedException(shardId, e);
@@ -1071,7 +1074,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
-            --onGoingRecoveries;
+            onGoingRecoveries.decrement();
             phase1Snapshot.release();
             if (closed) {
                 e = new EngineClosedException(shardId, e);
@@ -1082,7 +1085,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         try {
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
-            --onGoingRecoveries;
+            onGoingRecoveries.decrement();
             phase1Snapshot.release();
             phase2Snapshot.release();
             if (closed) {
@@ -1099,7 +1102,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } catch (Throwable e) {
             throw new RecoveryEngineException(shardId, 3, "Execution failed", e);
         } finally {
-            --onGoingRecoveries;
+            onGoingRecoveries.decrement();
             rwl.writeLock().unlock();
             phase1Snapshot.release();
             phase2Snapshot.release();
@@ -1190,6 +1193,17 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } finally {
             rwl.writeLock().unlock();
         }
+        try {
+            // wait for recoveries to join and close all resources / IO streams
+            int ongoingRecoveries = onGoingRecoveries.awaitNoRecoveries(5000);
+            if (ongoingRecoveries > 0) {
+                logger.debug("Waiting for ongoing recoveries timed out on close currently ongoing disoveries: [{}]", ongoingRecoveries);
+            }
+        } catch (InterruptedException e) {
+            // ignore & restore interrupt
+            Thread.currentThread().interrupt();
+        }
+
     }
 
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
@@ -1498,6 +1512,34 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
             }
             return searcher;
+        }
+    }
+    
+    private static final class RecoveryCounter {
+        private volatile int ongoingRecoveries = 0;
+
+        synchronized void increment() {
+            ongoingRecoveries++;
+        }
+
+        synchronized void decrement() {
+            ongoingRecoveries--;
+            if (ongoingRecoveries == 0) {
+                notifyAll(); // notify waiting threads - we only wait on ongoingRecoveries == 0
+            }
+            assert ongoingRecoveries >= 0 : "ongoingRecoveries must be >= 0 but was: " + ongoingRecoveries;
+        }
+
+        int get() {
+            // volatile read - no sync needed
+            return ongoingRecoveries;
+        }
+
+        synchronized int awaitNoRecoveries(long timeout) throws InterruptedException {
+            if (ongoingRecoveries > 0) { // no loop here - we either time out or we are done!
+                wait(timeout);
+            }
+            return ongoingRecoveries;
         }
     }
 }

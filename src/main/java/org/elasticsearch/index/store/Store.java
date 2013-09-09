@@ -204,7 +204,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         try {
             indexInput.readInt(); // version
             return indexInput.readStringStringMap();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             // failed to load checksums, ignore and return an empty map
             return defaultValue;
         } finally {
@@ -213,8 +213,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public void writeChecksums() throws IOException {
-        String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
         ImmutableMap<String, StoreFileMetaData> files = list();
+        String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
         synchronized (mutex) {
             Map<String, String> checksums = new HashMap<String, String>();
             for (StoreFileMetaData metaData : files.values()) {
@@ -222,16 +222,23 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     checksums.put(metaData.name(), metaData.checksum());
                 }
             }
+            while (directory.fileExists(checksumName)) {
+                checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
+            }
             IndexOutput output = directory.createOutput(checksumName, IOContext.DEFAULT, true);
-            output.writeInt(0); // version
-            output.writeStringStringMap(checksums);
-            output.close();
+            try {
+                output.writeInt(0); // version
+                output.writeStringStringMap(checksums);
+            } finally {
+                output.close();
+            }
+            
         }
         for (StoreFileMetaData metaData : files.values()) {
             if (metaData.name().startsWith(CHECKSUMS_PREFIX) && !checksumName.equals(metaData.name())) {
                 try {
                     directory.deleteFileChecksum(metaData.name());
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     // ignore
                 }
             }

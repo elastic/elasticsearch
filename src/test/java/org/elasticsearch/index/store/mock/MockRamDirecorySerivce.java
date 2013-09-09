@@ -17,64 +17,47 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.ram;
+package org.elasticsearch.index.store.mock;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.store.RAMFile;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
-/**
- */
-public final class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public class MockRamDirecorySerivce extends AbstractIndexShardComponent implements DirectoryService {
+
+    private final MockDirectoryHelper helper;
+    private final DirectoryService delegateService;
 
     @Inject
-    public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public MockRamDirecorySerivce(ShardId shardId, Settings indexSettings, ByteBufferCache byteBufferCache) {
         super(shardId, indexSettings);
+        helper = new MockDirectoryHelper(shardId, indexSettings, logger);
+        delegateService = helper.randomRamDirecoryService(byteBufferCache);
+    }
+
+    @Override
+    public Directory[] build() throws IOException {
+        return helper.wrapAllInplace(delegateService.build());
     }
 
     @Override
     public long throttleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
-    public Directory[] build() {
-        return new Directory[]{new CustomRAMDirectory()};
+        return delegateService.throttleTimeInNanos();
     }
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        CustomRAMDirectory leaf = FilterDirectory.getLeaf(dir, CustomRAMDirectory.class);
-        assert leaf != null;
-        leaf.renameTo(from, to);
+        delegateService.renameFile(dir, from, to);
     }
 
     @Override
-    public void fullDelete(Directory dir) {
-    }
-
-    static class CustomRAMDirectory extends RAMDirectory {
-
-        public synchronized void renameTo(String from, String to) throws IOException {
-            RAMFile fromFile = fileMap.get(from);
-            if (fromFile == null)
-                throw new FileNotFoundException(from);
-            RAMFile toFile = fileMap.get(to);
-            if (toFile != null) {
-                sizeInBytes.addAndGet(-fileLength(from));
-                fileMap.remove(from);
-            }
-            fileMap.put(to, fromFile);
-        }
+    public void fullDelete(Directory dir) throws IOException {
+        delegateService.fullDelete(dir);
     }
 }

@@ -1,12 +1,5 @@
 ---
-"Basic GET":
-
-  - do:
-      catch:   missing
-      get:
-        index: test_1
-        type:  test
-        id:    1
+"Basic":
 
   - do:
       index:

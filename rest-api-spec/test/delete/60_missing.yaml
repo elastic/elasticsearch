@@ -1,20 +1,19 @@
 ---
-"Basic":
+"Missing document with catch":
 
  - do:
-      index:
+      catch:      missing
+      delete:
           index:  test_1
           type:   test
           id:     1
-          body:   { foo: bar }
 
- - is_true:   ok
- - match:   { _version: 1 }
+---
+"Missing document with ignore":
 
  - do:
       delete:
           index:  test_1
           type:   test
           id:     1
-
- - match:   { _version: 2 }
+          ignore: 404

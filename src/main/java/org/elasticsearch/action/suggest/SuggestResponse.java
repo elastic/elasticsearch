@@ -19,19 +19,18 @@
 
 package org.elasticsearch.action.suggest;
 
-import java.io.IOException;
-import java.util.List;
-
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
  * The response of the suggest action.
@@ -67,17 +66,17 @@ public final class SuggestResponse extends BroadcastOperationResponse {
         super.writeTo(out);
         this.suggest.writeTo(out);
     }
-    
+
     @Override
     public String toString() {
-        String source; 
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            suggest.toXContent(builder, null);
-            source = XContentHelper.convertToJson(builder.bytes(), true);
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            suggest.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
         } catch (IOException e) {
-            source = "Error: " + e.getMessage();
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
-        return "Suggest Response["+source+"]";
     }
 }

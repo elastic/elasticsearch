@@ -26,6 +26,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,7 +66,7 @@ public class RestPercolateAction extends BaseRestHandler {
     }
 
     void parseDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel) {
-        percolateRequest.indices(RestActions.splitIndices(restRequest.param("index")));
+        percolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         percolateRequest.documentType(restRequest.param("type"));
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
@@ -82,7 +83,7 @@ public class RestPercolateAction extends BaseRestHandler {
     void parseExistingDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel) {
         String index = restRequest.param("index");
         String type = restRequest.param("type");
-        percolateRequest.indices(RestActions.splitIndices(restRequest.param("percolate_index", index)));
+        percolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("percolate_index", index)));
         percolateRequest.documentType(restRequest.param("percolate_type", type));
 
         GetRequest getRequest = new GetRequest(index, type,

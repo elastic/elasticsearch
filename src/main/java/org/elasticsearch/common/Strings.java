@@ -1501,7 +1501,7 @@ public class Strings {
         System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
         return bytes;
     }
-    
+
     private static class SecureRandomHolder {
         // class loading is atomic - this is a lazy & safe singleton
         private static final SecureRandom INSTANCE = new SecureRandom();

@@ -29,13 +29,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  */
@@ -54,12 +54,12 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String[] indices = RestActions.splitIndices(request.param("index"));
+        String[] indices = splitValues(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
         clusterSearchShardsRequest.listenerThreaded(false);
 
-        clusterSearchShardsRequest.types(RestActions.splitTypes(request.param("type")));
+        clusterSearchShardsRequest.types(splitValues(request.param("type")));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         if (request.hasParam("ignore_indices")) {

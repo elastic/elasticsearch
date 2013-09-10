@@ -38,7 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -54,7 +54,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(splitIndices(request.param("index")));
+        UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(splitValues(request.param("index")));
         updateSettingsRequest.listenerThreaded(false);
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
 

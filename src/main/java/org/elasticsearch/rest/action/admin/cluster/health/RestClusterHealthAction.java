@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -35,6 +34,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -51,7 +51,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
+        ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(splitValues(request.param("index")));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.listenerThreaded(false);
         int level = 0;

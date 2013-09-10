@@ -41,8 +41,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -58,7 +57,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitIndices(request.param("index")));
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitValues(request.param("index")));
         deleteByQueryRequest.listenerThreaded(false);
         try {
             if (request.hasContent()) {
@@ -72,7 +71,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                     deleteByQueryRequest.query(bytes, false);
                 }
             }
-            deleteByQueryRequest.types(splitTypes(request.param("type")));
+            deleteByQueryRequest.types(splitValues(request.param("type")));
             deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
             deleteByQueryRequest.routing(request.param("routing"));

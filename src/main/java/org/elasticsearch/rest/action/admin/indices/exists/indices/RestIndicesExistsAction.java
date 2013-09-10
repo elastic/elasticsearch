@@ -32,7 +32,7 @@ import org.elasticsearch.rest.*;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -52,7 +52,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitIndices(request.param("index")));
+        IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitValues(request.param("index")));
         indicesExistsRequest.listenerThreaded(false);
         client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
             @Override

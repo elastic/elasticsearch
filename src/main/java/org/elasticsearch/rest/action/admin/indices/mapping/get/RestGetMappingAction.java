@@ -43,8 +43,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -61,8 +60,8 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final String[] indices = splitIndices(request.param("index"));
-        final Set<String> types = ImmutableSet.copyOf(splitTypes(request.param("type")));
+        final String[] indices = splitValues(request.param("index"));
+        final Set<String> types = ImmutableSet.copyOf(splitValues(request.param("type")));
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .filterRoutingTable(true)

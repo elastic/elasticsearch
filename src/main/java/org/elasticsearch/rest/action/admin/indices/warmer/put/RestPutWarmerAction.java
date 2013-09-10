@@ -28,13 +28,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  */
@@ -51,8 +51,8 @@ public class RestPutWarmerAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
         putWarmerRequest.listenerThreaded(false);
-        SearchRequest searchRequest = new SearchRequest(RestActions.splitIndices(request.param("index")))
-                .types(RestActions.splitTypes(request.param("type")))
+        SearchRequest searchRequest = new SearchRequest(splitValues(request.param("index")))
+                .types(splitValues(request.param("type")))
                 .source(request.content(), request.contentUnsafe());
         putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));

@@ -34,7 +34,7 @@ import java.io.IOException;
 import static org.elasticsearch.client.Requests.deleteMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -50,7 +50,7 @@ public class RestDeleteMappingAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(splitIndices(request.param("index")));
+        DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(splitValues(request.param("index")));
         deleteMappingRequest.listenerThreaded(false);
         deleteMappingRequest.type(request.param("type"));
         deleteMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteMappingRequest.masterNodeTimeout()));

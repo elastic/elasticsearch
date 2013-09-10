@@ -36,7 +36,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -55,7 +55,7 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        PutMappingRequest putMappingRequest = putMappingRequest(splitIndices(request.param("index")));
+        PutMappingRequest putMappingRequest = putMappingRequest(splitValues(request.param("index")));
         putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().toUtf8());

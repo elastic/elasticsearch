@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -61,7 +61,7 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        CountRequest countRequest = new CountRequest(RestActions.splitIndices(request.param("index")));
+        CountRequest countRequest = new CountRequest(splitValues(request.param("index")));
         if (request.hasParam("ignore_indices")) {
             countRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
@@ -88,7 +88,7 @@ public class RestCountAction extends BaseRestHandler {
             }
             countRequest.routing(request.param("routing"));
             countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
-            countRequest.types(splitTypes(request.param("type")));
+            countRequest.types(splitValues(request.param("type")));
             countRequest.preference(request.param("preference"));
         } catch (Exception e) {
             try {

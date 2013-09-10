@@ -110,8 +110,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         if (all) {
             indicesStatsRequest.all();
         }
-        indicesStatsRequest.indices(splitIndices(request.param("index")));
-        indicesStatsRequest.types(splitTypes(request.param("types")));
+        indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+        indicesStatsRequest.types(Strings.splitValues(request.param("types")));
         if (request.hasParam("groups")) {
             indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
         }
@@ -163,8 +163,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().docs(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -201,8 +201,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().store(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -239,13 +239,13 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().indexing(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
             if (request.hasParam("types")) {
-                indicesStatsRequest.types(splitTypes(request.param("types")));
+                indicesStatsRequest.types(Strings.splitValues(request.param("types")));
             } else if (request.hasParam("indexingTypes1")) {
-                indicesStatsRequest.types(splitTypes(request.param("indexingTypes1")));
+                indicesStatsRequest.types(Strings.splitValues(request.param("indexingTypes1")));
             } else if (request.hasParam("indexingTypes2")) {
-                indicesStatsRequest.types(splitTypes(request.param("indexingTypes2")));
+                indicesStatsRequest.types(Strings.splitValues(request.param("indexingTypes2")));
             }
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
@@ -283,7 +283,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().search(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
             if (request.hasParam("groups")) {
                 indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
             } else if (request.hasParam("searchGroupsStats1")) {
@@ -327,7 +327,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().get(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -364,8 +364,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().merge(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -402,8 +402,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().flush(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -440,8 +440,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().warmer(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -478,8 +478,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().filterCache(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -516,8 +516,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().idCache(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -554,8 +554,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().fieldData(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fields", null));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
@@ -593,8 +593,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().completion(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
             indicesStatsRequest.completionFields(request.paramAsStringArray("fields", null));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
@@ -632,8 +632,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().refresh(true);
-            indicesStatsRequest.indices(splitIndices(request.param("index")));
-            indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.indices(Strings.splitValues(request.param("index")));
+            indicesStatsRequest.types(Strings.splitValues(request.param("types")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override

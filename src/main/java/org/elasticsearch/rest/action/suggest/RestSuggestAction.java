@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -41,6 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -58,7 +58,7 @@ public class RestSuggestAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        SuggestRequest suggestRequest = new SuggestRequest(RestActions.splitIndices(request.param("index")));
+        SuggestRequest suggestRequest = new SuggestRequest(splitValues(request.param("index")));
         if (request.hasParam("ignore_indices")) {
             suggestRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

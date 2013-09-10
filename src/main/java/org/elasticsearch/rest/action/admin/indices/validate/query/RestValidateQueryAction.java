@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -61,7 +61,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
+        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(splitValues(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
@@ -86,7 +86,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     }
                 }
             }
-            validateQueryRequest.types(splitTypes(request.param("type")));
+            validateQueryRequest.types(splitValues(request.param("type")));
             if (request.paramAsBoolean("explain", false)) {
                 validateQueryRequest.explain(true);
             } else {

@@ -32,8 +32,7 @@ import org.elasticsearch.rest.*;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  * Rest api for checking if a type exists.
@@ -49,7 +48,7 @@ public class RestTypesExistsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
-                splitIndices(request.param("index")), splitTypes(request.param("type"))
+                splitValues(request.param("index")), splitValues(request.param("type"))
         );
         typesExistsRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {

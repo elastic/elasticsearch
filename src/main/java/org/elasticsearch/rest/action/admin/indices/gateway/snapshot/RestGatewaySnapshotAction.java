@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -36,6 +35,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -51,7 +51,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(RestActions.splitIndices(request.param("index")));
+        GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(splitValues(request.param("index")));
         gatewaySnapshotRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             gatewaySnapshotRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));

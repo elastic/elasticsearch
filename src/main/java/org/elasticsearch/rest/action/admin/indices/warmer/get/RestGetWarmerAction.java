@@ -41,7 +41,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -59,7 +59,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final String[] indices = splitIndices(request.param("index"));
+        final String[] indices = splitValues(request.param("index"));
         final String name = request.param("name");
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()

@@ -1501,7 +1501,14 @@ public class Strings {
         System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
         return bytes;
     }
-    
+
+    public static String[] splitValues(String values) {
+        if (values == null) {
+            return EMPTY_ARRAY;
+        }
+        return splitStringByCommaToArray(values);
+    }
+
     private static class SecureRandomHolder {
         // class loading is atomic - this is a lazy & safe singleton
         private static final SecureRandom INSTANCE = new SecureRandom();

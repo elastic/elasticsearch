@@ -27,13 +27,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  */
@@ -50,7 +50,7 @@ public class RestDeleteWarmerAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteWarmerRequest deleteWarmerRequest = new DeleteWarmerRequest(request.param("name"))
-                .indices(RestActions.splitIndices(request.param("index")));
+                .indices(splitValues(request.param("index")));
         deleteWarmerRequest.listenerThreaded(false);
         deleteWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteWarmerRequest.masterNodeTimeout()));
         client.admin().indices().deleteWarmer(deleteWarmerRequest, new ActionListener<DeleteWarmerResponse>() {

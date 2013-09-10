@@ -36,7 +36,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  */
@@ -51,7 +51,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(splitIndices(request.param("index")));
+        IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(splitValues(request.param("index")));
         indicesSegmentsRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             indicesSegmentsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));

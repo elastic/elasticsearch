@@ -103,24 +103,18 @@ public class RestActions {
         return queryBuilder.buildAsBytes();
     }
 
+    @Deprecated
     public static String[] splitIndices(String indices) {
-        if (indices == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(indices);
+        return Strings.splitValues(indices);
     }
 
+    @Deprecated
     public static String[] splitTypes(String typeNames) {
-        if (typeNames == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(typeNames);
+        return Strings.splitValues(typeNames);
     }
 
+    @Deprecated
     public static String[] splitNodes(String nodes) {
-        if (nodes == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(nodes);
+        return Strings.splitValues(nodes);
     }
 }

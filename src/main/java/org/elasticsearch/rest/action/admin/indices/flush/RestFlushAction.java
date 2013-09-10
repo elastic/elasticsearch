@@ -29,7 +29,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -38,6 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.common.Strings.splitValues;
 
 /**
  *
@@ -56,7 +56,7 @@ public class RestFlushAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        FlushRequest flushRequest = new FlushRequest(RestActions.splitIndices(request.param("index")));
+        FlushRequest flushRequest = new FlushRequest(splitValues(request.param("index")));
         flushRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             flushRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));

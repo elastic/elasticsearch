@@ -28,10 +28,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.Strings.splitValues;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
@@ -50,7 +50,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
+        String[] nodesIds = splitValues(request.param("nodeId"));
         NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
         nodesShutdownRequest.listenerThreaded(false);
         nodesShutdownRequest.delay(request.paramAsTime("delay", nodesShutdownRequest.delay()));

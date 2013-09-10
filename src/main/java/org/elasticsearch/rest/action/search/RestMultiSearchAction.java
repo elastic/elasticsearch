@@ -24,11 +24,11 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 
@@ -63,8 +63,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.listenerThreaded(false);
 
-        String[] indices = RestActions.splitIndices(request.param("index"));
-        String[] types = RestActions.splitTypes(request.param("type"));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         IgnoreIndices ignoreIndices = null;
         if (request.hasParam("ignore_indices")) {
             ignoreIndices = IgnoreIndices.fromString(request.param("ignore_indices"));

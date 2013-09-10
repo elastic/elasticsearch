@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
@@ -32,8 +33,6 @@ import org.elasticsearch.rest.*;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
-import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
 
 /**
  * Rest api for checking if a type exists.
@@ -49,7 +48,7 @@ public class RestTypesExistsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
-                splitIndices(request.param("index")), splitTypes(request.param("type"))
+                Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))
         );
         typesExistsRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {

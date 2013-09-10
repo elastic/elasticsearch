@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.junit.annotations.TestLogging;
 import org.elasticsearch.test.integration.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -440,6 +441,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @Test
+    @TestLogging("_root:TRACE")
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
         serviceA.registerHandler("sayHelloTimeoutDelayedResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override

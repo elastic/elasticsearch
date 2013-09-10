@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -45,9 +46,7 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.fail;
 
 /**
  */
@@ -112,7 +111,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(5l));
+        assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
@@ -120,7 +119,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(5l));
+        assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
@@ -130,7 +129,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").geoDistance(GeoDistance.PLANE).point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(5l));
+        assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
@@ -141,7 +140,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
@@ -149,7 +148,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
@@ -158,7 +157,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
@@ -166,7 +165,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
@@ -175,7 +174,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
@@ -183,7 +182,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731).optimizeBbox("indexed")))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
@@ -192,13 +191,13 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").to("2.0km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
 
         searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceRangeFilter("location").from("2.0km").point(40.7143528, -74.0059731)))
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         // SORTING
@@ -207,29 +206,15 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("location").point(40.7143528, -74.0059731).order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(7l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(7));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("4"));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("5"));
-        assertThat(searchResponse.getHits().getAt(4).id(), equalTo("6"));
-        assertThat(searchResponse.getHits().getAt(5).id(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(6).id(), equalTo("7"));
+        assertHitCount(searchResponse, 7);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "4", "5", "6", "2", "7");
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("location").point(40.7143528, -74.0059731).order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(7l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(7));
-        assertThat(searchResponse.getHits().getAt(6).id(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(5).id(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(4).id(), equalTo("4"));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("5"));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("6"));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("7"));
+        assertHitCount(searchResponse, 7);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "7", "2", "6", "5", "4", "3", "1");
     }
 
     @Test
@@ -288,15 +273,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
 
         // Order: Asc, Mode: max
@@ -304,15 +285,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.ASC).sortMode("max"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
 
         // Order: Desc
@@ -320,15 +297,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
 
         // Order: Desc, Mode: min
@@ -336,45 +309,33 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.DESC).sortMode("min"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "3", "2", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
 
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
 
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");        
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
 
         try {
@@ -422,11 +383,9 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 2);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "2");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
 
         // Order: Desc
@@ -435,11 +394,9 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         // Doc with missing geo point is first, is consistent with 0.20.x
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(2));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
+        assertHitCount(searchResponse, 2);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "2", "1");        
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
     }
 
@@ -576,15 +533,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
 
         // Order: Asc, Mode: max
@@ -592,15 +545,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.ASC).sortMode("max"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
 
         // Order: Desc
@@ -608,15 +557,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
 
         // Order: Desc, Mode: min
@@ -624,30 +569,22 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.DESC).sortMode("min"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "3", "2", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
@@ -657,15 +594,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
@@ -675,15 +608,11 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertHitCount(searchResponse, 4);
+        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "1", "2", "3");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
-        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
-        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("3"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
 
         try {

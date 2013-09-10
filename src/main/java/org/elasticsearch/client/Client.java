@@ -540,4 +540,19 @@ public interface Client {
      */
     void explain(ExplainRequest request, ActionListener<ExplainResponse> listener);
 
+    /**
+     * Clears the search contexts associated with specified scroll ids.
+     */
+    ClearScrollRequestBuilder prepareClearScroll();
+
+    /**
+     * Clears the search contexts associated with specified scroll ids.
+     */
+    ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request);
+
+    /**
+     * Clears the search contexts associated with specified scroll ids.
+     */
+    void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
+
 }

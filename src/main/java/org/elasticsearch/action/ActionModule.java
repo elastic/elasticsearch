@@ -253,6 +253,7 @@ public class ActionModule extends AbstractModule {
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
         registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
+        registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

@@ -366,4 +366,19 @@ public abstract class AbstractClient implements InternalClient {
     public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
         execute(ExplainAction.INSTANCE, request, listener);
     }
+
+    @Override
+    public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
+        execute(ClearScrollAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request) {
+        return execute(ClearScrollAction.INSTANCE, request);
+    }
+
+    @Override
+    public ClearScrollRequestBuilder prepareClearScroll() {
+        return new ClearScrollRequestBuilder(this);
+    }
 }

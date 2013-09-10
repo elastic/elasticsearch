@@ -642,12 +642,13 @@ public interface IndicesAdminClient {
      *
      * @param name The name of the template.
      */
+    @Deprecated
     GetIndexTemplatesRequestBuilder prepareGetTemplates(String name);
 
     /**
-     * Gets all index templates.
+     * Gets an index template (optional).
      */
-    GetIndexTemplatesRequestBuilder prepareGetTemplates();
+    GetIndexTemplatesRequestBuilder prepareGetTemplates(String... name);
 
     /**
      * Validate a query for correctness.

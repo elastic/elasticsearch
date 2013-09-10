@@ -486,14 +486,14 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
         execute(GetIndexTemplatesAction.INSTANCE, request, listener);
     }
 
-    @Override
+    @Override @Deprecated
     public GetIndexTemplatesRequestBuilder prepareGetTemplates(String name) {
         return new GetIndexTemplatesRequestBuilder(this, name);
     }
 
     @Override
-    public GetIndexTemplatesRequestBuilder prepareGetTemplates() {
-        return new GetIndexTemplatesRequestBuilder(this, "*");
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String... names) {
+        return new GetIndexTemplatesRequestBuilder(this, names);
     }
 
     @Override

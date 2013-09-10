@@ -38,6 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 /**
  *
@@ -54,11 +55,9 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String name = request.param("name");
-        if (name == null || name.isEmpty()) {
-            name = "*";
-        }
-        GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(name);
+        final String[] names = splitIndices(request.param("name"));
+
+        GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.listenerThreaded(false);
 
         client.admin().indices().getTemplates(getIndexTemplatesRequest, new ActionListener<GetIndexTemplatesResponse>() {

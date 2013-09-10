@@ -25,54 +25,75 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 /**
  *
  */
 public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetIndexTemplatesRequest> {
 
-    private String name;
+    private String[] names;
 
     public GetIndexTemplatesRequest() {}
 
+    @Deprecated
     public GetIndexTemplatesRequest(String name) {
-        this.name = name;
+        this.names = new String[1];
+        this.names[0] = name;
+    }
+
+    public GetIndexTemplatesRequest(String... names) {
+        this.names = names;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("name is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     /**
      * Sets the name of the index template.
      */
+    @Deprecated
     public GetIndexTemplatesRequest name(String name) {
-        this.name = name;
+        this.names = new String[1];
+        this.names[0] = name;
         return this;
     }
 
     /**
      * The name of the index template.
      */
+    @Deprecated
     public String name() {
-        return this.name;
+        if (this.names != null && this.names.length > 0) {
+            return this.names[0];
+        }
+        return null;
+    }
+
+    /**
+     * Sets the names of the index templates.
+     */
+    public GetIndexTemplatesRequest names(String... names) {
+        this.names = names;
+        return this;
+    }
+
+    /**
+     * The names of the index templates.
+     */
+    public String[] names() {
+        return this.names;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        name = in.readString();
+        names = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(name);
+        out.writeStringArray(names);
     }
 }

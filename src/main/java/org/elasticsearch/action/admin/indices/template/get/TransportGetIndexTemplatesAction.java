@@ -68,14 +68,21 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeOperati
     protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) throws ElasticSearchException {
         List<IndexTemplateMetaData> results = Lists.newArrayList();
 
-        if (Regex.isSimpleMatchPattern(request.name())) {
-            for (Map.Entry<String, IndexTemplateMetaData> entry : state.metaData().templates().entrySet()) {
-                if (Regex.simpleMatch(request.name(), entry.getKey())) {
-                    results.add(entry.getValue());
+        // If we did not ask for a specific name, then we return all templates
+        if (request.names().length == 0) {
+            results.addAll(state.metaData().templates().values());
+        }
+
+        for (String name : request.names()) {
+            if (Regex.isSimpleMatchPattern(name)) {
+                for (Map.Entry<String, IndexTemplateMetaData> entry : state.metaData().templates().entrySet()) {
+                    if (Regex.simpleMatch(name, entry.getKey())) {
+                        results.add(entry.getValue());
+                    }
                 }
+            } else if (state.metaData().templates().containsKey(name)) {
+                results.add(state.metaData().templates().get(name));
             }
-        } else if (state.metaData().templates().containsKey(request.name())) {
-            results.add(state.metaData().templates().get(request.name()));
         }
 
         listener.onResponse(new GetIndexTemplatesResponse(results));

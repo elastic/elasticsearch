@@ -23,11 +23,11 @@ import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 
 import java.io.IOException;
 
@@ -55,7 +55,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
             multiPercolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
         }
 
-        multiPercolateRequest.indices(RestActions.splitIndices(restRequest.param("index")));
+        multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
 
         try {

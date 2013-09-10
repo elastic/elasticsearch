@@ -24,11 +24,11 @@ import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -51,8 +51,8 @@ public class RestPutWarmerAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
         putWarmerRequest.listenerThreaded(false);
-        SearchRequest searchRequest = new SearchRequest(RestActions.splitIndices(request.param("index")))
-                .types(RestActions.splitTypes(request.param("type")))
+        SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
+                .types(Strings.splitStringByCommaToArray(request.param("type")))
                 .source(request.content(), request.contentUnsafe());
         putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));

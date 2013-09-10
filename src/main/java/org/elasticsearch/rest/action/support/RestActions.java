@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.support;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -101,26 +100,5 @@ public class RestActions {
             }
         }
         return queryBuilder.buildAsBytes();
-    }
-
-    public static String[] splitIndices(String indices) {
-        if (indices == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(indices);
-    }
-
-    public static String[] splitTypes(String typeNames) {
-        if (typeNames == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(typeNames);
-    }
-
-    public static String[] splitNodes(String nodes) {
-        if (nodes == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(nodes);
     }
 }

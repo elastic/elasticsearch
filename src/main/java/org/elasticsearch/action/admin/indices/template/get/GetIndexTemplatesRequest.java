@@ -21,10 +21,13 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  *
@@ -47,7 +50,17 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (names == null) {
+            validationException = addValidationError("names is null", validationException);
+        } else {
+            for (String name : names) {
+                if (name == null || !Strings.hasText(name)) {
+                    validationException = addValidationError("name is missing", validationException);
+                }
+            }
+        }
+        return validationException;
     }
 
     /**

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.indices.template;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
@@ -237,4 +238,29 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
         templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
     }
+
+    @Test
+    public void testThatInvalidGetIndexTemplatesFails() throws Exception {
+        logger.info("--> get template null");
+        testExpectActionRequestValidationException(null);
+
+        logger.info("--> get template empty");
+        testExpectActionRequestValidationException("");
+
+        logger.info("--> get template 'a', '', 'c'");
+        testExpectActionRequestValidationException("a", "", "c");
+
+        logger.info("--> get template 'a', null, 'c'");
+        testExpectActionRequestValidationException("a", null, "c");
+    }
+
+    private void testExpectActionRequestValidationException(String... names) {
+        try {
+            client().admin().indices().prepareGetTemplates(names).execute().actionGet();
+            fail("We should have raised an ActionRequestValidationException for " + names);
+        } catch (ActionRequestValidationException e) {
+            // That's fine!
+        }
+    }
+
 }

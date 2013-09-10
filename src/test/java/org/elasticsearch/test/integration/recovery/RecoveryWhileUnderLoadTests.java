@@ -28,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.junit.annotations.TestLogging;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -49,7 +50,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 
-    @Test
+    @Test @TestLogging("org.elasticsearch.action.search.type:TRACE,org.elasticsearch.action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
         logger.info("--> creating test index ...");

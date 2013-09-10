@@ -508,6 +508,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         context.release();
     }
 
+    public void freeAllScrollContexts() {
+        for (SearchContext searchContext : activeContexts.values()) {
+            if (searchContext.scroll() != null) {
+                freeContext(searchContext);
+            }
+        }
+    }
+
     private void contextProcessing(SearchContext context) {
         // disable timeout while executing a search
         context.accessed(-1);

@@ -127,3 +127,20 @@ returned. The total_hits will be maintained between scroll requests.
 
 Note, scan search type does not support sorting (either on score or a
 field) or faceting.
+
+=== Clear scroll api
+
+added[0.90.4]
+
+Besides consuming the scroll search until no hits has been returned a scroll
+search can also be aborted by deleting the `scroll_id`. This can be done via
+the clear scroll api. When the the `scroll_id` has been deleted also all the
+resources to keep the view open will cleaned open. Example usage:
+
+[source,js]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/_search/scroll/c2NhbjsxOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7MzowSzM3aVhLalNiMmR5ZlVET3hSTmZ3OzU6MEszN2lYS2pTYjJkeWZVRE94Uk5mdzsyOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7NDowSzM3aVhLalNiMmR5ZlVET3hSTmZ3Ow=='
+--------------------------------------------------
+
+Multiple scroll ids can be specified in a comma separated manner, if no id is
+specified then all scroll ids will be cleared up.

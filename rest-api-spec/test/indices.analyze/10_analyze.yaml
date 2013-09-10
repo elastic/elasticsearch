@@ -1,3 +1,9 @@
+# Will be performed before each test as a part of the test setup
+#
+setup:
+  - do:
+      ping: {}
+
 ---
 "Basic test":
     - do:

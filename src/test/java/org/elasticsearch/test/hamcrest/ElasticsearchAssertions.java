@@ -114,6 +114,15 @@ public class ElasticsearchAssertions {
         }
         assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs." + shardStatus, idsSet.size(), equalTo(0));
     }
+    
+    public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
+        String shardStatus = formatShardStatus(searchResponse);
+        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
+        for (int i=0; i<ids.length; i++) {
+            SearchHit hit = searchResponse.getHits().hits()[i];
+            assertThat("Expected id: " + hit.getId() + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
+        }
+    }
 
     public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
         if (countResponse.getCount() != expectedHitCount) {

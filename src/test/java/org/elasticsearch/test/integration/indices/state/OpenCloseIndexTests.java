@@ -252,7 +252,7 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         assertIndexIsOpened("test1");
     }
 
-    @Test @TestLogging("org.elasticsearch.cluster.metadata:TRACE")
+    @Test @TestLogging("cluster.metadata:TRACE")
     public void testCloseOpenAliasMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2");

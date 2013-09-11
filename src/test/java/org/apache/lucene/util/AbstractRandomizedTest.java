@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.rules.NoClassHooksShadowingRule;
 import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
@@ -42,6 +43,7 @@ import org.junit.runner.RunWith;
 
 import java.io.Closeable;
 import java.io.File;
+import java.lang.annotation.*;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +62,16 @@ import java.util.logging.Logger;
 // NOTE: this class is in o.a.lucene.util since it uses some classes that are related
 // to the test framework that didn't make sense to copy but are package private access
 public class AbstractRandomizedTest extends RandomizedTest {
+    
+    /**
+     * Annotation for integration tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = true, sysProperty = SYSPROP_INTEGRATION)
+    public @interface IntegrationTests {}
+    
     // --------------------------------------------------------------------
     // Test groups, system properties and other annotations modifying tests
     // --------------------------------------------------------------------
@@ -69,6 +81,8 @@ public class AbstractRandomizedTest extends RandomizedTest {
 
     /** @see #ignoreAfterMaxFailures*/
     public static final String SYSPROP_FAILFAST = "tests.failfast";
+    
+    public static final String SYSPROP_INTEGRATION = "tests.integration";
 
     // -----------------------------------------------------------------
     // Truly immutable fields and constants, initialized once and valid 

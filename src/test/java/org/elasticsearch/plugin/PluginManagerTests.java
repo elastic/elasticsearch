@@ -27,7 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.node.internal.InternalSettingsPerparer;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.AbstractNodesTests;
@@ -102,7 +102,7 @@ public class PluginManagerTests extends AbstractNodesTests {
     }
 
     private static PluginManager pluginManager(String pluginUrl) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());

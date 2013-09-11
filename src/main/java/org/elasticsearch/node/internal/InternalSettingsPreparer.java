@@ -33,7 +33,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 /**
  *
  */
-public class InternalSettingsPerparer {
+public class InternalSettingsPreparer {
 
     public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings) {
         // ignore this prefixes when getting properties from es. and elasticsearch.

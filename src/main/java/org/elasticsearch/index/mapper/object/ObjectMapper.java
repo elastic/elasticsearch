@@ -518,11 +518,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             } else if (dynamic == Dynamic.TRUE) {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
-                boolean newMapper = false;
                 synchronized (mutex) {
                     objectMapper = mappers.get(currentFieldName);
                     if (objectMapper == null) {
-                        newMapper = true;
                         // remove the current field name from path, since template search and the object builder add it as well...
                         context.path().remove();
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
@@ -535,21 +533,38 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                         BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
-                        putMapper(objectMapper);
                         // ...now re add it
                         context.path().add(currentFieldName);
                         context.setMappingsModified();
+
+                        if (context.isWithinNewMapper()) {
+                            // within a new mapper, no need to traverse, just parse
+                            objectMapper.parse(context);
+                        } else {
+                            // create a context of new mapper, so we batch aggregate all the changes within
+                            // this object mapper once, and traverse all of them to add them in a single go
+                            context.setWithinNewMapper();
+                            try {
+                                objectMapper.parse(context);
+                                FieldMapperListener.Aggregator newFields = new FieldMapperListener.Aggregator();
+                                ObjectMapperListener.Aggregator newObjects = new ObjectMapperListener.Aggregator();
+                                objectMapper.traverse(newFields);
+                                objectMapper.traverse(newObjects);
+                                // callback on adding those fields!
+                                context.docMapper().addFieldMappers(newFields.mappers);
+                                context.docMapper().addObjectMappers(newObjects.mappers);
+                            } finally {
+                                context.clearWithinNewMapper();
+                            }
+                        }
+
+                        // only put after we traversed and did the callbacks, so other parsing won't see it only after we
+                        // properly traversed it and adding the mappers
+                        putMapper(objectMapper);
+                    } else {
+                        objectMapper.parse(context);
                     }
                 }
-                // traverse and parse outside of the mutex
-                if (newMapper) {
-                    // we need to traverse in case we have a dynamic template and need to add field mappers
-                    // introduced by it
-                    objectMapper.traverse(context.newFieldMappers());
-                    objectMapper.traverse(context.newObjectMappers());
-                }
-                // now, parse it
-                objectMapper.parse(context);
             } else {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
@@ -607,11 +622,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // we sync here since we don't want to add this field twice to the document mapper
         // its not the end of the world, since we add it to the mappers once we create it
         // so next time we won't even get here for this field
-        boolean newMapper = false;
         synchronized (mutex) {
             mapper = mappers.get(currentFieldName);
             if (mapper == null) {
-                newMapper = true;
                 BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                 if (token == XContentParser.Token.VALUE_STRING) {
                     boolean resolved = false;
@@ -765,14 +778,29 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         throw new ElasticSearchIllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
                     }
                 }
+
+                if (context.isWithinNewMapper()) {
+                    mapper.parse(context);
+                } else {
+                    context.setWithinNewMapper();
+                    try {
+                        mapper.parse(context);
+                        FieldMapperListener.Aggregator newFields = new FieldMapperListener.Aggregator();
+                        mapper.traverse(newFields);
+                        context.docMapper().addFieldMappers(newFields.mappers);
+                    } finally {
+                        context.clearWithinNewMapper();
+                    }
+                }
+
+                // only put after we traversed and did the callbacks, so other parsing won't see it only after we
+                // properly traversed it and adding the mappers
                 putMapper(mapper);
                 context.setMappingsModified();
+            } else {
+                mapper.parse(context);
             }
         }
-        if (newMapper) {
-            mapper.traverse(context.newFieldMappers());
-        }
-        mapper.parse(context);
     }
 
     @Override

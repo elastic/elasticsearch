@@ -1,0 +1,29 @@
+{
+    "index":{
+        "analysis":{
+            "analyzer":{
+                "commongramsAnalyzer":{
+                    "tokenizer":"whitespace",
+                    "filter":[ "common_grams" ]
+                },
+                "commongramsAnalyzer_file":{
+                    "tokenizer":"whitespace",
+                    "filter":[ "common_grams_file" ]
+                }
+            },
+            "filter":{
+                "common_grams":{
+                    "type":"common_grams",
+                    "common_words":[
+                        "brown",
+                        "fox"
+                    ]
+                },
+                "common_grams_file":{
+                    "type":"common_grams",
+                    "common_words_path":"org/elasticsearch/index/analysis/commongrams/common_words.txt"
+                }
+            }
+        }
+    }
+}

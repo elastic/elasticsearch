@@ -20,6 +20,7 @@ package org.elasticsearch;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
+import org.apache.lucene.util.AbstractRandomizedTest.IntegrationTests;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -80,6 +81,7 @@ import static org.hamcrest.Matchers.equalTo;
  * transient settings the baseclass will raise and error.
  */
 @Ignore
+@IntegrationTests
 public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     private static TestCluster cluster;

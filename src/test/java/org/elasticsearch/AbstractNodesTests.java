@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.util.AbstractRandomizedTest.IntegrationTests;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -39,11 +40,12 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 @Ignore
+@IntegrationTests
 public abstract class AbstractNodesTests extends ElasticsearchTestCase {
     private static Map<String, Node> nodes = newHashMap();
 

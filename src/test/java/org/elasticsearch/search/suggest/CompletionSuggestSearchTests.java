@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -39,7 +40,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -370,6 +370,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "multi_field")
+                .field("path", "just_name")
                 .startObject("fields")
                 .startObject(FIELD).field("type", "string").endObject()
                 .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
@@ -381,7 +382,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field(FIELD + ".suggest").text("f").size(10)
+                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
@@ -389,7 +390,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         waitForRelocation(ClusterHealthStatus.GREEN);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field(FIELD + ".suggest").text("f").size(10)
+                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
@@ -684,7 +685,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
             client().admin().indices().prepareOptimize(INDEX).execute().actionGet();
         }
     }
-    
+
     @Test // see #3555
     public void testPrunedSegments() throws IOException {
         createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0), "standard", "standard", false, false, false);
@@ -696,7 +697,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         ).get();
         client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder()
                 .startObject()
-                    .field("somefield", "somevalue")
+                .field("somefield", "somevalue")
                 .endObject()
         ).get(); // we have 2 docs in a segment...
         OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).setRefresh(true).execute().actionGet();
@@ -704,7 +705,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         // update the first one and then merge.. the target segment will have no value in FIELD
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject()
-                    .field("somefield", "somevalue")
+                .field("somefield", "somevalue")
                 .endObject()
         ).get();
         actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).setRefresh(true).execute().actionGet();
@@ -712,27 +713,27 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
 
         assertSuggestions("b");
         assertThat(2l, equalTo(client().prepareCount(INDEX).get().getCount()));
-        for(IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
+        for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {
                 assertThat(1, equalTo(shardSegments.getSegments().size()));
             }
         }
     }
-    
+
     @Test
     public void testMaxFieldLength() throws IOException {
         client().admin().indices().prepareCreate(INDEX).get();
         int iters = atLeast(10);
         for (int i = 0; i < iters; i++) {
             int len = between(3, 50);
-            String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(len+1, atLeast(len + 2)), (char)0x01);
+            String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(len + 1, atLeast(len + 2)), (char) 0x01);
             ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
                     .field("type", "completion")
                     .field("max_input_len", len)
-                    // upgrade mapping each time
+                            // upgrade mapping each time
                     .field("analyzer", "keyword")
                     .endObject()
                     .endObject().endObject()
@@ -748,14 +749,14 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
             assertSuggestions(str.substring(0, prefixLen), "foobar");
             if (len + 1 < str.length()) {
                 assertSuggestions(str.substring(0, CompletionFieldMapper.correctSubStringLen(str,
-                        len + (Character.isHighSurrogate(str.charAt(len-1)) ? 2 : 1))));
+                        len + (Character.isHighSurrogate(str.charAt(len - 1)) ? 2 : 1))));
             }
-        }        
+        }
     }
-    
+
     @Test
     // see #3596
-    public void testVeryLongInput()  throws IOException {
+    public void testVeryLongInput() throws IOException {
         client().admin().indices().prepareCreate(INDEX).get();
         ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -766,19 +767,19 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .endObject()));
         ensureYellow();
         // can cause stack overflow without the default max_input_len
-        String longString = replaceReservedChars(randomRealisticUnicodeOfLength(atLeast(5000)), (char)0x01);
+        String longString = replaceReservedChars(randomRealisticUnicodeOfLength(atLeast(5000)), (char) 0x01);
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
                 .startArray("input").value(longString).endArray()
                 .field("output", "foobar")
                 .endObject().endObject()
         ).setRefresh(true).get();
-        
+
     }
-    
+
     // see #3648
     @Test(expected = MapperParsingException.class)
-    public void testReservedChars()  throws IOException {
+    public void testReservedChars() throws IOException {
         client().admin().indices().prepareCreate(INDEX).get();
         ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -789,16 +790,16 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .endObject()));
         ensureYellow();
         // can cause stack overflow without the default max_input_len
-        String string = "foo" + (char)0x00 +  "bar";
+        String string = "foo" + (char) 0x00 + "bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
                 .startArray("input").value(string).endArray()
                 .field("output", "foobar")
                 .endObject().endObject()
         ).setRefresh(true).get();
-        
+
     }
-    
+
     private static String replaceReservedChars(String input, char replacement) {
         char[] charArray = input.toCharArray();
         for (int i = 0; i < charArray.length; i++) {

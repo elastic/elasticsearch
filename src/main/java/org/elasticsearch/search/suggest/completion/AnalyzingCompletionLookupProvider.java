@@ -31,8 +31,11 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.ByteSequenceOutputs;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
+import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
@@ -50,10 +53,10 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     private static final int MAX_SURFACE_FORMS_PER_ANALYZED_FORM = 256;
     private static final int MAX_GRAPH_EXPANSIONS = -1;
-    
+
     public static final String CODEC_NAME = "analyzing";
     public static final int CODEC_VERSION = 1;
-    
+
     private boolean preserveSep;
     private boolean preservePositionIncrements;
     private int maxSurfaceFormsPerAnalyzedForm;
@@ -84,6 +87,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION);
         return new FieldsConsumer() {
             private Map<FieldInfo, Long> fieldOffsets = new HashMap<FieldInfo, Long>();
+
             @Override
             public void close() throws IOException {
                 try { /*
@@ -179,7 +183,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             analyzingSuggestLookupProvider.parsePayload(payload, spare);
             builder.addSurface(spare.surfaceForm, spare.payload, spare.weight);
             // multi fields have the same surface form so we sum up here
-            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position+1);
+            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
         }
 
         @Override
@@ -189,7 +193,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         public int getMaxAnalyzedPathsForOneInput() {
             return maxAnalyzedPathsForOneInput;
         }
-    };
+    }
+
+    ;
 
 
     @Override
@@ -225,11 +231,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         return new LookupFactory() {
             @Override
             public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
-                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().fullName());
+                AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
-                int flags = analyzingSuggestHolder.preserveSep? XAnalyzingSuggester.PRESERVE_SEP : 0;
+                int flags = analyzingSuggestHolder.preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
 
                 XAnalyzingSuggester suggester;
                 if (suggestionContext.isFuzzy()) {
@@ -251,14 +257,14 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             }
 
             @Override
-            public CompletionStats stats(String ... fields) {
+            public CompletionStats stats(String... fields) {
                 long sizeInBytes = 0;
                 TObjectLongHashMap<String> completionFields = null;
-                if (fields != null  && fields.length > 0) {
+                if (fields != null && fields.length > 0) {
                     completionFields = new TObjectLongHashMap<String>(fields.length);
                 }
 
-                for (Map.Entry<String, AnalyzingSuggestHolder> entry: lookupMap.entrySet()) {
+                for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {
                     sizeInBytes += entry.getValue().fst.sizeInBytes();
                     if (fields == null || fields.length == 0) {
                         continue;

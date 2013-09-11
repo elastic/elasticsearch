@@ -5,7 +5,7 @@ import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;

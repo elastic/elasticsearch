@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.junit.annotations.TestLogging;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.junit.After;
@@ -272,6 +273,8 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     }
 
     @Test
+    // Need to omit org.elast
+    @TestLogging("action.percolate:TRACE")
     public void testMultiPercolator_recovery() throws Exception {
         percolatorRecovery(true);
     }

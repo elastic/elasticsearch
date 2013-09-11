@@ -123,8 +123,6 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         private String preference;
         private List<Item> items;
 
-        private volatile boolean done = false;
-
         public Request() {
         }
 

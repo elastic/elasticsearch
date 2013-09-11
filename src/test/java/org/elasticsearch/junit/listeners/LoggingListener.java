@@ -20,6 +20,7 @@ package org.elasticsearch.junit.listeners;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.junit.annotations.TestLogging;
 import org.junit.runner.Description;
 import org.junit.runner.notification.RunListener;
@@ -75,6 +76,6 @@ public class LoggingListener extends RunListener {
         if (loggerName.equalsIgnoreCase("_root")) {
             return ESLoggerFactory.getRootLogger();
         }
-        return ESLoggerFactory.getLogger(loggerName);
+        return Loggers.getLogger(loggerName);
     }
 }

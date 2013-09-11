@@ -42,6 +42,8 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
 
         double from = Double.NEGATIVE_INFINITY;
         double to = Double.POSITIVE_INFINITY;
+        boolean fromIsInclusive = true;
+        boolean toIsInclusive = false;
         String fromAsString;
         String toAsString;
         long count;
@@ -60,6 +62,14 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
 
         public double getFrom() {
             return this.from;
+        }
+
+        public boolean getFromIsInclusive() {
+            return fromIsInclusive;
+        }
+
+        public boolean getToIsInclusive() {
+            return toIsInclusive;
         }
 
         public String getFromAsString() {

@@ -112,7 +112,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             this.preservePositionIncrements = preservePositionIncrements;
             return this;
         }
-        
+
         public Builder maxInputLength(int maxInputLength) {
             if (maxInputLength <= 0) {
                 throw new ElasticSearchIllegalArgumentException(Fields.MAX_INPUT_LENGTH + " must be > 0 but was [" + maxInputLength + "]");
@@ -175,7 +175,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         private NamedAnalyzer getNamedAnalyzer(ParserContext parserContext, String name) {
             NamedAnalyzer analyzer = parserContext.analysisService().analyzer(name);
             if (analyzer == null) {
-                throw new ElasticSearchIllegalArgumentException("Can't find default or mapped analyzer with name [" + name +"]");
+                throw new ElasticSearchIllegalArgumentException("Can't find default or mapped analyzer with name [" + name + "]");
             }
             return analyzer;
         }
@@ -280,21 +280,21 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         final String originalInput = input;
         if (input.length() > maxInputLength) {
             final int len = correctSubStringLen(input, Math.min(maxInputLength, input.length()));
-            input = input.substring(0, len);    
+            input = input.substring(0, len);
         }
         for (int i = 0; i < input.length(); i++) {
             if (isReservedChar(input.charAt(i))) {
                 throw new ElasticSearchIllegalArgumentException("Illegal input [" + originalInput + "] UTF-16 codepoint  [0x"
-                        + Integer.toHexString((int) input.charAt(i)).toUpperCase(Locale.ROOT)                        
+                        + Integer.toHexString((int) input.charAt(i)).toUpperCase(Locale.ROOT)
                         + "] at position " + i + " is a reserved character");
             }
         }
-        return new SuggestField(names().fullName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
+        return new SuggestField(names.indexName(), input, this.fieldType, payload, analyzingSuggestLookupProvider);
     }
-    
+
     public static int correctSubStringLen(String input, int len) {
-        if (Character.isHighSurrogate(input.charAt(len-1))) {
-            assert input.length() >= len+1  && Character.isLowSurrogate(input.charAt(len));
+        if (Character.isHighSurrogate(input.charAt(len - 1))) {
+            assert input.length() >= len + 1 && Character.isLowSurrogate(input.charAt(len));
             return len + 1;
         }
         return len;
@@ -308,7 +308,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     private static final class SuggestField extends Field {
         private final BytesRef payload;
         private final CompletionTokenStream.ToFiniteStrings toFiniteStrings;
-        
+
         public SuggestField(String name, Reader value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
             super(name, value, type);
             this.payload = payload;
@@ -342,7 +342,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         builder.field(Fields.PAYLOADS, this.payloads);
         builder.field(Fields.PRESERVE_SEPARATORS, this.preserveSeparators);
         builder.field(Fields.PRESERVE_POSITION_INCREMENTS, this.preservePositionIncrements);
-        builder.field(Fields.MAX_INPUT_LENGTH, this.maxInputLength);    
+        builder.field(Fields.MAX_INPUT_LENGTH, this.maxInputLength);
         return builder.endObject();
     }
 
@@ -379,7 +379,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     public boolean isStoringPayloads() {
         return payloads;
     }
-    
+
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
@@ -387,19 +387,19 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         if (payloads != fieldMergeWith.payloads) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different payload values");
         }
-        if (preservePositionIncrements != fieldMergeWith.preservePositionIncrements) { 
+        if (preservePositionIncrements != fieldMergeWith.preservePositionIncrements) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'preserve_position_increments' values");
         }
-        if (preserveSeparators != fieldMergeWith.preserveSeparators) {    
+        if (preserveSeparators != fieldMergeWith.preserveSeparators) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'preserve_separators' values");
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.maxInputLength = fieldMergeWith.maxInputLength;
         }
     }
-    
+
     private static final char END_LABEL = 0x00;
-    
+
     // this should be package private but our tests don't allow it.
     public static boolean isReservedChar(char character) {
         /* we also use 0xFF as a SEP_LABEL in the suggester but it's not valid UTF-8 so no need to check.

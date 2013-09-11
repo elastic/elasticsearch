@@ -21,7 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 

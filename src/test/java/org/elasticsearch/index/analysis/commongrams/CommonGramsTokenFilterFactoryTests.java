@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.ElasticSearchTokenStreamTestCase;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.junit.Assert;
 import org.junit.Test;

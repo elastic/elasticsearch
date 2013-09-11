@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 

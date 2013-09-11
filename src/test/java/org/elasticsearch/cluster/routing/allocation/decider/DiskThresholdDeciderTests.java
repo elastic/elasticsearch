@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;

@@ -35,7 +35,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
-import org.elasticsearch.test.integration.ElasticsearchLuceneTestCase;
+import org.elasticsearch.ElasticsearchLuceneTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.settings.bar.BarTestClass;
 import org.elasticsearch.common.settings.foo.FooTestClass;
 import org.junit.Test;

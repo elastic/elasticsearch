@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
-import org.elasticsearch.test.integration.search.suggest.SuggestSearchTests;
+import org.elasticsearch.search.suggest.SuggestSearchTests;
 
 import java.util.Arrays;
 

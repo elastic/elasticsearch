@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

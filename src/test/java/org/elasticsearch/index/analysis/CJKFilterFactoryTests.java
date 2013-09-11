@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

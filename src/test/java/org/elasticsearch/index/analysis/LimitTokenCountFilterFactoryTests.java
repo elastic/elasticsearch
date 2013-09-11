@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

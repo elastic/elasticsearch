@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.regex;
 
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Random;

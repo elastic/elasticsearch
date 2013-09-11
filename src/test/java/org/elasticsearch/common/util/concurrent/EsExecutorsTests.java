@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.base.Predicate;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;

@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.integration.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

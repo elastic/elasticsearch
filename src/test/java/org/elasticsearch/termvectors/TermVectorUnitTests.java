@@ -28,6 +28,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.ElasticsearchLuceneTestCase;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.action.termvector.TermVectorResponse;
@@ -50,7 +51,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorUnitTests extends org.elasticsearch.test.integration.ElasticsearchLuceneTestCase {
+public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void streamResponse() throws Exception {

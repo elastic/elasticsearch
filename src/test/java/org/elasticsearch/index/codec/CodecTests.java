@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.test.integration.ElasticsearchLuceneTestCase;
+import org.elasticsearch.ElasticsearchLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
 

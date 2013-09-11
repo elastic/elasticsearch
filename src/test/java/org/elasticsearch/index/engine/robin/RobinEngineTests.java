@@ -58,7 +58,7 @@ import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
 import org.elasticsearch.index.engine.EngineSearcherTotalHitsMatcher;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;

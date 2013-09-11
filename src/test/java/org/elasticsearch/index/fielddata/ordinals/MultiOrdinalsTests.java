@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.integration.ElasticsearchTestCase;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

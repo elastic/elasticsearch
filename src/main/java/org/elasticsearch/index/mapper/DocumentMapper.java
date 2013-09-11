@@ -272,7 +272,7 @@ public class DocumentMapper implements ToXContent {
 
     private final Filter typeFilter;
 
-    private final Object mutex = new Object();
+    private final Object mappersMutex = new Object();
 
     private boolean initMappersAdded = true;
 
@@ -512,16 +512,6 @@ public class DocumentMapper implements ToXContent {
                 parser.nextToken();
             }
 
-            // fire up any new mappers if exists
-            if (!context.newFieldMappers().mappers.isEmpty()) {
-                addFieldMappers(context.newFieldMappers().mappers);
-                context.newFieldMappers().mappers.clear();
-            }
-            if (!context.newObjectMappers().mappers.isEmpty()) {
-                addObjectMappers(context.newObjectMappers().mappers);
-                context.newObjectMappers().mappers.clear();
-            }
-
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
             }
@@ -530,18 +520,6 @@ public class DocumentMapper implements ToXContent {
                 rootMapper.validate(context);
             }
         } catch (Throwable e) {
-            // we have to fire up any new mappers even on a failure, because they
-            // have been added internally to each compound mapper...
-            // ... we have no option to "rollback" a change, which is very tricky in our copy on change system...
-            if (!context.newFieldMappers().mappers.isEmpty()) {
-                addFieldMappers(context.newFieldMappers().mappers);
-                context.newFieldMappers().mappers.clear();
-            }
-            if (!context.newObjectMappers().mappers.isEmpty()) {
-                addObjectMappers(context.newObjectMappers().mappers);
-                context.newObjectMappers().mappers.clear();
-            }
-
             // if its already a mapper parsing exception, no need to wrap it...
             if (e instanceof MapperParsingException) {
                 throw (MapperParsingException) e;
@@ -586,12 +564,12 @@ public class DocumentMapper implements ToXContent {
         return doc;
     }
 
-    private void addFieldMappers(Collection<FieldMapper> fieldMappers) {
+    public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
         addFieldMappers(fieldMappers.toArray(new FieldMapper[fieldMappers.size()]));
     }
 
     private void addFieldMappers(FieldMapper... fieldMappers) {
-        synchronized (mutex) {
+        synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
         }
         for (FieldMapperListener listener : fieldMapperListeners) {
@@ -615,12 +593,12 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.traverse(listener);
     }
 
-    private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+    public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         addObjectMappers(objectMappers.toArray(new ObjectMapper[objectMappers.size()]));
     }
 
     private void addObjectMappers(ObjectMapper... objectMappers) {
-        synchronized (mutex) {
+        synchronized (mappersMutex) {
             MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
                 builder.put(objectMapper.fullPath(), objectMapper);

@@ -73,6 +73,7 @@ public class ParseContext {
     private Map<String, String> ignoredValues = new HashMap<String, String>();
 
     private boolean mappingsModified = false;
+    private boolean withinNewMapper = false;
 
     private boolean externalValueSet;
 
@@ -81,9 +82,6 @@ public class ParseContext {
     private AllEntries allEntries = new AllEntries();
 
     private float docBoost = 1.0f;
-
-    private FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
-    private ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
 
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
@@ -109,24 +107,15 @@ public class ParseContext {
         this.source = source == null ? null : sourceToParse.source();
         this.path.reset();
         this.mappingsModified = false;
+        this.withinNewMapper = false;
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
         this.docBoost = 1.0f;
-        this.newFieldMappers.mappers.clear();
-        this.newObjectMappers.mappers.clear();
     }
 
     public boolean flyweight() {
         return sourceToParse.flyweight();
-    }
-
-    public FieldMapperListener.Aggregator newFieldMappers() {
-        return newFieldMappers;
-    }
-
-    public ObjectMapperListener.Aggregator newObjectMappers() {
-        return newObjectMappers;
     }
 
     public DocumentMapperParser docMapperParser() {
@@ -139,6 +128,18 @@ public class ParseContext {
 
     public void setMappingsModified() {
         this.mappingsModified = true;
+    }
+
+    public void setWithinNewMapper() {
+        this.withinNewMapper = true;
+    }
+
+    public void clearWithinNewMapper() {
+        this.withinNewMapper = false;
+    }
+
+    public boolean isWithinNewMapper() {
+        return withinNewMapper;
     }
 
     public String index() {

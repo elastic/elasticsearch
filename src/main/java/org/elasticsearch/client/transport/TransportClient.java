@@ -72,7 +72,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.internal.InternalSettingsPerparer;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.TransportSearchModule;
@@ -155,7 +155,7 @@ public class TransportClient extends AbstractClient {
      * @throws ElasticSearchException
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
         Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)

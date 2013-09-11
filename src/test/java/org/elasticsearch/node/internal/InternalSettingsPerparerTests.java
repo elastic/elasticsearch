@@ -43,11 +43,11 @@ public class InternalSettingsPerparerTests {
 
     @Test
     public void testIgnoreSystemProperties() {
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(settingsBuilder().put("node.zone", "bar").build(), true);
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder().put("node.zone", "bar").build(), true);
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("foo"));
 
-        tuple = InternalSettingsPerparer.prepareSettings(settingsBuilder().put("config.ignore_system_properties", true).put("node.zone", "bar").build(), true);
+        tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder().put("config.ignore_system_properties", true).put("node.zone", "bar").build(), true);
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("bar"));
     }

@@ -35,7 +35,7 @@ import java.util.Map.Entry;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DuellFieldDataTests extends AbstractFieldDataTests {
+public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
@@ -49,7 +49,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
     }
 
     @Test
-    public void testDuellAllTypesSingleValue() throws Exception {
+    public void testDuelAllTypesSingleValue() throws Exception {
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
@@ -69,7 +69,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             }
         }
         AtomicReaderContext context = refreshReader();
-        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuellFieldDataTests.Type>();
+        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
         typeMap.put(new FieldDataType("byte"), Type.Integer);
@@ -95,21 +95,21 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             ifdService.clear();
             IndexFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
-            duellFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
-            duellFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
+            duelFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
+            duelFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
 
             DirectoryReader perSegment = DirectoryReader.open(writer, true);
             CompositeReaderContext composite = perSegment.getContext();
             List<AtomicReaderContext> leaves = composite.leaves();
             for (AtomicReaderContext atomicReaderContext : leaves) {
-                duellFieldDataBytes(random, atomicReaderContext, leftFieldData, rightFieldData, pre);
+                duelFieldDataBytes(random, atomicReaderContext, leftFieldData, rightFieldData, pre);
             }
         }
     }
 
 
     @Test
-    public void testDuellIntegers() throws Exception {
+    public void testDuelIntegers() throws Exception {
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
@@ -128,7 +128,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             }
         }
         AtomicReaderContext context = refreshReader();
-        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuellFieldDataTests.Type>();
+        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
         typeMap.put(new FieldDataType("byte"), Type.Integer);
         typeMap.put(new FieldDataType("short"), Type.Integer);
         typeMap.put(new FieldDataType("int"), Type.Integer);
@@ -149,21 +149,21 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             ifdService.clear();
             IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
-            duellFieldDataLong(random, context, leftFieldData, rightFieldData);
-            duellFieldDataLong(random, context, rightFieldData, leftFieldData);
+            duelFieldDataLong(random, context, leftFieldData, rightFieldData);
+            duelFieldDataLong(random, context, rightFieldData, leftFieldData);
 
             DirectoryReader perSegment = DirectoryReader.open(writer, true);
             CompositeReaderContext composite = perSegment.getContext();
             List<AtomicReaderContext> leaves = composite.leaves();
             for (AtomicReaderContext atomicReaderContext : leaves) {
-                duellFieldDataLong(random, atomicReaderContext, leftFieldData, rightFieldData);
+                duelFieldDataLong(random, atomicReaderContext, leftFieldData, rightFieldData);
             }
         }
 
     }
 
     @Test
-    public void testDuellDoubles() throws Exception {
+    public void testDuelDoubles() throws Exception {
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
@@ -182,7 +182,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             }
         }
         AtomicReaderContext context = refreshReader();
-        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuellFieldDataTests.Type>();
+        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
         typeMap.put(new FieldDataType("float"), Type.Float);
         typeMap.put(new FieldDataType("double"), Type.Double);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
@@ -201,14 +201,14 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             ifdService.clear();
             IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
-            duellFieldDataDouble(random, context, leftFieldData, rightFieldData);
-            duellFieldDataDouble(random, context, rightFieldData, leftFieldData);
+            duelFieldDataDouble(random, context, leftFieldData, rightFieldData);
+            duelFieldDataDouble(random, context, rightFieldData, leftFieldData);
 
             DirectoryReader perSegment = DirectoryReader.open(writer, true);
             CompositeReaderContext composite = perSegment.getContext();
             List<AtomicReaderContext> leaves = composite.leaves();
             for (AtomicReaderContext atomicReaderContext : leaves) {
-                duellFieldDataDouble(random, atomicReaderContext, leftFieldData, rightFieldData);
+                duelFieldDataDouble(random, atomicReaderContext, leftFieldData, rightFieldData);
             }
         }
 
@@ -216,7 +216,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
 
 
     @Test
-    public void testDuellStrings() throws Exception {
+    public void testDuelStrings() throws Exception {
         Random random = getRandom();
         int atLeast = atLeast(random, 1000);
         for (int i = 0; i < atLeast; i++) {
@@ -237,7 +237,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             }
         }
         AtomicReaderContext context = refreshReader();
-        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuellFieldDataTests.Type>();
+        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
         // TODO add filters
@@ -258,14 +258,14 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
             ifdService.clear();
             IndexFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
-            duellFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
-            duellFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
+            duelFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
+            duelFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
 
             DirectoryReader perSegment = DirectoryReader.open(writer, true);
             CompositeReaderContext composite = perSegment.getContext();
             List<AtomicReaderContext> leaves = composite.leaves();
             for (AtomicReaderContext atomicReaderContext : leaves) {
-                duellFieldDataBytes(random, atomicReaderContext, leftFieldData, rightFieldData, pre);
+                duelFieldDataBytes(random, atomicReaderContext, leftFieldData, rightFieldData, pre);
             }
             perSegment.close();
         }
@@ -285,7 +285,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
     }
 
 
-    private static void duellFieldDataBytes(Random random, AtomicReaderContext context, IndexFieldData left, IndexFieldData right, Preprocessor pre) throws Exception {
+    private static void duelFieldDataBytes(Random random, AtomicReaderContext context, IndexFieldData left, IndexFieldData right, Preprocessor pre) throws Exception {
         AtomicFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
         assertThat(leftData.isMultiValued(), equalTo(rightData.isMultiValued()));
@@ -329,7 +329,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
     }
 
 
-    private static void duellFieldDataDouble(Random random, AtomicReaderContext context, IndexNumericFieldData left, IndexNumericFieldData right) throws Exception {
+    private static void duelFieldDataDouble(Random random, AtomicReaderContext context, IndexNumericFieldData left, IndexNumericFieldData right) throws Exception {
         AtomicNumericFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicNumericFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
@@ -367,7 +367,7 @@ public class DuellFieldDataTests extends AbstractFieldDataTests {
         }
     }
 
-    private static void duellFieldDataLong(Random random, AtomicReaderContext context, IndexNumericFieldData left, IndexNumericFieldData right) throws Exception {
+    private static void duelFieldDataLong(Random random, AtomicReaderContext context, IndexNumericFieldData left, IndexNumericFieldData right) throws Exception {
         AtomicNumericFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicNumericFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 

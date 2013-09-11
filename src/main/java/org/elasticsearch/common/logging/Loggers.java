@@ -110,7 +110,7 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(String s) {
-        return ESLoggerFactory.getLogger(s);
+        return ESLoggerFactory.getLogger(getLoggerName(s));
     }
 
     public static ESLogger getLogger(Class clazz) {

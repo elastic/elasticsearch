@@ -84,7 +84,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
-    private final Object mutex = new Object();
+    private final Object typeMutex = new Object();
+    private final Object mappersMutex = new Object();
 
     private volatile Map<String, FieldMappers> nameFieldMappers = ImmutableMap.of();
     private volatile Map<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
@@ -225,7 +226,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             DocumentMapper mapper = documentParser.parse(type, mappingSource);
             // still add it as a document mapper so we have it registered and, for example, persisted back into
             // the cluster meta data if needed, or checked for existence
-            synchronized (mutex) {
+            synchronized (typeMutex) {
                 mappers = newMapBuilder(mappers).put(type, mapper).map();
             }
             defaultMappingSource = mappingSource;
@@ -238,7 +239,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
     // instances of field mappers to properly remove existing doc mapper
     private DocumentMapper merge(DocumentMapper mapper) {
-        synchronized (mutex) {
+        synchronized (typeMutex) {
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
@@ -289,7 +290,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     private void addObjectMappers(ObjectMapper[] objectMappers) {
-        synchronized (mutex) {
+        synchronized (mappersMutex) {
             MapBuilder<String, ObjectMappers> fullPathObjectMappers = newMapBuilder(this.fullPathObjectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
                 ObjectMappers mappers = fullPathObjectMappers.get(objectMapper.fullPath());
@@ -309,7 +310,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     private void addFieldMappers(FieldMapper[] fieldMappers) {
-        synchronized (mutex) {
+        synchronized (mappersMutex) {
             MapBuilder<String, FieldMappers> nameFieldMappers = newMapBuilder(this.nameFieldMappers);
             MapBuilder<String, FieldMappers> indexNameFieldMappers = newMapBuilder(this.indexNameFieldMappers);
             MapBuilder<String, FieldMappers> fullNameFieldMappers = newMapBuilder(this.fullNameFieldMappers);
@@ -348,7 +349,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     public void remove(String type) {
-        synchronized (mutex) {
+        synchronized (typeMutex) {
             DocumentMapper docMapper = mappers.get(type);
             if (docMapper == null) {
                 return;
@@ -363,60 +364,62 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     private void removeObjectAndFieldMappers(DocumentMapper docMapper) {
-        // we need to remove those mappers
-        MapBuilder<String, FieldMappers> nameFieldMappers = newMapBuilder(this.nameFieldMappers);
-        MapBuilder<String, FieldMappers> indexNameFieldMappers = newMapBuilder(this.indexNameFieldMappers);
-        MapBuilder<String, FieldMappers> fullNameFieldMappers = newMapBuilder(this.fullNameFieldMappers);
+        synchronized (mappersMutex) {
+            // we need to remove those mappers
+            MapBuilder<String, FieldMappers> nameFieldMappers = newMapBuilder(this.nameFieldMappers);
+            MapBuilder<String, FieldMappers> indexNameFieldMappers = newMapBuilder(this.indexNameFieldMappers);
+            MapBuilder<String, FieldMappers> fullNameFieldMappers = newMapBuilder(this.fullNameFieldMappers);
 
-        for (FieldMapper mapper : docMapper.mappers()) {
-            FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
-            if (mappers != null) {
-                mappers = mappers.remove(mapper);
-                if (mappers.isEmpty()) {
-                    nameFieldMappers.remove(mapper.names().name());
-                } else {
-                    nameFieldMappers.put(mapper.names().name(), mappers);
+            for (FieldMapper mapper : docMapper.mappers()) {
+                FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        nameFieldMappers.remove(mapper.names().name());
+                    } else {
+                        nameFieldMappers.put(mapper.names().name(), mappers);
+                    }
+                }
+
+                mappers = indexNameFieldMappers.get(mapper.names().indexName());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        indexNameFieldMappers.remove(mapper.names().indexName());
+                    } else {
+                        indexNameFieldMappers.put(mapper.names().indexName(), mappers);
+                    }
+                }
+
+                mappers = fullNameFieldMappers.get(mapper.names().fullName());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        fullNameFieldMappers.remove(mapper.names().fullName());
+                    } else {
+                        fullNameFieldMappers.put(mapper.names().fullName(), mappers);
+                    }
+                }
+            }
+            this.nameFieldMappers = nameFieldMappers.map();
+            this.indexNameFieldMappers = indexNameFieldMappers.map();
+            this.fullNameFieldMappers = fullNameFieldMappers.map();
+
+            MapBuilder<String, ObjectMappers> fullPathObjectMappers = newMapBuilder(this.fullPathObjectMappers);
+            for (ObjectMapper mapper : docMapper.objectMappers().values()) {
+                ObjectMappers mappers = fullPathObjectMappers.get(mapper.fullPath());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        fullPathObjectMappers.remove(mapper.fullPath());
+                    } else {
+                        fullPathObjectMappers.put(mapper.fullPath(), mappers);
+                    }
                 }
             }
 
-            mappers = indexNameFieldMappers.get(mapper.names().indexName());
-            if (mappers != null) {
-                mappers = mappers.remove(mapper);
-                if (mappers.isEmpty()) {
-                    indexNameFieldMappers.remove(mapper.names().indexName());
-                } else {
-                    indexNameFieldMappers.put(mapper.names().indexName(), mappers);
-                }
-            }
-
-            mappers = fullNameFieldMappers.get(mapper.names().fullName());
-            if (mappers != null) {
-                mappers = mappers.remove(mapper);
-                if (mappers.isEmpty()) {
-                    fullNameFieldMappers.remove(mapper.names().fullName());
-                } else {
-                    fullNameFieldMappers.put(mapper.names().fullName(), mappers);
-                }
-            }
+            this.fullPathObjectMappers = fullPathObjectMappers.map();
         }
-        this.nameFieldMappers = nameFieldMappers.map();
-        this.indexNameFieldMappers = indexNameFieldMappers.map();
-        this.fullNameFieldMappers = fullNameFieldMappers.map();
-
-        MapBuilder<String, ObjectMappers> fullPathObjectMappers = newMapBuilder(this.fullPathObjectMappers);
-        for (ObjectMapper mapper : docMapper.objectMappers().values()) {
-            ObjectMappers mappers = fullPathObjectMappers.get(mapper.fullPath());
-            if (mappers != null) {
-                mappers = mappers.remove(mapper);
-                if (mappers.isEmpty()) {
-                    fullPathObjectMappers.remove(mapper.fullPath());
-                } else {
-                    fullPathObjectMappers.put(mapper.fullPath(), mappers);
-                }
-            }
-        }
-
-        this.fullPathObjectMappers = fullPathObjectMappers.map();
     }
 
     /**
@@ -457,7 +460,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             throw new TypeMissingException(index, type, "trying to auto create mapping, but dynamic mapping is disabled");
         }
         // go ahead and dynamically create it
-        synchronized (mutex) {
+        synchronized (typeMutex) {
             mapper = mappers.get(type);
             if (mapper != null) {
                 return mapper;

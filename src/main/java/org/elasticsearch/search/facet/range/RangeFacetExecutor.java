@@ -94,7 +94,8 @@ public class RangeFacetExecutor extends FacetExecutor {
                 if (entry.foundInDoc) {
                     continue;
                 }
-                if (value >= entry.getFrom() && value < entry.getTo()) {
+                if ((entry.getFromIsInclusive() ? value >= entry.getFrom() : value > entry.getFrom())
+                 && (entry.getToIsInclusive() ? value <= entry.getTo() : value < entry.getTo())) {
                     entry.foundInDoc = true;
                     entry.count++;
                     entry.totalCount++;

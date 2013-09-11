@@ -77,7 +77,7 @@ public class RangeFacetBuilder extends FacetBuilder {
     }
 
     /**
-     * Adds a range entry with explicit from and to.
+     * Adds a range entry with explicit from and to. The from bound is inclusive and the to bound is exclusive
      *
      * @param from The from range limit
      * @param to   The to range limit
@@ -87,8 +87,26 @@ public class RangeFacetBuilder extends FacetBuilder {
         return this;
     }
 
+    /**
+     * Adds a range entry with explicit from and to with the inclusivity being explicitly specified.
+     *
+     * @param from The from range limit
+     * @param isFromInclusive Is the from bound inclusive
+     * @param to   The to range limit
+     * @param isToInclusive Is the to bound inclusive
+     */
+    public RangeFacetBuilder addRange(double from, boolean isFromInclusive, double to, boolean isToInclusive) {
+        entries.add(new Entry(from, isFromInclusive, to, isToInclusive));
+        return this;
+    }
+
     public RangeFacetBuilder addRange(String from, String to) {
         entries.add(new Entry(from, to));
+        return this;
+    }
+
+    public RangeFacetBuilder addRange(String from, boolean isFromInclusive, String to, boolean isToInclusive) {
+        entries.add(new Entry(from, isFromInclusive, to, isToInclusive));
         return this;
     }
 
@@ -102,8 +120,24 @@ public class RangeFacetBuilder extends FacetBuilder {
         return this;
     }
 
+    /**
+     * Adds a range entry with explicit from and unbounded to.
+     *
+     * @param from the from range limit, to is unbounded.
+     * @param isFromInclusive whether or not the from limit is inclusive
+     */
+    public RangeFacetBuilder addUnboundedTo(double from, boolean isFromInclusive) {
+        entries.add(new Entry(from, isFromInclusive, Double.POSITIVE_INFINITY, false));
+        return this;
+    }
+
     public RangeFacetBuilder addUnboundedTo(String from) {
         entries.add(new Entry(from, null));
+        return this;
+    }
+
+    public RangeFacetBuilder addUnboundedTo(String from, boolean isFromInclusive) {
+        entries.add(new Entry(from, isFromInclusive, null, false));
         return this;
     }
 
@@ -117,8 +151,24 @@ public class RangeFacetBuilder extends FacetBuilder {
         return this;
     }
 
+    /**
+     * Adds a range entry with explicit to and unbounded from.
+     *
+     * @param to the to range limit, from is unbounded.
+     * @param isToInclusive whether or not the to limit is inclusive
+     */
+    public RangeFacetBuilder addUnboundedFrom(double to, boolean isToInclusive) {
+        entries.add(new Entry(Double.NEGATIVE_INFINITY, true, to, isToInclusive));
+        return this;
+    }
+
     public RangeFacetBuilder addUnboundedFrom(String to) {
         entries.add(new Entry(null, to));
+        return this;
+    }
+
+    public RangeFacetBuilder addUnboundedFrom(String to, boolean isToInclusive) {
+        entries.add(new Entry(null, true, to, isToInclusive));
         return this;
     }
 
@@ -176,10 +226,17 @@ public class RangeFacetBuilder extends FacetBuilder {
             } else if (!Double.isInfinite(entry.from)) {
                 builder.field("from", entry.from);
             }
+            if(!entry.fromIsInclusive) {
+                builder.field("fromIsInclusive", entry.fromIsInclusive);
+            }
+
             if (entry.toAsString != null) {
                 builder.field("to", entry.toAsString);
             } else if (!Double.isInfinite(entry.to)) {
                 builder.field("to", entry.to);
+            }
+            if(entry.toIsInclusive) {
+                builder.field("toIsInclusive", entry.toIsInclusive);
             }
             builder.endObject();
         }
@@ -197,6 +254,9 @@ public class RangeFacetBuilder extends FacetBuilder {
         double from = Double.NEGATIVE_INFINITY;
         double to = Double.POSITIVE_INFINITY;
 
+        boolean fromIsInclusive = true;
+        boolean toIsInclusive = false;
+
         String fromAsString;
         String toAsString;
 
@@ -205,9 +265,21 @@ public class RangeFacetBuilder extends FacetBuilder {
             this.toAsString = toAsString;
         }
 
+        Entry(String from, boolean fromIsInclusive, String to, boolean toIsInclusive) {
+            this(from, to);
+            this.fromIsInclusive = fromIsInclusive;
+            this.toIsInclusive = toIsInclusive;
+        }
+
         Entry(double from, double to) {
             this.from = from;
             this.to = to;
+        }
+
+        Entry(double from, boolean fromIsInclusive, double to, boolean toIsInclusive) {
+            this(from, to);
+            this.fromIsInclusive = fromIsInclusive;
+            this.toIsInclusive = toIsInclusive;
         }
     }
 }

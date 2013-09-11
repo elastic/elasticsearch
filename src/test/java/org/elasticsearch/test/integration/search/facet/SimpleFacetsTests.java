@@ -1632,6 +1632,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                     .addFacet(rangeFacet("range4").keyField("multi_num").valueField("value").addUnboundedFrom(16).addRange(10, 26).addUnboundedTo(20))
                     .addFacet(rangeScriptFacet("range5").keyScript("doc['num'].value").valueScript("doc['value'].value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
                     .addFacet(rangeFacet("range6").field("date").addUnboundedFrom("1970-01-01T00:00:26").addRange("1970-01-01T00:00:15", "1970-01-01T00:00:53").addUnboundedTo("1970-01-01T00:00:26"))
+                    .addFacet(rangeFacet("range7").field("num").addUnboundedTo(1055).addUnboundedTo(1055, false).addRange(1055, 1175).addRange(1055, true, 1175, true).addUnboundedFrom(1175).addUnboundedFrom(1175, true))
                     .execute().actionGet();
 
             if (searchResponse.getFailedShards() > 0) {
@@ -1743,6 +1744,38 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
             assertThat(facet.getEntries().get(1).getToAsString(), equalTo("1970-01-01T00:00:53"));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(2).getFromAsString(), equalTo("1970-01-01T00:00:26"));
+
+            facet = searchResponse.getFacets().facet("range7");
+            assertThat(facet.getName(), equalTo("range7"));
+            assertThat(facet.getEntries().size(), equalTo(6));
+            assertThat(facet.getEntries().get(0).getFrom(), closeTo(1055, 0.000001));
+            assertThat(facet.getEntries().get(0).getFromIsInclusive(), equalTo(true));
+            assertThat(facet.getEntries().get(0).getCount(), equalTo(3l));
+            assertThat(facet.getEntries().get(0).getTotal(), closeTo(3295, 0.000001));
+            assertThat(facet.getEntries().get(1).getFrom(), closeTo(1055, 0.000001));
+            assertThat(facet.getEntries().get(1).getFromIsInclusive(), equalTo(false));
+            assertThat(facet.getEntries().get(1).getCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(1).getTotal(), closeTo(2240, 0.000001));
+            assertThat(facet.getEntries().get(2).getFrom(), closeTo(1055, 0.000001));
+            assertThat(facet.getEntries().get(2).getTo(), closeTo(1175, 0.000001));
+            assertThat(facet.getEntries().get(2).getFromIsInclusive(), equalTo(true));
+            assertThat(facet.getEntries().get(2).getToIsInclusive(), equalTo(false));
+            assertThat(facet.getEntries().get(2).getCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(2).getTotal(), closeTo(2120, 0.000001));
+            assertThat(facet.getEntries().get(3).getFrom(), closeTo(1055, 0.000001));
+            assertThat(facet.getEntries().get(3).getTo(), closeTo(1175, 0.000001));
+            assertThat(facet.getEntries().get(3).getFromIsInclusive(), equalTo(true));
+            assertThat(facet.getEntries().get(3).getToIsInclusive(), equalTo(true));
+            assertThat(facet.getEntries().get(3).getCount(), equalTo(3l));
+            assertThat(facet.getEntries().get(3).getTotal(), closeTo(3295, 0.000001));
+            assertThat(facet.getEntries().get(4).getTo(), closeTo(1175, 0.000001));
+            assertThat(facet.getEntries().get(4).getToIsInclusive(), equalTo(false));
+            assertThat(facet.getEntries().get(4).getCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(4).getTotal(), closeTo(2120, 0.000001));
+            assertThat(facet.getEntries().get(5).getTo(), closeTo(1175, 0.000001));
+            assertThat(facet.getEntries().get(5).getToIsInclusive(), equalTo(true));
+            assertThat(facet.getEntries().get(5).getCount(), equalTo(3l));
+            assertThat(facet.getEntries().get(5).getTotal(), closeTo(3295, 0.000001));
         }
     }
 

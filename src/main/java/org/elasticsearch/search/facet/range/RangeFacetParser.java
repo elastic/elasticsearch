@@ -97,6 +97,10 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
                                 entry.from = parser.doubleValue();
                             } else if ("to".equals(fieldName)) {
                                 entry.to = parser.doubleValue();
+                            } else if ("toIsInclusive".equals(fieldName)) {
+                                entry.toIsInclusive = parser.booleanValue();
+                            } else if ("fromIsInclusive".equals(fieldName)) {
+                                entry.fromIsInclusive = parser.booleanValue();
                             }
                         }
                     }

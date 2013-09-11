@@ -1,0 +1,99 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.search.basic;
+
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.AbstractSharedClusterTest;
+import org.junit.Test;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
+
+/**
+ * This test basically verifies that search with a single shard active (cause we indexed to it) and other
+ * shards possibly not active at all (cause they haven't allocated) will still work.
+ */
+public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
+
+    protected int numberOfNodes() {
+        return 1;
+    }
+
+    @Test
+    public void testIndexCausesIndexCreation() throws Exception {
+        searchWhileCreatingIndex(-1, 1); // 1 replica in our default...
+    }
+
+    @Test
+    public void testNoReplicas() throws Exception {
+        searchWhileCreatingIndex(10, 0);
+    }
+
+    @Test
+    public void testOneReplica() throws Exception {
+        searchWhileCreatingIndex(10, 1);
+    }
+
+    @Test
+    public void testTwoReplicas() throws Exception {
+        searchWhileCreatingIndex(10, 2);
+    }
+
+    private void searchWhileCreatingIndex(int numberOfShards, int numberOfReplicas) throws Exception {
+
+        // make sure we have enough nodes to guaranty default QUORUM consistency.
+        // TODO: add a smarter choice based on actual consistency (when that is randomized)
+        int shardsNo = numberOfReplicas + 1;
+        int neededNodes = shardsNo <= 2 ? 1 : shardsNo / 2 + 1;
+        cluster().ensureAtLeastNumNodes(randomIntBetween(neededNodes, shardsNo));
+        for (int i = 0; i < 20; i++) {
+            logger.info("running iteration {}", i);
+            if (numberOfShards > 0) {
+                CreateIndexResponse createIndexResponse = prepareCreate("test")
+                        .setSettings(settingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas)).get();
+                assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
+            }
+            client().prepareIndex("test", "type1", randomAsciiOfLength(5)).setSource("field", "test").execute().actionGet();
+            RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
+            assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1)); // at least one shard should be successful when refreshing
+
+            // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
+            ClusterHealthStatus status = ClusterHealthStatus.RED;
+            while (status != ClusterHealthStatus.GREEN) {
+                // first, verify that search on the primary search works
+                SearchResponse searchResponse = client().prepareSearch("test").setPreference("_primary").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+                assertHitCount(searchResponse, 1);
+                // now, let it go to primary or replica, though in a randomized re-creatable manner
+                searchResponse = client().prepareSearch("test").setPreference(randomAsciiOfLength(5)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+                assertHitCount(searchResponse, 1);
+                status = client().admin().cluster().prepareHealth("test").get().getStatus();
+                cluster().ensureAtLeastNumNodes(numberOfReplicas + 1);
+            }
+            wipeIndex("test");
+        }
+    }
+}

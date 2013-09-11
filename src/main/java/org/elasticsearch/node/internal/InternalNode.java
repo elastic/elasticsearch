@@ -114,7 +114,7 @@ public final class InternalNode implements Node {
     }
 
     public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
 
         Version version = Version.CURRENT;
 

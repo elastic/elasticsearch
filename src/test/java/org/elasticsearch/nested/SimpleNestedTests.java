@@ -20,6 +20,7 @@
 package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -40,7 +41,6 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,6 +48,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -662,7 +663,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -676,7 +677,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -690,7 +691,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value + 1", "number").setNestedPath("nested1").order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("6.0"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -705,7 +706,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         // B/c of sum it is actually +2
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("11.0"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -721,7 +722,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                         .setNestedPath("nested1").sortMode("avg").order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo(Double.toString(Double.MAX_VALUE)));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -736,7 +737,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                         .setNestedPath("nested1").order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -751,7 +752,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                         .setNestedPath("nested1").order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
@@ -839,7 +840,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.ASC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("1"));
@@ -853,7 +854,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.DESC))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("3"));
         assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().hits()[1].id(), equalTo("1"));
@@ -993,7 +994,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("-3"));
@@ -1012,7 +1013,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
@@ -1031,8 +1032,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
@@ -1050,7 +1050,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
@@ -1068,7 +1069,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         // TODO: If we expose ToChildBlockJoinQuery we can filter sort values based on a higher level nested objects
 //        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
@@ -1087,7 +1089,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
@@ -1106,7 +1109,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
@@ -1125,7 +1129,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.DESC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("11"));
@@ -1145,7 +1150,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
@@ -1164,7 +1170,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("0"));
@@ -1182,7 +1189,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.DESC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
@@ -1202,7 +1210,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+
+        assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));

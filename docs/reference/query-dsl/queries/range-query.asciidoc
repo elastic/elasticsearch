@@ -11,44 +11,22 @@ a `NumericRangeQuery`. The following example returns all documents where
 --------------------------------------------------
 {
     "range" : {
-        "age" : { 
-            "from" : 10, 
-            "to" : 20, 
-            "include_lower" : true, 
-            "include_upper": false, 
+        "age" : {
+            "gte" : 10,
+            "lte" : 20,
             "boost" : 2.0
         }
     }
 }
 --------------------------------------------------
 
-The `range` query top level parameters include:
+The `range` query accepts the following parameters:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Name |Description
-|`from` |The lower bound. Defaults to start from the first.
+[horizontal]
+`gte`:: 	Greater-than or equal to
+`gt`::  	Greater-than
+`lte`:: 	Less-than or equal to
+`lt`::  	Less-than
+`boost`:: 	Sets the bool value of the query, defaults to `1.0`
 
-|`to` |The upper bound. Defaults to unbounded.
-
-|`include_lower` |Should the first from (if set) be inclusive or not.
-Defaults to `true`
-
-|`include_upper` |Should the last to (if set) be inclusive or not.
-Defaults to `true`.
-
-|`gt` |Same as setting `from` to the value, and `include_lower` to
-`false`.
-
-|`gte` |Same as setting `from` to the value,and `include_lower` to
-`true`.
-
-|`lt` |Same as setting `to` to the value, and `include_upper` to
-`false`.
-
-|`lte` |Same as setting `to` to the value, and `include_upper` to
-`true`.
-
-|`boost` |Sets the boost value of the query. Defaults to `1.0`.
-|=======================================================================
-
+deprecated[0.90.4,The `from`, `to`, `include_lower` and `include_upper` parameters have been deprecated in favour of `gt`,`gte`,`lt`,`lte`]

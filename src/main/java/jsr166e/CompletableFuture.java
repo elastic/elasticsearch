@@ -5,8 +5,6 @@
  */
 
 package jsr166e;
-import jsr166y.ThreadLocalRandom;
-
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -1392,6 +1390,7 @@ public class CompletableFuture<T> implements Future<T> {
      *
      * @param supplier a function returning the value to be used
      * to complete the returned CompletableFuture
+     * @param <U> the function's return type
      * @return the new CompletableFuture
      */
     public static <U> CompletableFuture<U> supplyAsync(Generator<U> supplier) {
@@ -1410,6 +1409,7 @@ public class CompletableFuture<T> implements Future<T> {
      * @param supplier a function returning the value to be used
      * to complete the returned CompletableFuture
      * @param executor the executor to use for asynchronous execution
+     * @param <U> the function's return type
      * @return the new CompletableFuture
      */
     public static <U> CompletableFuture<U> supplyAsync(Generator<U> supplier,
@@ -1462,6 +1462,7 @@ public class CompletableFuture<T> implements Future<T> {
      * the given value.
      *
      * @param value the value
+     * @param <U> the type of the value
      * @return the completed CompletableFuture
      */
     public static <U> CompletableFuture<U> completedFuture(U value) {

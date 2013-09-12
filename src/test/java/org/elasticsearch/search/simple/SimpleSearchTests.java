@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -143,7 +144,7 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
+    @Test @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     public void simpleDateMathTests() throws Exception {
         prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();

@@ -14,10 +14,8 @@ differently.
         "filter" : {
             "numeric_range" : {
                 "age" : {
-                    "from" : "10",
-                    "to" : "20",
-                    "include_lower" : true,
-                    "include_upper" : false
+                    "gte": 10,
+                    "lte": 20
                 }
             }
         }
@@ -33,29 +31,15 @@ performance. Note, if the relevant field values have already been loaded
 to memory, for example because it was used in facets or was sorted on,
 then this filter should be used.
 
-The `numeric_range` filter top level parameters include:
+The `numeric_range` filter accepts the following parameters:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Name |Description
-|`from` |The lower bound. Defaults to start from the first.
+[horizontal]
+`gte`::     Greater-than or equal to
+`gt`::      Greater-than
+`lte`::     Less-than or equal to
+`lt`::      Less-than
 
-|`to` |The upper bound. Defaults to unbounded.
-
-|`include_lower` |Should the first from (if set) be inclusive or not.
-Defaults to `true`
-
-|`include_upper` |Should the last to (if set) be inclusive or not.
-Defaults to `true`.
-
-|`gt` |Same as setting `from` and `include_lower` to `false`.
-
-|`gte` |Same as setting `from` and `include_lower` to `true`.
-
-|`lt` |Same as setting `to` and `include_upper` to `false`.
-
-|`lte` |Same as setting `to` and `include_upper` to `true`.
-|=======================================================================
+deprecated[0.90.4,The `from`, `to`, `include_lower` and `include_upper` parameters have been deprecated in favour of `gt`,`gte`,`lt`,`lte`]
 
 [float]
 ==== Caching

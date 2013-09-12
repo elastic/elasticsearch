@@ -1,0 +1,21 @@
+[[search-request-from-size]]
+=== From / Size
+
+Pagination of results can be done by using the `from` and `size`
+parameters. The `from` parameter defines the offset from the first
+result you want to fetch. The `size` parameter allows you to configure
+the maximum amount of hits to be returned.
+
+Though `from` and `size` can be set as request parameters, they can also
+be set within the search body. `from` defaults to `0`, and `size`
+defaults to `10`.
+
+[source,js]
+--------------------------------------------------
+{
+    "from" : 0, "size" : 10,
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------

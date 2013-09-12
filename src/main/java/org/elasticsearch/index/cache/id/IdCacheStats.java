@@ -73,8 +73,7 @@ public class IdCacheStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.ID_CACHE);
-        builder.field(Fields.MEMORY_SIZE, getMemorySize().toString());
-        builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySize);
+        builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.endObject();
         return builder;
     }

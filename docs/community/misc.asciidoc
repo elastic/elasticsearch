@@ -1,0 +1,18 @@
+[[misc]]
+== Misc
+
+* https://github.com/electrical/puppet-elasticsearch[Puppet]:
+  Elasticsearch puppet module.
+
+* http://github.com/elasticsearch/cookbook-elasticsearch[Chef]:
+  Chef cookbook for Elasticsearch
+
+* https://github.com/tavisto/elasticsearch-rpms[elasticsearch-rpms]:
+  RPMs for elasticsearch.
+
+* http://www.github.com/neogenix/daikon[daikon]:
+  Daikon ElasticSearch CLI
+
+* https://github.com/Aconex/scrutineer[Scrutineer]:
+  A high performance consistency checker to compare what you've indexed 
+  with your source of truth content (e.g. DB)

@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.*;
 import org.elasticsearch.common.inject.util.Providers;
@@ -42,7 +43,8 @@ import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnno
 class InjectorImpl implements Injector, Lookups {
     final State state;
     final InjectorImpl parent;
-    final BindingsMultimap bindingsMultimap = new BindingsMultimap();
+    boolean readOnly;
+    BindingsMultimap bindingsMultimap = new BindingsMultimap();
     final Initializer initializer;
 
     /**
@@ -564,7 +566,7 @@ class InjectorImpl implements Injector, Lookups {
     private <T> BindingImpl<T> createJustInTimeBindingRecursive(Key<T> key, Errors errors)
             throws ErrorsException {
         // ask the parent to create the JIT binding
-        if (parent != null) {
+        if (parent != null && !parent.readOnly /* ES: don't check on parent if its read only, its already created all the bindings it can*/) {
             try {
                 return parent.createJustInTimeBindingRecursive(key, new Errors());
             } catch (ErrorsException ignored) {
@@ -750,8 +752,24 @@ class InjectorImpl implements Injector, Lookups {
 
     <T> Provider<T> getProviderOrThrow(final Key<T> key, Errors errors) throws ErrorsException {
         final InternalFactory<? extends T> factory = getInternalFactory(key, errors);
-        final Dependency<T> dependency = Dependency.get(key);
+        // ES: optimize for a common case of read only instance getting from the parent...
+        if (factory instanceof InternalFactory.Instance) {
+            return new Provider<T>() {
+                @Override
+                public T get() {
+                    try {
+                        return (T) ((InternalFactory.Instance) factory).get(null, null, null);
+                    } catch (ErrorsException e) {
+                        // ignore
+                    }
+                    // should never happen...
+                    assert false;
+                    return null;
+                }
+            };
+        }
 
+        final Dependency<T> dependency = Dependency.get(key);
         return new Provider<T>() {
             public T get() {
                 final Errors errors = new Errors(dependency);
@@ -832,5 +850,14 @@ class InjectorImpl implements Injector, Lookups {
         constructors = new ConstructorInjectorStore(this);
         membersInjectorStore = new MembersInjectorStore(this, state.getTypeListenerBindings());
         jitBindings = Maps.newHashMap();
+    }
+
+    // ES_GUICE: make all registered bindings act as eager singletons
+    public void readOnlyAllSingletons() {
+        readOnly = true;
+        state.makeAllBindingsToEagerSingletons(this);
+        bindingsMultimap = new BindingsMultimap();
+        // reindex the bindings
+        index();
     }
 }

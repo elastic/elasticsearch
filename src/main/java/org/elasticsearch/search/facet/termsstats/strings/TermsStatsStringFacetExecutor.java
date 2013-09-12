@@ -24,8 +24,8 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -52,7 +52,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     final SearchScript script;
     private final int size;
 
-    final ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries;
+    final Recycler.V<ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry>> entries;
     long missing;
 
     public TermsStatsStringFacetExecutor(IndexFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript valueScript,
@@ -62,7 +62,8 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         this.script = valueScript;
         this.size = size;
         this.comparatorType = comparatorType;
-        this.entries = CacheRecycler.popHashMap();
+
+        this.entries = context.cacheRecycler().hashMap(-1);
     }
 
     @Override
@@ -72,14 +73,15 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (entries.isEmpty()) {
+        if (entries.v().isEmpty()) {
+            entries.release();
             return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsStringFacet.StringEntry>of(), missing);
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.values(), missing);
+            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.v().values(), missing);
         }
-        Object[] values = entries.internalValues();
+        Object[] values = entries.v().internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         List<InternalTermsStatsStringFacet.StringEntry> ordered = Lists.newArrayList();
@@ -92,7 +94,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             ordered.add(value);
         }
 
-        CacheRecycler.pushHashMap(entries); // fine to push here, we are done with it
+        entries.release();
         return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ordered, missing);
     }
 
@@ -103,9 +105,9 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
         public Collector() {
             if (script != null) {
-                this.aggregator = new ScriptAggregator(entries, script);
+                this.aggregator = new ScriptAggregator(entries.v(), script);
             } else {
-                this.aggregator = new Aggregator(entries);
+                this.aggregator = new Aggregator(entries.v());
             }
         }
 

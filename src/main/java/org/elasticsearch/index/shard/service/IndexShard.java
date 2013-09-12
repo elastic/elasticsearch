@@ -39,6 +39,8 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -46,8 +48,10 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.termvectors.ShardTermVectorService;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 /**
  *
@@ -94,6 +98,14 @@ public interface IndexShard extends IndexShardComponent {
 
     FieldDataStats fieldDataStats(String... fields);
 
+    CompletionStats completionStats(String ... fields);
+
+    PercolatorQueriesRegistry percolateRegistry();
+
+    ShardPercolateService shardPercolateService();
+
+    ShardTermVectorService termVectorService();
+
     IndexShardState state();
 
     Engine.Create prepareCreate(SourceToParse source) throws ElasticSearchException;
@@ -124,7 +136,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
-    Engine.Searcher searcher();
+    Engine.Searcher acquireSearcher();
 
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)

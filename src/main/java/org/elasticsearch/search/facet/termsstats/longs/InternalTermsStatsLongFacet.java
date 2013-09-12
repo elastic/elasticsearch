@@ -20,11 +20,13 @@
 package org.elasticsearch.search.facet.termsstats.longs;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.CacheRecycler;
+import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -38,7 +40,7 @@ import java.util.*;
 
 public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("lTS");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("lTS"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -167,26 +169,27 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
                 InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<LongEntry> entries = tsFacet.mutableList();
-                    Collections.sort(entries, comparatorType.comparator());
+                    CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
             return facets.get(0);
         }
         int missing = 0;
-        ExtTLongObjectHashMap<LongEntry> map = CacheRecycler.popLongObjectMap();
+        Recycler.V<ExtTLongObjectHashMap<LongEntry>> map = context.cacheRecycler().longObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 LongEntry longEntry = (LongEntry) entry;
-                LongEntry current = map.get(longEntry.term);
+                LongEntry current = map.v().get(longEntry.term);
                 if (current != null) {
                     current.count += longEntry.count;
                     current.totalCount += longEntry.totalCount;
@@ -198,21 +201,21 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                         current.max = longEntry.max;
                     }
                 } else {
-                    map.put(longEntry.term, longEntry);
+                    map.v().put(longEntry.term, longEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            LongEntry[] entries1 = map.values(new LongEntry[map.size()]);
+            LongEntry[] entries1 = map.v().values(new LongEntry[map.v().size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushLongObjectMap(map);
+            map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<LongEntry> ordered = new ArrayList<LongEntry>(map.size());
+            List<LongEntry> ordered = new ArrayList<LongEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 LongEntry value = (LongEntry) values[i];
                 if (value == null) {
@@ -220,7 +223,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushLongObjectMap(map);
+            map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

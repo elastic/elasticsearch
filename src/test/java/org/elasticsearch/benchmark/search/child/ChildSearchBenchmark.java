@@ -42,7 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
-import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
+import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
@@ -59,10 +59,10 @@ public class ChildSearchBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        Node node1 = nodeBuilder().clusterName("classic").settings(settingsBuilder().put(settings).put("name", "node1")).node();
         Client client = node1.client();
 
-        long COUNT = SizeValue.parseSizeValue("1m").singles();
+        long COUNT = SizeValue.parseSizeValue("10m").singles();
         int CHILD_COUNT = 5;
         int BATCH = 100;
         int QUERY_WARMUP = 20;
@@ -88,11 +88,11 @@ public class ChildSearchBenchmark {
                 for (int j = 0; j < BATCH; j++) {
                     counter++;
                     request.add(Requests.indexRequest(indexName).type("parent").id(Integer.toString(counter))
-                            .source(parentSource(Integer.toString(counter), "test" + counter)));
+                            .source(parentSource(counter, "test" + counter)));
                     for (int k = 0; k < CHILD_COUNT; k++) {
                         request.add(Requests.indexRequest(indexName).type("child").id(Integer.toString(counter) + "_" + k)
                                 .parent(Integer.toString(counter))
-                                .source(childSource(Integer.toString(counter), "tag" + k)));
+                                .source(childSource(counter, "tag" + k)));
                     }
                 }
                 BulkResponse response = request.execute().actionGet();
@@ -113,12 +113,12 @@ public class ChildSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
+        System.out.println("--> Number of docs in index: " + client.prepareCount(indexName).setQuery(matchAllQuery()).execute().actionGet().getCount());
 
         System.out.println("--> Running just child query");
         // run just the child query, warm up first
         for (int j = 0; j < QUERY_WARMUP; j++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(termQuery("child.tag", "tag1")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(termQuery("child.tag", "tag1")).execute().actionGet();
             if (j == 0) {
                 System.out.println("--> Warmup took: " + searchResponse.getTook());
             }
@@ -141,7 +141,7 @@ public class ChildSearchBenchmark {
                 .setJvm(true).execute().actionGet();
         System.out.println("--> Committed heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapCommitted());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
-
+        
         // run parent child constant query
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
@@ -202,7 +202,33 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> has_child filter with match_all child query, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-        // run parent child constant query
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(
+                    filteredQuery(matchAllQuery(), hasChildFilter("child", termQuery("id", Integer.toString(j + 1))))
+            ).execute().actionGet();
+            long expected = 1;
+            if (searchResponse.getHits().totalHits() != expected) {
+                System.err.println("mismatch on hits");
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child filter with single parent match Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            double expected = Math.pow((j + 1), 3) * CHILD_COUNT;
+            SearchResponse searchResponse = client.prepareSearch(indexName)
+                    .setQuery(filteredQuery(matchAllQuery(), hasChildFilter("child", constantScoreQuery(rangeFilter("num").lte(expected)))))
+                    .execute().actionGet();
+            if (searchResponse.getHits().totalHits() != expected) {
+                System.err.println("mismatch on hits: " + searchResponse.getHits().totalHits() + " != " + expected);
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child filter with exponential parent results Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        /*// run parent child constant query
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
@@ -298,7 +324,7 @@ public class ChildSearchBenchmark {
 //            }
             totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("--> top_children, with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        System.out.println("--> top_children, with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");*/
 
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
@@ -324,7 +350,7 @@ public class ChildSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> has_child Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-
+        
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", matchAllQuery()).scoreType("max")).execute().actionGet();
@@ -335,8 +361,30 @@ public class ChildSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> has_child query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-
-        System.out.println("--> Running has_parent query with score type");
+        
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("id", Integer.toString(j + 1))).scoreType("max")).execute().actionGet();
+            long expected = 1;
+            if (searchResponse.getHits().totalHits() != expected) {
+                System.err.println("mismatch on hits");
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child query with single parent match Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            double expected = Math.pow((j + 1), 3) * CHILD_COUNT;
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", constantScoreQuery(rangeFilter("num").lte(expected))).scoreType("max")).execute().actionGet();
+            if (searchResponse.getHits().totalHits() != expected) {
+                System.err.println("mismatch on hits: " + searchResponse.getHits().totalHits() + " != " + expected);
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child query with exponential parent results Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        
+        /*System.out.println("--> Running has_parent query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("name", "test1")).scoreType("score")).execute().actionGet();
@@ -363,8 +411,7 @@ public class ChildSearchBenchmark {
             }
             totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
-
+        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");*/
 
         System.gc();
         statsResponse = client.admin().cluster().prepareNodesStats()
@@ -377,11 +424,11 @@ public class ChildSearchBenchmark {
         node1.close();
     }
 
-    private static XContentBuilder parentSource(String id, String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
+    private static XContentBuilder parentSource(int id, String nameValue) throws IOException {
+        return jsonBuilder().startObject().field("id", Integer.toString(id)).field("num", id).field("name", nameValue).endObject();
     }
 
-    private static XContentBuilder childSource(String id, String tag) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("tag", tag).endObject();
+    private static XContentBuilder childSource(int id, String tag) throws IOException {
+        return jsonBuilder().startObject().field("id", Integer.toString(id)).field("num", id).field("tag", tag).endObject();
     }
 }

@@ -1,0 +1,62 @@
+[[query-dsl-geohash-cell-filter]]
+=== Geohash Cell Filter
+
+A geohash is a hierarchical datastructure which allows a division of a
+spatial geometry. Each geohash defines a cell on the earths surface and
+the longer the geohash the smaller cell. Also the size of a cell can be
+seen as precision. The geohash filter provides an access to this
+datastructure by defining a cell and match only points that lie within
+this cell.
+
+To get this filter work all prefixes of a geohash need to be indexed. In
+example a geohash `u30` needs to be decomposed into three terms: `u30`,
+`u3` and `u`. This decomposition must be enabled in the mapping of the
+`geo_point` field that's going to be filtered by setting the
+`geohash_prefix` option:
+
+[source,js]
+--------------------------------------------------
+{
+    "mappings" : {
+        "location": {
+            "properties": {
+                "pin": {
+                    "type": "geo_point",
+                    "geohash": true,
+                    "geohash_prefix": true
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The geohash cell can defined by all formats of `geo_points`. If such a
+cell is defined by a latitude and longitude pair the size of the cell
+needs to be setup. This can be done by the `precision` parameter of the
+filter. This parameter can be set to an integer value which sets the
+length of the geohash prefix. Instead of setting a geohash length
+directly it is also possible to define the precision as distance, in
+example `"precision": "50m"`. The `neighbor` option of the filter offers
+the possibility to filter cells next to the given cell.
+
+[source,js]
+--------------------------------------------------
+{
+    "filtered" : {
+        "query" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geohash_cell": {
+                "pin": {
+                    "lat": 13.4080,
+                    "lon": 52.5186
+                },
+                "precision": 3,
+                "neighbors": true
+            }
+        }
+    }
+}
+--------------------------------------------------

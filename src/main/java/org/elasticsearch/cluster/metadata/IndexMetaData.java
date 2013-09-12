@@ -161,13 +161,13 @@ public class IndexMetaData {
 
     private final State state;
 
-    private final ImmutableMap<String, AliasMetaData> aliases;
+    private final Map<String, AliasMetaData> aliases;
 
     private final Settings settings;
 
-    private final ImmutableMap<String, MappingMetaData> mappings;
+    private final Map<String, MappingMetaData> mappings;
 
-    private final ImmutableMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private transient final int totalNumberOfShards;
 
@@ -175,7 +175,7 @@ public class IndexMetaData {
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
 
-    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableMap<String, MappingMetaData> mappings, ImmutableMap<String, AliasMetaData> aliases, ImmutableMap<String, Custom> customs) {
+    private IndexMetaData(String index, long version, State state, Settings settings, Map<String, MappingMetaData> mappings, Map<String, AliasMetaData> aliases, Map<String, Custom> customs) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
@@ -264,19 +264,19 @@ public class IndexMetaData {
         return settings();
     }
 
-    public ImmutableMap<String, AliasMetaData> aliases() {
+    public Map<String, AliasMetaData> aliases() {
         return this.aliases;
     }
 
-    public ImmutableMap<String, AliasMetaData> getAliases() {
+    public Map<String, AliasMetaData> getAliases() {
         return aliases();
     }
 
-    public ImmutableMap<String, MappingMetaData> mappings() {
+    public Map<String, MappingMetaData> mappings() {
         return mappings;
     }
 
-    public ImmutableMap<String, MappingMetaData> getMappings() {
+    public Map<String, MappingMetaData> getMappings() {
         return mappings();
     }
 
@@ -301,11 +301,11 @@ public class IndexMetaData {
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
-    public ImmutableMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -508,7 +508,7 @@ public class IndexMetaData {
                     AliasMetaData aliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).build();
                     tmpAliases.put(alias, aliasMd);
                 }
-                tmpAliases.putAll(aliases.immutableMap());
+                tmpAliases.putAll(aliases.map());
                 // Remove index.aliases from settings once they are migrated to the new data structure
                 tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
             }
@@ -521,7 +521,7 @@ public class IndexMetaData {
                 }
             }
 
-            return new IndexMetaData(index, version, state, tmpSettings, mappings.immutableMap(), tmpAliases.immutableMap(), customs.immutableMap());
+            return new IndexMetaData(index, version, state, tmpSettings, mappings.readOnlyMap(), tmpAliases.readOnlyMap(), customs.readOnlyMap());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {

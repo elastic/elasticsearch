@@ -61,8 +61,9 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
 
     public void publish(RiverClusterState clusterState) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
+        final DiscoveryNode localNode = discoNodes.localNode();
         for (final DiscoveryNode node : discoNodes) {
-            if (node.equals(discoNodes.localNode())) {
+            if (node.equals(localNode)) {
                 // no need to send to our self
                 continue;
             }

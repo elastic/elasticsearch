@@ -1,0 +1,19 @@
+[[query-dsl-custom-boost-factor-query]]
+=== Custom Boost Factor Query
+
+deprecated[0.90.4,Replaced by <<query-dsl-function-score-query>>]
+
+`custom_boost_factor` query allows to wrap another query and multiply
+its score by the provided `boost_factor`. This can sometimes be desired
+since `boost` value set on specific queries gets normalized, while this
+query boost factor does not.
+
+[source,js]
+--------------------------------------------------
+"custom_boost_factor" : {
+    "query" : {
+        ....
+    },
+    "boost_factor" : 5.2
+}
+--------------------------------------------------

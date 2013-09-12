@@ -36,10 +36,25 @@ public class FunctionScoreQuery extends Query {
 
     Query subQuery;
     final ScoreFunction function;
-
+    float maxBoost = Float.MAX_VALUE;
+    CombineFunction combineFunction;
+    
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
+        this.combineFunction = function.getDefaultScoreCombiner();
+    }
+
+    public void setCombineFunction(CombineFunction combineFunction) {
+        this.combineFunction = combineFunction;
+    }
+    
+    public void setMaxBoost(float maxBoost) {
+        this.maxBoost = maxBoost;
+    }
+
+    public float getMaxBoost() {
+        return this.maxBoost;
     }
 
     public Query getSubQuery() {
@@ -53,7 +68,9 @@ public class FunctionScoreQuery extends Query {
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = subQuery.rewrite(reader);
-        if (newQ == subQuery) return this;
+        if (newQ == subQuery) {
+            return this;
+        }
         FunctionScoreQuery bq = (FunctionScoreQuery) this.clone();
         bq.subQuery = newQ;
         return bq;
@@ -101,7 +118,7 @@ public class FunctionScoreQuery extends Query {
                 return null;
             }
             function.setNextReader(context);
-            return new CustomBoostFactorScorer(this, subQueryScorer, function);
+            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction);
         }
 
         @Override
@@ -110,29 +127,28 @@ public class FunctionScoreQuery extends Query {
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
-
             function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
-            float sc = getBoost() * functionExplanation.getValue();
-            Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
-            res.addDetail(functionExplanation);
-            res.addDetail(new Explanation(getBoost(), "queryBoost"));
-            return res;
+            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
         }
     }
-
 
     static class CustomBoostFactorScorer extends Scorer {
 
         private final float subQueryBoost;
         private final Scorer scorer;
         private final ScoreFunction function;
+        private final float maxBoost;
+        private final CombineFunction scoreCombiner;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner)
+                throws IOException {
             super(w);
             this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
             this.function = function;
+            this.maxBoost = maxBoost;
+            this.scoreCombiner = scoreCombiner;
         }
 
         @Override
@@ -152,7 +168,8 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            return subQueryBoost * function.score(scorer.docID(), scorer.score());
+            return scoreCombiner.combine(subQueryBoost, scorer.score(),
+                    function.score(scorer.docID(), scorer.score()), maxBoost);
         }
 
         @Override
@@ -166,24 +183,22 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
-
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("custom score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
+        sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 
     public boolean equals(Object o) {
-        if (getClass() != o.getClass()) return false;
+        if (getClass() != o.getClass())
+            return false;
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost()
-                && this.subQuery.equals(other.subQuery)
-                && this.function.equals(other.function);
+        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && this.function.equals(other.function)
+                && this.maxBoost == other.maxBoost;
     }
 
     public int hashCode() {
         return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }
 }
-

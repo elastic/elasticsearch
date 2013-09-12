@@ -40,6 +40,11 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
     int getNumDocs();
 
     /**
+     * The number of unique values in this atomic field data.
+     */
+    long getNumberUniqueValues();
+
+    /**
      * Size (in bytes) of memory used by this field data.
      */
     long getMemorySizeInBytes();

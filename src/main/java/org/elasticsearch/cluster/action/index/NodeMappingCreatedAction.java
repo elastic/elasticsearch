@@ -76,6 +76,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
 
     public void nodeMappingCreated(final NodeMappingCreatedResponse response) throws ElasticSearchException {
         DiscoveryNodes nodes = clusterService.state().nodes();
+        logger.debug("Sending mapping created for index {}, type {} (cluster state version: {})", response.index, response.type, response.clusterStateVersion);
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new Runnable() {
                 @Override
@@ -128,14 +129,16 @@ public class NodeMappingCreatedAction extends AbstractComponent {
         private String index;
         private String type;
         private String nodeId;
+        private long clusterStateVersion;
 
         private NodeMappingCreatedResponse() {
         }
 
-        public NodeMappingCreatedResponse(String index, String type, String nodeId) {
+        public NodeMappingCreatedResponse(String index, String type, String nodeId, long clusterStateVersion) {
             this.index = index;
             this.type = type;
             this.nodeId = nodeId;
+            this.clusterStateVersion = clusterStateVersion;
         }
 
         public String index() {
@@ -150,12 +153,17 @@ public class NodeMappingCreatedAction extends AbstractComponent {
             return nodeId;
         }
 
+        public long clusterStateVersion() {
+            return clusterStateVersion;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(index);
             out.writeString(type);
             out.writeString(nodeId);
+            out.writeVLong(clusterStateVersion);
         }
 
         @Override
@@ -164,6 +172,7 @@ public class NodeMappingCreatedAction extends AbstractComponent {
             index = in.readString();
             type = in.readString();
             nodeId = in.readString();
+            clusterStateVersion = in.readVLong();
         }
     }
 }

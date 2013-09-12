@@ -18,16 +18,9 @@
  */
 package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -37,7 +30,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
@@ -118,6 +116,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             switch (type) {
             case TermSuggestion.TYPE:
                 suggestion = new TermSuggestion();
+                break;
+            case CompletionSuggestion.TYPE:
+                suggestion = new CompletionSuggestion();
+                break;
+            case PhraseSuggestion.TYPE:
+                suggestion = new PhraseSuggestion();
                 break;
             default:
                 suggestion = new Suggestion<Entry<Option>>();
@@ -354,10 +358,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
             
             protected void sort(Comparator<O> comparator) {
-                Collections.sort(options, comparator);
+                CollectionUtil.timSort(options, comparator);
             }
 
-            protected Entry<O> reduce(List<Entry<O>> toReduce) {
+            protected Entry<O> reduce(List<? extends Entry<O>> toReduce) {
                 if (toReduce.size() == 1) {
                     return toReduce.get(0);
                 }
@@ -367,20 +371,29 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     assert leader.text.equals(entry.text);
                     assert leader.offset == entry.offset;
                     assert leader.length == entry.length;
+                    leader.merge(entry);
                     for (O option : entry) {
                         O merger = entries.get(option);
                         if (merger == null) {
-                           entries.put(option, option);
+                            entries.put(option, option);
                         } else {
                             merger.mergeInto(option);
-                        }    
+                        }
                     }
                 }
                 leader.options.clear();
-                leader.options.addAll(entries.keySet());
+                for (O option: entries.keySet()) {
+                    leader.addOption(option);
+                }
                 return leader;
             }
-            
+
+            /**
+             * Merge any extra fields for this subtype.
+             */
+            protected void merge(Entry<O> other) {
+            }
+
             /**
              * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
              *         single term.
@@ -497,16 +510,23 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 static class Fields {
 
                     static final XContentBuilderString TEXT = new XContentBuilderString("text");
+                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
 
                 }
 
                 private Text text;
+                private Text highlighted;
                 private float score;
 
-                public Option(Text text, float score) {
+                public Option(Text text, Text highlighted, float score) {
                     this.text = text;
+                    this.highlighted = highlighted;
                     this.score = score;
+                }
+
+                public Option(Text text, float score) {
+                    this(text, null, score);
                 }
 
                 public Option() {
@@ -520,23 +540,40 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 /**
+                 * @return Copy of suggested text with changes from user supplied text highlighted.
+                 */
+                public Text getHighlighted() {
+                    return highlighted;
+                }
+
+                /**
                  * @return The score based on the edit distance difference between the suggested term and the
                  *         term in the suggest text.
                  */
                 public float getScore() {
                     return score;
                 }
+                
+                protected void setScore(float score) {
+                    this.score = score;
+                }
 
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
                     score = in.readFloat();
+                    if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
+                        highlighted = in.readOptionalText();
+                    }
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
                     out.writeFloat(score);
+                    if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
+                        out.writeOptionalText(highlighted);
+                    }
                 }
 
                 @Override
@@ -549,6 +586,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.field(Fields.TEXT, text);
+                    if (highlighted != null) {
+                        builder.field(Fields.HIGHLIGHTED, highlighted);
+                    }
                     builder.field(Fields.SCORE, score);
                     return builder;
                 }
@@ -572,8 +612,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     return text.hashCode();
                 }
             }
-
         }
+
         public enum Sort {
 
             /**
@@ -605,8 +645,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     throw new ElasticSearchException("Illegal suggest sort " + id);
                 }
             }
-
         }
-
     }
 }

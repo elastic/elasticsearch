@@ -92,6 +92,10 @@ interface State {
         public void clearBlacklisted() {
         }
 
+        @Override
+        public void makeAllBindingsToEagerSingletons(Injector injector) {
+        }
+
         public Object lock() {
             throw new UnsupportedOperationException();
         }
@@ -156,4 +160,6 @@ interface State {
 
     // ES_GUICE: clean blacklist keys
     void clearBlacklisted();
+
+    void makeAllBindingsToEagerSingletons(Injector injector);
 }

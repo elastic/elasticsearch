@@ -136,11 +136,15 @@ public class XContentMapValues {
 
     public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
         Map<String, Object> result = Maps.newHashMap();
-        filter(map, result, includes, excludes, new StringBuilder());
+        filter(map, result, includes == null ? Strings.EMPTY_ARRAY : includes, excludes == null ? Strings.EMPTY_ARRAY : excludes, new StringBuilder());
         return result;
     }
 
     private static void filter(Map<String, Object> map, Map<String, Object> into, String[] includes, String[] excludes, StringBuilder sb) {
+        if (includes.length == 0 && excludes.length == 0) {
+            into.putAll(map);
+            return;
+        }
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = entry.getKey();
             int mark = sb.length();
@@ -160,17 +164,41 @@ public class XContentMapValues {
                 sb.setLength(mark);
                 continue;
             }
-            if (includes.length > 0) {
-                boolean atLeastOnOneIncludeMatched = false;
+            boolean exactIncludeMatch;
+            if (includes.length == 0) {
+                // implied match anything
+                exactIncludeMatch = true;
+            } else {
+                exactIncludeMatch = false;
+                boolean pathIsPrefixOfAnInclude = false;
                 for (String include : includes) {
-                    // check for prefix as well, something like: obj1.arr1.*
+                    // check for prefix matches as well to see if we need to zero in, something like: obj1.arr1.* or *.field
                     // note, this does not work well with middle matches, like obj1.*.obj3
-                    if (include.startsWith(path) || Regex.simpleMatch(include, path)) {
-                        atLeastOnOneIncludeMatched = true;
+                    if (include.charAt(0) == '*') {
+                        if (Regex.simpleMatch(include, path)) {
+                            exactIncludeMatch = true;
+                            break;
+                        }
+                        pathIsPrefixOfAnInclude = true;
+                        break;
+                    }
+                    if (include.startsWith(path)) {
+                        if (include.length() == path.length()) {
+                            exactIncludeMatch = true;
+                            break;
+                        } else if (include.length() > path.length() && include.charAt(path.length()) == '.') {
+                            // include might may match deeper paths. Dive deeper.
+                            pathIsPrefixOfAnInclude = true;
+                            break;
+                        }
+                    }
+                    if (Regex.simpleMatch(include, path)) {
+                        exactIncludeMatch = true;
                         break;
                     }
                 }
-                if (!atLeastOnOneIncludeMatched) {
+                if (!pathIsPrefixOfAnInclude && !exactIncludeMatch) {
+                    // skip subkeys, not interesting.
                     sb.setLength(mark);
                     continue;
                 }
@@ -179,16 +207,18 @@ public class XContentMapValues {
 
             if (entry.getValue() instanceof Map) {
                 Map<String, Object> innerInto = Maps.newHashMap();
-                filter((Map<String, Object>) entry.getValue(), innerInto, includes, excludes, sb);
+                // if we had an exact match, we want give deeper excludes their chance
+                filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
                 if (!innerInto.isEmpty()) {
                     into.put(entry.getKey(), innerInto);
                 }
             } else if (entry.getValue() instanceof List) {
                 List<Object> list = (List<Object>) entry.getValue();
                 List<Object> innerInto = new ArrayList<Object>(list.size());
-                filter(list, innerInto, includes, excludes, sb);
+                // if we had an exact match, we want give deeper excludes their chance
+                filter(list, innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
                 into.put(entry.getKey(), innerInto);
-            } else {
+            } else if (exactIncludeMatch) {
                 into.put(entry.getKey(), entry.getValue());
             }
             sb.setLength(mark);
@@ -196,6 +226,11 @@ public class XContentMapValues {
     }
 
     private static void filter(List<Object> from, List<Object> to, String[] includes, String[] excludes, StringBuilder sb) {
+        if (includes.length == 0 && excludes.length == 0) {
+            to.addAll(from);
+            return;
+        }
+
         for (Object o : from) {
             if (o instanceof Map) {
                 Map<String, Object> innerInto = Maps.newHashMap();

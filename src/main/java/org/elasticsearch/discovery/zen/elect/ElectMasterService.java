@@ -20,11 +20,11 @@
 package org.elasticsearch.discovery.zen.elect;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -110,7 +110,7 @@ public class ElectMasterService extends AbstractComponent {
                 it.remove();
             }
         }
-        Collections.sort(possibleNodes, nodeComparator);
+        CollectionUtil.introSort(possibleNodes, nodeComparator);
         return possibleNodes;
     }
 

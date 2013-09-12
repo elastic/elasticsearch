@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -48,24 +47,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class FsTranslog extends AbstractIndexShardComponent implements Translog {
 
     public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
-    public static final String INDEX_TRANSLOG_FS_BUFFER_SIZE = "index.translog.fs.buffer_size";
-    public static final String INDEX_TRANSLOG_FS_TRANSIENT_BUFFER_SIZE = "index.translog.fs.transient_buffer_size";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int bufferSize = (int) settings.getAsBytesSize(INDEX_TRANSLOG_FS_BUFFER_SIZE, new ByteSizeValue(FsTranslog.this.bufferSize)).bytes();
-            if (bufferSize != FsTranslog.this.bufferSize) {
-                logger.info("updating buffer_size from [{}] to [{}]", new ByteSizeValue(FsTranslog.this.bufferSize), new ByteSizeValue(bufferSize));
-                FsTranslog.this.bufferSize = bufferSize;
-            }
-
-            int transientBufferSize = (int) settings.getAsBytesSize(INDEX_TRANSLOG_FS_TRANSIENT_BUFFER_SIZE, new ByteSizeValue(FsTranslog.this.transientBufferSize)).bytes();
-            if (transientBufferSize != FsTranslog.this.transientBufferSize) {
-                logger.info("updating transient_buffer_size from [{}] to [{}]", new ByteSizeValue(FsTranslog.this.transientBufferSize), new ByteSizeValue(transientBufferSize));
-                FsTranslog.this.transientBufferSize = transientBufferSize;
-            }
-
             FsTranslogFile.Type type = FsTranslogFile.Type.fromString(settings.get(INDEX_TRANSLOG_FS_TYPE, FsTranslog.this.type.name()));
             if (type != FsTranslog.this.type) {
                 logger.info("updating type from [{}] to [{}]", FsTranslog.this.type, type);
@@ -86,8 +71,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private boolean syncOnEachOperation = false;
 
-    private int bufferSize;
-    private int transientBufferSize;
+    private volatile int bufferSize;
+    private volatile int transientBufferSize;
 
     private final ApplySettings applySettings = new ApplySettings();
 
@@ -103,7 +88,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
 
         this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
-        this.bufferSize = (int) componentSettings.getAsBytesSize("buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes();
+        this.bufferSize = (int) componentSettings.getAsBytesSize("buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes(); // Not really interesting, updated by IndexingMemoryController...
         this.transientBufferSize = (int) componentSettings.getAsBytesSize("transient_buffer_size", ByteSizeValue.parseBytesSizeValue("8k")).bytes();
 
         indexSettingsService.addListener(applySettings);
@@ -126,6 +111,24 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public void close() throws ElasticSearchException {
         close(false);
+    }
+
+    @Override
+    public void updateBuffer(ByteSizeValue bufferSize) {
+        this.bufferSize = bufferSize.bytesAsInt();
+        rwl.writeLock().lock();
+        try {
+            FsTranslogFile current1 = this.current;
+            if (current1 != null) {
+                current1.updateBufferSize(this.bufferSize);
+            }
+            current1 = this.trans;
+            if (current1 != null) {
+                current1.updateBufferSize(this.bufferSize);
+            }
+        } finally {
+            rwl.writeLock().unlock();
+        }
     }
 
     private void close(boolean delete) {
@@ -325,10 +328,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public Location add(Operation operation) throws TranslogException {
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
         rwl.readLock().lock();
         try {
-            BytesStreamOutput out = cachedEntry.bytes();
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();
@@ -354,7 +356,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             rwl.readLock().unlock();
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 

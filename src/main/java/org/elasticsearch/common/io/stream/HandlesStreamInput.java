@@ -30,8 +30,6 @@ import java.io.IOException;
 public class HandlesStreamInput extends AdapterStreamInput {
 
     private final TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
-    private final TIntObjectHashMap<String> identityHandles = new TIntObjectHashMap<String>();
-
     private final TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
 
     HandlesStreamInput() {
@@ -43,7 +41,7 @@ public class HandlesStreamInput extends AdapterStreamInput {
     }
 
     @Override
-    public String readString() throws IOException {
+    public String readSharedString() throws IOException {
         byte b = in.readByte();
         if (b == 0) {
             // full string with handle
@@ -53,17 +51,14 @@ public class HandlesStreamInput extends AdapterStreamInput {
             return s;
         } else if (b == 1) {
             return handles.get(in.readVInt());
-        } else if (b == 2) {
-            // full string with handle
-            int handle = in.readVInt();
-            String s = in.readString();
-            identityHandles.put(handle, s);
-            return s;
-        } else if (b == 3) {
-            return identityHandles.get(in.readVInt());
         } else {
             throw new IOException("Expected handle header, got [" + b + "]");
         }
+    }
+
+    @Override
+    public String readString() throws IOException {
+        return in.readString();
     }
 
     @Override
@@ -86,21 +81,15 @@ public class HandlesStreamInput extends AdapterStreamInput {
     @Override
     public void reset() throws IOException {
         super.reset();
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        cleanHandles();
     }
 
     public void reset(StreamInput in) {
         super.reset(in);
-        handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
+        cleanHandles();
     }
 
     public void cleanHandles() {
         handles.clear();
-        identityHandles.clear();
-        handlesText.clear();
     }
 }

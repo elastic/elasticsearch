@@ -54,6 +54,7 @@ public class AllocationDeciders extends AllocationDecider {
                 .add(new DisableAllocationDecider(settings, nodeSettingsService))
                 .add(new AwarenessAllocationDecider(settings, nodeSettingsService))
                 .add(new ShardsLimitAllocationDecider(settings))
+                .add(new DiskThresholdDecider(settings, nodeSettingsService))
                 .build()
         );
     }

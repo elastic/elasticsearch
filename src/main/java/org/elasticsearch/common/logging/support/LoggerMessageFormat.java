@@ -154,8 +154,6 @@ public class LoggerMessageFormat {
             String oAsString = o.toString();
             sbuf.append(oAsString);
         } catch (Throwable t) {
-            System.err.println("Logger: Failed toString() invocation on an object of type [" + o.getClass().getName() + "]");
-            t.printStackTrace();
             sbuf.append("[FAILED toString()]");
         }
 

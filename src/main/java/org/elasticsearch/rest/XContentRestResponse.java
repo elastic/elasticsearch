@@ -40,13 +40,6 @@ public class XContentRestResponse extends AbstractRestResponse {
         System.arraycopy(U_END_JSONP.bytes, U_END_JSONP.offset, END_JSONP, 0, U_END_JSONP.length);
     }
 
-    private static ThreadLocal<BytesRef> prefixCache = new ThreadLocal<BytesRef>() {
-        @Override
-        protected BytesRef initialValue() {
-            return new BytesRef();
-        }
-    };
-
     private final BytesRef prefixUtf8Result;
 
     private final RestStatus status;
@@ -73,7 +66,7 @@ public class XContentRestResponse extends AbstractRestResponse {
 
     @Override
     public boolean contentThreadSafe() {
-        return false;
+        return true;
     }
 
     @Override
@@ -146,7 +139,7 @@ public class XContentRestResponse extends AbstractRestResponse {
         if (callback == null) {
             return null;
         }
-        BytesRef result = prefixCache.get();
+        final BytesRef result = new BytesRef();
         UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), result);
         result.bytes[result.length] = '(';
         result.length++;

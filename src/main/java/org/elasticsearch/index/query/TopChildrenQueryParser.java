@@ -59,6 +59,7 @@ public class TopChildrenQueryParser implements QueryParser {
         ScoreType scoreType = ScoreType.MAX;
         int factor = 5;
         int incrementalFactor = 2;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -94,6 +95,8 @@ public class TopChildrenQueryParser implements QueryParser {
                     factor = parser.intValue();
                 } else if ("incremental_factor".equals(currentFieldName) || "incrementalFactor".equals(currentFieldName)) {
                     incrementalFactor = parser.intValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
                 }
@@ -127,8 +130,11 @@ public class TopChildrenQueryParser implements QueryParser {
         if (searchContext == null) {
             throw new ElasticSearchIllegalStateException("[top_children] Can't execute, search context not set.");
         }
-        TopChildrenQuery childQuery = new TopChildrenQuery(searchContext, query, childType, parentType, scoreType, factor, incrementalFactor);
+        TopChildrenQuery childQuery = new TopChildrenQuery(query, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler());
         searchContext.addRewrite(childQuery);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, childQuery);
+        }
         return childQuery;
     }
 }

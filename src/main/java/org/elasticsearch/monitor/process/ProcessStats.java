@@ -110,22 +110,16 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.PERCENT, cpu.percent());
-            builder.field(Fields.SYS, cpu.sys().format());
-            builder.field(Fields.SYS_IN_MILLIS, cpu.sys().millis());
-            builder.field(Fields.USER, cpu.user().format());
-            builder.field(Fields.USER_IN_MILLIS, cpu.user().millis());
-            builder.field(Fields.TOTAL, cpu.total().format());
-            builder.field(Fields.TOTAL_IN_MILLIS, cpu.total().millis());
+            builder.timeValueField(Fields.SYS_IN_MILLIS, Fields.SYS, cpu.sys);
+            builder.timeValueField(Fields.USER_IN_MILLIS, Fields.USER, cpu.user);
+            builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
             builder.endObject();
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.field(Fields.RESIDENT, mem.resident().toString());
-            builder.field(Fields.RESIDENT_IN_BYTES, mem.resident().bytes());
-            builder.field(Fields.SHARE, mem.share().toString());
-            builder.field(Fields.SHARE_IN_BYTES, mem.share().bytes());
-            builder.field(Fields.TOTAL_VIRTUAL, mem.totalVirtual().toString());
-            builder.field(Fields.TOTAL_VIRTUAL_IN_BYTES, mem.totalVirtual().bytes());
+            builder.byteSizeField(Fields.RESIDENT_IN_BYTES, Fields.RESIDENT, mem.resident);
+            builder.byteSizeField(Fields.SHARE_IN_BYTES, Fields.SHARE, mem.share);
+            builder.byteSizeField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, mem.totalVirtual);
             builder.endObject();
         }
         builder.endObject();

@@ -1,0 +1,137 @@
+[[search]]
+== Search API
+
+The search API allows to execute a search query and get back search hits
+that match the query. It can be executed across one or more indices and
+across one or more types. The query can either be provided using the
+<<query-dsl-queries,query Java API>> or
+the <<query-dsl-filters,filter Java API>>. 
+The body of the search request is built using the
+`SearchSourceBuilder`. Here is an example:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.index.query.FilterBuilders.*;
+import org.elasticsearch.index.query.QueryBuilders.*;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+SearchResponse response = client.prepareSearch("index1", "index2")
+        .setTypes("type1", "type2")
+        .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+        .setQuery(QueryBuilders.termQuery("multi", "test"))             // Query
+        .setFilter(FilterBuilders.rangeFilter("age").from(12).to(18))   // Filter
+        .setFrom(0).setSize(60).setExplain(true)
+        .execute()
+        .actionGet();
+--------------------------------------------------
+
+Note that all parameters are optional. Here is the smallest search call
+you can write:
+
+[source,java]
+--------------------------------------------------
+// MatchAll on the whole cluster with all default options
+SearchResponse response = client.prepareSearch().execute().actionGet();
+--------------------------------------------------
+
+For more information on the search operation, check out the REST
+{ref}/search.html[search] docs.
+
+
+=== Using scrolls in Java
+
+Read the {ref}/search-request-scroll.html[scroll documentation]
+first!
+
+[source,java]
+--------------------------------------------------
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+
+QueryBuilder qb = termQuery("multi", "test");
+
+SearchResponse scrollResp = client.prepareSearch(test)
+        .setSearchType(SearchType.SCAN)
+        .setScroll(new TimeValue(60000))
+        .setQuery(qb)
+        .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
+//Scroll until no hits are returned
+while (true) {
+    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
+    for (SearchHit hit : scrollResp.getHits()) {
+        //Handle the hit...
+    }
+    //Break condition: No hits are returned
+    if (scrollResp.hits().hits().length == 0) {
+        break;
+    }
+}
+--------------------------------------------------
+
+
+=== Operation Threading
+
+The search API allows to set the threading model the operation will be
+performed when the actual execution of the API is performed on the same
+node (the API is executed on a shard that is allocated on the same
+server).
+
+There are three threading modes.The `NO_THREADS` mode means that the
+search operation will be executed on the calling thread. The
+`SINGLE_THREAD` mode means that the search operation will be executed on
+a single different thread for all local shards. The `THREAD_PER_SHARD`
+mode means that the search operation will be executed on a different
+thread for each local shard.
+
+The default mode is `SINGLE_THREAD`.
+
+
+=== MultiSearch API
+
+See {ref}/search-multi-search.html[MultiSearch API Query]
+documentation
+
+[source,java]
+--------------------------------------------------
+SearchRequestBuilder srb1 = node.client()
+    .prepareSearch().setQuery(QueryBuilders.queryString("elasticsearch")).setSize(1);
+SearchRequestBuilder srb2 = node.client()
+    .prepareSearch().setQuery(QueryBuilders.matchQuery("name", "kimchy")).setSize(1);
+
+MultiSearchResponse sr = node.client().prepareMultiSearch()
+        .add(srb1)
+        .add(srb2)
+        .execute().actionGet();
+
+// You will get all individual responses from MultiSearchResponse#responses()
+long nbHits = 0;
+for (MultiSearchResponse.Item item : sr.responses()) {
+    SearchResponse response = item.response();
+    nbHits += response.hits().totalHits();
+}
+--------------------------------------------------
+
+
+=== Using Facets
+
+The following code shows how to add two facets within your search:
+
+[source,java]
+--------------------------------------------------
+SearchResponse sr = node.client().prepareSearch()
+    .setQuery(QueryBuilders.matchAllQuery())
+    .addFacet(FacetBuilders.termsFacet("f1").field("field"))
+    .addFacet(FacetBuilders.dateHistogramFacet("f2").field("birth").interval("year"))
+    .execute().actionGet();
+
+// Get your facet results
+TermsFacet f1 = (TermsFacet) sr.facets().facetsAsMap().get("f1");
+DateHistogramFacet f2 = (DateHistogramFacet) sr.facets().facetsAsMap().get("f2");
+--------------------------------------------------
+
+See <<facets,Facets Java API>>
+documentation for details.

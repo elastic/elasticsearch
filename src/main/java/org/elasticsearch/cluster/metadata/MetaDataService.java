@@ -24,39 +24,24 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.concurrent.Semaphore;
+
 /**
  */
 public class MetaDataService extends AbstractComponent {
 
-    private final MdLock[] indexMdLocks;
+    private final Semaphore[] indexMdLocks;
 
     @Inject
     public MetaDataService(Settings settings) {
         super(settings);
-        indexMdLocks = new MdLock[500];
+        indexMdLocks = new Semaphore[500];
         for (int i = 0; i < indexMdLocks.length; i++) {
-            indexMdLocks[i] = new MdLock();
+            indexMdLocks[i] = new Semaphore(1);
         }
     }
 
-    public MdLock indexMetaDataLock(String index) {
+    public Semaphore indexMetaDataLock(String index) {
         return indexMdLocks[Math.abs(DjbHashFunction.DJB_HASH(index) % indexMdLocks.length)];
-    }
-
-    public class MdLock {
-
-        private boolean isLocked = false;
-
-        public synchronized void lock() throws InterruptedException {
-            while (isLocked) {
-                wait();
-            }
-            isLocked = true;
-        }
-
-        public synchronized void unlock() {
-            isLocked = false;
-            notifyAll();
-        }
     }
 }

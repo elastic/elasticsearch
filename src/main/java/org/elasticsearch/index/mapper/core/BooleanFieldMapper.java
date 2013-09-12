@@ -24,6 +24,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -60,6 +61,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         static {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.freeze();
         }
 
@@ -83,6 +85,14 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         public Builder nullValue(boolean nullValue) {
             this.nullValue = nullValue;
             return this;
+        }
+
+        @Override
+        protected Builder tokenized(boolean tokenized) {
+            if (tokenized) {
+                throw new ElasticSearchIllegalArgumentException("bool field can't be tokenized");
+            }
+            return super.tokenized(tokenized);
         }
 
         @Override

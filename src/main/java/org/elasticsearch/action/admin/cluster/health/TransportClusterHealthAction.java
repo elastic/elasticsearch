@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -56,6 +57,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
     @Override
     protected String executor() {
+        // we block here...
         return ThreadPool.Names.GENERIC;
     }
 
@@ -80,7 +82,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState unusedState) throws ElasticSearchException {
+    protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) throws ElasticSearchException {
         long endTime = System.currentTimeMillis() + request.timeout().millis();
 
         if (request.waitForEvents() != null) {
@@ -92,8 +94,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState clusterState) {
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
 
@@ -124,7 +131,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         if (waitFor == 0) {
             // no need to wait for anything
             ClusterState clusterState = clusterService.state();
-            return clusterHealth(request, clusterState);
+            listener.onResponse(clusterHealth(request, clusterState));
+            return;
         }
         while (true) {
             int waitForCounter = 0;
@@ -197,18 +205,20 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                 }
             }
             if (waitForCounter == waitFor) {
-                return response;
+                listener.onResponse(response);
+                return;
             }
             if (System.currentTimeMillis() > endTime) {
                 response.timedOut = true;
-                return response;
+                listener.onResponse(response);
+                return;
             }
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
                 response.timedOut = true;
-                // we got interrupted, bail
-                return response;
+                listener.onResponse(response);
+                return;
             }
         }
     }

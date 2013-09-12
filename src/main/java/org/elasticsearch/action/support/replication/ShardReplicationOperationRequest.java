@@ -161,7 +161,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        index = in.readString();
+        index = in.readSharedString();
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
@@ -171,7 +171,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeString(index);
+        out.writeSharedString(index);
     }
 
     /**

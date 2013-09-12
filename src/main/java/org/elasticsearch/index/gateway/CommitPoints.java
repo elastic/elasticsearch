@@ -21,13 +21,13 @@ package org.elasticsearch.index.gateway;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -40,7 +40,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
     private final ImmutableList<CommitPoint> commitPoints;
 
     public CommitPoints(List<CommitPoint> commitPoints) {
-        Collections.sort(commitPoints, new Comparator<CommitPoint>() {
+        CollectionUtil.introSort(commitPoints, new Comparator<CommitPoint>() {
             @Override
             public int compare(CommitPoint o1, CommitPoint o2) {
                 return (o2.version() < o1.version() ? -1 : (o2.version() == o1.version() ? 0 : 1));

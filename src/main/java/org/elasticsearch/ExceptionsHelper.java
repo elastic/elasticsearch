@@ -30,6 +30,20 @@ public final class ExceptionsHelper {
 
     private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
 
+    public static RuntimeException convertToRuntime(Throwable t) {
+        if (t instanceof RuntimeException) {
+            return (RuntimeException) t;
+        }
+        return new ElasticSearchException(t.getMessage(), t);
+    }
+
+    public static ElasticSearchException convertToElastic(Throwable t) {
+        if (t instanceof ElasticSearchException) {
+            return (ElasticSearchException) t;
+        }
+        return new ElasticSearchException(t.getMessage(), t);
+    }
+
     public static RestStatus status(Throwable t) {
         if (t instanceof ElasticSearchException) {
             return ((ElasticSearchException) t).status();

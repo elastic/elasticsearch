@@ -18,28 +18,117 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
-
-import java.util.Arrays;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.hamcrest.Matcher;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.fail;
 
 /**
  *
  */
 public class ElasticsearchAssertions {
 
+
+    public static void assertAcked(PutMappingRequestBuilder builder) {
+        assertAcked(builder.get());
+    }
+    
+    private static void assertAcked(PutMappingResponse response) {
+        assertThat("Put Mapping failed - not acked", response.isAcknowledged(), equalTo(true));
+
+    }
+
+    public static void assertAcked(DeleteIndexRequestBuilder builder) {
+        assertAcked(builder.get());
+    }
+
+    public static void assertAcked(CreateIndexRequestBuilder builder) {
+        assertAcked(builder.get());
+    }
+
+    public static void assertAcked(DeleteIndexResponse response) {
+        assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
+    }
+
+    public static void assertAcked(CreateIndexResponse response) {
+        assertThat("Create Index failed - not acked", response.isAcknowledged(), equalTo(true));
+    }
+
+    public static String formatShardStatus(BroadcastOperationResponse response) {
+        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() +
+                " & " + response.getFailedShards() + " shard failures:";
+        for (ShardOperationFailedException failure : response.getShardFailures()) {
+            msg += "\n " + failure.toString();
+        }
+        return msg;
+    }
+
+    public static String formatShardStatus(SearchResponse response) {
+        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() +
+                " & " + response.getFailedShards() + " shard failures:";
+        for (ShardSearchFailure failure : response.getShardFailures()) {
+            msg += "\n " + failure.toString();
+        }
+        return msg;
+    }
+
     /*
      * assertions
      */
     public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
-        assertThat(searchResponse.getHits().totalHits(), is(expectedHitCount));
+        if (searchResponse.getHits().totalHits() != expectedHitCount) {
+            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(searchResponse));
+        }
+    }
+
+    public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
+        String shardStatus = formatShardStatus(searchResponse);
+        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
+
+        Set<String> idsSet = new HashSet<String>(Arrays.asList(ids));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()), equalTo(true));
+        }
+        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs." + shardStatus, idsSet.size(), equalTo(0));
+    }
+    
+    public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
+        String shardStatus = formatShardStatus(searchResponse);
+        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
+        for (int i=0; i<ids.length; i++) {
+            SearchHit hit = searchResponse.getHits().hits()[i];
+            assertThat("Expected id: " + hit.getId() + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
+        }
+    }
+
+    public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
+        if (countResponse.getCount() != expectedHitCount) {
+            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " +
+                    formatShardStatus(countResponse));
+        }
     }
 
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
@@ -57,12 +146,16 @@ public class ElasticsearchAssertions {
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assert number > 0;
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long)number));
-        assertSearchHit(searchResponse.getHits().getAt(number-1), matcher);
+        assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long) number));
+        assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
     }
-    
+
     public static void assertNoFailures(SearchResponse searchResponse) {
-        assertThat("Unexpectd ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+    }
+
+    public static void assertNoFailures(BroadcastOperationResponse response) {
+        assertThat("Unexpectd ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
     }
 
     public static void assertSearchHit(SearchHit searchHit, Matcher<SearchHit> matcher) {
@@ -76,16 +169,16 @@ public class ElasticsearchAssertions {
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));
         assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(), matcher);
     }
-    
+
     public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {
         assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(),greaterThanOrEqualTo(1));
+        assertThat(searchSuggest.size(), greaterThanOrEqualTo(1));
         assertThat(searchSuggest.getSuggestion(key).getName(), equalTo(key));
         assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), equalTo(size));
 
     }
-    
+
     public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
         assertThat(searchSuggest, notNullValue());
         assertThat(searchSuggest.size(), greaterThanOrEqualTo(1));
@@ -93,6 +186,23 @@ public class ElasticsearchAssertions {
         assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), greaterThan(ord));
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));
+    }
+
+    /**
+     * Assert suggestion returns exactly the provided text.
+     */
+    public static void assertSuggestion(Suggest searchSuggest, int entry, String key, String... text) {
+        assertSuggestion(searchSuggest, entry, key, text.length, text);
+    }
+
+    /**
+     * Assert suggestion returns size suggestions and the first are the provided text.
+     */
+    public static void assertSuggestion(Suggest searchSuggest, int entry, String key, int size, String... text) {
+        assertSuggestionSize(searchSuggest, entry, size, key);
+        for( int i = 0; i < text.length; i++) {
+            assertSuggestion(searchSuggest, entry, i, key, text[i]);
+        }
     }
 
     /*
@@ -109,13 +219,34 @@ public class ElasticsearchAssertions {
     public static Matcher<SearchHit> hasIndex(final String index) {
         return new ElasticsearchMatchers.SearchHitHasIndexMatcher(index);
     }
-    
+
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;
         assertThat(q.getClauses().length, greaterThan(i));
         assertThat(q.getClauses()[i].getQuery(), instanceOf(subqueryType));
-        return  (T)q.getClauses()[i].getQuery();
+        return (T) q.getClauses()[i].getQuery();
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass) {
+        assertThrows(builder.execute(), exceptionClass);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass) {
+        boolean fail = false;
+        try {
+            future.actionGet();
+            fail = true;
+
+        } catch (ElasticSearchException esException) {
+            assertThat(esException.unwrapCause(), instanceOf(exceptionClass));
+        } catch (Throwable e) {
+            assertThat(e, instanceOf(exceptionClass));
+        }
+        // has to be outside catch clause to get a proper message
+        if (fail) {
+            throw new AssertionError("Expected a " + exceptionClass + " exception to be thrown");
+        }
     }
 
 }

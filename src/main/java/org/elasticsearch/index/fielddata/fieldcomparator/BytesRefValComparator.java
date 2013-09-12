@@ -19,13 +19,15 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+
+import java.io.IOException;
 
 /**
  * Sorts by field's natural Term sort order.  All
@@ -33,19 +35,21 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
  * slow for medium to large result sets but possibly
  * very fast for very small results sets.
  */
-public final class BytesRefValComparator extends FieldComparator<BytesRef> {
+public final class BytesRefValComparator extends NestedWrappableComparator<BytesRef> {
 
     private final IndexFieldData<?> indexFieldData;
     private final SortMode sortMode;
+    private final BytesRef missingValue;
 
     private final BytesRef[] values;
     private BytesRef bottom;
     private BytesValues docTerms;
 
-    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, SortMode sortMode) {
+    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
         this.sortMode = sortMode;
         values = new BytesRef[numHits];
         this.indexFieldData = indexFieldData;
+        this.missingValue = missingValue;
     }
 
     @Override
@@ -57,16 +61,23 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        final BytesRef val2 = docTerms.getValue(doc);
+        BytesRef val2 = docTerms.getValue(doc);
+        if (val2 == null) {
+            val2 = missingValue;
+        }
         return compareValues(bottom, val2);
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        if (values[slot] == null) {
-            values[slot] = new BytesRef();
+        if (!docTerms.hasValue(doc)) {
+            values[slot] = missingValue;
+        } else {
+            if (values[slot] == null || values[slot] == missingValue) {
+                values[slot] = new BytesRef();
+            }
+            docTerms.getValueScratch(doc, values[slot]);
         }
-        docTerms.getValueScratch(doc, values[slot]);
     }
 
     @Override
@@ -143,23 +154,32 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
         }
 
         @Override
-        public BytesRef getValueScratch(int docId, BytesRef scratch) {
+        public BytesRef getValueScratch(int docId, BytesRef relevantVal) {
             BytesValues.Iter iter = delegate.getIter(docId);
             if (!iter.hasNext()) {
-                return null;
+                relevantVal.length = 0;
+                return relevantVal;
             }
 
             BytesRef currentVal = iter.next();
-            BytesRef relevantVal = currentVal;
+            // We MUST allocate a new byte[] since relevantVal might have been filled by reference by a PagedBytes instance
+            // meaning that the BytesRef.bytes are shared and shouldn't be overwritten. We can't use the bytes of the iterator
+            // either because they will be overwritten by subsequent calls in the current thread
+            relevantVal.bytes = new byte[ArrayUtil.oversize(currentVal.length, RamUsageEstimator.NUM_BYTES_BYTE)];
+            relevantVal.offset = 0;
+            relevantVal.length = 0;
+            relevantVal.append(currentVal);
             while (true) {
                 int cmp = currentVal.compareTo(relevantVal);
                 if (sortMode == SortMode.MAX) {
                     if (cmp > 0) {
-                        relevantVal = currentVal;
+                        relevantVal.length = 0;
+                        relevantVal.append(currentVal);
                     }
                 } else {
                     if (cmp < 0) {
-                        relevantVal = currentVal;
+                        relevantVal.length = 0;
+                        relevantVal.append(currentVal);
                     }
                 }
                 if (!iter.hasNext()) {
@@ -170,6 +190,16 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
             return relevantVal;
         }
 
+    }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = missingValue;
+    }
+
+    @Override
+    public int compareBottomMissing() {
+        return compareValues(bottom, missingValue);
     }
 
 }

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -30,6 +30,8 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A histogram facet collector that uses different fields for the key and the value.
@@ -41,14 +43,14 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
     private final HistogramFacet.ComparatorType comparatorType;
     private final long interval;
 
-    final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
+    final Recycler.V<ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
     public ValueHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.interval = interval;
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.entries = context.cacheRecycler().longObjectMap(-1);
     }
 
     @Override
@@ -58,7 +60,9 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries, true);
+        List<InternalFullHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullHistogramFacet.FullEntry>(entries.v().valueCollection());
+        entries.release();
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
     }
 
     class Collector extends FacetExecutor.Collector {
@@ -67,7 +71,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
         private DoubleValues keyValues;
 
         public Collector() {
-            this.histoProc = new HistogramProc(interval, entries);
+            this.histoProc = new HistogramProc(interval, entries.v());
         }
 
         @Override
@@ -110,7 +114,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
             }
             entry.count++;
             valueAggregator.entry = entry;
-            valueAggregator.onDoc(docId,  valueValues);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
         public final static class ValueAggregator extends DoubleFacetAggregatorBase {

@@ -83,14 +83,21 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
 
     @Override
     public void handleResponse(V response) {
-        handler.handleResponse(response);
-        set(response);
+        try {
+            handler.handleResponse(response);
+            set(response);
+        } catch (Throwable t) {
+            handleException(new ResponseHandlerFailureTransportException(t));
+        }
     }
 
     @Override
     public void handleException(TransportException exp) {
-        handler.handleException(exp);
-        setException(exp);
+        try {
+            handler.handleException(exp);
+        } finally {
+            setException(exp);
+        }
     }
 
     @Override

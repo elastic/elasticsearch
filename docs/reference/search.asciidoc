@@ -1,0 +1,106 @@
+[[search]]
+= Search APIs
+
+[partintro]
+--
+["float",id="search-multi-index"]
+== Multiple Indices
+
+All search APIs support execution across multiple indices, using simple
+`test1,test2,test3` notation (or `_all` for all indices). It also
+support wildcards, for example: `test*`, and the ability to "add" (`+`)
+and "remove" (`-`), for example: `+test*,-test3`.
+
+All multi indices API support the `ignore_indices` option. Setting it to
+`missing` will cause indices that do not exists to be ignored from the
+execution. By default, when its not set, the request will fail. 
+
+[float]
+== Routing
+
+When executing a search, it will be broadcasted to all the index/indices
+shards (round robin between replicas). Which shards will be searched on
+can be controlled by providing the `routing` parameter. For example,
+when indexing tweets, the routing value can be the user name:
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter/tweet?routing=kimchy' -d '{
+    "user" : "kimchy",
+    "postDate" : "2009-11-15T14:12:12",
+    "message" : "trying out Elastic Search"
+}
+'
+--------------------------------------------------
+
+In such a case, if we want to search only on the tweets for a specific
+user, we can specify it as the routing, resulting in the search hitting
+only the relevant shard:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
+    "query": {
+        "filtered" : {
+            "query" : {
+                "query_string" : {
+                    "query" : "some query string here"
+                }
+            },
+            "filter" : {
+                "term" : { "user" : "kimchy" }
+            }
+        }
+    }
+}
+'
+--------------------------------------------------
+
+The routing parameter can be multi valued represented as a comma
+separated string. This will result in hitting the relevant shards where
+the routing values match to.
+
+[float]
+== Stats Groups
+
+A search can be associated with stats groups, which maintains a
+statistics aggregation per group. It can later be retrieved using the
+<<indices-stats,indices stats>> API
+specifically. For example, here is a search body request that associate
+the request with two different groups:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match_all" : {}
+    },
+    "stats" : ["group1", "group2"]
+}
+--------------------------------------------------
+
+--
+
+include::search/search.asciidoc[]
+
+include::search/uri-request.asciidoc[]
+
+include::search/request-body.asciidoc[]
+
+include::search/facets.asciidoc[]
+
+include::search/suggesters.asciidoc[]
+
+include::search/multi-search.asciidoc[]
+
+include::search/count.asciidoc[]
+
+include::search/validate.asciidoc[]
+
+include::search/explain.asciidoc[]
+
+include::search/percolate.asciidoc[]
+
+include::search/more-like-this.asciidoc[]
+
+include::search/termvectors.asciidoc[]

@@ -22,8 +22,8 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.PagedBytes.Reader;
-import org.apache.lucene.util.packed.GrowableWriter;
-import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
+import org.elasticsearch.common.util.BigIntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
@@ -40,14 +40,14 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     // 0 ordinal in values means no value (its null)
     private final PagedBytes.Reader bytes;
-    private final PackedInts.Reader termOrdToBytesOffset;
+    private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    private volatile int[] hashes;
+    private volatile BigIntArray hashes;
     private long size = -1;
     private final long readerBytesSize;
 
-    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, long readerBytesSize, PackedInts.Reader termOrdToBytesOffset, Ordinals ordinals) {
+    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, long readerBytesSize, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals ordinals) {
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;
@@ -69,6 +69,11 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
+    public long getNumberUniqueValues() {
+        return ordinals.getNumOrds();
+    }
+
+    @Override
     public boolean isValuesOrdered() {
         return true;
     }
@@ -86,14 +91,14 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         return size;
     }
 
-    private final int[] getHashes() {
+    private final BigIntArray getHashes() {
         if (hashes == null) {
-            int numberOfValues = termOrdToBytesOffset.size();
-            int[] hashes = new int[numberOfValues];
+            long numberOfValues = termOrdToBytesOffset.size();
+            BigIntArray hashes = new BigIntArray(numberOfValues);
             BytesRef scratch = new BytesRef();
-            for (int i = 0; i < numberOfValues; i++) {
+            for (long i = 0; i < numberOfValues; i++) {
                 bytes.fill(scratch, termOrdToBytesOffset.get(i));
-                hashes[i] = scratch.hashCode();
+                hashes.set(i, scratch.hashCode());
             }
             this.hashes = hashes;
         }
@@ -108,7 +113,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     @Override
     public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
-        final int[] hashes = getHashes();
+        final BigIntArray hashes = getHashes();
         return ordinals.isMultiValued() ? new BytesValues.MultiHashed(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals())
                 : new BytesValues.SingleHashed(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
     }
@@ -121,12 +126,12 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     static abstract class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
         protected final PagedBytes.Reader bytes;
-        protected final PackedInts.Reader termOrdToBytesOffset;
+        protected final MonotonicAppendingLongBuffer termOrdToBytesOffset;
         protected final Ordinals.Docs ordinals;
 
         protected final BytesRef scratch = new BytesRef();
 
-        BytesValues(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
+        BytesValues(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals.Docs ordinals) {
             super(ordinals);
             this.bytes = bytes;
             this.termOrdToBytesOffset = termOrdToBytesOffset;
@@ -146,7 +151,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         @Override
-        public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+        public BytesRef getValueScratchByOrd(long ord, BytesRef ret) {
             bytes.fill(ret, termOrdToBytesOffset.get(ord));
             return ret;
         }
@@ -156,7 +161,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
             private final Iter.Single iter;
 
-            Single(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
+            Single(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals.Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
                 assert !ordinals.isMultiValued();
                 iter = newSingleIter();
@@ -164,7 +169,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
             @Override
             public Iter getIter(int docId) {
-                int ord = ordinals.getOrd(docId);
+                long ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
                 bytes.fill(scratch, termOrdToBytesOffset.get(ord));
                 return iter.reset(scratch, ord);
@@ -173,9 +178,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         static final class SingleHashed extends Single {
-            private final int[] hashes;
+            private final BigIntArray hashes;
 
-            SingleHashed(int[] hashes, Reader bytes, org.apache.lucene.util.packed.PackedInts.Reader termOrdToBytesOffset, Docs ordinals) {
+            SingleHashed(BigIntArray hashes, Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
                 this.hashes = hashes;
             }
@@ -184,16 +189,16 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             protected Iter.Single newSingleIter() {
                 return new Iter.Single() {
                     public int hash() {
-                        return hashes[ord];
+                        return hashes.get(ord);
                     }
                 };
             }
 
             @Override
             public int getValueHashed(int docId, BytesRef ret) {
-                final int ord = ordinals.getOrd(docId);
+                final long ord = ordinals.getOrd(docId);
                 getValueScratchByOrd(ord, ret);
-                return hashes[ord];
+                return hashes.get(ord);
             }
 
         }
@@ -203,7 +208,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
             private final Iter.Multi iter;
 
-            Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
+            Multi(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals.Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
                 assert ordinals.isMultiValued();
                 this.iter = newMultiIter();
@@ -217,9 +222,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         static final class MultiHashed extends Multi {
 
-            private final int[] hashes;
+            private final BigIntArray hashes;
 
-            MultiHashed(int[] hashes, Reader bytes, org.apache.lucene.util.packed.PackedInts.Reader termOrdToBytesOffset, Docs ordinals) {
+            MultiHashed(BigIntArray hashes, Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
                 this.hashes = hashes;
             }
@@ -228,16 +233,16 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             protected Iter.Multi newMultiIter() {
                 return new Iter.Multi(this) {
                     public int hash() {
-                        return hashes[ord];
+                        return hashes.get(ord);
                     }
                 };
             }
 
             @Override
             public int getValueHashed(int docId, BytesRef ret) {
-                int ord = ordinals.getOrd(docId);
+                long ord = ordinals.getOrd(docId);
                 getValueScratchByOrd(ord, ret);
-                return hashes[ord];
+                return hashes.get(ord);
             }
 
         }
@@ -246,7 +251,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     static class Empty extends PagedBytesAtomicFieldData {
 
         Empty(int numDocs) {
-            super(emptyBytes(), 0, new GrowableWriter(1, 2, PackedInts.FASTEST).getMutable(), new EmptyOrdinals(numDocs));
+            super(emptyBytes(), 0, new MonotonicAppendingLongBuffer(), new EmptyOrdinals(numDocs));
         }
 
         static PagedBytes.Reader emptyBytes() {
@@ -263,6 +268,11 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         @Override
         public int getNumDocs() {
             return ordinals.getNumDocs();
+        }
+
+        @Override
+        public long getNumberUniqueValues() {
+            return 0;
         }
 
         @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -47,22 +48,33 @@ public class RestActions {
         return 0;
     }
 
+    static final class Fields {
+        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
+        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
+        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final XContentBuilderString INDEX = new XContentBuilderString("index");
+        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+        static final XContentBuilderString REASON = new XContentBuilderString("reason");
+    }
+
     public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
-        builder.startObject("_shards");
-        builder.field("total", response.getTotalShards());
-        builder.field("successful", response.getSuccessfulShards());
-        builder.field("failed", response.getFailedShards());
-        if (response.getShardFailures()!=null && response.getShardFailures().length>0) {
-            builder.startArray("failures");
+        builder.startObject(Fields._SHARDS);
+        builder.field(Fields.TOTAL, response.getTotalShards());
+        builder.field(Fields.SUCCESSFUL, response.getSuccessfulShards());
+        builder.field(Fields.FAILED, response.getFailedShards());
+        if (response.getShardFailures() != null && response.getShardFailures().length > 0) {
+            builder.startArray(Fields.FAILURES);
             for (ShardOperationFailedException shardFailure : response.getShardFailures()) {
                 builder.startObject();
                 if (shardFailure.index() != null) {
-                    builder.field("index", shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(Fields.INDEX, shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 if (shardFailure.shardId() != -1) {
-                    builder.field("shard", shardFailure.shardId());
+                    builder.field(Fields.SHARD, shardFailure.shardId());
                 }
-                builder.field("reason", shardFailure.reason());
+                builder.field(Fields.REASON, shardFailure.reason());
                 builder.endObject();
             }
             builder.endArray();

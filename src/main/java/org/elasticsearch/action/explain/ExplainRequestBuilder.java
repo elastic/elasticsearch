@@ -23,8 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 /**
  * A builder for {@link ExplainRequest}.
@@ -102,6 +105,57 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      */
     public ExplainRequestBuilder setFields(String... fields) {
         request.fields(fields);
+        return this;
+    }
+
+    /**
+     * Indicates whether the response should contain the stored _source
+     *
+     *
+     * @param fetch
+     * @return
+     */
+    public ExplainRequestBuilder setFetchSource(boolean fetch) {
+        FetchSourceContext context = request.fetchSourceContext();
+        if (context == null) {
+            request.fetchSourceContext(new FetchSourceContext(fetch));
+        }
+        else {
+            context.fetchSource(fetch);
+        }
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include An optional include (optionally wildcarded) pattern to filter the returned _source
+     * @param exclude An optional exclude (optionally wildcarded) pattern to filter the returned _source
+     */
+    public ExplainRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
+        return setFetchSource(
+                include == null? Strings.EMPTY_ARRAY : new String[] {include},
+                exclude == null? Strings.EMPTY_ARRAY : new String[] {exclude});
+    }
+
+    /**
+     * Indicate that _source should be returned, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes An optional list of include (optionally wildcarded) pattern to filter the returned _source
+     * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
+     */
+    public ExplainRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        FetchSourceContext context = request.fetchSourceContext();
+        if (context == null) {
+            request.fetchSourceContext(new FetchSourceContext(includes, excludes));
+        }
+        else {
+            context.fetchSource(true);
+            context.includes(includes);
+            context.excludes(excludes);
+        }
         return this;
     }
 

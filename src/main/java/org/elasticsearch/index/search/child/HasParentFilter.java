@@ -27,11 +27,11 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -47,7 +47,7 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
     final SearchContext context;
     final Filter childrenFilter;
 
-    THashSet<HashedBytesArray> parents;
+    Recycler.V<THashSet<HashedBytesArray>> parents;
 
     public HasParentFilter(Query parentQuery, String parentType, SearchContext context, Filter childrenFilter) {
         this.parentQuery = parentQuery;
@@ -79,6 +79,9 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
         if (parents == null) {
             throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
         }
+        if (parents.v().isEmpty()) {
+            return null;
+        }
 
         DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(readerContext, null);
         if (DocIdSets.isEmpty(childrenDocIdSet)) {
@@ -88,7 +91,7 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
         Bits childrenBits = DocIdSets.toSafeBits(readerContext.reader(), childrenDocIdSet);
         IdReaderTypeCache idReaderTypeCache = context.idCache().reader(readerContext.reader()).type(parentType);
         if (idReaderTypeCache != null) {
-            return new ChildrenDocSet(readerContext.reader(), childrenBits, parents, idReaderTypeCache);
+            return new ChildrenDocSet(readerContext.reader(), childrenBits, parents.v(), idReaderTypeCache);
         } else {
             return null;
         }
@@ -97,18 +100,21 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        parents = CacheRecycler.popHashSet();
-        ParentUidsCollector collector = new ParentUidsCollector(parents, context, parentType);
+        parents = context.cacheRecycler().hashSet(-1);
+        ParentUidsCollector collector = new ParentUidsCollector(parents.v(), context, parentType);
         searchContext.searcher().search(parentQuery, collector);
-        parents = collector.collectedUids;
+    }
+
+    @Override
+    public void executionDone() {
+        if (parents != null) {
+            parents.release();
+        }
+        parents = null;
     }
 
     @Override
     public void contextClear() {
-        if (parents != null) {
-            CacheRecycler.pushHashSet(parents);
-        }
-        parents = null;
     }
 
     final static class ChildrenDocSet extends MatchDocIdSet {

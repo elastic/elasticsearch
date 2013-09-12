@@ -6,6 +6,7 @@
 
 package jsr166e;
 
+
 /**
  * A thread managed by a {@link ForkJoinPool}, which executes
  * {@link ForkJoinTask}s.
@@ -14,8 +15,8 @@ package jsr166e;
  * scheduling or execution.  However, you can override initialization
  * and termination methods surrounding the main task processing loop.
  * If you do create such a subclass, you will also need to supply a
- * custom {@link ForkJoinPool.ForkJoinWorkerThreadFactory} to use it
- * in a {@code ForkJoinPool}.
+ * custom {@link ForkJoinPool.ForkJoinWorkerThreadFactory} to
+ * {@linkplain ForkJoinPool#ForkJoinPool use it} in a {@code ForkJoinPool}.
  *
  * @since 1.7
  * @author Doug Lea
@@ -60,16 +61,17 @@ public class ForkJoinWorkerThread extends Thread {
     }
 
     /**
-     * Returns the index number of this thread in its pool.  The
-     * returned value ranges from zero to the maximum number of
-     * threads (minus one) that have ever been created in the pool.
-     * This method may be useful for applications that track status or
-     * collect results per-worker rather than per-task.
+     * Returns the unique index number of this thread in its pool.
+     * The returned value ranges from zero to the maximum number of
+     * threads (minus one) that may exist in the pool, and does not
+     * change during the lifetime of the thread.  This method may be
+     * useful for applications that track status or collect results
+     * per-worker-thread rather than per-task.
      *
      * @return the index number
      */
     public int getPoolIndex() {
-        return workQueue.poolIndex;
+        return workQueue.poolIndex >>> 1; // ignore odd/even tag bit
     }
 
     /**

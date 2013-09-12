@@ -25,14 +25,14 @@ import org.apache.lucene.search.Explanation;
 /**
  *
  */
-public class BoostScoreFunction implements ScoreFunction {
+public class BoostScoreFunction extends ScoreFunction {
 
     private final float boost;
 
     public BoostScoreFunction(float boost) {
+        super(CombineFunction.MULT);
         this.boost = boost;
     }
-
 
     public float getBoost() {
         return boost;
@@ -42,38 +42,30 @@ public class BoostScoreFunction implements ScoreFunction {
     public void setNextReader(AtomicReaderContext context) {
         // nothing to do here...
     }
-
+    
     @Override
-    public float score(int docId, float subQueryScore) {
-        return subQueryScore * boost;
-    }
-
-    @Override
-    public float factor(int docId) {
+    public double score(int docId, float subQueryScore) {
         return boost;
     }
 
     @Override
     public Explanation explainScore(int docId, Explanation subQueryExpl) {
-        Explanation exp = new Explanation(boost * subQueryExpl.getValue(), "static boost function: product of:");
-        exp.addDetail(subQueryExpl);
+        Explanation exp = new Explanation(boost, "static boost factor");
         exp.addDetail(new Explanation(boost, "boostFactor"));
         return exp;
     }
 
     @Override
-    public Explanation explainFactor(int docId) {
-        return new Explanation(boost, "boostFactor");
-    }
-
-    @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
 
         BoostScoreFunction that = (BoostScoreFunction) o;
 
-        if (Float.compare(that.boost, boost) != 0) return false;
+        if (Float.compare(that.boost, boost) != 0)
+            return false;
 
         return true;
     }

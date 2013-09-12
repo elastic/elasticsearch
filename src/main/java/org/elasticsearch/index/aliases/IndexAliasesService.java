@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.aliases;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
@@ -29,6 +27,7 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -39,9 +38,8 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
-
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
  *
@@ -49,10 +47,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class IndexAliasesService extends AbstractIndexComponent implements Iterable<IndexAlias> {
 
     private final IndexQueryParserService indexQueryParser;
-
-    private volatile ImmutableMap<String, IndexAlias> aliases = ImmutableMap.of();
-
-    private final Object mutex = new Object();
+    private final Map<String, IndexAlias> aliases = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     @Inject
     public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParser) {
@@ -77,9 +72,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
     }
 
     public void addAll(Map<String, IndexAlias> aliases) {
-        synchronized (mutex) {
-            this.aliases = newMapBuilder(this.aliases).putAll(aliases).immutableMap();
-        }
+        this.aliases.putAll(aliases);
     }
 
     /**
@@ -126,15 +119,11 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
     }
 
     private void add(IndexAlias indexAlias) {
-        synchronized (mutex) {
-            aliases = newMapBuilder(aliases).put(indexAlias.alias(), indexAlias).immutableMap();
-        }
+        aliases.put(indexAlias.alias(), indexAlias);
     }
 
     public void remove(String alias) {
-        synchronized (mutex) {
-            aliases = newMapBuilder(aliases).remove(alias).immutableMap();
-        }
+        aliases.remove(alias);
     }
 
     private Filter parse(String alias, CompressedString filter) {
@@ -145,7 +134,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             byte[] filterSource = filter.uncompressed();
             XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource);
             try {
-                return indexQueryParser.parseInnerFilter(parser);
+                return indexQueryParser.parseInnerFilter(parser).filter();
             } finally {
                 parser.close();
             }
@@ -155,7 +144,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
     }
 
     @Override
-    public UnmodifiableIterator<IndexAlias> iterator() {
+    public Iterator<IndexAlias> iterator() {
         return aliases.values().iterator();
     }
 }

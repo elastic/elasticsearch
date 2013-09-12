@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Shape;
-import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private SpatialStrategy strategy = null;
 
-    private final Shape shape;
+    private final ShapeBuilder shape;
 
     private float boost = -1;
 
@@ -45,6 +44,8 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
     private String indexedShapeIndex;
     private String indexedShapeFieldName;
 
+    private String queryName;
+
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the
      * given field name using the given Shape
@@ -52,7 +53,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
      * @param name  Name of the field that will be queried
      * @param shape Shape used in the query
      */
-    public GeoShapeQueryBuilder(String name, Shape shape) {
+    public GeoShapeQueryBuilder(String name, ShapeBuilder shape) {
         this(name, shape, null, null);
     }
 
@@ -68,7 +69,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         this(name, null, indexedShapeId, indexedShapeType);
     }
 
-    private GeoShapeQueryBuilder(String name, Shape shape, String indexedShapeId, String indexedShapeType) {
+    private GeoShapeQueryBuilder(String name, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) {
         this.name = name;
         this.shape = shape;
         this.indexedShapeId = indexedShapeId;
@@ -118,6 +119,14 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public GeoShapeQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoShapeQueryParser.NAME);
@@ -129,9 +138,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
 
         if (shape != null) {
-            builder.startObject("shape");
-            GeoJSONShapeSerializer.serialize(shape, builder);
-            builder.endObject();
+            builder.field("shape", shape);
         } else {
             builder.startObject("indexed_shape")
                     .field("id", indexedShapeId)
@@ -147,6 +154,9 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

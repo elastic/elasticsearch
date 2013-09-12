@@ -111,7 +111,7 @@ public class QueryPhase implements SearchPhase {
             Query query = searchContext.query();
 
             TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size() ;
+            int numDocs = searchContext.from() + searchContext.size();
             if (numDocs == 0) {
                 // if 0 was asked, change it to 1 since 0 is not allowed
                 numDocs = 1;
@@ -144,5 +144,11 @@ public class QueryPhase implements SearchPhase {
         }
         suggestPhase.execute(searchContext);
         facetPhase.execute(searchContext);
+
+        if (rewrites != null) {
+            for (SearchContext.Rewrite rewrite : rewrites) {
+                rewrite.executionDone();
+            }
+        }
     }
 }

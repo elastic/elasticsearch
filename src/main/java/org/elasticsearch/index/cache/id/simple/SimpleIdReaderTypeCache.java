@@ -20,7 +20,7 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import gnu.trove.impl.hash.TObjectHash;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -86,26 +86,26 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
         long sizeInBytes = 0;
         // Ignore type field
         //  sizeInBytes += ((type.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT)) + RamUsage.NUM_BYTES_OBJECT_HEADER;
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (idToDoc._valuesSize() * RamUsage.NUM_BYTES_INT);
+        sizeInBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (idToDoc._valuesSize() * RamUsageEstimator.NUM_BYTES_INT);
         for (Object o : idToDoc._set) {
             if (o == TObjectHash.FREE || o == TObjectHash.REMOVED) {
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_REF;
+                sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_REF;
             } else {
                 HashedBytesArray bytesArray = (HashedBytesArray) o;
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsage.NUM_BYTES_INT);
+                sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsageEstimator.NUM_BYTES_INT);
             }
         }
 
         // The docIdToId array contains references to idToDoc for this segment or other segments, so we can use OBJECT_REF
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_OBJECT_REF * docIdToId.length);
+        sizeInBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (RamUsageEstimator.NUM_BYTES_OBJECT_REF * docIdToId.length);
         for (HashedBytesArray bytesArray : parentIdsValues) {
             if (bytesArray == null) {
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_REF;
+                sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_REF;
             } else {
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsage.NUM_BYTES_INT);
+                sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsageEstimator.NUM_BYTES_INT);
             }
         }
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_INT * parentIdsOrdinals.length);
+        sizeInBytes += RamUsageEstimator.sizeOf(parentIdsOrdinals);
 
         return sizeInBytes;
     }

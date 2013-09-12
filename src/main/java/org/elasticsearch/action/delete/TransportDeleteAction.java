@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -110,12 +111,12 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                         @Override
                         public void onResponse(IndexDeleteResponse indexDeleteResponse) {
                             // go over the response, see if we have found one, and the version if found
-                            long version = 0;
+                            long version = Versions.MATCH_ANY;
                             boolean found = false;
                             for (ShardDeleteResponse deleteResponse : indexDeleteResponse.getResponses()) {
                                 if (!deleteResponse.isNotFound()) {
-                                    found = true;
                                     version = deleteResponse.getVersion();
+                                    found = true;
                                     break;
                                 }
                             }
@@ -186,7 +187,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh(false));
+                indexShard.refresh(new Engine.Refresh().force(false));
             } catch (Exception e) {
                 // ignore
             }
@@ -207,7 +208,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh(false));
+                indexShard.refresh(new Engine.Refresh().force(false));
             } catch (Exception e) {
                 // ignore
             }

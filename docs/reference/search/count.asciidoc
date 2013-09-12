@@ -1,0 +1,88 @@
+[[search-count]]
+== Count API
+
+The count API allows to easily execute a query and get the number of
+matches for that query. It can be executed across one or more indices
+and across one or more types. The query can either be provided using a
+simple query string as a parameter, or using the
+<<query-dsl,Query DSL>> defined within the request
+body. Here is an example:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_count?q=user:kimchy'
+
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_count' -d '
+{
+    "term" : { "user" : "kimchy" }
+}'
+--------------------------------------------------
+
+Both examples above do the same thing, which is count the number of
+tweets from the twitter index for a certain user. The result is:
+
+[source,js]
+--------------------------------------------------
+{
+    "count" : 1,
+    "_shards" : {
+        "total" : 5,
+        "successful" : 5,
+        "failed" : 0
+    }
+}
+--------------------------------------------------
+
+The query is optional, and when not provided, it will use `match_all` to
+count all the docs.
+
+
+NOTE: in contrast to <<search-search>> the query being sent in the body must 
+*not* be nested in a `query` key.
+
+[float]
+=== Multi index, Multi type
+
+The count API can be applied to <<search-multi-index-type,multiple types in multiple indices>>.
+
+[float]
+=== Request Parameters
+
+When executing count using the query parameter `q`, the query passed is
+a query string using Lucene query parser. There are additional
+parameters that can be passed:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Name |Description
+|df |The default field to use when no field prefix is defined within the
+query.
+
+|analyzer |The analyzer name to be used when analyzing the query string.
+
+|default_operator |The default operator to be used, can be `AND` or
+`OR`. Defaults to `OR`.
+|=======================================================================
+
+[float]
+=== Request Body
+
+The count can use the <<query-dsl,Query DSL>> within
+its body in order to express the query that should be executed. The body
+content can also be passed as a REST parameter named `source`.
+
+Both HTTP GET and HTTP POST can be used to execute count with body.
+Since not all clients support GET with body, POST is allowed as well.
+
+[float]
+=== Distributed
+
+The count operation is broadcast across all shards. For each shard id
+group, a replica is chosen and executed against it. This means that
+replicas increase the scalability of count.
+
+[float]
+=== Routing
+
+The routing value (a comma separated list of the routing values) can be
+specified to control which shards the count request will be executed on.

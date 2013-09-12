@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticSearchParseException;
+
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +44,11 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 public class GeoBoundingBoxFilterParser implements FilterParser {
 
     public static final String NAME = "geo_bbox";
+    public static final String TOP_LEFT = "top_left";
+    public static final String TOPLEFT = "topLeft";
+    public static final String BOTTOM_RIGHT = "bottom_right";
+    public static final String BOTTOMRIGHT = "bottomRight";
+    public static final String FIELD = "field";
 
     @Inject
     public GeoBoundingBoxFilterParser() {
@@ -79,62 +85,18 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        GeoPoint point = null;
-                        if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                            point = topLeft;
-                        } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                            point = bottomRight;
-                        }
-
-                        if (point != null) {
-                            token = parser.nextToken();
-                            point.resetLon(parser.doubleValue());
-                            token = parser.nextToken();
-                            point.resetLat(parser.doubleValue());
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                            }
-                        }
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        GeoPoint point = null;
-                        if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                            point = topLeft;
-                        } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                            point = bottomRight;
-                        }
-
-                        if (point != null) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (token.isValue()) {
-                                    if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                        point.resetLat(parser.doubleValue());
-                                    } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
-                                        point.resetLon(parser.doubleValue());
-                                    } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                        GeoHashUtils.decode(parser.text(), point);
-                                    }
-                                }
-                            }
-                        }
-                    } else if (token.isValue()) {
-                        if ("field".equals(currentFieldName)) {
+                        token = parser.nextToken();
+                        if (FIELD.equals(currentFieldName)) {
                             fieldName = parser.text();
+                        } else if (TOP_LEFT.equals(currentFieldName) || TOPLEFT.equals(currentFieldName)) {
+                            GeoPoint.parse(parser, topLeft);
+                        } else if ( BOTTOM_RIGHT.equals(currentFieldName) || BOTTOMRIGHT.equals(currentFieldName)) {
+                            GeoPoint.parse(parser, bottomRight);
                         } else {
-                            GeoPoint point = null;
-                            if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                                point = topLeft;
-                            } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                                point = bottomRight;
-                            }
-
-                            if (point != null) {
-                                String value = parser.text();
-                                point.resetFromString(value);
-                            }
+                            throw new ElasticSearchParseException("Unexpected field [" + currentFieldName + "]");
                         }
+                    } else {
+                        throw new ElasticSearchParseException("fieldname expected but [" + token + "] found");
                     }
                 }
             } else if (token.isValue()) {
@@ -163,7 +125,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
-        FieldMapper mapper = smartMappers.mapper();
+        FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
@@ -173,7 +135,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if ("indexed".equals(type)) {
             filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
         } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+            IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
             filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");

@@ -1,0 +1,97 @@
+[[docs-multi-get]]
+== Multi Get API
+
+Multi GET API allows to get multiple documents based on an index, type
+(optional) and id (and possibly routing). The response includes a `docs`
+array with all the fetched documents, each element similar in structure
+to a document provided by the <<docs-get,get>>
+API. Here is an example:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/_mget' -d '{
+    "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "1"
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "2"
+        }
+    ]
+}'
+--------------------------------------------------
+
+The `mget` endpoint can also be used against an index (in which case it
+is not required in the body):
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/test/_mget' -d '{
+    "docs" : [
+        {
+            "_type" : "type",
+            "_id" : "1"
+        },
+        {
+            "_type" : "type",
+            "_id" : "2"
+        }
+    ]
+}'
+--------------------------------------------------
+
+And type:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/test/type/_mget' -d '{
+    "docs" : [
+        {
+            "_id" : "1"
+        },
+        {
+            "_id" : "2"
+        }
+    ]
+}'
+--------------------------------------------------
+
+In which case, the `ids` element can directly be used to simplify the
+request:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/test/type/_mget' -d '{
+    "ids" : ["1", "2"]
+}'
+--------------------------------------------------
+
+[float]
+=== Fields
+
+Specific fields can be specified to be retrieved per document to get.
+For example:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/_mget' -d '{
+    "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "1",
+            "fields" : ["field1", "field2"]
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "2",
+            "fields" : ["field3", "field4"]
+        }
+    ]
+}'
+--------------------------------------------------

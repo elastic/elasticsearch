@@ -32,9 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  * Put mapping action.
  */
@@ -51,7 +48,8 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // we go async right away
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -81,43 +79,23 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected PutMappingResponse masterOperation(PutMappingRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
 
         // update to concrete indices
         request.indices(clusterState.metaData().concreteIndices(request.indices()));
 
-        final AtomicReference<PutMappingResponse> responseRef = new AtomicReference<PutMappingResponse>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()), new MetaDataMappingService.Listener() {
+        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
             @Override
             public void onResponse(MetaDataMappingService.Response response) {
-                responseRef.set(new PutMappingResponse(response.acknowledged()));
-                latch.countDown();
+                listener.onResponse(new PutMappingResponse(response.acknowledged()));
             }
 
             @Override
             public void onFailure(Throwable t) {
-                failureRef.set(t);
-                latch.countDown();
+                logger.debug("failed to put mappings on indices [{}], type [{}]", t, request.indices(), request.type());
+                listener.onFailure(t);
             }
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return responseRef.get();
     }
 }

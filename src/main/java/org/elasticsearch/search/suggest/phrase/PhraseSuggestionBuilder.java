@@ -18,18 +18,14 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -43,6 +39,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer gramSize;
     private SmoothingModel model;
     private Boolean forceUnigrams;
+    private Integer tokenLimit;
+    private String preTag;
+    private String postTag;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -122,6 +121,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         list.add(generator);
         return this;
     }
+
+    /**
+     * Clear the candidate generators.
+     */
+    public PhraseSuggestionBuilder clearCandidateGenerators() {
+        this.generators.clear();
+        return this;
+    }
     
     /**
      * If set to <code>true</code> the phrase suggester will fail if the analyzer only
@@ -138,6 +145,24 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      */
     public PhraseSuggestionBuilder smoothingModel(SmoothingModel model) {
         this.model = model;
+        return this;
+    }
+    
+    public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
+        this.tokenLimit = tokenLimit;
+        return this;
+    }
+
+    /**
+     * Setup highlighting for suggestions.  If this is called a highlight field
+     * is returned with suggestions wrapping changed tokens with preTag and postTag.
+     */
+    public PhraseSuggestionBuilder highlight(String preTag, String postTag) {
+        if ((preTag == null) != (postTag == null)) {
+            throw new ElasticSearchIllegalArgumentException("Pre and post tag must both be null or both not be null.");
+        }
+        this.preTag = preTag;
+        this.postTag = postTag;
         return this;
     }
 
@@ -161,6 +186,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         if (forceUnigrams != null) {
             builder.field("force_unigrams", forceUnigrams);
         }
+        if (tokenLimit != null) {
+            builder.field("token_limit", tokenLimit);
+        }
         if (!generators.isEmpty()) {
             Set<Entry<String, List<CandidateGenerator>>> entrySet = generators.entrySet();
             for (Entry<String, List<CandidateGenerator>> entry : entrySet) {
@@ -174,6 +202,12 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         if (model != null) {
             builder.startObject("smoothing");
             model.toXContent(builder, params);
+            builder.endObject();
+        }
+        if (preTag != null) {
+            builder.startObject("highlight");
+            builder.field("pre_tag", preTag);
+            builder.field("post_tag", postTag);
             builder.endObject();
         }
         return builder;
@@ -524,7 +558,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             this.postFilter = postFilter;
             return this;
         }
-
+        
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

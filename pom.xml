@@ -30,7 +30,11 @@
     </parent>
 
     <properties>
-        <lucene.version>4.3.0</lucene.version>
+        <lucene.version>4.4.0</lucene.version>
+        <tests.jvms>auto</tests.jvms>
+        <tests.shuffle>true</tests.shuffle>
+        <tests.output>onerror</tests.output>
+        <es.logger.level>INFO</es.logger.level>
     </properties>
 
     <repositories>
@@ -42,7 +46,18 @@
     </repositories>
 
     <dependencies>
-
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <version>1.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <version>${lucene.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
@@ -164,7 +179,7 @@
             <artifactId>joda-time</artifactId>
             <!-- joda 2.0 moved to using volatile fields for datetime -->
             <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
-            <version>2.2</version>
+            <version>2.3</version>
             <scope>compile</scope>
         </dependency>
 
@@ -178,28 +193,28 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.2.1</version>
+            <version>2.2.2</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.2.1</version>
+            <version>2.2.2</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.2.1</version>
+            <version>2.2.2</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.6.5.Final</version>
+            <version>3.6.6.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -254,30 +269,6 @@
             <optional>true</optional>
         </dependency>
         -->
-
-        <dependency>
-            <groupId>org.testng</groupId>
-            <artifactId>testng</artifactId>
-            <version>6.8</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.hamcrest</groupId>
-                    <artifactId>hamcrest-core</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>junit</groupId>
-                    <artifactId>junit</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-all</artifactId>
-            <version>1.3</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -295,6 +286,7 @@
                 <includes>
                     <include>**/*.*</include>
                 </includes>
+                <filtering>true</filtering>
             </resource>
         </resources>
 
@@ -326,26 +318,94 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>com.carrotsearch.randomizedtesting</groupId>
+                <artifactId>junit4-maven-plugin</artifactId>
+                <version>2.0.10</version>
+                <executions>
+                    <execution>
+                        <id>tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>junit4</goal>
+                        </goals>
+                        <configuration>
+                            <heartbeat>20</heartbeat>
+                            <jvmOutputAction>pipe,warn</jvmOutputAction>
+                            <leaveTemporary>true</leaveTemporary>
+                            <listeners>
+                                <report-ant-xml mavenExtensions="true"
+                                                dir="${project.build.directory}/surefire-reports"/>
+                                <report-text
+                                        showThrowable="true"
+                                        showStackTraces="true"
+                                        showOutput="${tests.output}"
+                                        showStatusOk="false"
+                                        showStatusError="true"
+                                        showStatusFailure="true"
+                                        showStatusIgnored="true"
+                                        showSuiteSummary="true"
+                                        timestamps="false"/>
+                                <report-execution-times file="${basedir}/.local-execution-hints.log"/>
+                            </listeners>
+                            <assertions>
+                                <enable/>
+                            </assertions>
+                            <parallelism>${tests.jvms}</parallelism>
+                            <balancers>
+                                <execution-times>
+                                    <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
+                                </execution-times>
+                            </balancers>
+                            <includes>
+                                <include>**/*Tests.class</include>
+                                <include>**/*Test.class</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/Abstract*.class</exclude>
+                                <exclude>**/*StressTest.class</exclude>
+                            </excludes>
+                            <jvmArgs>
+                                <param>-Xmx512m</param>
+                                <param>-Des.logger.prefix=</param>
+                            </jvmArgs>
+                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
+                            <sysouts>${tests.verbose}</sysouts>
+                            <seed>${tests.seed}</seed>
+                            <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <systemProperties>
+                                <!-- RandomizedTesting library system properties -->
+                                <tests.iters>${tests.iters}</tests.iters>
+                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
+                                <tests.failfast>${tests.failfast}</tests.failfast>
+                                <tests.class>${tests.class}</tests.class>
+                                <tests.method>${tests.method}</tests.method>
+                                <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.badapples>${tests.badapples}</tests.badapples>
+                                <tests.weekly>${tests.weekly}</tests.weekly>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
+                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
+                                <tests.integration>${tests.integration}</tests.integration>
+                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
+                                <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
+                                <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
+                                </es.action.wait_on_mapping_change>
+                                <es.logger.level>${es.logger.level}</es.logger.level>
+                                <java.awt.headless>true</java.awt.headless>
+                            </systemProperties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- we skip surefire to work with randomized testing above -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.12.3</version>
+                <version>2.15</version>
                 <configuration>
-                    <includes>
-                        <include>**/*Tests.java</include>
-                    </includes>
-                    <properties>
-                        <property>
-                            <name>listener</name>
-                            <value>org.elasticsearch.test.TestNGLoggingListener</value>
-                        </property>
-                    </properties>
-                    <argLine>-Xmx512m -Des.logger.prefix=</argLine>
-                    <systemPropertyVariables>
-                        <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
-                        <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
-                        <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
-                        </es.action.wait_on_mapping_change>
-                    </systemPropertyVariables>
+                    <skipTests>true</skipTests>
                 </configuration>
             </plugin>
             <plugin>
@@ -364,7 +424,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>1.5</version>
+                <version>2.1</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -485,6 +545,23 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.2</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doCheck>false</doCheck>
+                    <doUpdate>false</doUpdate>
+                </configuration>
+            </plugin>
+            <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
@@ -494,6 +571,7 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
                 </executions>
@@ -503,7 +581,7 @@
                 -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
-                <version>0.9</version>
+                <version>1.0.1</version>
                 <configuration>
                     <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
                 </configuration>
@@ -518,6 +596,7 @@
                                 <data>
                                     <src>${project.basedir}/</src>
                                     <includes>*.txt, *.textile</includes>
+                                    <excludes>LICENSE.txt, .DS_Store</excludes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -606,6 +685,22 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <data>
+                                    <src>${project.basedir}/src/deb/lintian</src>
+                                    <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/lintian/overrides</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <data>
+                                    <src>${project.basedir}/src/deb/copyright</src>
+                                    <dst>/usr/share/doc/elasticsearch/copyright</dst>
+                                    <type>file</type>
+                                </data>
                             </dataSet>
 
                         </configuration>
@@ -634,11 +729,7 @@
                     <mappings>
                         <mapping>
                             <directory>/etc/elasticsearch/</directory>
-                            <configuration>true</configuration>
-                        </mapping>
-                        <mapping>
-                            <directory>/etc/elasticsearch/</directory>
-                            <configuration>true</configuration>
+                            <configuration>noreplace</configuration>
                             <sources>
                                 <source>
                                     <location>config/</location>
@@ -650,7 +741,7 @@
                         </mapping>
                         <mapping>
                             <directory>/etc/sysconfig/</directory>
-                            <configuration>true</configuration>
+                            <configuration>noreplace</configuration>
                             <sources>
                                 <source>
                                     <location>src/rpm/sysconfig</location>
@@ -792,68 +883,66 @@
                     </postremoveScriptlet>
                 </configuration>
             </plugin>
-			<plugin>
-		<groupId>de.thetaphi</groupId>
-		<artifactId>forbiddenapis</artifactId>
-		<version>1.3</version>
-	
-		<executions>
-			<execution>
-				<id>check-forbidden-apis</id>
-				<configuration>
-					<targetVersion>1.6</targetVersion>
-					<!-- disallow undocumented classes like sun.misc.Unsafe: -->
-					<internalRuntimeForbidden>true</internalRuntimeForbidden>
-					<!-- if the used Java version is too new, don't fail, just do nothing: -->
-					<failOnUnsupportedJava>false</failOnUnsupportedJava>
-					<excludes>
-						<exclude>jsr166e/**</exclude>
-						<exclude>jsr166y/**</exclude>
-						<!--  these excludes are due to sysout/syserr usage - we should check those at some point
-						<exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
-						<exclude>org/elasticsearch/common/logging/support/LoggerMessageFormat.class</exclude>
-						<exclude>org/elasticsearch/common/Base64.class</exclude>
-						<exclude>org/elasticsearch/common/compress/bzip2/CBZip2InputStream.class</exclude>
-						<exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
-						<exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
-						 -->
-					</excludes>
-					<bundledSignatures>
-						<!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
-						<bundledSignature>jdk-unsafe</bundledSignature>
-						<bundledSignature>jdk-deprecated</bundledSignature>
-						<!-- <bundledSignaure>jdk-system-out</bundledSignaure>  see excludes -->
-					</bundledSignatures>
-					<signaturesFiles>
-						<signaturesFile>core-signatures.txt</signaturesFile>
-					</signaturesFiles>
-				</configuration>
-				<phase>test</phase>
-				<goals>
-					<goal>check</goal>
-				</goals>
-			</execution>
-			<execution>
-				<id>check-forbidden-test-apis</id>
-				<configuration>
-					<targetVersion>1.6</targetVersion>
-					<!-- disallow undocumented classes like sun.misc.Unsafe: -->
-					<internalRuntimeForbidden>true</internalRuntimeForbidden>
-					<!-- if the used Java version is too new, don't fail, just do nothing: -->
-					<failOnUnsupportedJava>false</failOnUnsupportedJava>
-					<bundledSignatures>
-						<!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
-						<bundledSignature>jdk-unsafe</bundledSignature>
-						<bundledSignature>jdk-deprecated</bundledSignature>
-					</bundledSignatures>
-				</configuration>
-				<phase>test</phase>
-				<goals>
-					<goal>testCheck</goal>
-				</goals>
-			</execution>
-		</executions>
-		</plugin>
+            <plugin>
+                <groupId>de.thetaphi</groupId>
+                <artifactId>forbiddenapis</artifactId>
+                <version>1.3</version>
+
+                <executions>
+                    <execution>
+                        <id>check-forbidden-apis</id>
+                        <configuration>
+                            <targetVersion>1.6</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <excludes>
+                                <exclude>jsr166e/**</exclude>
+                                <exclude>jsr166y/**</exclude>
+                                <!-- start excludes for valid system-out -->
+                                <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
+                                <exclude>org/elasticsearch/Version.class</exclude>
+                                <!-- end excludes for valid system-out -->
+                            </excludes>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                                <bundledSignaure>jdk-system-out</bundledSignaure>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>core-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                        </configuration>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-forbidden-test-apis</id>
+                        <configuration>
+                            <targetVersion>1.6</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                            </bundledSignatures>
+                        </configuration>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCheck</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>
@@ -887,20 +976,7 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-eclipse-plugin</artifactId>
                     <configuration>
-                        <additionalConfig>
-                            <file>
-                                <name>.settings/org.eclipse.jdt.core.prefs</name>
-                                <location>src/eclipse/dot.settings/org.eclipse.jdt.core.prefs</location>
-                            </file>
-                            <file>
-                                <name>.settings/org.eclipse.jdt.ui.prefs</name>
-                                <location>src/eclipse/dot.settings/org.eclipse.jdt.ui.prefs</location>
-                            </file>
-                            <file>
-                                <name>.settings/org.eclipse.core.resources.prefs</name>
-                                <location>src/eclipse/dot.settings/org.eclipse.core.resources.prefs</location>
-                            </file>
-                        </additionalConfig>
+                      <buildOutputDirectory>eclipse-build</buildOutputDirectory>
                     </configuration>
                 </plugin>
             </plugins>

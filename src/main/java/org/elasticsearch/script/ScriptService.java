@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
@@ -121,7 +122,7 @@ public class ScriptService extends AbstractComponent {
                             if (s.equals(ext)) {
                                 found = true;
                                 try {
-                                    String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Streams.UTF8));
+                                    String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
                                     staticCache.put(scriptName, new CompiledScript(engineService.types()[0], engineService.compile(script)));
                                 } catch (Exception e) {
                                     logger.warn("failed to load/compile script [{}]", e, scriptName);

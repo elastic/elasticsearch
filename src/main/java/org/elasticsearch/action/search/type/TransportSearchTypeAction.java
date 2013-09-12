@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.search.type;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,21 +36,19 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -64,13 +65,10 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
     protected final SearchPhaseController searchPhaseController;
 
-    protected final TransportSearchCache searchCache;
-
     public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                     TransportSearchCache searchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings, threadPool);
         this.clusterService = clusterService;
-        this.searchCache = searchCache;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
     }
@@ -79,7 +77,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
         protected final ActionListener<SearchResponse> listener;
 
-        private final GroupShardsIterator shardsIts;
+        protected final GroupShardsIterator shardsIts;
 
         protected final SearchRequest request;
 
@@ -87,16 +85,15 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         protected final DiscoveryNodes nodes;
 
         protected final int expectedSuccessfulOps;
-
         private final int expectedTotalOps;
 
         protected final AtomicInteger successulOps = new AtomicInteger();
-
         private final AtomicInteger totalOps = new AtomicInteger();
 
-        private volatile Queue<ShardSearchFailure> shardFailures;
-
-        protected volatile ShardDoc[] sortedShardList;
+        protected final AtomicArray<FirstResult> firstResults;
+        private volatile AtomicArray<ShardSearchFailure> shardFailures;
+        private final Object shardFailuresMutex = new Object();
+        protected volatile ScoreDoc[] sortedShardList;
 
         protected final long startTime = System.currentTimeMillis();
 
@@ -126,24 +123,28 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 // not search shards to search on...
                 throw new SearchPhaseExecutionException("initial", "No indices / shards to search on, requested indices are " + Arrays.toString(request.indices()), buildShardFailures());
             }
+
+            firstResults = new AtomicArray<FirstResult>(shardsIts.size());
         }
 
         public void start() {
             request.beforeStart();
             // count the local operations, and perform the non local ones
             int localOperations = 0;
+            int shardIndex = -1;
             for (final ShardIterator shardIt : shardsIts) {
+                shardIndex++;
                 final ShardRouting shard = shardIt.firstOrNull();
                 if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         localOperations++;
                     } else {
                         // do the remote operation here, the localAsync flag is not relevant
-                        performFirstPhase(shardIt);
+                        performFirstPhase(shardIndex, shardIt);
                     }
                 } else {
                     // really, no shards active in this group
-                    onFirstPhaseResult(null, shardIt, null);
+                    onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 }
             }
             // we have local operations, perform them now
@@ -153,11 +154,13 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
+                            int shardIndex = -1;
                             for (final ShardIterator shardIt : shardsIts) {
+                                shardIndex++;
                                 final ShardRouting shard = shardIt.firstOrNull();
                                 if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                                        performFirstPhase(shardIt);
+                                        performFirstPhase(shardIndex, shardIt);
                                     }
                                 }
                             }
@@ -168,19 +171,26 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     if (localAsync) {
                         request.beforeLocalFork();
                     }
+                    shardIndex = -1;
                     for (final ShardIterator shardIt : shardsIts) {
+                        shardIndex++;
+                        final int fShardIndex = shardIndex;
                         final ShardRouting shard = shardIt.firstOrNull();
                         if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 if (localAsync) {
-                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            performFirstPhase(shardIt);
-                                        }
-                                    });
+                                    try {
+                                        threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                performFirstPhase(fShardIndex, shardIt);
+                                            }
+                                        });
+                                    } catch (Throwable t) {
+                                        onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+                                    }
                                 } else {
-                                    performFirstPhase(shardIt);
+                                    performFirstPhase(fShardIndex, shardIt);
                                 }
                             }
                         }
@@ -189,45 +199,46 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        void performFirstPhase(final ShardIterator shardIt) {
-            performFirstPhase(shardIt, shardIt.nextOrNull());
+        void performFirstPhase(final int shardIndex, final ShardIterator shardIt) {
+            performFirstPhase(shardIndex, shardIt, shardIt.nextOrNull());
         }
 
-        void performFirstPhase(final ShardIterator shardIt, final ShardRouting shard) {
+        void performFirstPhase(final int shardIndex, final ShardIterator shardIt, final ShardRouting shard) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, but just for safety)
-                onFirstPhaseResult(null, shardIt, null);
+                onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                DiscoveryNode node = nodes.get(shard.currentNodeId());
+                final DiscoveryNode node = nodes.get(shard.currentNodeId());
                 if (node == null) {
-                    onFirstPhaseResult(shard, shardIt, null);
+                    onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
                     sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime), new SearchServiceListener<FirstResult>() {
                         @Override
                         public void onResult(FirstResult result) {
-                            onFirstPhaseResult(shard, result, shardIt);
+                            onFirstPhaseResult(shardIndex, shard, result, shardIt);
                         }
 
                         @Override
                         public void onFailure(Throwable t) {
-                            onFirstPhaseResult(shard, shardIt, t);
+                            onFirstPhaseResult(shardIndex, shard, node.id(), shardIt, t);
                         }
                     });
                 }
             }
         }
 
-        void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardIterator shardIt) {
+        void onFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result, ShardIterator shardIt) {
             result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
-            processFirstPhaseResult(shard, result);
+            processFirstPhaseResult(shardIndex, shard, result);
+
             // increment all the "future" shards to update the total ops since we some may work and some may not...
             // and when that happens, we break on total ops, so we must maintain them
             int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
             successulOps.incrementAndGet();
             if (xTotalOps == expectedTotalOps) {
                 try {
-                    moveToSecondPhase();
+                    innerMoveToSecondPhase();
                 } catch (Throwable e) {
                     if (logger.isDebugEnabled()) {
                         logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
@@ -237,11 +248,15 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        void onFirstPhaseResult(@Nullable ShardRouting shard, final ShardIterator shardIt, Throwable t) {
+        void onFirstPhaseResult(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId, final ShardIterator shardIt, Throwable t) {
+            // we always add the shard failure for a specific shard instance
+            // we do make sure to clean it on a successful response from a shard
+            SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId().getIndex(), shardIt.shardId().getId());
+            addShardFailure(shardIndex, shardTarget, t);
+
             if (totalOps.incrementAndGet() == expectedTotalOps) {
-                // e is null when there is no next active....
                 if (logger.isDebugEnabled()) {
-                    if (t != null) {
+                    if (t != null && !TransportActions.isShardNotAvailableException(t)) {
                         if (shard != null) {
                             logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
                         } else {
@@ -249,19 +264,15 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                         }
                     }
                 }
-                // no more shards, add a failure
-                if (t == null) {
-                    // no active shards
-                    addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id()), RestStatus.SERVICE_UNAVAILABLE));
-                } else {
-                    addShardFailure(new ShardSearchFailure(t));
-                }
                 if (successulOps.get() == 0) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("All shards failed for phase: [{}]", firstPhaseName(), t);
+                    }
                     // no successful ops, raise an exception
-                    listener.onFailure(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
+                    listener.onFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", buildShardFailures()));
                 } else {
                     try {
-                        moveToSecondPhase();
+                        innerMoveToSecondPhase();
                     } catch (Throwable e) {
                         listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                     }
@@ -279,24 +290,17 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                             }
                         }
                     }
-                    performFirstPhase(shardIt, nextShard);
+                    performFirstPhase(shardIndex, shardIt, nextShard);
                 } else {
                     // no more shards active, add a failure
-                    // e is null when there is no next active....
                     if (logger.isDebugEnabled()) {
-                        if (t != null) {
+                        if (t != null && !TransportActions.isShardNotAvailableException(t)) {
                             if (shard != null) {
                                 logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
                             } else {
                                 logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
                             }
                         }
-                    }
-                    if (t == null) {
-                        // no active shards
-                        addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id()), RestStatus.SERVICE_UNAVAILABLE));
-                    } else {
-                        addShardFailure(new ShardSearchFailure(t));
                     }
                 }
             }
@@ -310,37 +314,59 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
-            Queue<ShardSearchFailure> localFailures = shardFailures;
-            if (localFailures == null) {
+            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
+            if (shardFailures == null) {
                 return ShardSearchFailure.EMPTY_ARRAY;
             }
-            return localFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+            List<AtomicArray.Entry<ShardSearchFailure>> entries = shardFailures.asList();
+            ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
+            for (int i = 0; i < failures.length; i++) {
+                failures[i] = entries.get(i).value;
+            }
+            return failures;
         }
 
-        // we do our best to return the shard failures, but its ok if its not fully concurrently safe
-        // we simply try and return as much as possible
-        protected final void addShardFailure(ShardSearchFailure failure) {
-            if (shardFailures == null) {
-                shardFailures = ConcurrentCollections.newQueue();
+        protected final void addShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Throwable t) {
+            // we don't aggregate shard failures on non active shards (but do keep the header counts right)
+            if (TransportActions.isShardNotAvailableException(t)) {
+                return;
             }
-            shardFailures.add(failure);
+
+            // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
+            if (shardFailures == null) {
+                synchronized (shardFailuresMutex) {
+                    if (shardFailures == null) {
+                        shardFailures = new AtomicArray<ShardSearchFailure>(shardsIts.size());
+                    }
+                }
+            }
+            ShardSearchFailure failure = shardFailures.get(shardIndex);
+            if (failure == null) {
+                shardFailures.set(shardIndex, new ShardSearchFailure(t, shardTarget));
+            } else {
+                // the failure is already present, try and not override it with an exception that is less meaningless
+                // for example, getting illegal shard state
+                if (TransportActions.isReadOverrideException(t)) {
+                    shardFailures.set(shardIndex, new ShardSearchFailure(t, shardTarget));
+                }
+            }
         }
 
         /**
          * Releases shard targets that are not used in the docsIdsToLoad.
          */
-        protected void releaseIrrelevantSearchContexts(Map<SearchShardTarget, QuerySearchResultProvider> queryResults,
-                                                       Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad) {
+        protected void releaseIrrelevantSearchContexts(AtomicArray<? extends QuerySearchResultProvider> queryResults,
+                                                       AtomicArray<ExtTIntArrayList> docIdsToLoad) {
             if (docIdsToLoad == null) {
                 return;
             }
             // we only release search context that we did not fetch from if we are not scrolling
             if (request.scroll() == null) {
-                for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
-                    if (!docIdsToLoad.containsKey(entry.getKey())) {
-                        DiscoveryNode node = nodes.get(entry.getKey().nodeId());
+                for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults.asList()) {
+                    if (docIdsToLoad.get(entry.index) == null) {
+                        DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
                         if (node != null) { // should not happen (==null) but safeguard anyhow
-                            searchService.sendFreeContext(node, entry.getValue().id(), request);
+                            searchService.sendFreeContext(node, entry.value.queryResult().id(), request);
                         }
                     }
                 }
@@ -349,7 +375,39 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
         protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<FirstResult> listener);
 
-        protected abstract void processFirstPhaseResult(ShardRouting shard, FirstResult result);
+        protected final void processFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result) {
+            firstResults.set(shardIndex, result);
+
+            // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
+            // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
+            // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
+            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures;
+            if (shardFailures != null) {
+                shardFailures.set(shardIndex, null);
+            }
+        }
+
+        final void innerMoveToSecondPhase() throws Exception {
+            if (logger.isTraceEnabled()) {
+                StringBuilder sb = new StringBuilder();
+                boolean hadOne = false;
+                for (int i = 0; i < firstResults.length(); i++) {
+                    FirstResult result = firstResults.get(i);
+                    if (result == null) {
+                        continue; // failure
+                    }
+                    if (hadOne) {
+                        sb.append(",");
+                    } else {
+                        hadOne = true;
+                    }
+                    sb.append(result.shardTarget());
+                }
+
+                logger.trace("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterState.version());
+            }
+            moveToSecondPhase();
+        }
 
         protected abstract void moveToSecondPhase() throws Exception;
 

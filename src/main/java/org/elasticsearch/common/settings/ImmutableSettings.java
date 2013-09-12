@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -351,19 +352,28 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public String[] getAsArray(String settingPrefix) throws SettingsException {
-        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY);
+        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY, true);
     }
 
     @Override
     public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
+        return getAsArray(settingPrefix, defaultArray, true);
+    }
+
+    @Override
+    public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
         List<String> result = Lists.newArrayList();
 
         if (get(settingPrefix) != null) {
-            String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
-            if (strings.length > 0) {
-                for (String string : strings) {
-                    result.add(string.trim());
+            if (commaDelimited) {
+                String[] strings = Strings.splitStringByCommaToArray(get(settingPrefix));
+                if (strings.length > 0) {
+                    for (String string : strings) {
+                        result.add(string.trim());
+                    }
                 }
+            } else {
+                result.add(get(settingPrefix).trim());
             }
         }
 
@@ -521,6 +531,17 @@ public class ImmutableSettings implements Settings {
             }
             // try camel case version
             return map.get(toCamelCase(key));
+        }
+
+        /**
+         * Puts tuples of key value pairs of settings. Simplified version instead of repeating calling
+         * put for each one.
+         */
+        public Builder put(Object... settings) {
+            for (int i = 0; i < settings.length; i++) {
+                put(settings[i++].toString(), settings[i].toString());
+            }
+            return this;
         }
 
         /**
@@ -747,7 +768,7 @@ public class ImmutableSettings implements Settings {
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, Streams.UTF8)));
+                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8)));
                 put(loadedSettings);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);

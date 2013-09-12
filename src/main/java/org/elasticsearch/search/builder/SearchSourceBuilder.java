@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import gnu.trove.iterator.TObjectFloatIterator;
@@ -26,7 +27,7 @@ import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -98,6 +100,7 @@ public class SearchSourceBuilder implements ToXContent {
     private List<String> fieldNames;
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
+    private FetchSourceContext fetchSourceContext;
 
     private List<FacetBuilder> facets;
 
@@ -156,7 +159,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Constructs a new search source builder with a raw search query.
      */
     public SearchSourceBuilder query(String queryString) {
-        return query(Unicode.fromStringAsBytes(queryString));
+        return query(queryString.getBytes(Charsets.UTF_8));
     }
 
     /**
@@ -193,7 +196,7 @@ public class SearchSourceBuilder implements ToXContent {
      * (and not facets for example).
      */
     public SearchSourceBuilder filter(String filterString) {
-        return filter(Unicode.fromStringAsBytes(filterString));
+        return filter(filterString.getBytes(Charsets.UTF_8));
     }
 
     /**
@@ -421,6 +424,52 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * Indicates whether the response should contain the stored _source for every hit
+     *
+     * @param fetch
+     * @return
+     */
+    public SearchSourceBuilder fetchSource(boolean fetch) {
+        if (this.fetchSourceContext == null) {
+            this.fetchSourceContext = new FetchSourceContext(fetch);
+        } else {
+            this.fetchSourceContext.fetchSource(fetch);
+        }
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include An optional include (optionally wildcarded) pattern to filter the returned _source
+     * @param exclude An optional exclude (optionally wildcarded) pattern to filter the returned _source
+     */
+    public SearchSourceBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
+        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[]{include}, include == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes An optional list of include (optionally wildcarded) pattern to filter the returned _source
+     * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
+     */
+    public SearchSourceBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        fetchSourceContext = new FetchSourceContext(includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicate how the _source should be fetched.
+     */
+    public SearchSourceBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
+        this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
     public SearchSourceBuilder noFields() {
@@ -632,6 +681,17 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (explain != null) {
             builder.field("explain", explain);
+        }
+
+        if (fetchSourceContext != null) {
+            if (!fetchSourceContext.fetchSource()) {
+                builder.field("_source", false);
+            } else {
+                builder.startObject("_source");
+                builder.array("includes", fetchSourceContext.includes());
+                builder.array("excludes", fetchSourceContext.excludes());
+                builder.endObject();
+            }
         }
 
         if (fieldNames != null) {

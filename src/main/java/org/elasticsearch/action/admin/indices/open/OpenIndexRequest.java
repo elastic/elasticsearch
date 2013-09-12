@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,43 +37,49 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexRequest> {
 
-    private String index;
-
+    private String[] indices;
     private TimeValue timeout = timeValueSeconds(10);
+    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
 
     OpenIndexRequest() {
     }
 
     /**
-     * Constructs a new delete index request for the specified index.
+     * Constructs a new open index request for the specified index.
      */
-    public OpenIndexRequest(String index) {
-        this.index = index;
+    public OpenIndexRequest(String... indices) {
+        this.indices = indices;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (index == null) {
+        if (indices == null || indices.length == 0) {
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
     }
 
     /**
-     * The index to delete.
+     * The indices to be opened
+     * @return the indices to be opened
      */
-    String index() {
-        return index;
+    String[] indices() {
+        return indices;
     }
 
-    public OpenIndexRequest index(String index) {
-        this.index = index;
+    /**
+     * Sets the indices to be opened
+     * @param indices the indices to be opened
+     * @return the request itself
+     */
+    public OpenIndexRequest indices(String... indices) {
+        this.indices = indices;
         return this;
     }
 
     /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
+     * Timeout to wait for the index opening to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
     TimeValue timeout() {
@@ -80,7 +87,7 @@ public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexReques
     }
 
     /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
+     * Timeout to wait for the index opening to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
     public OpenIndexRequest timeout(TimeValue timeout) {
@@ -89,24 +96,44 @@ public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexReques
     }
 
     /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
+     * Timeout to wait for the index opening to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
     public OpenIndexRequest timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * @return the current behaviour when it comes to index names
+     */
+    public IgnoreIndices ignoreIndices() {
+        return ignoreIndices;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @return the request itself
+     */
+    public OpenIndexRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+        this.ignoreIndices = ignoreIndices;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        indices = in.readStringArray();
         timeout = readTimeValue(in);
+        ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        out.writeStringArray(indices);
         timeout.writeTo(out);
+        out.writeByte(ignoreIndices.id());
     }
 }

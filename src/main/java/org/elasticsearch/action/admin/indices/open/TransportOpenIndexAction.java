@@ -20,37 +20,36 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetaDataStateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Delete index action.
  */
 public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
 
-    private final MetaDataStateIndexService stateIndexService;
+    private final MetaDataIndexStateService indexStateService;
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
+                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService) {
         super(settings, transportService, clusterService, threadPool);
-        this.stateIndexService = stateIndexService;
+        this.indexStateService = indexStateService;
     }
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // we go async right away...
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -69,44 +68,29 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        request.index(clusterService.state().metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
+    protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.ignoreIndices(), false));
+        super.doExecute(request, listener);
     }
 
     @Override
-    protected OpenIndexResponse masterOperation(OpenIndexRequest request, ClusterState state) throws ElasticSearchException {
-        final AtomicReference<OpenIndexResponse> responseRef = new AtomicReference<OpenIndexResponse>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+    protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+    }
+
+    @Override
+    protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
+        indexStateService.openIndex(new MetaDataIndexStateService.Request(request.indices()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
             @Override
-            public void onResponse(MetaDataStateIndexService.Response response) {
-                responseRef.set(new OpenIndexResponse(response.acknowledged()));
-                latch.countDown();
+            public void onResponse(MetaDataIndexStateService.Response response) {
+                listener.onResponse(new OpenIndexResponse(response.acknowledged()));
             }
 
             @Override
             public void onFailure(Throwable t) {
-                failureRef.set(t);
-                latch.countDown();
+                logger.debug("failed to open indices [{}]", t, request.indices());
+                listener.onFailure(t);
             }
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return responseRef.get();
     }
 }

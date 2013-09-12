@@ -28,8 +28,10 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.CachedFilter;
@@ -93,9 +95,11 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void clear(String reason, String[] keys) {
         logger.debug("clear keys [], reason [{}]", reason, keys);
+        final BytesRef spare = new BytesRef();
         for (String key : keys) {
+            final byte[] keyBytes = Strings.toUTF8Bytes(key, spare);
             for (Object readerKey : seenReaders.keySet()) {
-                indicesFilterCache.cache().invalidate(new FilterCacheKey(readerKey, new CacheKeyFilter.Key(key)));
+                indicesFilterCache.cache().invalidate(new FilterCacheKey(readerKey, new CacheKeyFilter.Key(keyBytes)));
             }
         }
     }
@@ -118,6 +122,9 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
     @Override
     public Filter cache(Filter filterToCache) {
+        if (filterToCache == null) {
+            return null;
+        }
         if (filterToCache instanceof NoCacheFilter) {
             return filterToCache;
         }
@@ -160,8 +167,9 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                     }
                 }
                 // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs
-                // might be specific to a query AST, we do pass down the live docs to make sure we optimize the execution
-                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                // might be specific to a query. We don't pass the live docs either because a cache built for a specific
+                // generation of a segment might be reused by an older generation which has fewer deleted documents
+                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, null));
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
                 ShardId shardId = ShardUtils.extractShardId(context.reader());
@@ -178,7 +186,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             // note, we don't wrap the return value with a BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs) because
             // we rely on our custom XFilteredQuery to do the wrapping if needed, so we don't have the wrap each
             // filter on its own
-            return cacheValue == DocIdSet.EMPTY_DOCIDSET ? null : cacheValue;
+            return DocIdSets.isEmpty(cacheValue) ? null : cacheValue;
         }
 
         public String toString() {

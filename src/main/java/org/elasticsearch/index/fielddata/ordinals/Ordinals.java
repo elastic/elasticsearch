@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.LongsRef;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
@@ -54,13 +54,13 @@ public interface Ordinals {
     /**
      * The number of ordinals, excluding the "0" ordinal indicating a missing value.
      */
-    int getNumOrds();
+    long getNumOrds();
 
     /**
      * Returns total unique ord count; this includes +1 for
      * the null ord (always 0).
      */
-    int getMaxOrd();
+    long getMaxOrd();
 
     /**
      * Returns a lightweight (non thread safe) view iterator of the ordinals.
@@ -88,13 +88,13 @@ public interface Ordinals {
         /**
          * The number of ordinals, excluding the "0" ordinal (indicating a missing value).
          */
-        int getNumOrds();
+        long getNumOrds();
 
         /**
          * Returns total unique ord count; this includes +1 for
          * the null ord (always 0).
          */
-        int getMaxOrd();
+        long getMaxOrd();
 
         /**
          * Is one of the docs maps to more than one ordinal?
@@ -105,13 +105,13 @@ public interface Ordinals {
          * The ordinal that maps to the relevant docId. If it has no value, returns
          * <tt>0</tt>.
          */
-        int getOrd(int docId);
+        long getOrd(int docId);
 
         /**
          * Returns an array of ordinals matching the docIds, with 0 length one
          * for a doc with no ordinals.
          */
-        IntsRef getOrds(int docId);
+        LongsRef getOrds(int docId);
 
         /**
          * Returns an iterator of the ordinals that match the docId, with an
@@ -128,7 +128,7 @@ public interface Ordinals {
             /**
              * Gets the next ordinal. Returning 0 if the iteration is exhausted.
              */
-            int next();
+            long next();
         }
 
         static class EmptyIter implements Iter {
@@ -136,23 +136,23 @@ public interface Ordinals {
             public static EmptyIter INSTANCE = new EmptyIter();
 
             @Override
-            public int next() {
+            public long next() {
                 return 0;
             }
         }
 
         static class SingleValueIter implements Iter {
 
-            private int value;
+            private long value;
 
-            public SingleValueIter reset(int value) {
+            public SingleValueIter reset(long value) {
                 this.value = value;
                 return this;
             }
 
             @Override
-            public int next() {
-                int actual = value;
+            public long next() {
+                long actual = value;
                 value = 0;
                 return actual;
             }

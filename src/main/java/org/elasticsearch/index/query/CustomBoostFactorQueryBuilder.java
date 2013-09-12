@@ -20,13 +20,14 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.io.IOException;
 
 /**
  * A query that simply applies the boost factor to another query (multiply it).
- *
- *
+ * 
+ * @deprecated use {@link FunctionScoreQueryBuilder} instead.
  */
 public class CustomBoostFactorQueryBuilder extends BaseQueryBuilder {
 
@@ -35,9 +36,11 @@ public class CustomBoostFactorQueryBuilder extends BaseQueryBuilder {
     private float boostFactor = -1;
 
     /**
-     * A query that simply applies the boost factor to another query (multiply it).
-     *
-     * @param queryBuilder The query to apply the boost factor to.
+     * A query that simply applies the boost factor to another query (multiply
+     * it).
+     * 
+     * @param queryBuilder
+     *            The query to apply the boost factor to.
      */
     public CustomBoostFactorQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;

@@ -34,6 +34,7 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private String filterName;
     private Boolean cache;
     private String cacheKey;
+    private Integer shortCircuitCutoff;
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -72,6 +73,15 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
+     * instead of evaluating all parent docs.
+     */
+    public HasChildFilterBuilder setShortCircuitCutoff(int shortCircuitCutoff) {
+        this.shortCircuitCutoff = shortCircuitCutoff;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildFilterParser.NAME);
@@ -91,6 +101,9 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         }
         if (cacheKey != null) {
             builder.field("_cache_key", cacheKey);
+        }
+        if (shortCircuitCutoff != null) {
+            builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }
         builder.endObject();
     }

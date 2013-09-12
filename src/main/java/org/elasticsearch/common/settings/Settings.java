@@ -234,6 +234,21 @@ public interface Settings {
      * the numbered format.
      *
      * @param settingPrefix The setting prefix to load the array by
+     * @param defaultArray The default array to use if no value is specified
+     * @param commaDelimited Whether to try to parse a string as a comma-delimited value
+     * @return The setting array values
+     * @throws SettingsException
+     */
+    String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException;
+
+    /**
+     * The values associated with a setting prefix as an array. The settings array is in the format of:
+     * <tt>settingPrefix.[index]</tt>.
+     * <p/>
+     * <p>If commaDelimited is true, it will automatically load a comma separated list under the settingPrefix and merge with
+     * the numbered format.
+     *
+     * @param settingPrefix The setting prefix to load the array by
      * @return The setting array values
      * @throws SettingsException
      */
@@ -253,7 +268,7 @@ public interface Settings {
     String[] getAsArray(String settingPrefix) throws SettingsException;
 
     /**
-     * Retruns a parsed version.
+     * Returns a parsed version.
      */
     Version getAsVersion(String setting, Version defaultVersion) throws SettingsException;
 

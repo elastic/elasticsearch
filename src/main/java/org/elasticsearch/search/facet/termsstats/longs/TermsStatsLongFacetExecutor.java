@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -50,7 +50,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
     private final int size;
 
-    final ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
+    final Recycler.V<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> entries;
     long missing;
 
     public TermsStatsLongFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
@@ -61,7 +61,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
 
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.entries = context.cacheRecycler().longObjectMap(-1);
     }
 
     @Override
@@ -71,16 +71,17 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (entries.isEmpty()) {
+        if (entries.v().isEmpty()) {
+            entries.release();
             return new InternalTermsStatsLongFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsLongFacet.LongEntry>of(), missing);
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsLongFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.valueCollection(), missing);
+            return new InternalTermsStatsLongFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.v().valueCollection(), missing);
         }
 
         // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-        Object[] values = entries.internalValues();
+        Object[] values = entries.v().internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         int limit = size;
@@ -92,7 +93,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
             }
             ordered.add(value);
         }
-        CacheRecycler.pushLongObjectMap(entries);
+        entries.release();
         return new InternalTermsStatsLongFacet(facetName, comparatorType, size, ordered, missing);
     }
 
@@ -103,9 +104,9 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
         public Collector() {
             if (script == null) {
-                this.aggregator = new Aggregator(entries);
+                this.aggregator = new Aggregator(entries.v());
             } else {
-                this.aggregator = new ScriptAggregator(entries, script);
+                this.aggregator = new ScriptAggregator(entries.v(), script);
             }
         }
 

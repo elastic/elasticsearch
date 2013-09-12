@@ -25,8 +25,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.IntArrays;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -51,6 +53,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
     private final IndexFieldData.WithOrdinals indexFieldData;
 
+    final CacheRecycler cacheRecycler;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
     private final int minCount;
@@ -83,6 +86,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             minCount = 0;
         }
 
+        this.cacheRecycler = context.cacheRecycler();
+
         this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
 
@@ -111,7 +116,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 BytesRef value = agg.values.makeSafe(agg.current); // we need to makeSafe it, since we end up pushing it... (can we get around this?)
                 int count = 0;
                 do {
-                    count += agg.counts[agg.position];
+                    count += agg.counts.get(agg.position);
                     if (agg.nextPosition()) {
                         agg = queue.updateTop();
                     } else {
@@ -141,12 +146,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 list[i] = (InternalStringTermsFacet.TermEntry) ordered.pop();
             }
 
-            for (ReaderAggregator aggregator : aggregators) {
-                if (aggregator.counts.length > ordinalsCacheAbove) {
-                    CacheRecycler.pushIntArray(aggregator.counts);
-                }
-            }
-
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
@@ -157,7 +156,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             BytesRef value = agg.values.makeSafe(agg.current); // we need to makeSafe it, since we end up pushing it... (can we work around that?)
             int count = 0;
             do {
-                count += agg.counts[agg.position];
+                count += agg.counts.get(agg.position);
                 if (agg.nextPosition()) {
                     agg = queue.updateTop();
                 } else {
@@ -183,13 +182,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             }
         }
 
-
-        for (ReaderAggregator aggregator : aggregators) {
-            if (aggregator.counts.length > ordinalsCacheAbove) {
-                CacheRecycler.pushIntArray(aggregator.counts);
-            }
-        }
-
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
 
@@ -204,23 +196,23 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             if (current != null) {
-                missing += current.counts[0];
-                total += current.total - current.counts[0];
+                missing += current.counts.get(0);
+                total += current.total - current.counts.get(0);
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
                 }
             }
             values = indexFieldData.load(context).getBytesValues();
-            current = new ReaderAggregator(values, ordinalsCacheAbove);
+            current = new ReaderAggregator(values, ordinalsCacheAbove, cacheRecycler);
             ordinals = values.ordinals();
         }
 
         @Override
         public void collect(int doc) throws IOException {
             Iter iter = ordinals.getIter(doc);
-            int ord = iter.next();
+            long ord = iter.next();
             current.onOrdinal(doc, ord);
-            while((ord = iter.next()) != 0) {
+            while ((ord = iter.next()) != 0) {
                 current.onOrdinal(doc, ord);
             }
         }
@@ -228,8 +220,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         @Override
         public void postCollection() {
             if (current != null) {
-                missing += current.counts[0];
-                total += current.total - current.counts[0];
+                missing += current.counts.get(0);
+                total += current.total - current.counts.get(0);
                 // if we have values for this one, add it
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
@@ -244,26 +236,21 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     public static final class ReaderAggregator {
 
         final BytesValues.WithOrdinals values;
-        final int[] counts;
+        final IntArray counts;
 
-        int position = 0;
+        long position = 0;
         BytesRef current;
         int total;
-        private final int maxOrd;
+        private final long maxOrd;
 
-        public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit) {
+        public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit, CacheRecycler cacheRecycler) {
             this.values = values;
             this.maxOrd = values.ordinals().getMaxOrd();
-
-            if (maxOrd > ordinalsCacheLimit) {
-                this.counts = CacheRecycler.popIntArray(maxOrd);
-            } else {
-                this.counts = new int[maxOrd];
-            }
+            this.counts = IntArrays.allocate(maxOrd);
         }
 
-        final void onOrdinal(int docId, int ordinal) {
-            counts[ordinal]++;
+        final void onOrdinal(int docId, long ordinal) {
+            counts.increment(ordinal, 1);
             total++;
         }
 

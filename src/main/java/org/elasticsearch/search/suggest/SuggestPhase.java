@@ -78,16 +78,21 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
         try {
             CharsRef spare = new CharsRef(); // Maybe add CharsRef to CacheRecycler?
             final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(suggest.suggestions().size());
+
             for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
                 SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();
                 Suggester<SuggestionContext> suggester = suggestion.getSuggester();
                 Suggestion<? extends Entry<? extends Option>> result = suggester.execute(entry.getKey(), suggestion, reader, spare);
-                assert entry.getKey().equals(result.name);
-                suggestions.add(result);
+                if (result != null) {
+                    assert entry.getKey().equals(result.name);
+                    suggestions.add(result);
+                }
             }
+
             return new Suggest(Suggest.Fields.SUGGEST, suggestions);
         } catch (IOException e) {
             throw new ElasticSearchException("I/O exception during suggest phase", e);
         }
     }
 }
+

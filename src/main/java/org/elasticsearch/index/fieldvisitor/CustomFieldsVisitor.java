@@ -27,30 +27,23 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
+ * A field visitor that allows to load a selection of the stored fields.
+ * The Uid field is always loaded.
+ * The class is optimized for source loading as it is a common use case.
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
 
-    private final boolean loadAllFields;
     private final boolean loadSource;
     private final Set<String> fields;
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
-        this.loadAllFields = false;
         this.loadSource = loadSource;
         this.fields = fields;
     }
 
-    public CustomFieldsVisitor(boolean loadAllFields, boolean loadSource) {
-        this.loadAllFields = loadAllFields;
-        this.loadSource = loadSource;
-        this.fields = null;
-    }
-
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
-        if (loadAllFields) {
-            return Status.YES;
-        }
+
         if (loadSource && SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }

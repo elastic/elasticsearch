@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.local.state.shards;
 
 import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,7 +31,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -267,55 +267,50 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
 
     private void writeShardState(String reason, ShardId shardId, ShardStateInfo shardStateInfo, @Nullable ShardStateInfo previousStateInfo) throws Exception {
         logger.trace("[{}][{}] writing shard state, reason [{}]", shardId.index().name(), shardId.id(), reason);
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, cachedEntry.bytes());
-            builder.prettyPrint();
-            builder.startObject();
-            builder.field("version", shardStateInfo.version);
-            if (shardStateInfo.primary != null) {
-                builder.field("primary", shardStateInfo.primary);
-            }
-            builder.endObject();
-            builder.flush();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, new BytesStreamOutput());
+        builder.prettyPrint();
+        builder.startObject();
+        builder.field("version", shardStateInfo.version);
+        if (shardStateInfo.primary != null) {
+            builder.field("primary", shardStateInfo.primary);
+        }
+        builder.endObject();
+        builder.flush();
 
-            Exception lastFailure = null;
-            boolean wroteAtLeastOnce = false;
+        Exception lastFailure = null;
+        boolean wroteAtLeastOnce = false;
+        for (File shardLocation : nodeEnv.shardLocations(shardId)) {
+            File shardStateDir = new File(shardLocation, "_state");
+            FileSystemUtils.mkdirs(shardStateDir);
+            File stateFile = new File(shardStateDir, "state-" + shardStateInfo.version);
+
+
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(stateFile);
+                BytesReference bytes = builder.bytes();
+                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                fos.getChannel().force(true);
+                fos.close();
+                wroteAtLeastOnce = true;
+            } catch (Exception e) {
+                lastFailure = e;
+            } finally {
+                IOUtils.closeWhileHandlingException(fos);
+            }
+        }
+
+        if (!wroteAtLeastOnce) {
+            logger.warn("[{}][{}]: failed to write shard state", shardId.index().name(), shardId.id(), lastFailure);
+            throw new IOException("failed to write shard state for " + shardId, lastFailure);
+        }
+
+        // delete the old files
+        if (previousStateInfo != null && previousStateInfo.version != shardStateInfo.version) {
             for (File shardLocation : nodeEnv.shardLocations(shardId)) {
-                File shardStateDir = new File(shardLocation, "_state");
-                FileSystemUtils.mkdirs(shardStateDir);
-                File stateFile = new File(shardStateDir, "state-" + shardStateInfo.version);
-
-
-                FileOutputStream fos = null;
-                try {
-                    fos = new FileOutputStream(stateFile);
-                    BytesReference bytes = cachedEntry.bytes().bytes();
-                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
-                    fos.getChannel().force(true);
-                    Closeables.closeQuietly(fos);
-                    wroteAtLeastOnce = true;
-                } catch (Exception e) {
-                    lastFailure = e;
-                } finally {
-                    Closeables.closeQuietly(fos);
-                }
+                File stateFile = new File(new File(shardLocation, "_state"), "state-" + previousStateInfo.version);
+                stateFile.delete();
             }
-
-            if (!wroteAtLeastOnce) {
-                logger.warn("[{}][{}]: failed to write shard state", shardId.index().name(), shardId.id(), lastFailure);
-                throw new IOException("failed to write shard state for " + shardId, lastFailure);
-            }
-
-            // delete the old files
-            if (previousStateInfo != null && previousStateInfo.version != shardStateInfo.version) {
-                for (File shardLocation : nodeEnv.shardLocations(shardId)) {
-                    File stateFile = new File(new File(shardLocation, "_state"), "state-" + previousStateInfo.version);
-                    stateFile.delete();
-                }
-            }
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 

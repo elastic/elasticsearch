@@ -60,7 +60,9 @@ public class BoolQueryParser implements QueryParser {
         String minimumShouldMatch = null;
 
         List<BooleanClause> clauses = newArrayList();
-
+        boolean adjustPureNegative = true;
+        String queryName = null;
+        
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -119,6 +121,10 @@ public class BoolQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
+                } else if ("adjust_pure_negative".equals(currentFieldName) || "adjustPureNegative".equals(currentFieldName)) {
+                    adjustPureNegative = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bool] query does not support [" + currentFieldName + "]");
                 }
@@ -129,12 +135,16 @@ public class BoolQueryParser implements QueryParser {
             return null;
         }
 
-        BooleanQuery query = new BooleanQuery(disableCoord);
+        BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
         for (BooleanClause clause : clauses) {
-            query.add(clause);
+            booleanQuery.add(clause);
         }
-        query.setBoost(boost);
-        Queries.applyMinimumShouldMatch(query, minimumShouldMatch);
-        return optimizeQuery(fixNegativeQueryIfNeeded(query));
+        booleanQuery.setBoost(boost);
+        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        Query query = optimizeQuery(adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

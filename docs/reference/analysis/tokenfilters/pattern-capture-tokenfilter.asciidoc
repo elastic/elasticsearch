@@ -1,0 +1,134 @@
+[[analysis-pattern-capture-tokenfilter]]
+=== Pattern Capture Token Filter
+
+The `pattern_capture` token filter, unlike the `pattern` tokenizer,
+emits a token for every capture group in the regular expression.
+Patterns are not anchored to the beginning and end of the string, so
+each pattern can match multiple times, and matches are allowed to
+overlap.
+
+For instance a pattern like :
+
+[source,js]
+--------------------------------------------------
+"(([a-z]+)(\d*))"
+--------------------------------------------------
+
+when matched against:
+
+[source,js]
+--------------------------------------------------
+"abc123def456"
+--------------------------------------------------
+
+would produce the tokens: [ `abc123`, `abc`, `123`, `def456`, `def`,
+`456` ]
+
+If `preserve_original` is set to `true` (the default) then it would also
+emit the original token: `abc123def456`.
+
+This is particularly useful for indexing text like camel-case code, eg
+`stripHTML` where a user may search for `"strip html"` or `"striphtml"`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test/  -d '
+{
+   "settings" : {
+      "analysis" : {
+         "filter" : {
+            "code" : {
+               "type" : "pattern_capture",
+               "preserve_original" : 1,
+               "patterns" : [
+                  "(\\p{Ll}+|\\p{Lu}\\p{Ll}+|\\p{Lu}+)",
+                  "(\\d+)"
+               ]
+            }
+         },
+         "analyzer" : {
+            "code" : {
+               "tokenizer" : "pattern",
+               "filter" : [ "code", "lowercase" ]
+            }
+         }
+      }
+   }
+}
+'
+--------------------------------------------------
+
+When used to analyze the text
+
+[source,js]
+--------------------------------------------------
+import static org.apache.commons.lang.StringEscapeUtils.escapeHtml
+--------------------------------------------------
+
+this emits the tokens: [ `import`, `static`, `org`, `apache`, `commons`,
+`lang`, `stringescapeutils`, `string`, `escape`, `utils`, `escapehtml`,
+`escape`, `html` ]
+
+Another example is analyzing email addresses:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test/  -d '
+{
+   "settings" : {
+      "analysis" : {
+         "filter" : {
+            "email" : {
+               "type" : "pattern_capture",
+               "preserve_original" : 1,
+               "patterns" : [
+                  "(\\w+)",
+                  "(\\p{L}+)",
+                  "(\\d+)",
+                  "@(.+)"
+               ]
+            }
+         },
+         "analyzer" : {
+            "email" : {
+               "tokenizer" : "uax_url_email",
+               "filter" : [ "email", "lowercase",  "unique" ]
+            }
+         }
+      }
+   }
+}
+'
+--------------------------------------------------
+
+When the above analyzer is used on an email address like:
+
+[source,js]
+--------------------------------------------------
+john-smith_123@foo-bar.com
+--------------------------------------------------
+
+it would produce the following tokens: [ `john-smith_123`,
+`foo-bar.com`, `john`, `smith_123`, `smith`, `123`, `foo`,
+`foo-bar.com`, `bar`, `com` ]
+
+Multiple patterns are required to allow overlapping captures, but also
+means that patterns are less dense and easier to understand.
+
+*Note:* All tokens are emitted in the same position, and with the same
+character offsets, so when combined with highlighting, the whole
+original token will be highlighted, not just the matching subset. For
+instance, querying the above email address for `"smith"` would
+highlight:
+
+[source,js]
+--------------------------------------------------
+  <em>john-smith_123@foo-bar.com</em>
+--------------------------------------------------
+
+not:
+
+[source,js]
+--------------------------------------------------
+  john-<em>smith</em>_123@foo-bar.com
+--------------------------------------------------

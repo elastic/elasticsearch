@@ -32,11 +32,12 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Required;
-import org.elasticsearch.common.UUID;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -65,7 +66,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> {
-
+    
     /**
      * Operation type controls if the type of the index operation.
      */
@@ -130,9 +131,8 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     private OpType opType = OpType.INDEX;
 
     private boolean refresh = false;
-    private long version = 0;
+    private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
-    private String percolate;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
@@ -410,6 +410,21 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
     }
 
+    @Required
+    public IndexRequest source(Object... source) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject();
+            for (int i = 0; i < source.length; i++) {
+                builder.field(source[i++].toString(), source[i]);
+            }
+            builder.endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
+    }
+
     /**
      * Sets the document to index in bytes form.
      */
@@ -533,20 +548,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         return this.versionType;
     }
 
-    /**
-     * Causes the index request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public IndexRequest percolate(String percolate) {
-        this.percolate = percolate;
-        return this;
-    }
-
-    public String percolate() {
-        return this.percolate;
-    }
-
     public void process(MetaData metaData, String aliasOrIndex, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration) throws ElasticSearchException {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, aliasOrIndex));
@@ -592,7 +593,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         // generate id if not already provided and id generation is allowed
         if (allowIdGeneration) {
             if (id == null) {
-                id(UUID.randomBase64UUID());
+                id(Strings.randomBase64UUID());
                 // since we generate the id, change it to CREATE
                 opType(IndexRequest.OpType.CREATE);
             }
@@ -607,7 +608,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -619,14 +620,13 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         opType = OpType.fromId(in.readByte());
         refresh = in.readBoolean();
         version = in.readLong();
-        percolate = in.readOptionalString();
         versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
@@ -636,7 +636,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         out.writeByte(opType.id());
         out.writeBoolean(refresh);
         out.writeLong(version);
-        out.writeOptionalString(percolate);
         out.writeByte(versionType.getValue());
     }
 

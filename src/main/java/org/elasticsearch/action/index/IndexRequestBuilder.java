@@ -203,6 +203,14 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
     }
 
     /**
+     * Constructs a simple document with a field name and value pairs.
+     */
+    public IndexRequestBuilder setSource(Object... source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
      * The content type that will be used to generate a document from user provided objects (like Map).
      */
     public IndexRequestBuilder setContentType(XContentType contentType) {
@@ -283,16 +291,6 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      */
     public IndexRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
-        return this;
-    }
-
-    /**
-     * Causes the index request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public IndexRequestBuilder setPercolate(String percolate) {
-        request.percolate(percolate);
         return this;
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -28,33 +29,60 @@ import java.util.concurrent.atomic.AtomicLong;
  * A prioritizing executor which uses a priority queue as a work queue. The jobs that will be submitted will be treated
  * as {@link PrioritizedRunnable} and/or {@link PrioritizedCallable}, those tasks that are not instances of these two will
  * be wrapped and assign a default {@link Priority#NORMAL} priority.
- *
+ * <p/>
  * Note, if two tasks have the same priority, the first to arrive will be executed first (FIFO style).
  */
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
-    private AtomicLong tieBreaker = new AtomicLong(Long.MIN_VALUE);
+    private AtomicLong insertionOrder = new AtomicLong();
 
-    public PrioritizedEsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
+    PrioritizedEsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<Runnable>(), threadFactory);
     }
 
-    public PrioritizedEsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<Runnable>(), threadFactory, handler);
+    public Pending[] getPending() {
+        Object[] objects = getQueue().toArray();
+        Pending[] infos = new Pending[objects.length];
+        for (int i = 0; i < objects.length; i++) {
+            Object obj = objects[i];
+            if (obj instanceof TieBreakingPrioritizedRunnable) {
+                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) obj;
+                infos[i] = new Pending(t.runnable, t.priority(), t.insertionOrder);
+            } else if (obj instanceof PrioritizedFutureTask) {
+                PrioritizedFutureTask t = (PrioritizedFutureTask) obj;
+                infos[i] = new Pending(t.task, t.priority, t.insertionOrder);
+            }
+        }
+        return infos;
     }
 
-    public PrioritizedEsThreadPoolExecutor(int corePoolSize, int initialWorkQueuSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<Runnable>(initialWorkQueuSize), threadFactory, handler);
+    public void execute(Runnable command, final ScheduledExecutorService timer, final TimeValue timeout, final Runnable timeoutCallback) {
+        if (command instanceof PrioritizedRunnable) {
+            command = new TieBreakingPrioritizedRunnable((PrioritizedRunnable) command, insertionOrder.incrementAndGet());
+        } else if (!(command instanceof PrioritizedFutureTask)) { // it might be a callable wrapper...
+            command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, insertionOrder.incrementAndGet());
+        }
+        if (timeout.nanos() >= 0) {
+            final Runnable fCommand = command;
+            timer.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    boolean removed = getQueue().remove(fCommand);
+                    if (removed) {
+                        timeoutCallback.run();
+                    }
+                }
+            }, timeout.nanos(), TimeUnit.NANOSECONDS);
+        }
+        super.execute(command);
     }
 
     @Override
     public void execute(Runnable command) {
         if (command instanceof PrioritizedRunnable) {
-            super.execute(new TieBreakingPrioritizedRunnable((PrioritizedRunnable) command, tieBreaker.incrementAndGet()));
-            return;
-        }
-        if (!(command instanceof Comparable)) {
-            command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, tieBreaker.incrementAndGet());
+            command = new TieBreakingPrioritizedRunnable((PrioritizedRunnable) command, insertionOrder.incrementAndGet());
+        } else if (!(command instanceof PrioritizedFutureTask)) { // it might be a callable wrapper...
+            command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, insertionOrder.incrementAndGet());
         }
         super.execute(command);
     }
@@ -64,7 +92,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         if (!(runnable instanceof PrioritizedRunnable)) {
             runnable = PrioritizedRunnable.wrap(runnable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<T>((PrioritizedRunnable) runnable, value, tieBreaker.incrementAndGet());
+        return new PrioritizedFutureTask<T>((PrioritizedRunnable) runnable, value, insertionOrder.incrementAndGet());
     }
 
     @Override
@@ -72,22 +100,34 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         if (!(callable instanceof PrioritizedCallable)) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, tieBreaker.incrementAndGet());
+        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, insertionOrder.incrementAndGet());
+    }
+
+    public static class Pending {
+        public final Object task;
+        public final Priority priority;
+        public final long insertionOrder;
+
+        public Pending(Object task, Priority priority, long insertionOrder) {
+            this.task = task;
+            this.priority = priority;
+            this.insertionOrder = insertionOrder;
+        }
     }
 
     static class TieBreakingPrioritizedRunnable extends PrioritizedRunnable {
 
-        private final Runnable runnable;
-        private final long tieBreaker;
+        final Runnable runnable;
+        final long insertionOrder;
 
-        TieBreakingPrioritizedRunnable(PrioritizedRunnable runnable, long tieBreaker) {
-            this(runnable, runnable.priority(), tieBreaker);
+        TieBreakingPrioritizedRunnable(PrioritizedRunnable runnable, long insertionOrder) {
+            this(runnable, runnable.priority(), insertionOrder);
         }
 
-        TieBreakingPrioritizedRunnable(Runnable runnable, Priority priority, long tieBreaker) {
+        TieBreakingPrioritizedRunnable(Runnable runnable, Priority priority, long insertionOrder) {
             super(priority);
             this.runnable = runnable;
-            this.tieBreaker = tieBreaker;
+            this.insertionOrder = insertionOrder;
         }
 
         @Override
@@ -101,28 +141,28 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             if (res != 0 || !(pr instanceof TieBreakingPrioritizedRunnable)) {
                 return res;
             }
-            return tieBreaker < ((TieBreakingPrioritizedRunnable)pr).tieBreaker ? -1 : 1;
+            return insertionOrder < ((TieBreakingPrioritizedRunnable) pr).insertionOrder ? -1 : 1;
         }
     }
 
-    /**
-     *
-     */
     static class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
 
-        private final Priority priority;
-        private final long tieBreaker;
+        final Object task;
+        final Priority priority;
+        final long insertionOrder;
 
-        public PrioritizedFutureTask(PrioritizedRunnable runnable, T value, long tieBreaker) {
+        public PrioritizedFutureTask(PrioritizedRunnable runnable, T value, long insertionOrder) {
             super(runnable, value);
+            this.task = runnable;
             this.priority = runnable.priority();
-            this.tieBreaker = tieBreaker;
+            this.insertionOrder = insertionOrder;
         }
 
-        public PrioritizedFutureTask(PrioritizedCallable<T> callable, long tieBreaker) {
+        public PrioritizedFutureTask(PrioritizedCallable<T> callable, long insertionOrder) {
             super(callable);
+            this.task = callable;
             this.priority = callable.priority();
-            this.tieBreaker = tieBreaker;
+            this.insertionOrder = insertionOrder;
         }
 
         @Override
@@ -131,7 +171,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             if (res != 0) {
                 return res;
             }
-            return tieBreaker < pft.tieBreaker ? -1 : 1;
+            return insertionOrder < pft.insertionOrder ? -1 : 1;
         }
     }
 }

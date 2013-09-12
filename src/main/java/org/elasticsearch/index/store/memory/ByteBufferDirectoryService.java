@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.memory;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.bytebuffer.ByteBufferAllocator;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.apache.lucene.store.bytebuffer.ByteBufferFile;
@@ -30,19 +31,18 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.IndexStore;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
  */
-public class ByteBufferDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public final class ByteBufferDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
     private final ByteBufferCache byteBufferCache;
 
     @Inject
-    public ByteBufferDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) {
+    public ByteBufferDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, ByteBufferCache byteBufferCache) {
         super(shardId, indexSettings);
         this.byteBufferCache = byteBufferCache;
     }
@@ -59,7 +59,9 @@ public class ByteBufferDirectoryService extends AbstractIndexShardComponent impl
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        ((CustomByteBufferDirectory) dir).renameTo(from, to);
+        CustomByteBufferDirectory leaf = FilterDirectory.getLeaf(dir, CustomByteBufferDirectory.class);
+        assert leaf != null;
+        leaf.renameTo(from, to);
     }
 
     @Override

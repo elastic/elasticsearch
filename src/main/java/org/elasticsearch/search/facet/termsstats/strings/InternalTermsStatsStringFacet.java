@@ -20,13 +20,15 @@
 package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.CacheRecycler;
+import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
@@ -40,7 +42,7 @@ import java.util.*;
 
 public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("tTS");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("tTS"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -172,26 +174,27 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
                 InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<StringEntry> entries = tsFacet.mutableList();
-                    Collections.sort(entries, comparatorType.comparator());
+                    CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<Text, StringEntry> map = CacheRecycler.popHashMap();
+        Recycler.V<ExtTHashMap<Text, StringEntry>> map = context.cacheRecycler().hashMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
             for (Entry entry : tsFacet) {
                 StringEntry stringEntry = (StringEntry) entry;
-                StringEntry current = map.get(stringEntry.getTerm());
+                StringEntry current = map.v().get(stringEntry.getTerm());
                 if (current != null) {
                     current.count += stringEntry.count;
                     current.totalCount += stringEntry.totalCount;
@@ -203,21 +206,21 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                         current.max = stringEntry.max;
                     }
                 } else {
-                    map.put(stringEntry.getTerm(), stringEntry);
+                    map.v().put(stringEntry.getTerm(), stringEntry);
                 }
             }
         }
 
         // sort
         if (requiredSize == 0) { // all terms
-            StringEntry[] entries1 = map.values().toArray(new StringEntry[map.size()]);
+            StringEntry[] entries1 = map.v().values().toArray(new StringEntry[map.v().size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushHashMap(map);
+            map.release();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.internalValues();
+            Object[] values = map.v().internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<StringEntry> ordered = new ArrayList<StringEntry>(map.size());
+            List<StringEntry> ordered = new ArrayList<StringEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {
                 StringEntry value = (StringEntry) values[i];
                 if (value == null) {
@@ -225,7 +228,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushHashMap(map);
+            map.release();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

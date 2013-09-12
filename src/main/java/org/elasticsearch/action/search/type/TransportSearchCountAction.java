@@ -19,28 +19,22 @@
 
 package org.elasticsearch.action.search.type;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.Map;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
@@ -51,8 +45,8 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
 
     @Inject
     public TransportSearchCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, transportSearchCache, searchService, searchPhaseController);
+                                      SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController);
     }
 
     @Override
@@ -61,8 +55,6 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
     }
 
     private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
-
-        private final Map<SearchShardTarget, QuerySearchResultProvider> queryFetchResults = searchCache.obtainQueryResults();
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -79,22 +71,14 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         }
 
         @Override
-        protected void processFirstPhaseResult(ShardRouting shard, QuerySearchResult result) {
-            queryFetchResults.put(result.shardTarget(), result);
-        }
-
-        @Override
         protected void moveToSecondPhase() throws Exception {
             // no need to sort, since we know we have no hits back
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(EMPTY_DOCS, queryFetchResults, ImmutableMap.<SearchShardTarget, FetchSearchResultProvider>of());
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty());
             String scrollId = null;
             if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), queryFetchResults.values(), null);
+                scrollId = buildScrollId(request.searchType(), firstResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
-            searchCache.releaseQueryResults(queryFetchResults);
         }
     }
-
-    private static ShardDoc[] EMPTY_DOCS = new ShardDoc[0];
 }

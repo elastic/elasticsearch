@@ -36,7 +36,9 @@ public class Log4jESLogger extends AbstractESLogger {
     }
 
     public void setLevel(String level) {
-        if ("error".equalsIgnoreCase(level)) {
+        if (level == null) {
+            logger.setLevel(null);
+        } else if ("error".equalsIgnoreCase(level)) {
             logger.setLevel(Level.ERROR);
         } else if ("warn".equalsIgnoreCase(level)) {
             logger.setLevel(Level.WARN);
@@ -47,6 +49,14 @@ public class Log4jESLogger extends AbstractESLogger {
         } else if ("trace".equalsIgnoreCase(level)) {
             logger.setLevel(Level.TRACE);
         }
+    }
+
+    @Override
+    public String getLevel() {
+        if (logger.getLevel() == null) {
+            return null;
+        }
+        return logger.getLevel().toString();
     }
 
     @Override

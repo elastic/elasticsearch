@@ -22,10 +22,12 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -65,6 +67,8 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
         mltQuery.setSimilarity(parseContext.searchSimilarity());
         Analyzer analyzer = null;
+        boolean failOnUnsupportedField = true;
+        String queryName = null;
 
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -94,6 +98,10 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     mltQuery.setBoost(parser.floatValue());
+                } else if ("fail_on_unsupported_field".equals(currentFieldName) || "failOnUnsupportedField".equals(currentFieldName)) {
+                    failOnUnsupportedField = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt_field] query does not support [" + currentFieldName + "]");
                 }
@@ -130,8 +138,19 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
         if (analyzer == null) {
             analyzer = parseContext.mapperService().searchAnalyzer();
         }
+        if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
+            if (failOnUnsupportedField) {
+                throw new ElasticSearchIllegalArgumentException("more_like_this_field doesn't support binary/numeric fields: [" + fieldName + "]");
+            } else {
+                return null;
+            }
+        }
         mltQuery.setAnalyzer(analyzer);
         mltQuery.setMoreLikeFields(new String[]{fieldName});
-        return wrapSmartNameQuery(mltQuery, smartNameFieldMappers, parseContext);
+        Query query = wrapSmartNameQuery(mltQuery, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

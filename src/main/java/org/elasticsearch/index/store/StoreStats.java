@@ -101,10 +101,8 @@ public class StoreStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.STORE);
-        builder.field(Fields.SIZE, size().toString());
-        builder.field(Fields.SIZE_IN_BYTES, sizeInBytes);
-        builder.field(Fields.THROTTLE_TIME, throttleTime().toString());
-        builder.field(Fields.THROTTLE_TIME_IN_MILLIS, throttleTime().millis());
+        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
+        builder.timeValueField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
     }

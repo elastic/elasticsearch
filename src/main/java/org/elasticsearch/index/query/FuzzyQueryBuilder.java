@@ -45,6 +45,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private Boolean transpositions;
 
+    private String queryName;
+
     /**
      * Constructs a new term query.
      *
@@ -90,10 +92,18 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
       return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public FuzzyQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyQueryParser.NAME);
-        if (boost == -1 && minSimilarity == null && prefixLength == null) {
+        if (boost == -1 && minSimilarity == null && prefixLength == null && queryName != null) {
             builder.field(name, value);
         } else {
             builder.startObject(name);
@@ -112,6 +122,9 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
             }
             if (maxExpansions != null) {
                 builder.field("max_expansions", maxExpansions);
+            }
+            if (queryName != null) {
+                builder.field("_name", queryName);
             }
             builder.endObject();
         }

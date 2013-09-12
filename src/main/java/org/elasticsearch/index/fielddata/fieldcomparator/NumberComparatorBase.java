@@ -19,13 +19,12 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.search.FieldComparator;
 
 /**
  * Base FieldComparator class for number fields.
  */
 // This is right now only used for sorting number based fields inside nested objects
-public abstract class NumberComparatorBase<T> extends FieldComparator<T> {
+public abstract class NumberComparatorBase<T> extends NestedWrappableComparator<T> {
 
     /**
      * Adds numeric value at the specified doc to the specified slot.
@@ -43,18 +42,4 @@ public abstract class NumberComparatorBase<T> extends FieldComparator<T> {
      */
     public abstract void divide(int slot, int divisor);
 
-    /**
-     * Assigns the underlying missing value to the specified slot, if the actual implementation supports missing value.
-     *
-     * @param slot The slot to assign the the missing value to.
-     */
-    public abstract void missing(int slot);
-
-    /**
-     * Compares the missing value to the bottom.
-     *
-     * @return any N < 0 if the bottom value is not competitive with the missing value, any N > 0 if the
-     * bottom value is competitive with the missing value and 0 if they are equal.
-     */
-    public abstract int compareBottomMissing();
 }

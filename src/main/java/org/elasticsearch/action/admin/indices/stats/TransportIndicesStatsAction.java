@@ -76,11 +76,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         return new IndicesStatsRequest();
     }
 
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
     /**
      * Status goes across *all* shards.
      */
@@ -180,6 +175,12 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         }
         if (request.request.fieldData()) {
             stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
+        }
+        if (request.request.percolate()) {
+            stats.stats.percolate = indexShard.shardPercolateService().stats();
+        }
+        if (request.request.completion()) {
+            stats.stats.completion = indexShard.completionStats(request.request.completionFields());
         }
 
         return stats;

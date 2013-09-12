@@ -27,10 +27,13 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -51,30 +54,20 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     private final Filter childrenFilter;
 
     private Query rewrittenParentQuery;
-    private TObjectFloatHashMap<HashedBytesArray> uidToScore;
+    private Recycler.V<TObjectFloatHashMap<HashedBytesArray>> uidToScore;
 
     public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, Filter childrenFilter) {
         this.searchContext = searchContext;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
-        this.childrenFilter = childrenFilter;
-    }
-
-    private ParentQuery(ParentQuery unwritten, Query rewrittenParentQuery) {
-        this.searchContext = unwritten.searchContext;
-        this.originalParentQuery = unwritten.originalParentQuery;
-        this.parentType = unwritten.parentType;
-        this.childrenFilter = unwritten.childrenFilter;
-
-        this.rewrittenParentQuery = rewrittenParentQuery;
-        this.uidToScore = unwritten.uidToScore;
+        this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
     }
 
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        uidToScore = CacheRecycler.popObjectFloatMap();
-        ParentUidCollector collector = new ParentUidCollector(uidToScore, searchContext, parentType);
+        uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
+        ParentUidCollector collector = new ParentUidCollector(uidToScore.v(), searchContext, parentType);
         Query parentQuery;
         if (rewrittenParentQuery == null) {
             parentQuery = rewrittenParentQuery = searchContext.searcher().rewrite(originalParentQuery);
@@ -85,11 +78,15 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextClear() {
+    public void executionDone() {
         if (uidToScore != null) {
-            CacheRecycler.pushObjectFloatMap(uidToScore);
+            uidToScore.release();
         }
         uidToScore = null;
+    }
+
+    @Override
+    public void contextClear() {
     }
 
     @Override
@@ -101,8 +98,8 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
             return false;
         }
 
-        HasParentFilter that = (HasParentFilter) obj;
-        if (!originalParentQuery.equals(that.parentQuery)) {
+        ParentQuery that = (ParentQuery) obj;
+        if (!originalParentQuery.equals(that.originalParentQuery)) {
             return false;
         }
         if (!parentType.equals(that.parentType)) {
@@ -128,22 +125,12 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten;
         if (rewrittenParentQuery == null) {
-            rewritten = originalParentQuery.rewrite(reader);
-        } else {
-            rewritten = rewrittenParentQuery;
+            rewrittenParentQuery = originalParentQuery.rewrite(reader);
         }
-        if (rewritten == rewrittenParentQuery) {
-            return this;
-        }
-
-        // See TopChildrenQuery#rewrite
-        ParentQuery rewrite = new ParentQuery(this, rewritten);
-        int index = searchContext.rewrites().indexOf(this);
-        searchContext.rewrites().set(index, rewrite);
-        return rewrite;
+        return this;
     }
 
     @Override
@@ -156,6 +143,10 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         if (uidToScore == null) {
             throw new ElasticSearchIllegalStateException("has_parent query hasn't executed properly");
         }
+        if (uidToScore.v().isEmpty()) {
+            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+        }
+
         return new ChildWeight(rewrittenParentQuery.createWeight(searcher));
     }
 
@@ -227,7 +218,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
-            if (childrenDocSet == null || childrenDocSet == DocIdSet.EMPTY_DOCIDSET) {
+            if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
             IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
@@ -235,7 +226,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                 return null;
             }
 
-            return new ChildScorer(this, uidToScore, childrenDocSet.iterator(), idTypeCache);
+            return new ChildScorer(this, uidToScore.v(), childrenDocSet.iterator(), idTypeCache);
         }
     }
 

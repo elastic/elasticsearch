@@ -24,7 +24,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -53,6 +53,8 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.restCont
  */
 public class RestBulkAction extends BaseRestHandler {
 
+    private final boolean allowExplicitIndex;
+
     @Inject
     public RestBulkAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -63,6 +65,8 @@ public class RestBulkAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/{index}/_bulk", this);
         controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
+
+        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
     }
 
     @Override
@@ -82,7 +86,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         try {
-            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType);
+            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);
@@ -116,15 +120,9 @@ public class RestBulkAction extends BaseRestHandler {
                         } else {
                             builder.field(Fields.OK, true);
                         }
-                        if (itemResponse.getResponse() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.getResponse();
-                            if (indexResponse.getMatches() != null) {
-                                builder.startArray(Fields.MATCHES);
-                                for (String match : indexResponse.getMatches()) {
-                                    builder.value(match);
-                                }
-                                builder.endArray();
-                            }
+                        if (itemResponse.getResponse() instanceof DeleteResponse) {
+                            DeleteResponse deleteResponse = itemResponse.getResponse();
+                            builder.field(Fields.FOUND, !deleteResponse.isNotFound());
                         }
                         builder.endObject();
                         builder.endObject();
@@ -158,7 +156,7 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString OK = new XContentBuilderString("ok");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
     }
 
 }

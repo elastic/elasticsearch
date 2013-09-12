@@ -57,6 +57,7 @@ public class HasChildFilterParser implements FilterParser {
         Query query = null;
         boolean queryFound = false;
         String childType = null;
+        int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
 
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
@@ -101,6 +102,8 @@ public class HasChildFilterParser implements FilterParser {
                     cache = parser.booleanValue();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
+                } else if ("short_circuit_cutoff".equals(currentFieldName)) {
+                    shortCircuitParentDocSet = parser.intValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -134,8 +137,12 @@ public class HasChildFilterParser implements FilterParser {
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        if (parentDocMapper == null) {
+            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+        }
+
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        HasChildFilter childFilter = new HasChildFilter(query, parentType, childType, parentFilter, searchContext);
+        HasChildFilter childFilter = new HasChildFilter(query, parentType, childType, parentFilter, searchContext, shortCircuitParentDocSet);
         searchContext.addRewrite(childFilter);
         Filter filter = childFilter;
 

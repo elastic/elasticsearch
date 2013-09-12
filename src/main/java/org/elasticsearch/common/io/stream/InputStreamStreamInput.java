@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.io.Streams;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,12 +48,9 @@ public class InputStreamStreamInput extends StreamInput {
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         if (len < 0)
             throw new IndexOutOfBoundsException();
-        int n = 0;
-        while (n < len) {
-            int count = is.read(b, offset + n, len - n);
-            if (count < 0)
-                throw new EOFException();
-            n += count;
+        final int read = Streams.readFully(is, b, offset, len);
+        if (read != len) {
+            throw new EOFException();
         }
     }
 

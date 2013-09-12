@@ -70,7 +70,12 @@ public abstract class BytesValues {
     /**
      * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
      * result which will also be returned. If there is no value for this docId, the length will be 0.
-     * Note, the bytes are not "safe".
+     * Implementations can either change the {@link BytesRef#bytes bytes reference} of the {@link BytesRef}
+     * to point to an internal structure or modify the content of the {@link BytesRef} but should
+     * always do it in a consistent way. For example, it is illegal to change the bytes content in
+     * some call and to change the reference to point to an internal structure in another call, this
+     * will lead to bugs. It is also illegal for callers to write into the {@link BytesRef#bytes bytes}
+     * after this method has returned.
      */
     public abstract BytesRef getValueScratch(int docId, BytesRef ret);
 
@@ -91,10 +96,22 @@ public abstract class BytesValues {
 
     public static interface Iter {
 
+        /**
+         * Returns whether this iterator still contains elements.
+         */
         boolean hasNext();
 
+        /**
+         * Returns the next element of this iterator. Please note that the returned bytes may be
+         * reused across invocations so they should be copied for later reference. The behavior of
+         * this method is undefined if the iterator is exhausted.
+         */
         BytesRef next();
 
+        /**
+         * Returns the hash value of the last {@link BytesRef} returned by {@link #next()}. The
+         * behavior is undefined if this iterator is not positioned or exhausted.
+         */
         int hash();
 
         public static class Empty implements Iter {
@@ -120,10 +137,10 @@ public abstract class BytesValues {
         public static class Single implements Iter {
 
             protected BytesRef value;
-            protected int ord;
+            protected long ord;
             protected boolean done;
 
-            public Single reset(BytesRef value, int ord) {
+            public Single reset(BytesRef value, long ord) {
                 this.value = value;
                 this.ord = ord;
                 this.done = false;
@@ -149,8 +166,8 @@ public abstract class BytesValues {
 
         static class Multi implements Iter {
 
-            protected int innerOrd;
-            protected int ord;
+            protected long innerOrd;
+            protected long ord;
             protected BytesValues.WithOrdinals withOrds;
             protected Ordinals.Docs.Iter ordsIter;
             protected final BytesRef scratch = new BytesRef();
@@ -226,7 +243,7 @@ public abstract class BytesValues {
             return ordinals;
         }
 
-        public BytesRef getValueByOrd(int ord) {
+        public BytesRef getValueByOrd(long ord) {
             return getValueScratchByOrd(ord, scratch);
         }
 
@@ -247,7 +264,7 @@ public abstract class BytesValues {
 
         @Override
         public BytesRef getValue(int docId) {
-            final int ord = ordinals.getOrd(docId);
+            final long ord = ordinals.getOrd(docId);
             if (ord == 0) {
                 return null;
             }
@@ -266,9 +283,14 @@ public abstract class BytesValues {
         /**
          * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
          * result which will also be returned. If there is no value for this docId, the length will be 0.
-         * Note, the bytes are not "safe".
+         * Implementations can either change the {@link BytesRef#bytes bytes reference} of the {@link BytesRef}
+         * to point to an internal structure or modify the content of the {@link BytesRef} but should
+         * always do it in a consistent way. For example, it is illegal to change the bytes content in
+         * some call and to change the reference to point to an internal structure in another call, this
+         * will lead to bugs. It is also illegal for callers to write into the {@link BytesRef#bytes bytes}
+         * after this method has returned.
          */
-        public abstract BytesRef getValueScratchByOrd(int ord, BytesRef ret);
+        public abstract BytesRef getValueScratchByOrd(long ord, BytesRef ret);
 
         public static class Empty extends WithOrdinals {
 
@@ -277,7 +299,7 @@ public abstract class BytesValues {
             }
 
             @Override
-            public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+            public BytesRef getValueScratchByOrd(long ord, BytesRef ret) {
                 ret.length = 0;
                 return ret;
             }

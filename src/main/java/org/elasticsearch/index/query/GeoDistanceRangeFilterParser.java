@@ -84,32 +84,12 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                token = parser.nextToken();
-                double lon = parser.doubleValue();
-                token = parser.nextToken();
-                double lat = parser.doubleValue();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                }
-                point.reset(lat, lon);
+                GeoPoint.parse(parser, point);
                 fieldName = currentFieldName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
-                String currentName = parser.currentName();
                 fieldName = currentFieldName;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
-                            point.resetLat(parser.doubleValue());
-                        } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
-                            point.resetLon(parser.doubleValue());
-                        } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                            GeoHashUtils.decode(parser.text(), point);
-                        }
-                    }
-                }
+                GeoPoint.parse(parser, point);
             } else if (token.isValue()) {
                 if (currentFieldName.equals("from")) {
                     if (token == XContentParser.Token.VALUE_NULL) {

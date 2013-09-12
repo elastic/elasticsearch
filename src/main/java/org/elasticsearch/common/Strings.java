@@ -22,9 +22,14 @@ package org.elasticsearch.common;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import gnu.trove.set.hash.THashSet;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.*;
 
 /**
@@ -45,24 +50,32 @@ public class Strings {
     private static final char EXTENSION_SEPARATOR = '.';
 
     public static void tabify(int tabs, String from, StringBuilder to) throws Exception {
-        BufferedReader reader = new BufferedReader(new FastStringReader(from));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            for (int i = 0; i < tabs; i++) {
-                to.append('\t');
+        final BufferedReader reader = new BufferedReader(new FastStringReader(from));
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                for (int i = 0; i < tabs; i++) {
+                    to.append('\t');
+                }
+                to.append(line).append('\n');
             }
-            to.append(line).append('\n');
+        } finally {
+            reader.close();
         }
     }
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        BufferedReader reader = new BufferedReader(new FastStringReader(from));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            for (int i = 0; i < spaces; i++) {
-                to.append(' ');
+        final BufferedReader reader = new BufferedReader(new FastStringReader(from));
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                for (int i = 0; i < spaces; i++) {
+                    to.append(' ');
+                }
+                to.append(line).append('\n');
             }
-            to.append(line).append('\n');
+        } finally {
+            reader.close();
         }
     }
 
@@ -1012,7 +1025,6 @@ public class Strings {
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
-        int i = 0;      // number of the current substring.
         for (; pos < len; pos++) {
             if (chars[pos] == c) {
                 int size = pos - start;
@@ -1029,39 +1041,37 @@ public class Strings {
         return result;
     }
 
-    public static String[] splitStringToArray(final String s, final char c) {
+    public static String[] splitStringToArray(final CharSequence s, final char c) {
         if (s.length() == 0) {
             return Strings.EMPTY_ARRAY;
         }
-        final char[] chars = s.toCharArray();
         int count = 1;
-        for (final char x : chars) {
-            if (x == c) {
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == c) {
                 count++;
             }
         }
         final String[] result = new String[count];
-        final int len = chars.length;
-        int start = 0;  // starting index in chars of the current substring.
-        int pos = 0;    // current index in chars.
-        int i = 0;      // number of the current substring.
-        for (; pos < len; pos++) {
-            if (chars[pos] == c) {
-                int size = pos - start;
-                if (size > 0) {
-                    result[i++] = new String(chars, start, size);
+        final StringBuilder builder = new StringBuilder();
+        int res = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == c) {
+                if (builder.length() > 0) {
+                    result[res++] = builder.toString();
+                    builder.setLength(0);
                 }
-                start = pos + 1;
+                
+            } else {
+                builder.append(s.charAt(i));
             }
         }
-        int size = pos - start;
-        if (size > 0) {
-            result[i++] = new String(chars, start, size);
+        if (builder.length() > 0) {
+            result[res++] = builder.toString();
         }
-        if (i != count) {
+        if (res != count) {
             // we have empty strings, copy over to a new array
-            String[] result1 = new String[i];
-            System.arraycopy(result, 0, result1, 0, i);
+            String[] result1 = new String[res];
+            System.arraycopy(result, 0, result1, 0, res);
             return result1;
         }
         return result;
@@ -1292,15 +1302,15 @@ public class Strings {
      * @param suffix the String to end each element with
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
         return collectionToDelimitedString(coll, delim, prefix, suffix, new StringBuilder());
     }
 
-    public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
         if (Iterables.isEmpty(coll)) {
             return "";
         }
-        Iterator it = coll.iterator();
+        Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);
             if (it.hasNext()) {
@@ -1318,7 +1328,7 @@ public class Strings {
      * @param delim the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable coll, String delim) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
         return collectionToDelimitedString(coll, delim, "", "");
     }
 
@@ -1329,7 +1339,7 @@ public class Strings {
      * @param coll the Collection to display
      * @return the delimited String
      */
-    public static String collectionToCommaDelimitedString(Iterable coll) {
+    public static String collectionToCommaDelimitedString(Iterable<?> coll) {
         return collectionToDelimitedString(coll, ",");
     }
 
@@ -1478,18 +1488,63 @@ public class Strings {
         return (array == null || array.length == 0);
     }
 
-    /**
-     * Return <code>true</code> if the supplied Collection is <code>null</code>
-     * or empty. Otherwise, return <code>false</code>.
-     *
-     * @param collection the Collection to check
-     * @return whether the given Collection is empty
-     */
-    private static boolean isEmpty(Collection collection) {
-        return (collection == null || collection.isEmpty());
+    private Strings() {
+    }
+    
+    public static byte[] toUTF8Bytes(CharSequence charSequence) {
+        return toUTF8Bytes(charSequence, new BytesRef());
+    }
+    
+    public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRef spare) {
+        UnicodeUtil.UTF16toUTF8(charSequence, 0, charSequence.length(), spare);
+        final byte[] bytes = new byte[spare.length];
+        System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
+        return bytes;
+    }
+    
+    private static class SecureRandomHolder {
+        // class loading is atomic - this is a lazy & safe singleton
+        private static final SecureRandom INSTANCE = new SecureRandom();
     }
 
-    private Strings() {
-
+    /**
+     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
+     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
+     */
+    public static String randomBase64UUID() {
+        return randomBase64UUID(SecureRandomHolder.INSTANCE);
+    }
+    
+    /**
+     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
+     * randomly initialized by the given {@link Random} instance
+     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
+     */
+    public static String randomBase64UUID(Random random) {
+        final byte[] randomBytes = new byte[16];
+        random.nextBytes(randomBytes);
+        
+        /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
+         * The randomly or pseudo-randomly generated version.
+         * The version number is in the most significant 4 bits of the time
+         * stamp (bits 4 through 7 of the time_hi_and_version field).*/
+        randomBytes[6] &= 0x0f;  /* clear the 4 most significant bits for the version  */
+        randomBytes[6] |= 0x40;  /* set the version to 0100 / 0x40 */
+        
+        /* Set the variant: 
+         * The high field of th clock sequence multiplexed with the variant.
+         * We set only the MSB of the variant*/
+        randomBytes[8] &= 0x3f;  /* clear the 2 most significant bits */
+        randomBytes[8] |= 0x80;  /* set the variant (MSB is set)*/
+        try {
+            byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
+            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
+            assert encoded[encoded.length - 1] == '=';
+            assert encoded[encoded.length - 2] == '=';
+            // we always have padding of two at the end, encode it differently
+            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalStateException("should not be thrown");
+        }
     }
 }

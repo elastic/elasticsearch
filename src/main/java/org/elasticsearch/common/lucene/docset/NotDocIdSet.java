@@ -113,11 +113,15 @@ public class NotDocIdSet extends DocIdSet {
         private DocIdSetIterator it1;
         private int lastReturn = -1;
         private int innerDocid = -1;
+        private final long cost;
 
         IteratorBasedIterator(int max, DocIdSetIterator it) throws IOException {
             this.max = max;
             this.it1 = it;
-            if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) it1 = null;
+            this.cost = it1.cost();
+            if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) {
+                it1 = null;
+            }
         }
 
         @Override
@@ -165,7 +169,7 @@ public class NotDocIdSet extends DocIdSet {
 
         @Override
         public long cost() {
-            return it1.cost();
+            return cost;
         }
     }
 }

@@ -23,11 +23,15 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -52,9 +56,11 @@ public class MoreLikeThisQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
-        mltQuery.setMoreLikeFields(new String[]{parseContext.defaultField()});
         mltQuery.setSimilarity(parseContext.searchSimilarity());
         Analyzer analyzer = null;
+        List<String> moreLikeFields = null;
+        boolean failOnUnsupportedField = true;
+        String queryName = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -85,6 +91,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     mltQuery.setBoost(parser.floatValue());
+                } else if ("fail_on_unsupported_field".equals(currentFieldName) || "failOnUnsupportedField".equals(currentFieldName)) {
+                    failOnUnsupportedField = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -96,11 +106,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     }
                     mltQuery.setStopWords(stopWords);
                 } else if ("fields".equals(currentFieldName)) {
-                    List<String> fields = Lists.newArrayList();
+                    moreLikeFields = Lists.newLinkedList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        fields.add(parseContext.indexName(parser.text()));
+                        moreLikeFields.add(parseContext.indexName(parser.text()));
                     }
-                    mltQuery.setMoreLikeFields(fields.toArray(new String[fields.size()]));
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -110,15 +119,35 @@ public class MoreLikeThisQueryParser implements QueryParser {
         if (mltQuery.getLikeText() == null) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like_text' to be specified");
         }
-        if (mltQuery.getMoreLikeFields() == null || mltQuery.getMoreLikeFields().length == 0) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be specified");
-        }
 
         if (analyzer == null) {
             analyzer = parseContext.mapperService().searchAnalyzer();
         }
-
         mltQuery.setAnalyzer(analyzer);
+
+        if (moreLikeFields == null) {
+            moreLikeFields = Lists.newArrayList(parseContext.defaultField());
+        } else if (moreLikeFields.isEmpty()) {
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
+        }
+
+        for (Iterator<String> it = moreLikeFields.iterator(); it.hasNext(); ) {
+            final String fieldName = it.next();
+            if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
+                if (failOnUnsupportedField) {
+                    throw new ElasticSearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
+                } else {
+                    it.remove();
+                }
+            }
+        }
+        if (moreLikeFields.isEmpty()) {
+            return null;
+        }
+        mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, mltQuery);
+        }
         return mltQuery;
     }
 }

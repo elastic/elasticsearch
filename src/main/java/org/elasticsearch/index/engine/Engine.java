@@ -49,6 +49,7 @@ import java.util.List;
  */
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
+    static final String INDEX_CODEC = "index.codec";
     static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
 
     /**
@@ -184,14 +185,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Refresh {
 
-        private final boolean waitForOperations;
-
         private boolean force = false;
 
-        public Refresh(boolean waitForOperations) {
-            this.waitForOperations = waitForOperations;
-        }
-
+        /**
+         * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
+         * to true (note, still lightweight if no refresh is needed).
+         */
         public Refresh force(boolean force) {
             this.force = force;
             return this;
@@ -201,13 +200,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.force;
         }
 
-        public boolean waitForOperations() {
-            return waitForOperations;
-        }
-
         @Override
         public String toString() {
-            return "waitForOperations[" + waitForOperations + "]";
+            return "force[" + force + "]";
         }
     }
 
@@ -379,7 +374,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final DocumentMapper docMapper;
         private final Term uid;
         private final ParsedDocument doc;
-        private long version;
+        private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
@@ -506,9 +501,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final DocumentMapper docMapper;
         private final Term uid;
         private final ParsedDocument doc;
-        private long version;
+        private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
+        private boolean created;
 
         private long startTime;
         private long endTime;
@@ -554,6 +550,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        /**
+         * before indexing holds the version requested, after indexing holds the new version of the document.
+         */
         public long version() {
             return this.version;
         }
@@ -627,13 +626,24 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public long endTime() {
             return this.endTime;
         }
+
+        /**
+         * @return true if object was created
+         */
+        public boolean created() {
+            return created;
+        }
+
+        public void created(boolean created) {
+            this.created = created;
+        }
     }
 
     static class Delete implements Operation {
         private final String type;
         private final String id;
         private final Term uid;
-        private long version;
+        private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
         private boolean notFound;
@@ -679,6 +689,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        /**
+         * before delete execution this is the version to be deleted. After this is the version of the "delete" transaction record.
+         */
         public long version() {
             return this.version;
         }
@@ -700,7 +713,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.notFound = notFound;
             return this;
         }
-
 
         public Delete startTime(long startTime) {
             this.startTime = startTime;
@@ -805,6 +817,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final boolean realtime;
         private final Term uid;
         private boolean loadSource = true;
+        private long version;
+        private VersionType versionType;
 
         public Get(boolean realtime, Term uid) {
             this.realtime = realtime;
@@ -827,6 +841,24 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.loadSource = loadSource;
             return this;
         }
+
+        public long version() {
+            return version;
+        }
+
+        public Get version(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public VersionType versionType() {
+            return versionType;
+        }
+
+        public Get versionType(VersionType versionType) {
+            this.versionType = versionType;
+            return this;
+        }
     }
 
     static class GetResult {
@@ -836,7 +868,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Versions.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
 
         public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
             this.source = source;

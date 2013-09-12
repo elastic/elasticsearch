@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,9 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Put index template action.
@@ -50,7 +48,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // we go async right away...
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -74,51 +73,32 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected PutIndexTemplateResponse masterOperation(PutIndexTemplateRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) throws ElasticSearchException {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
         }
 
-        final AtomicReference<PutIndexTemplateResponse> responseRef = new AtomicReference<PutIndexTemplateResponse>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(request.cause(), request.name())
+        indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .template(request.template())
                 .order(request.order())
                 .settings(request.settings())
                 .mappings(request.mappings())
                 .customs(request.customs())
-                .create(request.create()),
+                .create(request.create())
+                .masterTimeout(request.masterNodeTimeout()),
 
                 new MetaDataIndexTemplateService.PutListener() {
                     @Override
                     public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
-                        responseRef.set(new PutIndexTemplateResponse(response.acknowledged()));
-                        latch.countDown();
+                        listener.onResponse(new PutIndexTemplateResponse(response.acknowledged()));
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
-                        failureRef.set(t);
-                        latch.countDown();
+                        logger.debug("failed to delete template [{}]", t, request.name());
+                        listener.onFailure(t);
                     }
                 });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return responseRef.get();
     }
 }

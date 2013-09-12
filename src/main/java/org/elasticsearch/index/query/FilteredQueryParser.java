@@ -51,12 +51,13 @@ public class FilteredQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = Queries.MATCH_ALL_QUERY;
+        Query query = Queries.newMatchAllQuery();
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -93,6 +94,8 @@ public class FilteredQueryParser implements QueryParser {
                         filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
                     } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
+                    } else if ("_name".equals(currentFieldName)) {
+                        queryName = parser.text();
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
                     }
@@ -142,6 +145,9 @@ public class FilteredQueryParser implements QueryParser {
 
         XFilteredQuery filteredQuery = new XFilteredQuery(query, filter, filterStrategy);
         filteredQuery.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, filteredQuery);
+        }
         return filteredQuery;
     }
 }

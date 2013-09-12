@@ -41,8 +41,9 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
-    private final IndicesService indicesService;
+    public static boolean REFRESH_FORCE = false;
 
+    private final IndicesService indicesService;
     private final boolean realtime;
 
     @Inject
@@ -96,10 +97,11 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         IndexShard indexShard = indexService.shardSafe(shardId);
 
         if (request.refresh() && !request.realtime()) {
-            indexShard.refresh(new Engine.Refresh(false));
+            indexShard.refresh(new Engine.Refresh().force(REFRESH_FORCE));
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(), request.realtime());
+        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

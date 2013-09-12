@@ -37,8 +37,8 @@ import org.elasticsearch.index.search.child.ParentQuery;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class HasParentQueryParser implements QueryParser {
 
@@ -62,6 +62,7 @@ public class HasParentQueryParser implements QueryParser {
         float boost = 1.0f;
         String parentType = null;
         boolean score = false;
+        String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -102,6 +103,8 @@ public class HasParentQueryParser implements QueryParser {
                     }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
@@ -131,17 +134,22 @@ public class HasParentQueryParser implements QueryParser {
             throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set.");
         }
 
-        List<String> parentTypes = new ArrayList<String>(2);
+        Set<String> parentTypes = new HashSet<String>(5);
+        parentTypes.add(parentType);
         for (DocumentMapper documentMapper : parseContext.mapperService()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper != null) {
-                parentTypes.add(parentFieldMapper.type());
+                DocumentMapper parentTypeDocumentMapper = searchContext.mapperService().documentMapper(parentFieldMapper.type());
+                if (parentTypeDocumentMapper == null) {
+                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
+                    parentTypes.add(parentFieldMapper.type());
+                }
             }
         }
 
         Filter parentFilter;
         if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.get(0));
+            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
             parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
         } else {
             XBooleanFilter parentsFilter = new XBooleanFilter();
@@ -165,6 +173,9 @@ public class HasParentQueryParser implements QueryParser {
             query = new XConstantScoreQuery(hasParentFilter);
         }
         query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 

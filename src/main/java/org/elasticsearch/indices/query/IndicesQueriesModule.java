@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 
 import java.util.Set;
 
@@ -104,6 +105,7 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(IndicesQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(CommonTermsQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanMultiTermQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FunctionScoreQueryParser.class).asEagerSingleton();
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             qpBinders.addBinding().to(GeoShapeQueryParser.class).asEagerSingleton();
@@ -132,6 +134,7 @@ public class IndicesQueriesModule extends AbstractModule {
         fpBinders.addBinding().to(GeoDistanceFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoDistanceRangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoBoundingBoxFilterParser.class).asEagerSingleton();
+        fpBinders.addBinding().to(GeohashFilter.Parser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoPolygonFilterParser.class).asEagerSingleton();
         if (ShapesAvailability.JTS_AVAILABLE) {
             fpBinders.addBinding().to(GeoShapeFilterParser.class).asEagerSingleton();

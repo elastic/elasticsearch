@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -30,6 +31,7 @@ import java.io.Serializable;
 
 /**
  */
+@SuppressWarnings("deprecation")
 public class Version implements Serializable {
 
     // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is Beta/RC indicator
@@ -124,9 +126,13 @@ public class Version implements Serializable {
     public static final Version V_0_90_1 = new Version(V_0_90_1_ID, false, org.apache.lucene.util.Version.LUCENE_43);
     public static final int V_0_90_2_ID = /*00*/900299;
     public static final Version V_0_90_2 = new Version(V_0_90_2_ID, false, org.apache.lucene.util.Version.LUCENE_43);
+    public static final int V_0_90_3_ID = /*00*/900399;
+    public static final Version V_0_90_3 = new Version(V_0_90_3_ID, false, org.apache.lucene.util.Version.LUCENE_44);
+    public static final int V_0_90_4_ID = /*00*/900499;
+    public static final Version V_0_90_4 = new Version(V_0_90_4_ID, false, org.apache.lucene.util.Version.LUCENE_44);
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
-    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, true, org.apache.lucene.util.Version.LUCENE_43);
+    public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, true, org.apache.lucene.util.Version.LUCENE_44);
 
     public static final Version CURRENT = V_1_0_0_Beta1;
 
@@ -143,6 +149,10 @@ public class Version implements Serializable {
             case V_1_0_0_Beta1_ID:
                 return V_1_0_0_Beta1;
 
+            case V_0_90_4_ID:
+                return V_0_90_4;
+            case V_0_90_3_ID:
+                return V_0_90_3;
             case V_0_90_2_ID:
                 return V_0_90_2;
             case V_0_90_1_ID:
@@ -238,6 +248,13 @@ public class Version implements Serializable {
         out.writeVInt(version.id);
     }
 
+    /**
+     * Returns the smallest version between the 2.
+     */
+    public static Version smallest(Version version1, Version version2) {
+        return version1.id < version2.id ? version1 : version2;
+    }
+
     public final int id;
     public final byte major;
     public final byte minor;
@@ -261,19 +278,19 @@ public class Version implements Serializable {
     }
 
     public boolean after(Version version) {
-        return version.id > id;
-    }
-
-    public boolean onOrAfter(Version version) {
-        return version.id >= id;
-    }
-
-    public boolean before(Version version) {
         return version.id < id;
     }
 
-    public boolean onOrBefore(Version version) {
+    public boolean onOrAfter(Version version) {
         return version.id <= id;
+    }
+
+    public boolean before(Version version) {
+        return version.id > id;
+    }
+
+    public boolean onOrBefore(Version version) {
+        return version.id >= id;
     }
 
     /**
@@ -291,7 +308,7 @@ public class Version implements Serializable {
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch Version: " + Version.CURRENT + ", JVM: " + JvmInfo.jvmInfo().version() + "(" + JvmInfo.jvmInfo().vmVersion() + ")");
+        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
     }
 
     @Override
@@ -319,5 +336,19 @@ public class Version implements Serializable {
     @Override
     public int hashCode() {
         return id;
+    }
+
+    public static class Module extends AbstractModule {
+
+        private final Version version;
+
+        public Module(Version version) {
+            this.version = version;
+        }
+
+        @Override
+        protected void configure() {
+            bind(Version.class).toInstance(version);
+        }
     }
 }

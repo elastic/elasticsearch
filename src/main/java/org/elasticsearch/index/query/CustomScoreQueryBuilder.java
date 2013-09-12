@@ -26,13 +26,16 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * A query that uses a script to compute the score.
- *
- *
+ * A query that uses a script to compute or influence the score of documents
+ * that match with the inner query or filter.
+ * 
+ * @deprecated use {@link FunctionScoreQueryBuilder} instead.
  */
 public class CustomScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<CustomScoreQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
+
+    private final FilterBuilder filterBuilder;
 
     private String script;
 
@@ -43,12 +46,30 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder implements Boostab
     private Map<String, Object> params = null;
 
     /**
-     * A query that simply applies the boost factor to another query (multiply it).
-     *
-     * @param queryBuilder The query to apply the boost factor to.
+     * Constructs a query that defines how the scores are computed or influenced
+     * for documents that match with the specified query by a custom defined
+     * script.
+     * 
+     * @param queryBuilder
+     *            The query that defines what documents are custom scored by
+     *            this query
      */
     public CustomScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
+        this.filterBuilder = null;
+    }
+
+    /**
+     * Constructs a query that defines how documents are scored that match with
+     * the specified filter.
+     * 
+     * @param filterBuilder
+     *            The filter that decides with documents are scored by this
+     *            query.
+     */
+    public CustomScoreQueryBuilder(FilterBuilder filterBuilder) {
+        this.filterBuilder = filterBuilder;
+        this.queryBuilder = null;
     }
 
     /**
@@ -91,8 +112,9 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder implements Boostab
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * Sets the boost for this query. Documents matching this query will (in
+     * addition to the normal weightings) have their score multiplied by the
+     * boost provided.
      */
     public CustomScoreQueryBuilder boost(float boost) {
         this.boost = boost;
@@ -102,8 +124,13 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder implements Boostab
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(CustomScoreQueryParser.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
+        if (queryBuilder != null) {
+            builder.field("query");
+            queryBuilder.toXContent(builder, params);
+        } else if (filterBuilder != null) {
+            builder.field("filter");
+            filterBuilder.toXContent(builder, params);
+        }
         builder.field("script", script);
         if (lang != null) {
             builder.field("lang", lang);

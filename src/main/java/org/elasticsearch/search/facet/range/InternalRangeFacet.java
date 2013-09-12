@@ -20,6 +20,8 @@
 package org.elasticsearch.search.facet.range;
 
 import com.google.common.collect.ImmutableList;
+
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +40,7 @@ import java.util.List;
  */
 public class InternalRangeFacet extends InternalFacet implements RangeFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("range");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("range"));
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -82,7 +84,8 @@ public class InternalRangeFacet extends InternalFacet implements RangeFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }

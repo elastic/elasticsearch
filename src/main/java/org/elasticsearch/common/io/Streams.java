@@ -19,12 +19,11 @@
 
 package org.elasticsearch.common.io;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
 
 import java.io.*;
-import java.nio.charset.Charset;
 
 /**
  * Simple utility methods for file and stream copying.
@@ -35,8 +34,6 @@ import java.nio.charset.Charset;
  * but also useful for application code.
  */
 public abstract class Streams {
-    
-    public static final Charset UTF8 = Charset.forName("UTF-8");
 
     public static final int BUFFER_SIZE = 1024 * 8;
 
@@ -163,14 +160,9 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static byte[] copyToByteArray(InputStream in) throws IOException {
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            BytesStreamOutput out = cachedEntry.bytes();
-            copy(in, out);
-            return out.bytes().copyBytesArray().toBytes();
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
-        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        copy(in, out);
+        return out.bytes().toBytes();
     }
 
 
@@ -255,7 +247,7 @@ public abstract class Streams {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath with class loader [" + classLoader + "]");
         }
-        return copyToString(new InputStreamReader(is, UTF8));
+        return copyToString(new InputStreamReader(is, Charsets.UTF_8));
     }
 
     public static String copyToStringFromClasspath(String path) throws IOException {
@@ -263,7 +255,7 @@ public abstract class Streams {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
         }
-        return copyToString(new InputStreamReader(is, UTF8));
+        return copyToString(new InputStreamReader(is, Charsets.UTF_8));
     }
 
     public static byte[] copyToBytesFromClasspath(String path) throws IOException {
@@ -272,5 +264,37 @@ public abstract class Streams {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
         }
         return copyToByteArray(is);
+    }
+
+    public static int readFully(Reader reader, char[] dest) throws IOException {
+        return readFully(reader, dest, 0, dest.length);
+    }
+
+    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
+        int read = 0;
+        while (read < len) {
+            final int r = reader.read(dest, offset + read, len - read);
+            if (r == -1) {
+                break;
+            }
+            read += r;
+        }
+        return read;
+    }
+
+    public static int readFully(InputStream reader, byte[] dest) throws IOException {
+        return readFully(reader, dest, 0, dest.length);
+    }
+
+    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
+        int read = 0;
+        while (read < len) {
+            final int r = reader.read(dest, offset + read, len - read);
+            if (r == -1) {
+                break;
+            }
+            read += r;
+        }
+        return read;
     }
 }

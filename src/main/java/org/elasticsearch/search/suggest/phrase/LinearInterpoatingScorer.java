@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
+
+import java.io.IOException;
 
 //TODO public for tests
 public final class LinearInterpoatingScorer extends WordScorer {
@@ -32,9 +33,9 @@ public final class LinearInterpoatingScorer extends WordScorer {
     private final double bigramLambda;
     private final double trigramLambda;
 
-    public LinearInterpoatingScorer(IndexReader reader, String field,  double realWordLikelyhood, BytesRef separator, double trigramLambda, double bigramLambda, double unigramLambda)
+    public LinearInterpoatingScorer(IndexReader reader, Terms terms, String field,  double realWordLikelyhood, BytesRef separator, double trigramLambda, double bigramLambda, double unigramLambda)
             throws IOException {
-        super(reader, field, realWordLikelyhood, separator);
+        super(reader, terms, field, realWordLikelyhood, separator);
         double sum = unigramLambda + bigramLambda + trigramLambda;
         this.unigramLambda = unigramLambda / sum;
         this.bigramLambda = bigramLambda / sum;

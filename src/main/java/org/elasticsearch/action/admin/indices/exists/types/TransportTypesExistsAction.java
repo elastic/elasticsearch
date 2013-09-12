@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.exists.types;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +31,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Map;
 
 /**
  * Types exists transport action.
@@ -45,7 +47,8 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // lightweight check
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -69,29 +72,33 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected TypesExistsResponse masterOperation(TypesExistsRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) throws ElasticSearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), false);
         if (concreteIndices.length == 0) {
-            return new TypesExistsResponse(false);
+            listener.onResponse(new TypesExistsResponse(false));
+            return;
         }
 
         for (String concreteIndex : concreteIndices) {
             if (!state.metaData().hasConcreteIndex(concreteIndex)) {
-                return new TypesExistsResponse(false);
+                listener.onResponse(new TypesExistsResponse(false));
+                return;
             }
 
-            ImmutableMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
+            Map<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
             if (mappings.isEmpty()) {
-                return new TypesExistsResponse(false);
+                listener.onResponse(new TypesExistsResponse(false));
+                return;
             }
 
             for (String type : request.types()) {
                 if (!mappings.containsKey(type)) {
-                    return new TypesExistsResponse(false);
+                    listener.onResponse(new TypesExistsResponse(false));
+                    return;
                 }
             }
         }
 
-        return new TypesExistsResponse(true);
+        listener.onResponse(new TypesExistsResponse(true));
     }
 }

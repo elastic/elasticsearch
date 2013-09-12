@@ -22,12 +22,13 @@ package org.elasticsearch.search.facet.terms.longs;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TLongIntIterator;
 import gnu.trove.map.hash.TLongIntHashMap;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +48,7 @@ import java.util.List;
  */
 public class InternalLongTermsFacet extends InternalTermsFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("lTerms");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("lTerms"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -159,14 +160,15 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }
 
         InternalLongTermsFacet first = null;
 
-        TLongIntHashMap aggregated = CacheRecycler.popLongIntMap();
+        Recycler.V<TLongIntHashMap> aggregated = context.cacheRecycler().longIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -178,12 +180,12 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(((LongEntry) entry).term, entry.getCount(), entry.getCount());
+                aggregated.v().adjustOrPutValue(((LongEntry) entry).term, entry.getCount(), entry.getCount());
             }
         }
 
         BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TLongIntIterator it = aggregated.iterator(); it.hasNext(); ) {
+        for (TLongIntIterator it = aggregated.v().iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new LongEntry(it.key(), it.value()));
         }
@@ -191,7 +193,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushLongIntMap(aggregated);
+        aggregated.release();
 
         return first;
     }

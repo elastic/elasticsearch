@@ -26,8 +26,9 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -52,12 +53,13 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     private final ImmutableSet<BytesRef> excluded;
     private final int numberOfShards;
 
-    final TObjectIntHashMap<BytesRef> facets;
+    final Recycler.V<TObjectIntHashMap<BytesRef>> facets;
     long missing;
     long total;
 
     public ScriptTermsStringFieldFacetExecutor(int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
-                                               ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params) {
+                                               ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params,
+                                               CacheRecycler cacheRecycler) {
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
@@ -66,23 +68,23 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;
 
-        this.facets = CacheRecycler.popObjectIntMap();
+        this.facets = cacheRecycler.objectIntMap(-1);
     }
 
     @Override
     public Collector collector() {
-        return new Collector(matcher, excluded, script, facets);
+        return new Collector(matcher, excluded, script, facets.v());
     }
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (facets.isEmpty()) {
-            CacheRecycler.pushObjectIntMap(facets);
+        if (facets.v().isEmpty()) {
+            facets.release();
             return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
+                for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
@@ -90,15 +92,15 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = ((InternalStringTermsFacet.TermEntry) ordered.pop());
                 }
-                CacheRecycler.pushObjectIntMap(facets);
+                facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
-                for (TObjectIntIterator<BytesRef> it = facets.iterator(); it.hasNext(); ) {
+                for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
                 }
-                CacheRecycler.pushObjectIntMap(facets);
+                facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }

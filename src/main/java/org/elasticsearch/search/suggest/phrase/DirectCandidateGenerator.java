@@ -18,18 +18,8 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
@@ -37,6 +27,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 //TODO public for tests
 public final class DirectCandidateGenerator extends CandidateGenerator {
@@ -58,20 +54,19 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final int numCandidates;
     
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, int numCandidates) throws IOException {
-        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, numCandidates, null, null);
+        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, numCandidates, null, null, MultiFields.getTerms(reader, field));
     }
 
 
-    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter) throws IOException {
+    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter, Terms terms) throws IOException {
+        if (terms == null) {
+            throw new ElasticSearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
+        }
         this.spellchecker = spellchecker;
         this.field = field;
         this.numCandidates = numCandidates;
         this.suggestMode = suggestMode;
         this.reader = reader;
-        Terms terms = MultiFields.getTerms(reader, field);
-        if (terms == null) {
-            throw new ElasticSearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
-        }
         final long dictSize = terms.getSumTotalTermFreq();
         this.useTotalTermFrequency = dictSize != -1;
         this.dictSize =  dictSize == -1 ? reader.maxDoc() : dictSize;
@@ -126,7 +121,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         for (int i = 0; i < suggestSimilar.length; i++) {
             SuggestWord suggestWord = suggestSimilar[i];
             BytesRef candidate = new BytesRef(suggestWord.string);
-            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score, score(suggestWord.freq, suggestWord.score, dictSize)), spare, byteSpare, candidates);
+            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score, score(suggestWord.freq, suggestWord.score, dictSize), false), spare, byteSpare, candidates);
         }
         set.addCandidates(candidates);
         return set;
@@ -160,9 +155,9 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                     if (posIncAttr.getPositionIncrement() > 0 && result.bytesEquals(candidate.term))  {
                         BytesRef term = BytesRef.deepCopyOf(result);    
                         long freq = frequency(term);
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize)));
+                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     } else {
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize)));
+                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     }
                 }
             }, spare);
@@ -213,17 +208,20 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         public final double stringDistance;
         public final long frequency;
         public final double score;
+        public final boolean userInput;
 
-        public Candidate(BytesRef term, long frequency, double stringDistance, double score) {
+        public Candidate(BytesRef term, long frequency, double stringDistance, double score, boolean userInput) {
             this.frequency = frequency;
             this.term = term;
             this.stringDistance = stringDistance;
             this.score = score;
+            this.userInput = userInput;
         }
 
         @Override
         public String toString() {
-            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", frequency=" + frequency + "]";
+            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", frequency=" + frequency + 
+                    (userInput ? ", userInput" : "" ) + "]";
         }
 
         @Override
@@ -253,8 +251,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     @Override
-    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
-        return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize));
+    public Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException {
+        return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize), userInput);
     }
 
 }

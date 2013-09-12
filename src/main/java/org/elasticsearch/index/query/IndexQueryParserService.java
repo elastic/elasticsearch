@@ -22,7 +22,9 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -61,12 +63,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         public static final String FILTER_PREFIX = "index.queryparser.filter";
     }
 
-    private ThreadLocal<QueryParseContext> cache = new ThreadLocal<QueryParseContext>() {
+    private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
         protected QueryParseContext initialValue() {
             return new QueryParseContext(index, IndexQueryParserService.this);
         }
     };
+
+    final CacheRecycler cacheRecycler;
 
     final AnalysisService analysisService;
 
@@ -91,13 +95,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
-                                   IndicesQueriesRegistry indicesQueriesRegistry,
+                                   IndicesQueriesRegistry indicesQueriesRegistry, CacheRecycler cacheRecycler,
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService, IndexEngine indexEngine,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
         super(index, indexSettings);
+        this.cacheRecycler = cacheRecycler;
         this.scriptService = scriptService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
@@ -157,7 +162,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public void close() {
-        cache.remove();
+        cache.close();
     }
 
     public String defaultField() {
@@ -254,10 +259,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     @Nullable
-    public Filter parseInnerFilter(XContentParser parser) throws IOException {
+    public ParsedFilter parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
-        return context.parseInnerFilter();
+        Filter filter = context.parseInnerFilter();
+        if (filter == null) {
+            return null;
+        }
+        return new ParsedFilter(filter, context.copyNamedFilters());
     }
 
     @Nullable

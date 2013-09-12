@@ -36,15 +36,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -195,9 +192,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
 
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         long version;
+        boolean created;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
@@ -207,6 +205,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard.index(index);
             version = index.version();
             op = index;
+            created = index.created();
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
@@ -215,11 +214,12 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard.create(create);
             version = create.version();
             op = create;
+            created = true;
         }
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh(false));
-            } catch (Exception e) {
+                indexShard.refresh(new Engine.Refresh().force(false));
+            } catch (Throwable e) {
                 // ignore
             }
         }
@@ -229,30 +229,15 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         // update the version on the request, so it will be used for the replicas
         request.version(version);
 
-        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version);
+        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, created);
         return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
-    }
-
-    @Override
-    protected void postPrimaryOperation(IndexRequest request, PrimaryResponse<IndexResponse, IndexRequest> response) {
-        Engine.IndexingOperation op = (Engine.IndexingOperation) response.payload();
-        if (!Strings.hasLength(request.percolate())) {
-            return;
-        }
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        try {
-            PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), request.percolate()));
-            response.response().setMatches(percolate.matches());
-        } catch (Exception e) {
-            logger.warn("failed to percolate [{}]", e, request);
-        }
     }
 
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         IndexRequest request = shardRequest.request;
-        SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
@@ -267,7 +252,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh(false));
+                indexShard.refresh(new Engine.Refresh().force(false));
             } catch (Exception e) {
                 // ignore
             }
@@ -283,7 +268,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 return;
             }
             documentMapper.refreshSource();
-
+            logger.debug("Sending mapping updated to master: index [{}] type [{}]", request.index(), request.type());
             mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override
                 public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {

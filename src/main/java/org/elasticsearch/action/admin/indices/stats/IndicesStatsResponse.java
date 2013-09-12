@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -43,6 +45,8 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
 
     private ShardStats[] shards;
 
+    private ImmutableMap<ShardRouting, CommonStats> shardStatsMap;
+
     IndicesStatsResponse() {
 
     }
@@ -50,6 +54,18 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
     IndicesStatsResponse(ShardStats[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
+    }
+
+    public ImmutableMap<ShardRouting, CommonStats> asMap() {
+        if (shardStatsMap == null) {
+            ImmutableMap.Builder<ShardRouting, CommonStats> mb = ImmutableMap.builder();
+            for (ShardStats ss : shards) {
+                mb.put(ss.getShardRouting(), ss.getStats());
+            }
+
+            shardStatsMap = mb.build();
+        }
+        return shardStatsMap;
     }
 
     public ShardStats[] getShards() {

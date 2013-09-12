@@ -1,0 +1,219 @@
+[[search-suggesters-completion]]
+=== Completion Suggester
+
+NOTE: In order to understand the format of suggestions, please
+read the <<search-suggesters>> page first.
+
+The `completion` suggester is a so-called prefix suggester. It does not
+do spell correction like the `term` or `phrase` suggesters but allows
+basic `auto-complete` functionality.
+
+IMPORTANT: This feature is marked as experimental. This means, that
+the API is not considered stable, and that you might need to reindex
+your data after an upgrade in order to get suggestions up and running
+again. Please keep this in mind.
+
+==== Why another suggester? Why not prefix queries?
+
+The first question which comes to mind when reading about a prefix
+suggestion is, why you should use it all, if you have prefix queries
+already. The answer is simple: Prefix suggestions are fast.
+
+The data structures are internally backed by Lucenes
+`AnalyzingSuggester`, which uses FSTs to execute suggestions. Usually
+these data structures are costly to create, stored in-memory and need to
+be rebuilt every now and then to reflect changes in your indexed
+documents. The `completion` suggester circumvents this by storing the
+FST as part of your index during index time. This allows for really fast
+loads and executions.
+
+==== Mapping
+
+In order to use this feature, you have to specify a special mapping for
+this field, which enables the special storage of the field.
+
+[source,js]
+--------------------------------------------------
+curl -X PUT localhost:9200/music
+curl -X PUT localhost:9200/music/song/_mapping -d '{
+  "song" : {
+        "properties" : {
+            "name" : { "type" : "string" },
+            "suggest" : { "type" : "completion",
+                          "index_analyzer" : "simple",
+                          "search_analyzer" : "simple",
+                          "payloads" : true
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+Mapping supports the following parameters:
+
+`index_analyzer`::
+    The index analyzer to use, defaults to `simple`.
+
+`search_analyzer`::
+    The search analyzer to use, defaults to `simple`.
+    In case you are wondering why we did not opt for the `standard`
+    analyzer: We try to have easy to understand behaviour here, and if you
+    index the field content `At the Drive-in`, you will not get any
+    suggestions for `a`, nor for `d` (the first non stopword).
+
+
+`payloads`::
+    Enables the storing of payloads, defaults to `false`
+
+`preserve_separators`::
+    Preserves the separators, defaults to `true`.
+    If disabled, you could find a field starting with `Foo Fighters`, if you
+    suggest for `foof`.
+
+`preserve_position_increments`::
+    Enables position increments, defaults
+    to `true`. If disabled and using stopwords analyzer, you could get a
+    field starting with `The Beatles`, if you suggest for `b`. *Note*: You
+    could also achieve this by indexing two inputs, `Beatles` and
+    `The Beatles`, no need to change a simple analyzer, if you are able to
+    enrich your data.
+
+`max_input_len`::
+    Limits the length of a single input, defaults to `50` UTF-16 code points.
+    This limit is only used at index time to reduce the total number of
+    characters per input string in order to prevent massive inputs from
+    bloating the underlying datastructure. The most usecases won't be influenced
+    by the default value since prefix completions hardly grow beyond prefixes longer
+    than a handful of characters.
+
+==== Indexing
+
+[source,js]
+--------------------------------------------------
+curl -X PUT 'localhost:9200/music/song/1?refresh=true' -d '{
+    "name" : "Nevermind",
+    "suggest" : {
+        "input": [ "Nevermind", "Nirvana" ],
+        "output": "Nirvana - Nevermind",
+        "payload" : { "artistId" : 2321 },
+        "weight" : 34
+    }
+}'
+--------------------------------------------------
+
+The following parameters are supported:
+
+`input`::
+    The input to store, this can be a an array of strings or just
+    a string. This field is mandatory.
+
+`output`::
+    The string to return, if a suggestion matches. This is very
+    useful to normalize outputs (i.e. have them always in the format
+    `artist - songname`). This is optional.
+
+`payload`::
+    An arbitrary JSON object, which is simply returned in the
+    suggest option. You could store data like the id of a document, in order
+    to load it from elasticsearch without executing another search (which
+    might not yield any results, if `input` and `output` differ strongly).
+
+`weight`::
+    A positive integer, which defines a weight and allows you to
+    rank your suggestions. This field is optional.
+
+[NOTE] Even though you are losing most of the features of the
+completion suggest, you can opt in for the shortest form, which even
+allows you to use inside of multi_field. But keep in mind, that you will
+not be able to use several inputs, an output, payloads or weights.
+
+[source,js]
+--------------------------------------------------
+{
+  "suggest" : "Nirvana"
+}
+--------------------------------------------------
+
+==== Querying
+
+Suggesting works as usual, except that you have to specify the suggest
+type as `completion`.
+
+[source,js]
+--------------------------------------------------
+curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+    "song-suggest" : {
+        "text" : "n",
+        "completion" : {
+            "field" : "suggest"
+        }
+    }
+}'
+
+{
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "song-suggest" : [ {
+    "text" : "n",
+    "offset" : 0,
+    "length" : 4,
+    "options" : [ {
+      "text" : "Nirvana - Nevermind",
+      "score" : 34.0, "payload" : {"artistId":2321}
+    } ]
+  } ]
+}
+--------------------------------------------------
+
+As you can see, the payload is included in the response, if configured
+appropriately. If you configured a weight for a suggestion, this weight
+is used as `score`. Also the `text` field uses the `output` of your
+indexed suggestion, if configured, otherwise the matched part of the
+`input` field.
+
+
+==== Fuzzy queries
+
+The completion suggester also supports fuzzy queries - this means,
+you can actually have a typo in your search and still get results back.
+
+[source,js]
+--------------------------------------------------
+curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+    "song-suggest" : {
+        "text" : "n",
+        "completion" : {
+            "field" : "suggest",
+            "fuzzy" : {
+                "edit_distance" : 2
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+The fuzzy query can take specific fuzzy parameters.
+The following parameters are supported:
+
+[horizontal]
+`edit_distance`::
+    Maximum edit distance, defaults to `1`
+
+`transpositions`::
+    Sets if transpositions should be counted
+    as one or two changes, defaults to `true`
+
+`min_length`::
+    Minimum length of the input before fuzzy
+    suggestions are returned, defaults `3`
+
+`prefix_length`::
+    Minimum length of the input, which is not
+    checked for fuzzy alternatives, defaults to `1`
+
+NOTE: If you want to stick with the default values, but
+      still use fuzzy, you can either use `fuzzy: {}`
+      or `fuzzy: true`.

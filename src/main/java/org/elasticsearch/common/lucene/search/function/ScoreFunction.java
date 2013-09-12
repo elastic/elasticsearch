@@ -25,15 +25,22 @@ import org.apache.lucene.search.Explanation;
 /**
  *
  */
-public interface ScoreFunction {
+public abstract class ScoreFunction {
 
-    void setNextReader(AtomicReaderContext context);
+    private final CombineFunction scoreCombiner;
+    
+    public abstract void setNextReader(AtomicReaderContext context);
 
-    float score(int docId, float subQueryScore);
+    public abstract double score(int docId, float subQueryScore);
 
-    float factor(int docId);
+    public abstract Explanation explainScore(int docId, Explanation subQueryExpl);
 
-    Explanation explainScore(int docId, Explanation subQueryExpl);
+    public CombineFunction getDefaultScoreCombiner() {
+        return scoreCombiner;
+    }
 
-    Explanation explainFactor(int docId);
+    protected ScoreFunction(CombineFunction scoreCombiner) {
+        this.scoreCombiner = scoreCombiner;
+    }
+
 }

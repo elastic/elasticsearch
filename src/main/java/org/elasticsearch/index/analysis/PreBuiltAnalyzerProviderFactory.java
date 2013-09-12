@@ -30,15 +30,15 @@ public class PreBuiltAnalyzerProviderFactory implements AnalyzerProviderFactory 
     private final PreBuiltAnalyzerProvider analyzerProvider;
 
     public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer) {
-        this(new PreBuiltAnalyzerProvider<Analyzer>(name, scope, analyzer));
+        this(new PreBuiltAnalyzerProvider(name, scope, analyzer));
     }
 
-    public PreBuiltAnalyzerProviderFactory(PreBuiltAnalyzerProvider<Analyzer> analyzerProvider) {
+    public PreBuiltAnalyzerProviderFactory(PreBuiltAnalyzerProvider analyzerProvider) {
         this.analyzerProvider = analyzerProvider;
     }
 
     @Override
-    public AnalyzerProvider<Analyzer> create(String name, Settings settings) {
+    public AnalyzerProvider create(String name, Settings settings) {
         return analyzerProvider;
     }
 

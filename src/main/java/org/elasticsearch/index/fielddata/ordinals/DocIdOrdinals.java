@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.IntsRef;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Ordinals that effectively are single valued and map "one to one" to the
@@ -50,7 +50,7 @@ public class DocIdOrdinals implements Ordinals {
 
     @Override
     public long getMemorySizeInBytes() {
-        return RamUsage.NUM_BYTES_OBJECT_REF;
+        return RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
     @Override
@@ -64,13 +64,13 @@ public class DocIdOrdinals implements Ordinals {
     }
 
     @Override
-    public int getNumOrds() {
+    public long getNumOrds() {
         return numDocs;
     }
 
     @Override
-    public int getMaxOrd() {
-        return numDocs + 1;
+    public long getMaxOrd() {
+        return 1L + numDocs;
     }
 
     @Override
@@ -81,7 +81,7 @@ public class DocIdOrdinals implements Ordinals {
     public static class Docs implements Ordinals.Docs {
 
         private final DocIdOrdinals parent;
-        private final IntsRef intsScratch = new IntsRef(new int[1], 0, 1);
+        private final LongsRef longsScratch = new LongsRef(new long[1], 0, 1);
         private final SingleValueIter iter = new SingleValueIter();
 
         public Docs(DocIdOrdinals parent) {
@@ -99,12 +99,12 @@ public class DocIdOrdinals implements Ordinals {
         }
 
         @Override
-        public int getNumOrds() {
+        public long getNumOrds() {
             return parent.getNumOrds();
         }
 
         @Override
-        public int getMaxOrd() {
+        public long getMaxOrd() {
             return parent.getMaxOrd();
         }
 
@@ -114,14 +114,14 @@ public class DocIdOrdinals implements Ordinals {
         }
 
         @Override
-        public int getOrd(int docId) {
+        public long getOrd(int docId) {
             return docId + 1;
         }
 
         @Override
-        public IntsRef getOrds(int docId) {
-            intsScratch.ints[0] = docId + 1;
-            return intsScratch;
+        public LongsRef getOrds(int docId) {
+            longsScratch.longs[0] = docId + 1;
+            return longsScratch;
         }
 
         @Override

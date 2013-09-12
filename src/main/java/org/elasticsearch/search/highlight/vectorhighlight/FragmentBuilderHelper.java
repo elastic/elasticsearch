@@ -20,27 +20,19 @@
 
 package org.elasticsearch.search.highlight.vectorhighlight;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
+import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Simple helper class for {@link FastVectorHighlighter} {@link FragmentsBuilder} implemenations.
@@ -65,7 +57,7 @@ public final class FragmentBuilderHelper {
              * the FastVectorHighlighter. Yet, this is really a lucene problem and should be fixed in lucene rather
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
-            Collections.sort(subInfos, new Comparator<SubInfo>() {
+            CollectionUtil.introSort(subInfos, new Comparator<SubInfo>() {
                 @Override
                 public int compare(SubInfo o1, SubInfo o2) {
                     int startOffset = o1.getTermsOffsets().get(0).getStartOffset();

@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen.ping;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -51,17 +52,22 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     private volatile ImmutableList<? extends ZenPing> zenPings = ImmutableList.of();
 
-    @Inject
+    // here for backward comp. with discovery plugins
     public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
                           @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
-        super(settings);
+        this(settings, threadPool, transportService, clusterName, networkService, Version.CURRENT, unicastHostsProviders);
+    }
 
+    @Inject
+    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
+                          Version version, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+        super(settings);
         ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
         if (componentSettings.getAsBoolean("multicast.enabled", true)) {
-            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService));
+            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService, version));
         }
         // always add the unicast hosts, so it will be able to receive unicast requests even when working in multicast
-        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, unicastHostsProviders));
+        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, version, unicastHostsProviders));
 
         this.zenPings = zenPingsBuilder.build();
     }

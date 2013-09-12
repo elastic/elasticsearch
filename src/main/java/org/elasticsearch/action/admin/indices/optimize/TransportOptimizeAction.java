@@ -50,8 +50,6 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     private final IndicesService indicesService;
 
-    private final Object optimizeMutex = new Object();
-
     @Inject
     public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService) {
@@ -61,7 +59,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MERGE;
+        return ThreadPool.Names.OPTIMIZE;
     }
 
     @Override
@@ -72,11 +70,6 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     @Override
     protected OptimizeRequest newRequest() {
         return new OptimizeRequest();
-    }
-
-    @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
     }
 
     @Override
@@ -118,17 +111,15 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     @Override
     protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticSearchException {
-        synchronized (optimizeMutex) {
-            IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-            indexShard.optimize(new Engine.Optimize()
-                    .waitForMerge(request.waitForMerge())
-                    .maxNumSegments(request.maxNumSegments())
-                    .onlyExpungeDeletes(request.onlyExpungeDeletes())
-                    .flush(request.flush())
-                    .refresh(request.refresh())
-            );
-            return new ShardOptimizeResponse(request.index(), request.shardId());
-        }
+        IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
+        indexShard.optimize(new Engine.Optimize()
+                .waitForMerge(request.waitForMerge())
+                .maxNumSegments(request.maxNumSegments())
+                .onlyExpungeDeletes(request.onlyExpungeDeletes())
+                .flush(request.flush())
+                .refresh(request.refresh())
+        );
+        return new ShardOptimizeResponse(request.index(), request.shardId());
     }
 
     /**

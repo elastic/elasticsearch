@@ -89,7 +89,12 @@ fi
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=java
+    JAVA=$(which java)
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
 fi
 
 if [ -z "$ES_CLASSPATH" ]; then
@@ -121,16 +126,14 @@ launch_service()
         es_parms="$es_parms -Des.foreground=yes"
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                 org.elasticsearch.bootstrap.ElasticSearch
-        execval=$?
+        # exec without running it in the background, makes it replace this shell, we'll never get here...
+        # no need to return something
     else
         # Startup ElasticSearch, background it, and write the pid.
         exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS $es_parms -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" $props \
                     org.elasticsearch.bootstrap.ElasticSearch <&- &
-        execval=$?
-        [ ! -z "$pidpath" ] && printf '%d' $! > "$pidpath"
+        return $?
     fi
-
-    return $execval
 }
 
 # Parse any command line options.
@@ -169,7 +172,7 @@ while true; do
             break
         ;;
         *)
-            echo "Error parsing arguments!" >&2
+            echo "Error parsing argument $1!" >&2
             exit 1
         ;;
     esac

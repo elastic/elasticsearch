@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.query;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +37,7 @@ import java.util.List;
  */
 public class InternalQueryFacet extends InternalFacet implements QueryFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("query");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("query"));
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -75,11 +76,12 @@ public class InternalQueryFacet extends InternalFacet implements QueryFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        int count = 0;
+        long count = 0;
         for (Facet facet : facets) {
             count += ((QueryFacet) facet).getCount();
         }

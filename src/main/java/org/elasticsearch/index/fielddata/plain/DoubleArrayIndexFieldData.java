@@ -19,18 +19,13 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticSearchException;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
@@ -48,7 +43,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
             return new DoubleArrayIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
@@ -70,33 +65,21 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
     }
 
     @Override
-    public DoubleArrayAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
-    }
-
-    @Override
     public DoubleArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
 
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return DoubleArrayAtomicFieldData.EMPTY;
+            return DoubleArrayAtomicFieldData.empty(reader.maxDoc());
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final TDoubleArrayList values = new TDoubleArrayList();
+        final BigDoubleArrayList values = new BigDoubleArrayList();
 
         values.add(0); // first "t" indicates null value
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio);
         try {
-            final BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric64Bit(terms.iterator(null)), reader.getLiveDocs());
+            final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
             while ((term = iter.next()) != null) {
                 values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
@@ -107,27 +90,27 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
                 // there's sweatspot where due to low unique value count, using ordinals will consume less memory
-                long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_DOUBLE + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
-                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_DOUBLE;
+                long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_DOUBLE + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
+                long uniqueValuesArraySize = values.sizeInBytes();
                 long ordinalsSize = build.getMemorySizeInBytes();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
-                    return new DoubleArrayAtomicFieldData.WithOrdinals(values.toArray(new double[values.size()]), reader.maxDoc(), build);
+                    return new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
                 }
 
-                double[] sValues = new double[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
+                BigDoubleArrayList sValues = new BigDoubleArrayList(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    sValues[i] = values.get(ordinals.getOrd(i));
+                    sValues.add(values.get(ordinals.getOrd(i)));
                 }
-
+                assert sValues.size() == maxDoc;
                 if (set == null) {
-                    return new DoubleArrayAtomicFieldData.Single(sValues, reader.maxDoc());
+                    return new DoubleArrayAtomicFieldData.Single(sValues, maxDoc, ordinals.getNumOrds());
                 } else {
-                    return new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
+                    return new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
                 }
             } else {
                 return new DoubleArrayAtomicFieldData.WithOrdinals(
-                        values.toArray(new double[values.size()]),
+                        values,
                         reader.maxDoc(),
                         build);
             }

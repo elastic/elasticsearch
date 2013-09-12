@@ -1,0 +1,9 @@
+[[indices-get-settings]]
+== Get Settings
+
+The get settings API allows to retrieve settings of index/indices:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/_settings'
+--------------------------------------------------

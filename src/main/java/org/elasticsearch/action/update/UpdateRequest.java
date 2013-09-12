@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -30,10 +31,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -58,9 +61,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private String[] fields;
 
-    int retryOnConflict = 0;
-
-    private String percolate;
+    private long version = Versions.MATCH_ANY;
+    private VersionType versionType = VersionType.INTERNAL;
+    private int retryOnConflict = 0;
 
     private boolean refresh = false;
 
@@ -68,6 +71,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
+
+    private boolean docAsUpsert = false;
 
     @Nullable
     private IndexRequest doc;
@@ -91,11 +96,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
         }
+
+        if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
+            validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
+        }
+
         if (script == null && doc == null) {
             validationException = addValidationError("script or doc is missing", validationException);
         }
         if (script != null && doc != null) {
             validationException = addValidationError("can't provide both script and doc", validationException);
+        }
+        if (doc == null && docAsUpsert) {
+            validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
         }
         return validationException;
     }
@@ -268,7 +281,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     /**
      * Sets the number of retries of a version conflict occurs because the document was updated between
-     * getting it and updating it. Defaults to 1.
+     * getting it and updating it. Defaults to 0.
      */
     public UpdateRequest retryOnConflict(int retryOnConflict) {
         this.retryOnConflict = retryOnConflict;
@@ -280,17 +293,28 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * Causes the update request document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
+     * Sets the version, which will cause the index operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
      */
-    public UpdateRequest percolate(String percolate) {
-        this.percolate = percolate;
+    public UpdateRequest version(long version) {
+        this.version = version;
         return this;
     }
 
-    public String percolate() {
-        return this.percolate;
+    public long version() {
+        return this.version;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
+     */
+    public UpdateRequest versionType(VersionType versionType) {
+        this.versionType = versionType;
+        return this;
+    }
+
+    public VersionType versionType() {
+        return this.versionType;
     }
 
     /**
@@ -390,6 +414,23 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
+     */
+    public UpdateRequest doc(Object... source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(String field, Object value) {
+        safeDoc().source(field, value);
+        return this;
+    }
+
     public IndexRequest doc() {
         return this.doc;
     }
@@ -458,6 +499,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequest upsert(Object... source) {
+        safeUpsertRequest().source(source);
+        return this;
+    }
+
     public IndexRequest upsertRequest() {
         return this.upsertRequest;
     }
@@ -507,6 +557,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);
+                } else if ("doc_as_upsert".equals(currentFieldName)) {
+                    docAsUpsert(parser.booleanValue());
                 }
             }
         } finally {
@@ -515,19 +567,26 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    public boolean docAsUpsert() {
+        return this.docAsUpsert;
+    }
+
+    public void docAsUpsert(boolean shouldUpsertDoc) {
+        this.docAsUpsert = shouldUpsertDoc;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        type = in.readString();
+        type = in.readSharedString();
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
-        percolate = in.readOptionalString();
         refresh = in.readBoolean();
         if (in.readBoolean()) {
             doc = new IndexRequest();
@@ -544,6 +603,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest = new IndexRequest();
             upsertRequest.readFrom(in);
         }
+        if (in.getVersion().onOrAfter(Version.V_0_90_2)) {
+            docAsUpsert = in.readBoolean();
+        }
+        version = in.readLong();
+        versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
@@ -551,14 +615,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         super.writeTo(out);
         out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
-        out.writeString(type);
+        out.writeSharedString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
         out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
-        out.writeOptionalString(percolate);
         out.writeBoolean(refresh);
         if (doc == null) {
             out.writeBoolean(false);
@@ -588,5 +651,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.id(id);
             upsertRequest.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_0_90_2)) {
+            out.writeBoolean(docAsUpsert);
+        }
+        out.writeLong(version);
+        out.writeByte(versionType.getValue());
     }
+
 }

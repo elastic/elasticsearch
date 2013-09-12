@@ -21,11 +21,12 @@ package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -98,6 +99,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private final ThreadPool threadPool;
 
     private final LocalAllocateDangledIndices allocateDangledIndices;
+    private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
     @Nullable
     private volatile MetaData currentMetaData;
@@ -113,12 +115,14 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     @Inject
     public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
-                                 TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices) throws Exception {
+                                 TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices,
+                                 NodeIndexDeletedAction nodeIndexDeletedAction) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.format = XContentType.fromRestContentType(settings.get("format", "smile"));
         this.allocateDangledIndices = allocateDangledIndices;
+        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         nodesListGatewayMetaState.init(this);
 
         if (this.format == XContentType.SMILE) {
@@ -173,7 +177,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, newMetaData)) {
                 try {
                     writeGlobalState("changed", newMetaData, currentMetaData);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     success = false;
                 }
             }
@@ -201,7 +205,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
                 try {
                     writeIndex(writeReason, indexMetaData, currentIndexMetaData);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     success = false;
                 }
             }
@@ -209,18 +213,23 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         // delete indices that were there before, but are deleted now
         // we need to do it so they won't be detected as dangling
-        if (nodeEnv.hasNodeFile()) {
-            if (currentMetaData != null) {
-                // only delete indices when we already received a state (currentMetaData != null)
-                // and we had a go at processing dangling indices at least once
-                // this will also delete the _state of the index itself
-                for (IndexMetaData current : currentMetaData) {
-                    if (danglingIndices.containsKey(current.index())) {
-                        continue;
-                    }
-                    if (!newMetaData.hasIndex(current.index())) {
-                        logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
+        if (currentMetaData != null) {
+            // only delete indices when we already received a state (currentMetaData != null)
+            // and we had a go at processing dangling indices at least once
+            // this will also delete the _state of the index itself
+            for (IndexMetaData current : currentMetaData) {
+                if (danglingIndices.containsKey(current.index())) {
+                    continue;
+                }
+                if (!newMetaData.hasIndex(current.index())) {
+                    logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
+                    if (nodeEnv.hasNodeFile()) {
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                    }
+                    try {
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
+                    } catch (Throwable e) {
+                        logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }
                 }
             }
@@ -259,7 +268,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                 }
                             }
                         }
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.warn("failed to find dangling indices", e);
                     }
                 }
@@ -297,7 +306,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             logger.info("failed to send allocated dangled", e);
                         }
                     });
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to send allocate dangled", e);
                 }
             }
@@ -321,62 +330,57 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.bytes());
-            builder.startObject();
-            IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
-            builder.endObject();
-            builder.flush();
+        XContentBuilder builder = XContentFactory.contentBuilder(format, new BytesStreamOutput());
+        builder.startObject();
+        IndexMetaData.Builder.toXContent(indexMetaData, builder, formatParams);
+        builder.endObject();
+        builder.flush();
 
-            String stateFileName = "state-" + indexMetaData.version();
-            Exception lastFailure = null;
-            boolean wroteAtLeastOnce = false;
+        String stateFileName = "state-" + indexMetaData.version();
+        Throwable lastFailure = null;
+        boolean wroteAtLeastOnce = false;
+        for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
+            File stateLocation = new File(indexLocation, "_state");
+            FileSystemUtils.mkdirs(stateLocation);
+            File stateFile = new File(stateLocation, stateFileName);
+
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(stateFile);
+                BytesReference bytes = builder.bytes();
+                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                fos.getChannel().force(true);
+                fos.close();
+                wroteAtLeastOnce = true;
+            } catch (Throwable e) {
+                lastFailure = e;
+            } finally {
+                IOUtils.closeWhileHandlingException(fos);
+            }
+        }
+
+        if (!wroteAtLeastOnce) {
+            logger.warn("[{}]: failed to state", lastFailure, indexMetaData.index());
+            throw new IOException("failed to write state for [" + indexMetaData.index() + "]", lastFailure);
+        }
+
+        // delete the old files
+        if (previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version()) {
             for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-                File stateLocation = new File(indexLocation, "_state");
-                FileSystemUtils.mkdirs(stateLocation);
-                File stateFile = new File(stateLocation, stateFileName);
-
-                FileOutputStream fos = null;
-                try {
-                    fos = new FileOutputStream(stateFile);
-                    BytesReference bytes = cachedEntry.bytes().bytes();
-                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
-                    fos.getChannel().force(true);
-                    Closeables.closeQuietly(fos);
-                    wroteAtLeastOnce = true;
-                } catch (Exception e) {
-                    lastFailure = e;
-                } finally {
-                    Closeables.closeQuietly(fos);
+                File[] files = new File(indexLocation, "_state").listFiles();
+                if (files == null) {
+                    continue;
                 }
-            }
-
-            if (!wroteAtLeastOnce) {
-                logger.warn("[{}]: failed to state", lastFailure, indexMetaData.index());
-                throw new IOException("failed to write state for [" + indexMetaData.index() + "]", lastFailure);
-            }
-
-            // delete the old files
-            if (previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version()) {
-                for (File indexLocation : nodeEnv.indexLocations(new Index(indexMetaData.index()))) {
-                    File[] files = new File(indexLocation, "_state").listFiles();
-                    if (files == null) {
+                for (File file : files) {
+                    if (!file.getName().startsWith("state-")) {
                         continue;
                     }
-                    for (File file : files) {
-                        if (!file.getName().startsWith("state-")) {
-                            continue;
-                        }
-                        if (file.getName().equals(stateFileName)) {
-                            continue;
-                        }
-                        file.delete();
+                    if (file.getName().equals(stateFileName)) {
+                        continue;
                     }
+                    file.delete();
                 }
             }
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 
@@ -385,60 +389,55 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         // create metadata to write with just the global state
         MetaData globalMetaData = MetaData.builder().metaData(metaData).removeAllIndices().build();
 
-        CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(format, cachedEntry.bytes());
-            builder.startObject();
-            MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
-            builder.endObject();
-            builder.flush();
+        XContentBuilder builder = XContentFactory.contentBuilder(format);
+        builder.startObject();
+        MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
+        builder.endObject();
+        builder.flush();
 
-            String globalFileName = "global-" + globalMetaData.version();
-            Exception lastFailure = null;
-            boolean wroteAtLeastOnce = false;
-            for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                File stateLocation = new File(dataLocation, "_state");
-                FileSystemUtils.mkdirs(stateLocation);
-                File stateFile = new File(stateLocation, globalFileName);
+        String globalFileName = "global-" + globalMetaData.version();
+        Throwable lastFailure = null;
+        boolean wroteAtLeastOnce = false;
+        for (File dataLocation : nodeEnv.nodeDataLocations()) {
+            File stateLocation = new File(dataLocation, "_state");
+            FileSystemUtils.mkdirs(stateLocation);
+            File stateFile = new File(stateLocation, globalFileName);
 
-                FileOutputStream fos = null;
-                try {
-                    fos = new FileOutputStream(stateFile);
-                    BytesReference bytes = cachedEntry.bytes().bytes();
-                    fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
-                    fos.getChannel().force(true);
-                    Closeables.closeQuietly(fos);
-                    wroteAtLeastOnce = true;
-                } catch (Exception e) {
-                    lastFailure = e;
-                } finally {
-                    Closeables.closeQuietly(fos);
-                }
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(stateFile);
+                BytesReference bytes = builder.bytes();
+                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                fos.getChannel().force(true);
+                fos.close();
+                wroteAtLeastOnce = true;
+            } catch (Throwable e) {
+                lastFailure = e;
+            } finally {
+                IOUtils.closeWhileHandlingException(fos);
             }
+        }
 
-            if (!wroteAtLeastOnce) {
-                logger.warn("[_global]: failed to write global state", lastFailure);
-                throw new IOException("failed to write global state", lastFailure);
+        if (!wroteAtLeastOnce) {
+            logger.warn("[_global]: failed to write global state", lastFailure);
+            throw new IOException("failed to write global state", lastFailure);
+        }
+
+        // delete the old files
+        for (File dataLocation : nodeEnv.nodeDataLocations()) {
+            File[] files = new File(dataLocation, "_state").listFiles();
+            if (files == null) {
+                continue;
             }
-
-            // delete the old files
-            for (File dataLocation : nodeEnv.nodeDataLocations()) {
-                File[] files = new File(dataLocation, "_state").listFiles();
-                if (files == null) {
+            for (File file : files) {
+                if (!file.getName().startsWith("global-")) {
                     continue;
                 }
-                for (File file : files) {
-                    if (!file.getName().startsWith("global-")) {
-                        continue;
-                    }
-                    if (file.getName().equals(globalFileName)) {
-                        continue;
-                    }
-                    file.delete();
+                if (file.getName().equals(globalFileName)) {
+                    continue;
                 }
+                file.delete();
             }
-        } finally {
-            CachedStreamOutput.pushEntry(cachedEntry);
         }
     }
 
@@ -499,7 +498,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             }
                         }
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.debug("[{}]: failed to read [" + stateFile.getAbsolutePath() + "], ignoring...", e, index);
                 }
             }
@@ -544,7 +543,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             }
                         }
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.debug("failed to load global state from [{}]", e, stateFile.getAbsolutePath());
                 }
             }

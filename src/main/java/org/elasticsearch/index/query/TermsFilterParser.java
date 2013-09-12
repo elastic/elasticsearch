@@ -76,6 +76,8 @@ public class TermsFilterParser implements FilterParser {
         String lookupType = null;
         String lookupId = null;
         String lookupPath = null;
+        String lookupRouting = null;
+        boolean lookupCache = true;
 
         CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
@@ -91,7 +93,7 @@ public class TermsFilterParser implements FilterParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                        throw new QueryParsingException(parseContext.index(), "No value specified for terms filter");
                     }
                     terms.add(value);
                 }
@@ -109,6 +111,10 @@ public class TermsFilterParser implements FilterParser {
                             lookupId = parser.text();
                         } else if ("path".equals(currentFieldName)) {
                             lookupPath = parser.text();
+                        } else if ("routing".equals(currentFieldName)) {
+                            lookupRouting = parser.textOrNull();
+                        } else if ("cache".equals(currentFieldName)) {
+                            lookupCache = parser.booleanValue();
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
                         }
@@ -157,13 +163,24 @@ public class TermsFilterParser implements FilterParser {
         }
 
         if (lookupId != null) {
-            // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, parseContext);
-            if (cacheKey == null) {
-                cacheKey = new CacheKeyFilter.Key(termsLookup.toString());
+            // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
+            // no match (but not cached!), since the Terms Lookup relies on the fact that there are mappings...
+            if (fieldMapper == null) {
+                return Queries.MATCH_NO_FILTER;
             }
-            Filter filter = termsFilterCache.lookupTermsFilter(cacheKey, termsLookup);
-            filter = parseContext.cacheFilter(filter, null); // cacheKey is passed as null, so we don't double cache the key
+
+            // external lookup, use it
+            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
+
+            Filter filter = termsFilterCache.termsFilter(termsLookup, lookupCache, cacheKey);
+            if (filter == null) {
+                return null;
+            }
+
+            // cache the whole filter by default, or if explicitly told to
+            if (cache == null || cache) {
+                filter = parseContext.cacheFilter(filter, cacheKey);
+            }
             return filter;
         }
 

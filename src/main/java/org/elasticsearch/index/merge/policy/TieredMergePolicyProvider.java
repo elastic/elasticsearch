@@ -32,16 +32,16 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-public class TieredMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<TieredMergePolicy> {
+public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<TieredMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
 
     private final Set<CustomTieredMergePolicyProvider> policies = new CopyOnWriteArraySet<CustomTieredMergePolicyProvider>();
 
-    private volatile boolean compoundFormat;
     private volatile double forceMergeDeletesPctAllowed;
     private volatile ByteSizeValue floorSegment;
     private volatile int maxMergeAtOnce;
@@ -53,12 +53,12 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
     private final ApplySettings applySettings = new ApplySettings();
 
+    
+
     @Inject
     public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
-        super(store.shardId(), store.indexSettings());
+        super(store);
         this.indexSettingsService = indexSettingsService;
-
-        this.compoundFormat = indexSettings.getAsBoolean(INDEX_COMPOUND_FORMAT, store.suggestUseCompoundFile());
         this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
         this.forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d); // percentage
         this.floorSegment = componentSettings.getAsBytesSize("floor_segment", new ByteSizeValue(2, ByteSizeUnit.MB));
@@ -76,7 +76,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
         indexSettingsService.addListener(applySettings);
     }
-
+    
     private void fixSettingsIfNeeded() {
         // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
         if (!(segmentsPerTier >= maxMergeAtOnce)) {
@@ -99,7 +99,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         } else {
             mergePolicy = new CustomTieredMergePolicyProvider(this);
         }
-        mergePolicy.setUseCompoundFile(compoundFormat);
+        mergePolicy.setNoCFSRatio(noCFSRatio);
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
@@ -122,7 +122,6 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     public static final String INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT = "index.merge.policy.max_merged_segment";
     public static final String INDEX_MERGE_POLICY_SEGMENTS_PER_TIER = "index.merge.policy.segments_per_tier";
     public static final String INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT = "index.merge.policy.reclaim_deletes_weight";
-    public static final String INDEX_COMPOUND_FORMAT = "index.compound_format";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
@@ -190,12 +189,12 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            boolean compoundFormat = settings.getAsBoolean(INDEX_COMPOUND_FORMAT, TieredMergePolicyProvider.this.compoundFormat);
-            if (compoundFormat != TieredMergePolicyProvider.this.compoundFormat) {
-                logger.info("updating index.compound_format from [{}] to [{}]", TieredMergePolicyProvider.this.compoundFormat, compoundFormat);
-                TieredMergePolicyProvider.this.compoundFormat = compoundFormat;
+            final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicyProvider.this.noCFSRatio)));
+            if (noCFSRatio != TieredMergePolicyProvider.this.noCFSRatio) {
+                logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(TieredMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
+                TieredMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomTieredMergePolicyProvider policy : policies) {
-                    policy.setUseCompoundFile(compoundFormat);
+                    policy.setNoCFSRatio(noCFSRatio);
                 }
             }
 

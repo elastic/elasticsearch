@@ -36,7 +36,10 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -536,14 +539,9 @@ public class ClusterState implements ToXContent {
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
-            try {
-                BytesStreamOutput os = cachedEntry.bytes();
-                writeTo(state, os);
-                return os.bytes().copyBytesArray().toBytes();
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
-            }
+            BytesStreamOutput os = new BytesStreamOutput();
+            writeTo(state, os);
+            return os.bytes().toBytes();
         }
 
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {

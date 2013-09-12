@@ -69,7 +69,7 @@ public class RestUpdateAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        updateRequest.percolate(request.param("percolate", null));
+        updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
         updateRequest.script(request.param("script"));
         updateRequest.scriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
@@ -85,6 +85,9 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
+        updateRequest.version(RestActions.parseVersion(request));
+        updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
+
 
         // see if we have it in the body
         if (request.hasContent()) {
@@ -111,7 +114,7 @@ public class RestUpdateAction extends BaseRestHandler {
                     }
                     doc.version(RestActions.parseVersion(request));
                     doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
-                }
+                }                
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
@@ -140,16 +143,9 @@ public class RestUpdateAction extends BaseRestHandler {
                         builder.endObject();
                     }
 
-                    if (response.getMatches() != null) {
-                        builder.startArray(Fields.MATCHES);
-                        for (String match : response.getMatches()) {
-                            builder.value(match);
-                        }
-                        builder.endArray();
-                    }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.getVersion() == 1) {
+                    if (response.isCreated()) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

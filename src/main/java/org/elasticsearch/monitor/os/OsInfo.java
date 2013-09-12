@@ -121,20 +121,17 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
             builder.field(Fields.TOTAL_CORES, cpu.totalCores());
             builder.field(Fields.TOTAL_SOCKETS, cpu.totalSockets());
             builder.field(Fields.CORES_PER_SOCKET, cpu.coresPerSocket());
-            builder.field(Fields.CACHE_SIZE, cpu.cacheSize().toString());
-            builder.field(Fields.CACHE_SIZE_IN_BYTES, cpu.cacheSize().bytes());
+            builder.byteSizeField(Fields.CACHE_SIZE_IN_BYTES, Fields.CACHE_SIZE, cpu.cacheSize);
             builder.endObject();
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.field(Fields.TOTAL, mem.total().toString());
-            builder.field(Fields.TOTAL_IN_BYTES, mem.total);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mem.total);
             builder.endObject();
         }
         if (swap != null) {
             builder.startObject(Fields.SWAP);
-            builder.field(Fields.TOTAL, swap.total().toString());
-            builder.field(Fields.TOTAL_IN_BYTES, swap.total);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, swap.total);
             builder.endObject();
         }
         builder.endObject();

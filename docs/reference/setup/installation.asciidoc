@@ -1,0 +1,39 @@
+[[setup-installation]]
+== Installation
+
+After link:/download[downloading] the latest release and extracting it,
+*elasticsearch* can be started using:
+
+[source,sh]
+--------------------------------------------------
+$ bin/elasticsearch
+--------------------------------------------------
+
+Under *nix system, the command will start the process in the background.
+To run it in the foreground, add the `-f` switch to it:
+
+[source,sh]
+--------------------------------------------------
+$ bin/elasticsearch -f
+--------------------------------------------------
+
+ElasticSearch is built using Java, and requires at least
+http://java.sun.com/javase/downloads/index.jsp[Java 6] in order to run.
+The version of Java that will be used can be set by setting the
+`JAVA_HOME` environment variable.
+
+.*NIX
+*************************************************************************
+There are added features when using the `elasticsearch` shell script.
+The first, which was explained earlier, is the ability to easily run the
+process either in the foreground or the background.
+
+Another feature is the ability to pass `-X` and `-D` directly to the
+script. When set, both override anything set using either `JAVA_OPTS` or
+`ES_JAVA_OPTS`. For example:
+
+[source,sh]
+--------------------------------------------------
+$ bin/elasticsearch -f -Xmx2g -Xms2g -Des.index.store.type=memory
+--------------------------------------------------
+*************************************************************************

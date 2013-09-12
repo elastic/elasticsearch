@@ -26,8 +26,6 @@ import java.io.IOException;
 /**
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
  * which is checked against the fields the query is constructed with.
- *
- *
  */
 public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
 
@@ -45,6 +43,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
+    private Boolean failOnUnsupportedField;
+    private String queryName;
 
     /**
      * Constructs a new more like this query which uses the "_all" field.
@@ -165,6 +165,22 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    /**
+     * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
+     */
+    public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
+        failOnUnsupportedField = fail;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public MoreLikeThisQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MoreLikeThisQueryParser.NAME);
@@ -215,6 +231,12 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);
+        }
+        if (failOnUnsupportedField != null) {
+            builder.field("fail_on_unsupported_field", failOnUnsupportedField);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

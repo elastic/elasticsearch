@@ -40,6 +40,12 @@ public class Slf4jESLogger extends AbstractESLogger {
     }
 
     @Override
+    public String getLevel() {
+        // can't get it in slf4j...
+        return null;
+    }
+
+    @Override
     public String getName() {
         return logger.getName();
     }

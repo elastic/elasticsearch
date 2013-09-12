@@ -66,11 +66,13 @@ public abstract class FacetExecutor {
                 for (int i = 0; i < docSets.size(); i++) {
                     ContextDocIdSet entry = docSets.get(i);
                     DocIdSet filteredSet = filter.getDocIdSet(entry.context, null);
-                    filteredEntries.add(new ContextDocIdSet(
-                            entry.context,
-                            // TODO: can we be smart here, maybe AndDocIdSet is not always fastest?
-                            new AndDocIdSet(new DocIdSet[]{entry.docSet, filteredSet})
-                    ));
+                    if (filteredSet != null) {
+                        filteredEntries.add(new ContextDocIdSet(
+                                entry.context,
+                                // TODO: can we be smart here, maybe AndDocIdSet is not always fastest?
+                                new AndDocIdSet(new DocIdSet[]{entry.docSet, filteredSet})
+                        ));
+                    }
                 }
                 post.executePost(filteredEntries);
             }

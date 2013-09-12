@@ -19,25 +19,28 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 
+import java.util.List;
+
 /**
  * This {@link RoutingAllocation} keeps a shard which routing
- * allocation has faild 
+ * allocation has faild
  */
 public class FailedRerouteAllocation extends RoutingAllocation {
 
-    private final ShardRouting failedShard;
+    private final List<ShardRouting> failedShards;
 
-    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ShardRouting failedShard) {
-        super(deciders, routingNodes, nodes);
-        this.failedShard = failedShard;
+    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, List<ShardRouting> failedShards, ClusterInfo clusterInfo) {
+        super(deciders, routingNodes, nodes, clusterInfo);
+        this.failedShards = failedShards;
     }
 
-    public ShardRouting failedShard() {
-        return failedShard;
+    public List<ShardRouting> failedShards() {
+        return failedShards;
     }
 }

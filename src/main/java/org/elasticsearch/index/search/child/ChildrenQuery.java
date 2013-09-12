@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.search.child;
 
-import gnu.trove.map.TObjectFloatMap;
-import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -28,11 +26,18 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -56,31 +61,20 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     private final Filter parentFilter;
     private final ScoreType scoreType;
     private final Query originalChildQuery;
+    private final int shortCircuitParentDocSet;
 
     private Query rewrittenChildQuery;
-    private TObjectFloatHashMap<HashedBytesArray> uidToScore;
-    private TObjectIntHashMap<HashedBytesArray> uidToCount;
+    private Recycler.V<TObjectFloatHashMap<HashedBytesArray>> uidToScore;
+    private Recycler.V<TObjectIntHashMap<HashedBytesArray>> uidToCount;
 
-    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType) {
+    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet) {
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
-        this.parentFilter = parentFilter;
+        this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
-    }
-
-    private ChildrenQuery(ChildrenQuery unProcessedQuery, Query rewrittenChildQuery) {
-        this.searchContext = unProcessedQuery.searchContext;
-        this.parentType = unProcessedQuery.parentType;
-        this.childType = unProcessedQuery.childType;
-        this.parentFilter = unProcessedQuery.parentFilter;
-        this.scoreType = unProcessedQuery.scoreType;
-        this.originalChildQuery = unProcessedQuery.originalChildQuery;
-        this.rewrittenChildQuery = rewrittenChildQuery;
-
-        this.uidToScore = unProcessedQuery.uidToScore;
-        this.uidToCount = unProcessedQuery.uidToCount;
+        this.shortCircuitParentDocSet = shortCircuitParentDocSet;
     }
 
     @Override
@@ -92,14 +86,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             return false;
         }
 
-        HasChildFilter that = (HasChildFilter) obj;
-        if (!originalChildQuery.equals(that.childQuery)) {
+        ChildrenQuery that = (ChildrenQuery) obj;
+        if (!originalChildQuery.equals(that.originalChildQuery)) {
             return false;
         }
         if (!childType.equals(that.childType)) {
-            return false;
-        }
-        if (!parentType.equals(that.parentType)) {
             return false;
         }
         return true;
@@ -108,7 +99,6 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     @Override
     public int hashCode() {
         int result = originalChildQuery.hashCode();
-        result = 31 * result + parentType.hashCode();
         result = 31 * result + childType.hashCode();
         return result;
     }
@@ -122,22 +112,12 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten;
         if (rewrittenChildQuery == null) {
-            rewritten = originalChildQuery.rewrite(reader);
-        } else {
-            rewritten = rewrittenChildQuery;
+            rewrittenChildQuery = originalChildQuery.rewrite(reader);
         }
-        if (rewritten == rewrittenChildQuery) {
-            return this;
-        }
-
-        // See TopChildrenQuery#rewrite
-        int index = searchContext.rewrites().indexOf(this);
-        ChildrenQuery rewrite = new ChildrenQuery(this, rewritten);
-        searchContext.rewrites().set(index, rewrite);
-        return rewrite;
+        return this;
     }
 
     @Override
@@ -149,15 +129,15 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
-        uidToScore = CacheRecycler.popObjectFloatMap();
+        uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
         Collector collector;
         switch (scoreType) {
             case AVG:
-                uidToCount = CacheRecycler.popObjectIntMap();
-                collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
+                uidToCount = searchContext.cacheRecycler().objectIntMap(-1);
+                collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore.v(), uidToCount.v());
                 break;
             default:
-                collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore);
+                collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore.v());
         }
         Query childQuery;
         if (rewrittenChildQuery == null) {
@@ -169,15 +149,19 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextClear() {
+    public void executionDone() {
         if (uidToScore != null) {
-            CacheRecycler.pushObjectFloatMap(uidToScore);
+            uidToScore.release();
         }
         uidToScore = null;
         if (uidToCount != null) {
-            CacheRecycler.pushObjectIntMap(uidToCount);
+            uidToCount.release();
         }
         uidToCount = null;
+    }
+
+    @Override
+    public void contextClear() {
     }
 
     @Override
@@ -186,15 +170,33 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             throw new ElasticSearchIllegalStateException("has_child query hasn't executed properly");
         }
 
-        return new ParentWeight(rewrittenChildQuery.createWeight(searcher));
+        int size = uidToScore.v().size();
+        if (size == 0) {
+            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+        }
+
+        Filter parentFilter;
+        if (size == 1) {
+            BytesRef id = uidToScore.v().keySet().iterator().next().toBytesRef();
+            parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+        } else if (size <= shortCircuitParentDocSet) {
+            parentFilter = new ParentIdsFilter(parentType, uidToScore.v().keySet());
+        } else {
+            parentFilter = this.parentFilter;
+        }
+        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, size);
     }
 
-    class ParentWeight extends Weight {
+    final class ParentWeight extends Weight {
 
         final Weight childWeight;
+        final Filter parentFilter;
+        int remaining;
 
-        public ParentWeight(Weight childWeight) {
+        public ParentWeight(Weight childWeight, Filter parentFilter, int remaining) {
             this.childWeight = childWeight;
+            this.parentFilter = parentFilter;
+            this.remaining = remaining;
         }
 
         @Override
@@ -221,7 +223,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
-            if (parentsSet == null || parentsSet == DocIdSet.EMPTY_DOCIDSET) {
+            if (DocIdSets.isEmpty(parentsSet) || remaining == 0) {
                 return null;
             }
 
@@ -229,51 +231,75 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             DocIdSetIterator parentsIterator = parentsSet.iterator();
             switch (scoreType) {
                 case AVG:
-                    return new AvgParentScorer(this, idTypeCache, uidToScore, uidToCount, parentsIterator);
+                    return new AvgParentScorer(this, idTypeCache, uidToScore.v(), uidToCount.v(), parentsIterator);
                 default:
-                    return new ParentScorer(this, idTypeCache, uidToScore, parentsIterator);
+                    return new ParentScorer(this, idTypeCache, uidToScore.v(), parentsIterator);
             }
         }
 
-    }
+        class ParentScorer extends Scorer {
 
-    static class ParentScorer extends Scorer {
+            final TObjectFloatHashMap<HashedBytesArray> uidToScore;
+            final IdReaderTypeCache idTypeCache;
+            final DocIdSetIterator parentsIterator;
 
-        final IdReaderTypeCache idTypeCache;
-        final TObjectFloatMap<HashedBytesArray> uidToScore;
-        final DocIdSetIterator parentsIterator;
+            int remaining;
+            int currentDocId = -1;
+            float currentScore;
 
-        int currentDocId = -1;
-        float currentScore;
+            ParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatHashMap<HashedBytesArray> uidToScore, DocIdSetIterator parentsIterator) {
+                super(weight);
+                this.idTypeCache = idTypeCache;
+                this.parentsIterator = parentsIterator;
+                this.uidToScore = uidToScore;
+                this.remaining = uidToScore.size();
+            }
 
-        ParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatMap<HashedBytesArray> uidToScore, DocIdSetIterator parentsIterator) {
-            super(weight);
-            this.idTypeCache = idTypeCache;
-            this.uidToScore = uidToScore;
-            this.parentsIterator = parentsIterator;
-        }
+            @Override
+            public float score() throws IOException {
+                return currentScore;
+            }
 
-        @Override
-        public float score() throws IOException {
-            return currentScore;
-        }
+            @Override
+            public int freq() throws IOException {
+                // We don't have the original child query hit info here...
+                // But the freq of the children could be collector and returned here, but makes this Scorer more expensive.
+                return 1;
+            }
 
-        @Override
-        public int freq() throws IOException {
-            // We don't have the original child query hit info here...
-            // But the freq of the children could be collector and returned here, but makes this Scorer more expensive.
-            return 1;
-        }
+            @Override
+            public int docID() {
+                return currentDocId;
+            }
 
-        @Override
-        public int docID() {
-            return currentDocId;
-        }
+            @Override
+            public int nextDoc() throws IOException {
+                if (remaining == 0) {
+                    return NO_MORE_DOCS;
+                }
 
-        @Override
-        public int nextDoc() throws IOException {
-            while (true) {
-                currentDocId = parentsIterator.nextDoc();
+                while (true) {
+                    currentDocId = parentsIterator.nextDoc();
+                    if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                        return currentDocId;
+                    }
+
+                    HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+                    currentScore = uidToScore.get(uid);
+                    if (currentScore != 0) {
+                        remaining--;
+                        return currentDocId;
+                    }
+                }
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                if (remaining == 0) {
+                    return NO_MORE_DOCS;
+                }
+
+                currentDocId = parentsIterator.advance(target);
                 if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
                     return currentDocId;
                 }
@@ -281,76 +307,66 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                 HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
                 currentScore = uidToScore.get(uid);
                 if (currentScore != 0) {
+                    remaining--;
                     return currentDocId;
+                } else {
+                    return nextDoc();
                 }
             }
-        }
 
-        @Override
-        public int advance(int target) throws IOException {
-            currentDocId = parentsIterator.advance(target);
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentDocId;
-            }
-
-            HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-            currentScore = uidToScore.get(uid);
-            if (currentScore != 0) {
-                return currentDocId;
-            } else {
-                return nextDoc();
+            @Override
+            public long cost() {
+                return parentsIterator.cost();
             }
         }
 
-        @Override
-        public long cost() {
-            return parentsIterator.cost();
-        }
-    }
+        final class AvgParentScorer extends ParentScorer {
 
-    static class AvgParentScorer extends ParentScorer {
+            HashedBytesArray currentUid;
+            final TObjectIntHashMap<HashedBytesArray> uidToCount;
 
-        final TObjectIntMap<HashedBytesArray> uidToCount;
-        HashedBytesArray currentUid;
+            AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatHashMap<HashedBytesArray> uidToScore, TObjectIntHashMap<HashedBytesArray> uidToCount, DocIdSetIterator parentsIterator) {
+                super(weight, idTypeCache, uidToScore, parentsIterator);
+                this.uidToCount = uidToCount;
+            }
 
-        AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatMap<HashedBytesArray> uidToScore, TObjectIntMap<HashedBytesArray> uidToCount, DocIdSetIterator parentsIterator) {
-            super(weight, idTypeCache, uidToScore, parentsIterator);
-            this.uidToCount = uidToCount;
-        }
+            @Override
+            public int nextDoc() throws IOException {
+                while (true) {
+                    currentDocId = parentsIterator.nextDoc();
+                    if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                        return currentDocId;
+                    }
 
-        @Override
-        public int nextDoc() throws IOException {
-            while (true) {
-                currentDocId = parentsIterator.nextDoc();
+                    currentUid = idTypeCache.idByDoc(currentDocId);
+                    currentScore = uidToScore.get(currentUid);
+                    if (currentScore != 0) {
+                        remaining--;
+                        currentScore /= uidToCount.get(currentUid);
+                        return currentDocId;
+                    }
+                }
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                currentDocId = parentsIterator.advance(target);
                 if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
                     return currentDocId;
                 }
 
-                currentUid = idTypeCache.idByDoc(currentDocId);
-                currentScore = uidToScore.get(currentUid);
+                HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+                currentScore = uidToScore.get(uid);
                 if (currentScore != 0) {
+                    remaining--;
                     currentScore /= uidToCount.get(currentUid);
                     return currentDocId;
+                } else {
+                    return nextDoc();
                 }
             }
         }
 
-        @Override
-        public int advance(int target) throws IOException {
-            currentDocId = parentsIterator.advance(target);
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentDocId;
-            }
-
-            HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-            currentScore = uidToScore.get(uid);
-            if (currentScore != 0) {
-                currentScore /= uidToCount.get(currentUid);
-                return currentDocId;
-            } else {
-                return nextDoc();
-            }
-        }
     }
 
     static class ChildUidCollector extends ParentIdCollector {
@@ -388,7 +404,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                         break;
                     case AVG:
                         assert false : "AVG has it's own collector";
-                        
+
                     default:
                         assert false : "Are we missing a score type here? -- " + scoreType;
                         break;

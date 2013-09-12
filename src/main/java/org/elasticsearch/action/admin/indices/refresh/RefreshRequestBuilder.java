@@ -35,8 +35,12 @@ public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<Refr
         super((InternalIndicesAdminClient) indicesClient, new RefreshRequest());
     }
 
-    public RefreshRequestBuilder setWaitForOperations(boolean waitForOperations) {
-        request.waitForOperations(waitForOperations);
+    /**
+     * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
+     * to true (note, still lightweight if no refresh is needed).
+     */
+    public RefreshRequestBuilder setForce(boolean force) {
+        request.force(force);
         return this;
     }
 

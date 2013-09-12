@@ -71,6 +71,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final TransportService transportService;
     private final ClusterName clusterName;
     private final NetworkService networkService;
+    private final Version version;
     private volatile DiscoveryNodesProvider nodesProvider;
 
     private final boolean pingEnabled;
@@ -87,16 +88,17 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final Object sendMutex = new Object();
     private final Object receiveMutex = new Object();
 
-    public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS));
+    public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version) {
+        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS), version);
     }
 
-    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService) {
+    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService, Version version) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
         this.networkService = networkService;
+        this.version = version;
 
         this.address = componentSettings.get("address");
         this.port = componentSettings.getAsInt("port", 54328);
@@ -252,16 +254,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         synchronized (sendMutex) {
-            CachedStreamOutput.Entry cachedEntry = CachedStreamOutput.popEntry();
             try {
-                StreamOutput out = cachedEntry.handles();
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                StreamOutput out = new HandlesStreamOutput(bStream);
                 out.writeBytes(INTERNAL_HEADER);
-                Version.writeVersion(Version.CURRENT, out);
+                Version.writeVersion(version, out);
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);
                 out.close();
-                datagramPacketSend.setData(cachedEntry.bytes().bytes().copyBytesArray().toBytes());
+                datagramPacketSend.setData(bStream.bytes().toBytes());
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] sending ping request", id);
@@ -275,8 +277,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 } else {
                     logger.warn("failed to send multicast ping request: {}", ExceptionsHelper.detailedMessage(e));
                 }
-            } finally {
-                CachedStreamOutput.pushEntry(cachedEntry);
             }
         }
     }
@@ -469,7 +469,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
                 builder.startObject().startObject("response");
                 builder.field("cluster_name", MulticastZenPing.this.clusterName.value());
-                builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
+                builder.startObject("version").field("number", version.number()).field("snapshot_build", version.snapshot).endObject();
                 builder.field("transport_address", localNode.address().toString());
 
                 if (nodesProvider.nodeService() != null) {

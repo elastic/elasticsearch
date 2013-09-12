@@ -50,10 +50,10 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("string", new PagedBytesIndexFieldData.Builder())
                 .put("float", new FloatArrayIndexFieldData.Builder())
                 .put("double", new DoubleArrayIndexFieldData.Builder())
-                .put("byte", new ByteArrayIndexFieldData.Builder())
-                .put("short", new ShortArrayIndexFieldData.Builder())
-                .put("int", new IntArrayIndexFieldData.Builder())
-                .put("long", new LongArrayIndexFieldData.Builder())
+                .put("byte", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BYTE))
+                .put("short", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.SHORT))
+                .put("int", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT))
+                .put("long", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
                 .immutableMap();
 
@@ -62,10 +62,10 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put(Tuple.tuple("string", "fst"), new FSTBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("float", "array"), new FloatArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("byte", "array"), new ByteArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("short", "array"), new ShortArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("int", "array"), new IntArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("long", "array"), new LongArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("byte", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BYTE))
+                .put(Tuple.tuple("short", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.SHORT))
+                .put(Tuple.tuple("int", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT))
+                .put(Tuple.tuple("long", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("geo_point", "array"), new GeoPointDoubleArrayIndexFieldData.Builder())
                 .immutableMap();
     }

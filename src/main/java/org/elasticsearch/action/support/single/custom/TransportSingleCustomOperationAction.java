@@ -219,26 +219,26 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     // we don't prefer local shard, so try and do it here
                     if (!request.preferLocalShard()) {
-                        if (request.operationThreaded()) {
-                            request.beforeLocalFork();
-                            threadPool.executor(executor).execute(new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        Response response = shardOperation(request, shard.id());
-                                        listener.onResponse(response);
-                                    } catch (Throwable e) {
-                                        onFailure(shard, e);
+                        try {
+                            if (request.operationThreaded()) {
+                                request.beforeLocalFork();
+                                threadPool.executor(executor).execute(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            Response response = shardOperation(request, shard.id());
+                                            listener.onResponse(response);
+                                        } catch (Throwable e) {
+                                            onFailure(shard, e);
+                                        }
                                     }
-                                }
-                            });
-                        } else {
-                            try {
+                                });
+                            } else {
                                 final Response response = shardOperation(request, shard.id());
                                 listener.onResponse(response);
-                            } catch (Throwable e) {
-                                onFailure(shard, e);
                             }
+                        } catch (Throwable e) {
+                            onFailure(shard, e);
                         }
                     } else {
                         perform(lastException);

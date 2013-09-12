@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
@@ -44,7 +43,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
             return new GeoPointDoubleArrayIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
@@ -61,35 +60,23 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
     }
 
     @Override
-    public GeoPointDoubleArrayAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
-    }
-
-    @Override
     public GeoPointDoubleArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return GeoPointDoubleArrayAtomicFieldData.EMPTY;
+            return GeoPointDoubleArrayAtomicFieldData.empty(reader.maxDoc());
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final TDoubleArrayList lat = new TDoubleArrayList();
-        final TDoubleArrayList lon = new TDoubleArrayList();
+        final BigDoubleArrayList lat = new BigDoubleArrayList();
+        final BigDoubleArrayList lon = new BigDoubleArrayList();
         lat.add(0); // first "t" indicates null value
         lon.add(0); // first "t" indicates null value
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio);
         final CharsRef spare = new CharsRef();
         try {
-            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
+            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null));
             BytesRef term;
             while ((term = iter.next()) != null) {
                 UnicodeUtil.UTF8toUTF16(term, spare);
@@ -108,23 +95,23 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
-                double[] sLat = new double[reader.maxDoc()];
-                double[] sLon = new double[reader.maxDoc()];
-                for (int i = 0; i < sLat.length; i++) {
-                    int nativeOrdinal = ordinals.getOrd(i);
-                    sLat[i] = lat.get(nativeOrdinal);
-                    sLon[i] = lon.get(nativeOrdinal);
+                int maxDoc = reader.maxDoc();
+                BigDoubleArrayList sLat = new BigDoubleArrayList(reader.maxDoc());
+                BigDoubleArrayList sLon = new BigDoubleArrayList(reader.maxDoc());
+                for (int i = 0; i < maxDoc; i++) {
+                    long nativeOrdinal = ordinals.getOrd(i);
+                    sLat.add(lat.get(nativeOrdinal));
+                    sLon.add(lon.get(nativeOrdinal));
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc());
+                    return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc(), ordinals.getNumOrds());
                 } else {
-                    return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set);
+                    return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
                 }
             } else {
                 return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(
-                        lon.toArray(new double[lon.size()]),
-                        lat.toArray(new double[lat.size()]),
+                        lon, lat,
                         reader.maxDoc(), build);
             }
         } finally {

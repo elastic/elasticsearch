@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +49,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
@@ -60,10 +61,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     public static final int LIMIT_PORTS_COUNT = 1;
 
     private final ThreadPool threadPool;
-
     private final TransportService transportService;
-
     private final ClusterName clusterName;
+    private final Version version;
 
     private final int concurrentConnects;
 
@@ -80,15 +80,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<UnicastHostsProvider>();
 
-    public UnicastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, null);
-    }
-
-    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
+        this.version = version;
 
         if (unicastHostsProviders != null) {
             for (UnicastHostsProvider unicastHostsProvider : unicastHostsProviders) {
@@ -112,7 +109,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 TransportAddress[] addresses = transportService.addressesFromString(host);
                 // we only limit to 1 addresses, makes no sense to ping 100 ports
                 for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i]));
+                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version));
                 }
             } catch (Exception e) {
                 throw new ElasticSearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
@@ -175,20 +172,28 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
-                sendPings(timeout, null, sendPingsHandler);
-                threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
-                    @Override
-                    public void run() {
-                        sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
-                        ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
-                        sendPingsHandler.close();
-                        for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
-                            logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
-                            transportService.disconnectFromNode(node);
+                try {
+                    sendPings(timeout, null, sendPingsHandler);
+                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
+                                ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
+                                sendPingsHandler.close();
+                                for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
+                                    logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
+                                    transportService.disconnectFromNode(node);
+                                }
+                                listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
+                            } catch (EsRejectedExecutionException ex) {
+                                logger.debug("Ping execution rejected", ex);
+                            }
                         }
-                        listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
-                    }
-                });
+                    });
+                } catch (EsRejectedExecutionException ex) {
+                    logger.debug("Ping execution rejected", ex);
+                }
             }
         });
     }
@@ -214,7 +219,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         public Executor executor() {
             if (executor == null) {
                 ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
-                executor = EsExecutors.newScalingExecutorService(0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory);
+                executor = EsExecutors.newScaling(0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory);
             }
             return executor;
         }

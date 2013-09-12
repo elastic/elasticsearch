@@ -21,14 +21,15 @@ package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.support.XContentMapConverter;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
@@ -50,7 +51,7 @@ public final class XContentBuilder implements BytesStream {
 
     public static enum FieldCaseConversion {
         /**
-         * No came conversion will occur.
+         * No conversion will occur.
          */
         NONE,
         /**
@@ -58,7 +59,7 @@ public final class XContentBuilder implements BytesStream {
          */
         UNDERSCORE,
         /**
-         * Underscore will be converted to Camel case conversion.
+         * Underscore will be converted to Camel case.
          */
         CAMELCASE
     }
@@ -71,41 +72,27 @@ public final class XContentBuilder implements BytesStream {
         XContentBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
     }
 
-    /**
-     * Constructs a new builder using a fresh {@link FastByteArrayOutputStream}.
-     */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(xContent, new FastByteArrayOutputStream());
+        return new XContentBuilder(xContent, new BytesStreamOutput());
     }
-
 
     private XContentGenerator generator;
 
     private final OutputStream bos;
 
-    private final Object payload;
-
     private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
     private StringBuilder cachedStringBuilder;
 
+    private boolean humanReadable = false;
 
     /**
      * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, null);
-    }
-
-    /**
-     * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
-     * to call {@link #close()} when the builder is done with.
-     */
-    public XContentBuilder(XContent xContent, OutputStream bos, @Nullable Object payload) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos);
-        this.payload = payload;
     }
 
     public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
@@ -120,6 +107,15 @@ public final class XContentBuilder implements BytesStream {
     public XContentBuilder prettyPrint() {
         generator.usePrettyPrint();
         return this;
+    }
+
+    public XContentBuilder humanReadable(boolean humanReadable) {
+        this.humanReadable = humanReadable;
+        return this;
+    }
+
+    public boolean humanReadable() {
+        return this.humanReadable;
     }
 
     public XContentBuilder field(String name, ToXContent xContent) throws IOException {
@@ -648,6 +644,16 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder field(XContentBuilderString name, int offset, int length, int... value) throws IOException {
+        assert ((offset >= 0) && (value.length > length));
+        startArray(name);
+        for (int i = offset; i < length; i++) {
+            value(value[i]);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(XContentBuilderString name, int... value) throws IOException {
         startArray(name);
         for (Object o : value) {
@@ -712,161 +718,20 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder field(String name, Object value) throws IOException {
-        if (value == null) {
-            nullField(name);
-            return this;
-        }
-        Class type = value.getClass();
-        if (type == String.class) {
-            field(name, (String) value);
-        } else if (type == Float.class) {
-            field(name, ((Float) value).floatValue());
-        } else if (type == Double.class) {
-            field(name, ((Double) value).doubleValue());
-        } else if (type == Integer.class) {
-            field(name, ((Integer) value).intValue());
-        } else if (type == Long.class) {
-            field(name, ((Long) value).longValue());
-        } else if (type == Short.class) {
-            field(name, ((Short) value).shortValue());
-        } else if (type == Byte.class) {
-            field(name, ((Byte) value).byteValue());
-        } else if (type == Boolean.class) {
-            field(name, ((Boolean) value).booleanValue());
-        } else if (value instanceof Date) {
-            field(name, (Date) value);
-        } else if (value instanceof Calendar) {
-            field(name, convertCalendar((Calendar) value));
-        } else if (type == byte[].class) {
-            field(name, (byte[]) value);
-        } else if (value instanceof ReadableInstant) {
-            field(name, (ReadableInstant) value);
-        } else if (value instanceof Map) {
-            //noinspection unchecked
-            field(name, (Map<String, Object>) value);
-        } else if (value instanceof Iterable) {
-            field(name, (Iterable) value);
-        } else if (value instanceof Object[]) {
-            field(name, (Object[]) value);
-        } else if (value instanceof int[]) {
-            field(name, (int[]) value);
-        } else if (value instanceof long[]) {
-            field(name, (long[]) value);
-        } else if (value instanceof float[]) {
-            field(name, (float[]) value);
-        } else if (value instanceof double[]) {
-            field(name, (double[]) value);
-        } else if (value instanceof BytesReference) {
-            field(name, (BytesReference) value);
-        } else if (value instanceof Text) {
-            field(name, (Text) value);
-        } else if (value instanceof ToXContent) {
-            field(name, (ToXContent) value);
-        } else {
-            field(name, value.toString());
-        }
+        field(name);
+        writeValue(value);
         return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, Object value) throws IOException {
-        if (value == null) {
-            nullField(name);
-            return this;
-        }
-        Class type = value.getClass();
-        if (type == String.class) {
-            field(name, (String) value);
-        } else if (type == Float.class) {
-            field(name, ((Float) value).floatValue());
-        } else if (type == Double.class) {
-            field(name, ((Double) value).doubleValue());
-        } else if (type == Integer.class) {
-            field(name, ((Integer) value).intValue());
-        } else if (type == Long.class) {
-            field(name, ((Long) value).longValue());
-        } else if (type == Short.class) {
-            field(name, ((Short) value).shortValue());
-        } else if (type == Byte.class) {
-            field(name, ((Byte) value).byteValue());
-        } else if (type == Boolean.class) {
-            field(name, ((Boolean) value).booleanValue());
-        } else if (value instanceof Date) {
-            field(name, (Date) value);
-        } else if (type == byte[].class) {
-            field(name, (byte[]) value);
-        } else if (value instanceof ReadableInstant) {
-            field(name, (ReadableInstant) value);
-        } else if (value instanceof Map) {
-            //noinspection unchecked
-            field(name, (Map<String, Object>) value);
-        } else if (value instanceof Iterable) {
-            field(name, (Iterable) value);
-        } else if (value instanceof Object[]) {
-            field(name, (Object[]) value);
-        } else if (value instanceof int[]) {
-            field(name, (int[]) value);
-        } else if (value instanceof long[]) {
-            field(name, (long[]) value);
-        } else if (value instanceof float[]) {
-            field(name, (float[]) value);
-        } else if (value instanceof double[]) {
-            field(name, (double[]) value);
-        } else if (value instanceof BytesReference) {
-            field(name, (BytesReference) value);
-        } else if (value instanceof Text) {
-            field(name, (Text) value);
-        } else {
-            field(name, value.toString());
-        }
+        field(name);
+        writeValue(value);
         return this;
     }
 
     public XContentBuilder value(Object value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        Class type = value.getClass();
-        if (type == String.class) {
-            value((String) value);
-        } else if (type == Float.class) {
-            value(((Float) value).floatValue());
-        } else if (type == Double.class) {
-            value(((Double) value).doubleValue());
-        } else if (type == Integer.class) {
-            value(((Integer) value).intValue());
-        } else if (type == Long.class) {
-            value(((Long) value).longValue());
-        } else if (type == Short.class) {
-            value(((Short) value).shortValue());
-        } else if (type == Byte.class) {
-            value(((Byte) value).byteValue());
-        } else if (type == Boolean.class) {
-            value((Boolean) value);
-        } else if (type == byte[].class) {
-            value((byte[]) value);
-        } else if (value instanceof Date) {
-            value((Date) value);
-        } else if (value instanceof Calendar) {
-            value(convertCalendar((Calendar) value));
-        } else if (value instanceof ReadableInstant) {
-            value((ReadableInstant) value);
-        } else if (value instanceof BytesReference) {
-            value((BytesReference) value);
-        } else if (value instanceof Text) {
-            value((Text) value);
-        } else if (value instanceof Map) {
-            //noinspection unchecked
-            value((Map<String, Object>) value);
-        } else if (value instanceof Iterable) {
-            value((Iterable) value);
-        } else {
-            throw new IOException("Type not allowed [" + type + "]");
-        }
+        writeValue(value);
         return this;
-    }
-
-    private Date convertCalendar(Calendar value) {
-        return value.getTime();
     }
 
     public XContentBuilder field(String name, boolean value) throws IOException {
@@ -969,6 +834,38 @@ public final class XContentBuilder implements BytesStream {
 
     public XContentBuilder rawField(String fieldName, BytesReference content) throws IOException {
         generator.writeRawField(fieldName, content, bos);
+        return this;
+    }
+
+    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, TimeValue timeValue) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, timeValue.toString());
+        }
+        field(rawFieldName, timeValue.millis());
+        return this;
+    }
+
+    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTime) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, new TimeValue(rawTime).toString());
+        }
+        field(rawFieldName, rawTime);
+        return this;
+    }
+
+    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, byteSizeValue.toString());
+        }
+        field(rawFieldName, byteSizeValue.bytes());
+        return this;
+    }
+
+    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawSize) throws IOException {
+        if (humanReadable) {
+            field(readableFieldName, new ByteSizeValue(rawSize).toString());
+        }
+        field(rawFieldName, rawSize);
         return this;
     }
 
@@ -1110,7 +1007,7 @@ public final class XContentBuilder implements BytesStream {
         if (map == null) {
             return nullValue();
         }
-        XContentMapConverter.writeMap(generator, map);
+        writeMap(map);
         return this;
     }
 
@@ -1118,7 +1015,7 @@ public final class XContentBuilder implements BytesStream {
         if (map == null) {
             return nullValue();
         }
-        XContentMapConverter.writeMap(generator, map);
+        writeMap(map);
         return this;
     }
 
@@ -1152,9 +1049,8 @@ public final class XContentBuilder implements BytesStream {
         }
     }
 
-    @Nullable
-    public Object payload() {
-        return this.payload;
+    public XContentGenerator generator() {
+        return this.generator;
     }
 
     public OutputStream stream() {
@@ -1184,5 +1080,122 @@ public final class XContentBuilder implements BytesStream {
         close();
         BytesArray bytesArray = bytes().toBytesArray();
         return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), Charsets.UTF_8);
+    }
+
+
+    private void writeMap(Map<String, Object> map) throws IOException {
+        generator.writeStartObject();
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            field(entry.getKey());
+            Object value = entry.getValue();
+            if (value == null) {
+                generator.writeNull();
+            } else {
+                writeValue(value);
+            }
+        }
+        generator.writeEndObject();
+    }
+
+    private void writeValue(Object value) throws IOException {
+        if (value == null) {
+            generator.writeNull();
+            return;
+        }
+        Class type = value.getClass();
+        if (type == String.class) {
+            generator.writeString((String) value);
+        } else if (type == Integer.class) {
+            generator.writeNumber(((Integer) value).intValue());
+        } else if (type == Long.class) {
+            generator.writeNumber(((Long) value).longValue());
+        } else if (type == Float.class) {
+            generator.writeNumber(((Float) value).floatValue());
+        } else if (type == Double.class) {
+            generator.writeNumber(((Double) value).doubleValue());
+        } else if (type == Short.class) {
+            generator.writeNumber(((Short) value).shortValue());
+        } else if (type == Boolean.class) {
+            generator.writeBoolean(((Boolean) value).booleanValue());
+        } else if (type == GeoPoint.class) {
+            generator.writeStartObject();
+            generator.writeNumberField("lat", ((GeoPoint) value).lat());
+            generator.writeNumberField("lon", ((GeoPoint) value).lon());
+            generator.writeEndObject();
+        } else if (value instanceof Map) {
+            writeMap((Map) value);
+        } else if (value instanceof Iterable) {
+            generator.writeStartArray();
+            for (Object v : (Iterable) value) {
+                writeValue(v);
+            }
+            generator.writeEndArray();
+        } else if (value instanceof Object[]) {
+            generator.writeStartArray();
+            for (Object v : (Object[]) value) {
+                writeValue(v);
+            }
+            generator.writeEndArray();
+        } else if (type == byte[].class) {
+            generator.writeBinary((byte[]) value);
+        } else if (value instanceof Date) {
+            generator.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
+        } else if (value instanceof Calendar) {
+            generator.writeString(XContentBuilder.defaultDatePrinter.print((((Calendar) value)).getTimeInMillis()));
+        } else if (value instanceof BytesReference) {
+            BytesReference bytes = (BytesReference) value;
+            if (!bytes.hasArray()) {
+                bytes = bytes.toBytesArray();
+            }
+            generator.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
+        } else if (value instanceof Text) {
+            Text text = (Text) value;
+            if (text.hasBytes() && text.bytes().hasArray()) {
+                generator.writeUTF8String(text.bytes().array(), text.bytes().arrayOffset(), text.bytes().length());
+            } else if (text.hasString()) {
+                generator.writeString(text.string());
+            } else {
+                BytesArray bytesArray = text.bytes().toBytesArray();
+                generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+            }
+        } else if (value instanceof ToXContent) {
+            ((ToXContent) value).toXContent(this, ToXContent.EMPTY_PARAMS);
+        } else if (value instanceof double[]) {
+            generator.writeStartArray();
+            for (double v : (double[]) value) {
+                generator.writeNumber(v);
+            }
+            generator.writeEndArray();
+        } else if (value instanceof long[]) {
+            generator.writeStartArray();
+            for (long v : (long[]) value) {
+                generator.writeNumber(v);
+            }
+            generator.writeEndArray();
+        } else if (value instanceof int[]) {
+            generator.writeStartArray();
+            for (int v : (int[]) value) {
+                generator.writeNumber(v);
+            }
+            generator.writeEndArray();
+        } else if (value instanceof float[]) {
+            generator.writeStartArray();
+            for (float v : (float[]) value) {
+                generator.writeNumber(v);
+            }
+            generator.writeEndArray();
+        } else if (value instanceof short[]) {
+            generator.writeStartArray();
+            for (float v : (short[]) value) {
+                generator.writeNumber(v);
+            }
+            generator.writeEndArray();
+        } else {
+            // if this is a "value" object, like enum, DistanceUnit, ..., just toString it
+            // yea, it can be misleading when toString a Java class, but really, jackson should be used in that case
+            generator.writeString(value.toString());
+            //throw new ElasticSearchIllegalArgumentException("type not supported for generic value conversion: " + type);
+        }
     }
 }

@@ -89,6 +89,8 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     
     private Float cutoff_Frequency = null;
 
+    private String queryName;
+
     /**
      * Constructs a new text query.
      */
@@ -204,6 +206,14 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public MatchQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MatchQueryParser.NAME);
@@ -255,6 +265,9 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         }
         if (cutoff_Frequency != null) {
             builder.field("cutoff_frequency", cutoff_Frequency);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         
 

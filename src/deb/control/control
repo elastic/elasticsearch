@@ -1,8 +1,8 @@
 Package: elasticsearch
 Version: [[version]]
 Architecture: all
-Maintainer: Nicolas Huray <nicolas.huray@gmail.com>
-Depends: libc6, adduser, java7-runtime-headless | java6-runtime-headless | java7-runtime | java6-runtime
+Maintainer: Elasticsearch Team <info@elasticsearch.com>
+Depends: libc6, adduser
 Section: web
 Priority: optional
 Homepage: http://www.elasticsearch.org/

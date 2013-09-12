@@ -22,7 +22,9 @@ package org.elasticsearch.index.cache.id.simple;
 import gnu.trove.impl.Constants;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -119,10 +121,11 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // We don't want to load uid of child documents, this allows us to not load uids of child types.
                 NavigableSet<HashedBytesArray> parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
+                BytesRef spare = new BytesRef();
                 for (String type : indexService.mapperService().types()) {
                     ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
                     if (parentFieldMapper != null) {
-                        parentTypes.add(new HashedBytesArray(parentFieldMapper.type()));
+                        parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
                     }
                 }
 
@@ -177,7 +180,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                             }
 
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            docsEnum = termsEnum.docs(null, docsEnum, 0);
                             for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                                 typeBuilder.idToDoc.put(idAsBytes, docId);
                                 typeBuilder.docToId[docId] = idAsBytes;
@@ -213,7 +216,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
                             boolean added = false; // optimize for when all the docs are deleted for this id
 
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            docsEnum = termsEnum.docs(null, docsEnum, 0);
                             for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                                 if (!added) {
                                     typeBuilder.parentIdsValues.add(idAsBytes);
@@ -263,7 +266,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
         if (readerCache.shardId != null) {
             IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
-                shard.idCache().onCached(readerCache.sizeInBytes());
+                shard.idCache().onRemoval(readerCache.sizeInBytes());
             }
         }
     }

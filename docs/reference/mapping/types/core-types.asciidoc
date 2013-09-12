@@ -1,0 +1,494 @@
+[[mapping-core-types]]
+=== Core Types
+
+Each JSON field can be mapped to a specific core type. JSON itself
+already provides us with some typing, with its support for `string`,
+`integer`/@long@, `float`/@double@, `boolean`, and `null`.
+
+The following sample tweet JSON document will be used to explain the
+core types:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" {
+        "user" : "kimchy"
+        "message" : "This is a tweet!",
+        "postDate" : "2009-11-15T14:12:12",
+        "priority" : 4,
+        "rank" : 12.3
+    }
+}
+--------------------------------------------------
+
+Explicit mapping for the above JSON tweet can be:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "user" : {"type" : "string", "index" : "not_analyzed"},
+            "message" : {"type" : "string", "null_value" : "na"},
+            "postDate" : {"type" : "date"},
+            "priority" : {"type" : "integer"},
+            "rank" : {"type" : "float"}
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== String
+
+The text based string type is the most basic type, and contains one or
+more characters. An example mapping can be:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "message" : {
+                "type" : "string",
+                "store" : "yes",
+                "index" : "analyzed",
+                "null_value" : "na"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above mapping defines a `string` `message` property/field within the
+`tweet` type. The field is stored in the index (so it can later be
+retrieved using selective loading when searching), and it gets analyzed
+(broken down into searchable terms). If the message has a `null` value,
+then the value that will be stored is `na`.
+
+The following table lists all the attributes that can be used with the
+`string` type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Attribute |Description
+|`index_name` |The name of the field that will be stored in the index.
+Defaults to the property/field name.
+
+|`store` |Set to `yes` to store actual field in the index, `no` to not
+store it. Defaults to `no` (note, the JSON document itself is stored,
+and it can be retrieved from it).
+
+|`index` |Set to `analyzed` for the field to be indexed and searchable
+after being broken down into token using an analyzer. `not_analyzed`
+means that its still searchable, but does not go through any analysis
+process or broken down into tokens. `no` means that it won't be
+searchable at all (as an individual field; it may still be included in
+`_all`). Setting to `no` disables `include_in_all`. Defaults to
+`analyzed`.
+
+|`term_vector` |Possible values are `no`, `yes`, `with_offsets`,
+`with_positions`, `with_positions_offsets`. Defaults to `no`.
+
+|`boost` |The boost value. Defaults to `1.0`.
+
+|`null_value` |When there is a (JSON) null value for the field, use the
+`null_value` as the field value. Defaults to not adding the field at
+all.
+
+|`omit_norms` |Boolean value if norms should be omitted or not. Defaults
+to `false` for `analyzed` fields, and to `true` for `not_analyzed`
+fields.
+
+|`index_options` | Allows to set the indexing
+options, possible values are `docs` (only doc numbers are indexed),
+`freqs` (doc numbers and term frequencies), and `positions` (doc
+numbers, term frequencies and positions). Defaults to `positions` for
+`analyzed` fields, and to `docs` for `not_analyzed` fields. It 
+is also possible to set it to `offsets` (doc numbers, term
+frequencies, positions and offsets).
+
+|`analyzer` |The analyzer used to analyze the text contents when
+`analyzed` during indexing and when searching using a query string.
+Defaults to the globally configured analyzer.
+
+|`index_analyzer` |The analyzer used to analyze the text contents when
+`analyzed` during indexing.
+
+|`search_analyzer` |The analyzer used to analyze the field when part of
+a query string. Can be updated on an existing field.
+
+|`include_in_all` |Should the field be included in the `_all` field (if
+enabled). If `index` is set to `no` this defaults to `false`, otherwise,
+defaults to `true` or to the parent `object` type setting.
+
+|`ignore_above` |The analyzer will ignore strings larger than this size.
+Useful for generic `not_analyzed` fields that should ignore long text.
+
+|`position_offset_gap` |Position increment gap between field instances
+with the same field name. Defaults to 0.
+|=======================================================================
+
+The `string` type also support custom indexing parameters associated
+with the indexed value. For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "message" : {
+        "_value":  "boosted value",
+        "_boost":  2.0
+    }
+}
+--------------------------------------------------
+
+The mapping is required to disambiguate the meaning of the document.
+Otherwise, the structure would interpret "message" as a value of type
+"object". The key `_value` (or `value`) in the inner document specifies
+the real string content that should eventually be indexed. The `_boost`
+(or `boost`) key specifies the per field document boost (here 2.0).
+
+[float]
+==== Number
+
+A number based type supporting `float`, `double`, `byte`, `short`,
+`integer`, and `long`. It uses specific constructs within Lucene in
+order to support numeric values. The number types have the same ranges
+as corresponding
+http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html[Java
+types]. An example mapping can be:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "rank" : {
+                "type" : "float",
+                "null_value" : 1.0
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The following table lists all the attributes that can be used with a
+numbered type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Attribute |Description
+|`type` |The type of the number. Can be `float`, `double`, `integer`,
+`long`, `short`, `byte`. Required.
+
+|`index_name` |The name of the field that will be stored in the index.
+Defaults to the property/field name.
+
+|`store` |Set to `yes` to store actual field in the index, `no` to not
+store it. Defaults to `no` (note, the JSON document itself is stored,
+and it can be retrieved from it).
+
+|`index` |Set to `no` if the value should not be indexed. Setting to
+`no` disables `include_in_all`. If set to `no` the field can be stored
+in `_source`, have `include_in_all` enabled, or `store` should be set to
+`yes` for this to be useful.
+
+|`precision_step` |The precision step (number of terms generated for
+each number value). Defaults to `4`.
+
+|`boost` |The boost value. Defaults to `1.0`.
+
+|`null_value` |When there is a (JSON) null value for the field, use the
+`null_value` as the field value. Defaults to not adding the field at
+all.
+
+|`include_in_all` |Should the field be included in the `_all` field (if
+enabled). If `index` is set to `no` this defaults to `false`, otherwise,
+defaults to `true` or to the parent `object` type setting.
+
+|`ignore_malformed` |Ignored a malformed number. Defaults to `false`.
+
+|=======================================================================
+
+[float]
+==== Date
+
+The date type is a special type which maps to JSON string type. It
+follows a specific format that can be explicitly set. All dates are
+`UTC`. Internally, a date maps to a number type `long`, with the added
+parsing stage from string to long and from long to string. An example
+mapping:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "postDate" : {
+                "type" : "date",
+                "format" : "YYYY-MM-dd"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The date type will also accept a long number representing UTC
+milliseconds since the epoch, regardless of the format it can handle.
+
+The following table lists all the attributes that can be used with a
+date type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Attribute |Description
+|`index_name` |The name of the field that will be stored in the index.
+Defaults to the property/field name.
+
+|`format` |The <<mapping-date-format,date
+format>>. Defaults to `dateOptionalTime`.
+
+|`store` |Set to `yes` to store actual field in the index, `no` to not
+store it. Defaults to `no` (note, the JSON document itself is stored,
+and it can be retrieved from it).
+
+|`index` |Set to `no` if the value should not be indexed. Setting to
+`no` disables `include_in_all`. If set to `no` the field can be stored
+in `_source`, have `include_in_all` enabled, or `store` should be set to
+`yes` for this to be useful.
+
+|`precision_step` |The precision step (number of terms generated for
+each number value). Defaults to `4`.
+
+|`boost` |The boost value. Defaults to `1.0`.
+
+|`null_value` |When there is a (JSON) null value for the field, use the
+`null_value` as the field value. Defaults to not adding the field at
+all.
+
+|`include_in_all` |Should the field be included in the `_all` field (if
+enabled). If `index` is set to `no` this defaults to `false`, otherwise,
+defaults to `true` or to the parent `object` type setting.
+
+|`ignore_malformed` |Ignored a malformed number. Defaults to `false`.
+
+|=======================================================================
+
+[float]
+==== Boolean
+
+The boolean type Maps to the JSON boolean type. It ends up storing
+within the index either `T` or `F`, with automatic translation to `true`
+and `false` respectively.
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "hes_my_special_tweet" : {
+                "type" : "boolean",
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The boolean type also supports passing the value as a number (in this
+case `0` is `false`, all other values are `true`).
+
+The following table lists all the attributes that can be used with the
+boolean type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Attribute |Description
+|`index_name` |The name of the field that will be stored in the index.
+Defaults to the property/field name.
+
+|`store` |Set to `yes` to store actual field in the index, `no` to not
+store it. Defaults to `no` (note, the JSON document itself is stored,
+and it can be retrieved from it).
+
+|`index` |Set to `no` if the value should not be indexed. Setting to
+`no` disables `include_in_all`. If set to `no` the field can be stored
+in `_source`, have `include_in_all` enabled, or `store` should be set to
+`yes` for this to be useful.
+
+|`boost` |The boost value. Defaults to `1.0`.
+
+|`null_value` |When there is a (JSON) null value for the field, use the
+`null_value` as the field value. Defaults to not adding the field at
+all.
+
+|`include_in_all` |Should the field be included in the `_all` field (if
+enabled). If `index` is set to `no` this defaults to `false`, otherwise,
+defaults to `true` or to the parent `object` type setting.
+|=======================================================================
+
+[float]
+==== Binary
+
+The binary type is a base64 representation of binary data that can be
+stored in the index. The field is stored by default and not indexed at
+all.
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "image" : {
+                "type" : "binary",
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The following table lists all the attributes that can be used with the
+binary type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Attribute |Description
+|`index_name` |The name of the field that will be stored in the index.
+Defaults to the property/field name.
+|=======================================================================
+
+[float]
+==== Fielddata filters
+
+It is possible to control which field values are loaded into memory,
+which is particularly useful for faceting on string fields, using
+fielddata filters, which are explained in detail in the
+<<index-modules-fielddata,Fielddata>> section.
+
+Fielddata filters can exclude terms which do not match a regex, or which
+don't fall between a `min` and `max` frequency range:
+
+[source,js]
+--------------------------------------------------
+{
+    tweet: {
+        type:      "string",
+        analyzer:  "whitespace"
+        fielddata: {
+            filter: {
+                regex:                "^#.*",
+                frequency: {
+                    min:              0.001,
+                    max:              0.1,
+                    min_segment_size: 500
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+These filters can be updated on an existing field mapping and will take
+effect the next time the fielddata for a segment is loaded. Use the
+<<indices-clearcache,Clear Cache>> API
+to reload the fielddata using the new filters.
+
+[float]
+==== Postings format
+
+Posting formats define how fields are written into the index and how
+fields are represented into memory. Posting formats can be defined per
+field via the `postings_format` option. Postings format are configurable.
+Elasticsearch has several builtin formats: 
+
+`direct`:: 
+        A postings format that uses disk-based storage but loads
+        its terms and postings directly into memory. Note this postings format
+        is very memory intensive and has certain limitation that don't allow
+        segments to grow beyond 2.1GB see \{@link DirectPostingsFormat} for
+        details. 
+
+`memory`:: 
+        A postings format that stores its entire terms, postings,
+        positions and payloads in a finite state transducer. This format should
+        only be used for primary keys or with fields where each term is
+        contained in a very low number of documents. 
+
+`pulsing`:: 
+        A postings format in-lines the posting lists for very low
+        frequent terms in the term dictionary. This is useful to improve lookup
+        performance for low-frequent terms. 
+
+`bloom_default`:: 
+        A postings format that uses a bloom filter to
+        improve term lookup performance. This is useful for primarily keys or
+        fields that are used as a delete key. 
+
+`bloom_pulsing`:: 
+        A postings format that combines the advantages of
+        *bloom* and *pulsing* to further improve lookup performance. 
+
+`default`:: 
+        The default Elasticsearch postings format offering best
+        general purpose performance. This format is used if no postings format
+        is specified in the field mapping.
+
+[float]
+===== Postings format example
+
+On all field types it possible to configure a `postings_format`
+attribute:
+
+[source,js]
+--------------------------------------------------
+{
+  "person" : {
+     "properties" : {
+         "second_person_id" : {"type" : "string", "postings_format" : "pulsing"}
+     }
+  }
+}
+--------------------------------------------------
+
+On top of using the built-in posting formats it is possible define
+custom postings format. See
+<<index-modules-codec,codec module>> for more
+information.
+
+[float]
+==== Similarity
+
+Elasticsearch allows you to configure a similarity (scoring algorithm) per field.
+Allowing users a simpler extension beyond the usual TF/IDF algorithm. As
+part of this, new algorithms have been added including BM25. Also as
+part of the changes, it is now possible to define a Similarity per
+field, giving even greater control over scoring.
+
+You can configure similarities via the
+<<index-modules-similarity,similarity module>>
+
+[float]
+===== Configuring Similarity per Field
+
+Defining the Similarity for a field is done via the `similarity` mapping
+property, as this example shows:
+
+[source,js]
+--------------------------------------------------
+{
+  "book" : {
+    "properties" : {
+      "title" : { "type" : "string", "similarity" : "BM25" }
+    }
+}
+--------------------------------------------------
+
+The following Similarities are configured out-of-box: 
+
+`default`:: 
+        The Default TF/IDF algorithm used by Elasticsearch and
+        Lucene in previous versions. 
+
+`BM25`:: 
+        The BM25 algorithm.
+        http://en.wikipedia.org/wiki/Okapi_BM25[See Okapi_BM25] for more
+        details.

@@ -25,12 +25,12 @@ import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.vectorhighlight.SimpleBoundaryScanner2;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.highlight.vectorhighlight.SimpleFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -42,6 +42,8 @@ import java.util.Map;
  */
 public class FastVectorHighlighter implements Highlighter {
 
+    private static final SimpleBoundaryScanner DEFAULT_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
+
     private static final String CACHE_KEY = "highlight-fsv";
     private final Boolean termVectorMultiValue;
 
@@ -52,7 +54,7 @@ public class FastVectorHighlighter implements Highlighter {
 
     @Override
     public String[] names() {
-        return new String[] { "fvh", "fast-vector-highlighter" };
+        return new String[]{"fvh", "fast-vector-highlighter"};
     }
 
     @Override
@@ -80,16 +82,16 @@ public class FastVectorHighlighter implements Highlighter {
                 FragListBuilder fragListBuilder;
                 BaseFragmentsBuilder fragmentsBuilder;
 
-                BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
-                if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {
-                    boundaryScanner = new SimpleBoundaryScanner2(field.boundaryMaxScan(), field.boundaryChars());
+                BoundaryScanner boundaryScanner = DEFAULT_BOUNDARY_SCANNER;
+                if (field.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
+                    boundaryScanner = new SimpleBoundaryScanner(field.boundaryMaxScan(), field.boundaryChars());
                 }
 
                 if (field.numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
                     if (mapper.fieldType().stored()) {
-                        fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                        fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                     } else {
                         fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                     }
@@ -103,7 +105,7 @@ public class FastVectorHighlighter implements Highlighter {
                         }
                     } else {
                         if (mapper.fieldType().stored()) {
-                            fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                            fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                         }

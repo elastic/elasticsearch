@@ -20,7 +20,8 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.RamUsage;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
@@ -28,16 +29,16 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
  */
 public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData {
 
-    public static final DoubleArrayAtomicFieldData EMPTY = new Empty();
+    public static DoubleArrayAtomicFieldData empty(int numDocs) {
+        return new Empty(numDocs);
+    }
 
-    protected final double[] values;
     private final int numDocs;
 
     protected long size = -1;
 
-    public DoubleArrayAtomicFieldData(double[] values, int numDocs) {
+    public DoubleArrayAtomicFieldData(int numDocs) {
         super(true);
-        this.values = values;
         this.numDocs = numDocs;
     }
 
@@ -52,8 +53,8 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
     static class Empty extends DoubleArrayAtomicFieldData {
 
-        Empty() {
-            super(null, 0);
+        Empty(int numDocs) {
+            super(numDocs);
         }
 
         @Override
@@ -77,6 +78,11 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return 0;
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             return 0;
         }
@@ -94,10 +100,12 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
     public static class WithOrdinals extends DoubleArrayAtomicFieldData {
 
+        private final BigDoubleArrayList values;
         private final Ordinals ordinals;
 
-        public WithOrdinals(double[] values, int numDocs, Ordinals ordinals) {
-            super(values, numDocs);
+        public WithOrdinals(BigDoubleArrayList values, int numDocs, Ordinals ordinals) {
+            super(numDocs);
+            this.values = values;
             this.ordinals = ordinals;
         }
 
@@ -112,9 +120,14 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return ordinals.getNumOrds();
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + +RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE) + ordinals.getMemorySizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + values.sizeInBytes() + ordinals.getMemorySizeInBytes();
             }
             return size;
         }
@@ -133,31 +146,31 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues.WithOrdinals {
 
-            private final double[] values;
+            private final BigDoubleArrayList values;
 
-            LongValues(double[] values, Ordinals.Docs ordinals) {
+            LongValues(BigDoubleArrayList values, Ordinals.Docs ordinals) {
                 super(ordinals);
                 this.values = values;
             }
 
             @Override
-            public final long getValueByOrd(int ord) {
-                return (long) values[ord];
+            public final long getValueByOrd(long ord) {
+                return (long) values.get(ord);
             }
         }
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.WithOrdinals {
 
-            private final double[] values;
+            private final BigDoubleArrayList values;
 
-            DoubleValues(double[] values, Ordinals.Docs ordinals) {
+            DoubleValues(BigDoubleArrayList values, Ordinals.Docs ordinals) {
                 super(ordinals);
                 this.values = values;
             }
 
             @Override
-            public double getValueByOrd(int ord) {
-                return values[ord];
+            public double getValueByOrd(long ord) {
+                return values.get(ord);
             }
         }
     }
@@ -168,11 +181,15 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
      */
     public static class SingleFixedSet extends DoubleArrayAtomicFieldData {
 
+        private final BigDoubleArrayList values;
         private final FixedBitSet set;
+        private final long numOrds;
 
-        public SingleFixedSet(double[] values, int numDocs, FixedBitSet set) {
-            super(values, numDocs);
+        public SingleFixedSet(BigDoubleArrayList values, int numDocs, FixedBitSet set, long numOrds) {
+            super(numDocs);
+            this.values = values;
             this.set = set;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -186,9 +203,14 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
+                size = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + values.sizeInBytes() + RamUsageEstimator.sizeOf(set.getBits());
             }
             return size;
         }
@@ -205,10 +227,10 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
 
-            private final double[] values;
+            private final BigDoubleArrayList values;
             private final FixedBitSet set;
 
-            LongValues(double[] values, FixedBitSet set) {
+            LongValues(BigDoubleArrayList values, FixedBitSet set) {
                 super(false);
                 this.values = values;
                 this.set = set;
@@ -221,16 +243,16 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             @Override
             public long getValue(int docId) {
-                return (long) values[docId];
+                return (long) values.get(docId);
             }
         }
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final double[] values;
+            private final BigDoubleArrayList values;
             private final FixedBitSet set;
 
-            DoubleValues(double[] values, FixedBitSet set) {
+            DoubleValues(BigDoubleArrayList values, FixedBitSet set) {
                 super(false);
                 this.values = values;
                 this.set = set;
@@ -243,7 +265,7 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             @Override
             public double getValue(int docId) {
-                return values[docId];
+                return values.get(docId);
             }
 
         }
@@ -254,12 +276,17 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
      */
     public static class Single extends DoubleArrayAtomicFieldData {
 
+        private final BigDoubleArrayList values;
+        private final long numOrds;
+
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(double[] values, int numDocs) {
-            super(values, numDocs);
+        public Single(BigDoubleArrayList values, int numDocs, long numOrds) {
+            super(numDocs);
+            this.values = values;
+            this.numOrds = numOrds;
         }
 
         @Override
@@ -273,9 +300,14 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
         @Override
+        public long getNumberUniqueValues() {
+            return numOrds;
+        }
+
+        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE);
+                size = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + values.sizeInBytes();
             }
             return size;
         }
@@ -292,32 +324,32 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
 
-            private final double[] values;
+            private final BigDoubleArrayList values;
 
-            LongValues(double[] values) {
+            LongValues(BigDoubleArrayList values) {
                 super(false);
                 this.values = values;
             }
 
             @Override
             public long getValue(int docId) {
-                return (long) values[docId];
+                return (long) values.get(docId);
             }
 
         }
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
 
-            private final double[] values;
+            private final BigDoubleArrayList values;
 
-            DoubleValues(double[] values) {
+            DoubleValues(BigDoubleArrayList values) {
                 super(false);
                 this.values = values;
             }
 
             @Override
             public double getValue(int docId) {
-                return values[docId];
+                return values.get(docId);
             }
 
         }

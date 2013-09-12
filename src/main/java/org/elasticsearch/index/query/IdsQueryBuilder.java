@@ -37,6 +37,8 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryB
 
     private float boost = -1;
 
+    private String queryName;
+
     public IdsQueryBuilder(String... types) {
         this.types = types == null ? null : Arrays.asList(types);
     }
@@ -65,6 +67,14 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryB
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public IdsQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(IdsQueryParser.NAME);
@@ -86,6 +96,9 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryB
         builder.endArray();
         if (boost != -1) {
             builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
         builder.endObject();
     }

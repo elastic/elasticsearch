@@ -32,6 +32,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     private final String parentType;
     private String scoreType;
     private float boost = 1.0f;
+    private String queryName;
 
     /**
      * @param parentType  The parent type
@@ -55,6 +56,14 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         return this;
     }
 
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public HasParentQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentQueryParser.NAME);
         builder.field("query");
@@ -66,6 +75,10 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+
         builder.endObject();
     }
 }

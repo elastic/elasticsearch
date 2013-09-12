@@ -25,7 +25,9 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -46,6 +48,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -105,6 +108,10 @@ public class QueryParseContext {
         return indexQueryParser.analysisService;
     }
 
+    public CacheRecycler cacheRecycler() {
+        return indexQueryParser.cacheRecycler;
+    }
+
     public ScriptService scriptService() {
         return indexQueryParser.scriptService;
     }
@@ -148,6 +155,9 @@ public class QueryParseContext {
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
+        if (filter == null) {
+            return null;
+        }
         if (cacheKey != null) {
             filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
         }
@@ -156,6 +166,10 @@ public class QueryParseContext {
 
     public void addNamedFilter(String name, Filter filter) {
         namedFilters.put(name, filter);
+    }
+
+    public void addNamedQuery(String name, Query query) {
+        namedFilters.put(name, new QueryWrapperFilter(query));
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {
@@ -263,6 +277,10 @@ public class QueryParseContext {
             return name;
         }
         return smartMapper.names().indexName();
+    }
+
+    public Set<String> simpleMatchToIndexNames(String pattern) {
+        return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {

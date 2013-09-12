@@ -21,6 +21,9 @@ package org.elasticsearch.action.search.type;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,14 +33,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -56,7 +58,7 @@ public abstract class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    public static String buildScrollId(SearchType searchType, Collection<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
+    public static String buildScrollId(SearchType searchType, AtomicArray<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
         if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults, attributes);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
@@ -68,10 +70,11 @@ public abstract class TransportSearchHelper {
         }
     }
 
-    public static String buildScrollId(String type, Collection<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
+    public static String buildScrollId(String type, AtomicArray<? extends SearchPhaseResult> searchPhaseResults, @Nullable Map<String, String> attributes) throws IOException {
         StringBuilder sb = new StringBuilder().append(type).append(';');
-        sb.append(searchPhaseResults.size()).append(';');
-        for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
+        sb.append(searchPhaseResults.asList().size()).append(';');
+        for (AtomicArray.Entry<? extends SearchPhaseResult> entry : searchPhaseResults.asList()) {
+            SearchPhaseResult searchPhaseResult = entry.value;
             sb.append(searchPhaseResult.id()).append(':').append(searchPhaseResult.shardTarget().nodeId()).append(';');
         }
         if (attributes == null) {
@@ -82,16 +85,21 @@ public abstract class TransportSearchHelper {
                 sb.append(entry.getKey()).append(':').append(entry.getValue()).append(';');
             }
         }
-        return Base64.encodeBytes(Unicode.fromStringAsBytes(sb.toString()), Base64.URL_SAFE);
+        BytesRef bytesRef = new BytesRef();
+        UnicodeUtil.UTF16toUTF8(sb, 0, sb.length(), bytesRef);
+
+        return Base64.encodeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length, Base64.URL_SAFE);
     }
 
     public static ParsedScrollId parseScrollId(String scrollId) {
+        CharsRef spare = new CharsRef();
         try {
-            scrollId = Unicode.fromBytes(Base64.decode(scrollId, Base64.URL_SAFE));
+            byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
+            UnicodeUtil.UTF8toUTF16(decode, 0, decode.length, spare);
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to decode scrollId", e);
         }
-        String[] elements = Strings.splitStringToArray(scrollId, ';');
+        String[] elements = Strings.splitStringToArray(spare, ';');
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);

@@ -139,15 +139,16 @@ public class ContextIndexSearcher extends IndexSearcher {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
-                collector = new FilteredCollector(collector, searchContext.parsedFilter());
+                collector = new FilteredCollector(collector, searchContext.parsedFilter().filter());
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
                 collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));
             }
-        }
-        // apply the minimum score after multi collector so we filter facets as well
-        if (searchContext.minimumScore() != null) {
-            collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+
+            // apply the minimum score after multi collector so we filter facets as well
+            if (searchContext.minimumScore() != null) {
+                collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+            }
         }
 
         // we only compute the doc id set once since within a context, we execute the same query always...

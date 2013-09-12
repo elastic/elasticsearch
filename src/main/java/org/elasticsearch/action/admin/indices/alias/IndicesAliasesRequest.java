@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -141,6 +143,10 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
         return this.aliasActions;
     }
 
+    public List<AliasAction> getAliasActions() {
+        return aliasActions();
+    }
+
     /**
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
@@ -170,7 +176,15 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (aliasActions.isEmpty()) {
-            validationException = addValidationError("Must specify at least one alias action", validationException);
+            return addValidationError("Must specify at least one alias action", validationException);
+        }
+        for (AliasAction aliasAction : aliasActions) {
+            if (!Strings.hasText(aliasAction.alias())) {
+                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH) + "] requires an [alias] to be set", validationException);
+            }
+            if (!Strings.hasText(aliasAction.index())) {
+                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH) + "] requires an [index] to be set", validationException);
+            }
         }
         return validationException;
     }

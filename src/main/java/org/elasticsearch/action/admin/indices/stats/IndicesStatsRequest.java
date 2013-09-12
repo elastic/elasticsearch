@@ -194,6 +194,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.FieldData);
     }
 
+    public IndicesStatsRequest percolate(boolean percolate) {
+        flags.set(Flag.Percolate, percolate);
+        return this;
+    }
+
+    public boolean percolate() {
+        return flags.isSet(Flag.Percolate);
+    }
+
     public IndicesStatsRequest fieldDataFields(String... fieldDataFields) {
         flags.fieldDataFields(fieldDataFields);
         return this;
@@ -201,6 +210,24 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
 
     public String[] fieldDataFields() {
         return flags.fieldDataFields();
+    }
+
+    public IndicesStatsRequest completion(boolean completion) {
+        flags.set(Flag.Completion, completion);
+        return this;
+    }
+
+    public boolean completion() {
+        return flags.isSet(Flag.Completion);
+    }
+
+    public IndicesStatsRequest completionFields(String ... completionDataFields) {
+        flags.completionDataFields(completionDataFields);
+        return this;
+    }
+
+    public String[] completionFields() {
+        return flags.completionDataFields();
     }
 
     @Override

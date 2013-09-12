@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -160,5 +161,23 @@ public class ClusterChangedEvent {
 
     public boolean nodesChanged() {
         return nodesRemoved() || nodesAdded();
+    }
+
+    public boolean indicesStateChanged() {
+        if (metaDataChanged()) {
+            Map<String,IndexMetaData> indices = state.metaData().indices();
+            Map<String,IndexMetaData> previousIndices = previousState.metaData().indices();
+
+            for (Map.Entry<String, IndexMetaData> entry : indices.entrySet()) {
+                IndexMetaData indexMetaData = entry.getValue();
+                IndexMetaData previousIndexMetaData = previousIndices.get(entry.getKey());
+                if (previousIndexMetaData != null
+                        && indexMetaData.state() != previousIndexMetaData.state()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

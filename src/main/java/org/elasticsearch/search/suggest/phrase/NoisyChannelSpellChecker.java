@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
@@ -36,26 +32,34 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 //TODO public for tests
 public final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELYHOOD = 0.95d;
+    public static final int DEFAULT_TOKEN_LIMIT = 10;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
+    private final int tokenLimit;
 
     public NoisyChannelSpellChecker() {
         this(REAL_WORD_LIKELYHOOD);
     }
 
     public NoisyChannelSpellChecker(double nonErrorLikelihood) {
-        this(nonErrorLikelihood, true);
+        this(nonErrorLikelihood, true, DEFAULT_TOKEN_LIMIT);
     }
     
-    public NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram) {
+    public NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram, int tokenLimit) {
         this.realWordLikelihood = nonErrorLikelihood;
         this.requireUnigram = requireUnigram;
+        this.tokenLimit = tokenLimit;
+                
     }
 
-    public Correction[] getCorrections(TokenStream stream, final CandidateGenerator generator,
+    public Result getCorrections(TokenStream stream, final CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, WordScorer wordScorer, BytesRef separator, float confidence, int gramSize) throws IOException {
         
         final List<CandidateSet> candidateSetsList = new ArrayList<DirectCandidateGenerator.CandidateSet>();
@@ -89,7 +93,7 @@ public final class NoisyChannelSpellChecker {
                     if (currentSet != null) {
                         candidateSetsList.add(currentSet);
                     }
-                    currentSet = new CandidateSet(Candidate.EMPTY, generator.createCandidate(BytesRef.deepCopyOf(term)));
+                    currentSet = new CandidateSet(Candidate.EMPTY, generator.createCandidate(BytesRef.deepCopyOf(term), true));
                 }
             }
             
@@ -104,8 +108,8 @@ public final class NoisyChannelSpellChecker {
             }
         });
         
-        if (candidateSetsList.isEmpty()) {
-            return Correction.EMPTY;
+        if (candidateSetsList.isEmpty() || candidateSetsList.size() >= tokenLimit) {
+            return Result.EMPTY;
         }
         
         for (CandidateSet candidateSet : candidateSetsList) {
@@ -119,14 +123,15 @@ public final class NoisyChannelSpellChecker {
             for (int i = 0; i < candidates.length; i++) {
                 candidates[i] = candidateSets[i].originalTerm;
             }
-            cutoffScore = scorer.score(candidates, candidateSets);
+            double inputPhraseScore = scorer.score(candidates, candidateSets);
+            cutoffScore = inputPhraseScore * confidence;
         }
-        Correction[] findBestCandiates = scorer.findBestCandiates(candidateSets, maxErrors, cutoffScore * confidence);
+        Correction[] findBestCandiates = scorer.findBestCandiates(candidateSets, maxErrors, cutoffScore);
         
-        return findBestCandiates;
+        return new Result(findBestCandiates, cutoffScore);
     }
 
-    public Correction[] getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
+    public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
        
         return getCorrections(tokenStream(analyzer, query, new CharsRef(), analysisField), generator, maxErrors, numCorrections, reader, scorer, new BytesRef(" "), confidence, gramSize);
@@ -137,6 +142,15 @@ public final class NoisyChannelSpellChecker {
         UnicodeUtil.UTF8toUTF16(query, spare);
         return analyzer.tokenStream(field, new FastCharArrayReader(spare.chars, spare.offset, spare.length));
     }
-      
 
+    public static class Result {
+        public static final Result EMPTY = new Result(Correction.EMPTY, Double.MIN_VALUE);
+        public final Correction[] corrections;
+        public final double cutoffScore;
+
+        public Result(Correction[] corrections, double cutoffScore) {
+            this.corrections = corrections;
+            this.cutoffScore = cutoffScore;
+        }
+    }
 }

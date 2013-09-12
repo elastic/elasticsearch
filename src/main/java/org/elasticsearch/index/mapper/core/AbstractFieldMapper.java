@@ -447,7 +447,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
         BytesRef[] bytesRefs = new BytesRef[values.size()];
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
@@ -647,7 +647,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         if (customFieldDataSettings != null) {
-            builder.field("fielddata", (Map)customFieldDataSettings.getAsMap());
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         }
     }
 
@@ -666,10 +666,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
     }
 
-    protected static String termVectorOptionsToString(FieldType fieldType) {
+    public static String termVectorOptionsToString(FieldType fieldType) {
         if (!fieldType.storeTermVectors()) {
             return "no";
-        } else if(!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
             return "yes";
         } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
             return "with_offsets";

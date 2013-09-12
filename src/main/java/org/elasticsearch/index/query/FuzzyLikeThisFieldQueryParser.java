@@ -22,9 +22,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -67,6 +69,8 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         int prefixLength = 0;
         boolean ignoreTF = false;
         Analyzer analyzer = null;
+        boolean failOnUnsupportedField = true;
+        String queryName = null;
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
@@ -100,6 +104,10 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else if ("fail_on_unsupported_field".equals(currentFieldName) || "failOnUnsupportedField".equals(currentFieldName)) {
+                    failOnUnsupportedField = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[flt_field] query does not support [" + currentFieldName + "]");
                 }
@@ -122,11 +130,18 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         if (analyzer == null) {
             analyzer = parseContext.mapperService().searchAnalyzer();
         }
+        if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
+            if (failOnUnsupportedField) {
+                throw new ElasticSearchIllegalArgumentException("fuzzy_like_this_field doesn't support binary/numeric fields: [" + fieldName + "]");
+            } else {
+                return null;
+            }
+        }
 
-        FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, analyzer);
-        query.addTerms(likeText, fieldName, minSimilarity, prefixLength);
-        query.setBoost(boost);
-        query.setIgnoreTF(ignoreTF);
+        FuzzyLikeThisQuery fuzzyLikeThisQuery = new FuzzyLikeThisQuery(maxNumTerms, analyzer);
+        fuzzyLikeThisQuery.addTerms(likeText, fieldName, minSimilarity, prefixLength);
+        fuzzyLikeThisQuery.setBoost(boost);
+        fuzzyLikeThisQuery.setIgnoreTF(ignoreTF);
 
         // move to the next end object, to close the field name
         token = parser.nextToken();
@@ -135,6 +150,10 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         }
         assert token == XContentParser.Token.END_OBJECT;
 
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        Query query = wrapSmartNameQuery(fuzzyLikeThisQuery, smartNameFieldMappers, parseContext);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

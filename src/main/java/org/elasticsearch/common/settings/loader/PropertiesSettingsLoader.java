@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import com.google.common.io.Closeables;
-import org.elasticsearch.common.io.FastByteArrayInputStream;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,8 +31,6 @@ import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Settings loader that loads (parses) the settings in a properties format.
- *
- *
  */
 public class PropertiesSettingsLoader implements SettingsLoader {
 
@@ -48,14 +46,14 @@ public class PropertiesSettingsLoader implements SettingsLoader {
             }
             return result;
         } finally {
-            Closeables.closeQuietly(reader);
+            IOUtils.closeWhileHandlingException(reader);
         }
     }
 
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
         Properties props = new Properties();
-        FastByteArrayInputStream stream = new FastByteArrayInputStream(source);
+        BytesStreamInput stream = new BytesStreamInput(source, false);
         try {
             props.load(stream);
             Map<String, String> result = newHashMap();
@@ -64,7 +62,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
             }
             return result;
         } finally {
-            Closeables.closeQuietly(stream);
+            IOUtils.closeWhileHandlingException(stream);
         }
     }
 }

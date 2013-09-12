@@ -62,6 +62,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.listenerThreaded(false);
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
+        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
 
         try {
             putRequest.create(request.paramAsBoolean("create", false));

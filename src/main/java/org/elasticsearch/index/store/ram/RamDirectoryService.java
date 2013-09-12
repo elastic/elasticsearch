@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.ram;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.store.RAMFile;
 import org.elasticsearch.common.inject.Inject;
@@ -34,7 +35,7 @@ import java.io.IOException;
 
 /**
  */
-public class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public final class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
 
     @Inject
     public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
@@ -53,7 +54,9 @@ public class RamDirectoryService extends AbstractIndexShardComponent implements 
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        ((CustomRAMDirectory) dir).renameTo(from, to);
+        CustomRAMDirectory leaf = FilterDirectory.getLeaf(dir, CustomRAMDirectory.class);
+        assert leaf != null;
+        leaf.renameTo(from, to);
     }
 
     @Override

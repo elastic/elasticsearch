@@ -41,7 +41,6 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -113,83 +112,61 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     @Override
     public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            concreteIndices = clusterState.metaData().concreteAllOpenIndices();
-        }
-        if (routing != null) {
-            HashSet<ShardId> set = new HashSet<ShardId>();
-            for (String index : concreteIndices) {
-                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                Set<String> effectiveRouting = routing.get(index);
-                if (effectiveRouting != null) {
-                    for (String r : effectiveRouting) {
-                        int shardId = shardId(clusterState, index, null, null, r);
-                        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-                        if (indexShard == null) {
-                            throw new IndexShardMissingException(new ShardId(index, shardId));
-                        }
-                        // we might get duplicates, but that's ok, its an estimated count? (we just want to know if its 1 or not)
-                        set.add(indexShard.shardId());
-                    }
-                }
-            }
-            return set.size();
-        } else {
-            // we use list here since we know we are not going to create duplicates
-            int count = 0;
-            for (String index : concreteIndices) {
-                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                count += indexRouting.shards().size();
-            }
-            return count;
-        }
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, indices, concreteIndices, routing);
+        return shards.size();
     }
-    
-    private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
     @Override
     public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            concreteIndices = clusterState.metaData().concreteAllOpenIndices();
-        }
-        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map 
-        final Set<ShardIterator> set = new HashSet<ShardIterator>();
-            // we use set here and not list since we might get duplicates
-            for (String index : concreteIndices) {
-                final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                final Set<String> effectiveRouting = routing.get(index);
-                if (effectiveRouting != null) {
-                    for (String r : effectiveRouting) {
-                        int shardId = shardId(clusterState, index, null, null, r);
-                        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-                        if (indexShard == null) {
-                            throw new IndexShardMissingException(new ShardId(index, shardId));
-                        }
-                        // we might get duplicates, but that's ok, they will override one another
-                        ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
-                        if (iterator != null) {
-                            set.add(iterator);
-                        }
-                    }
-                } else {
-                    for (IndexShardRoutingTable indexShard : indexRouting) {
-                        ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
-                        if (iterator != null) {
-                            set.add(iterator);
-                        }
-                    }
-                }
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, indices, concreteIndices, routing);
+        final Set<ShardIterator> set = new HashSet<ShardIterator>(shards.size());
+        for (IndexShardRoutingTable shard : shards) {
+            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+            if (iterator != null) {
+                set.add(iterator);
             }
+        }
         return new GroupShardsIterator(set);
     }
 
+    private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
+
+    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) throws IndexMissingException {
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            concreteIndices = clusterState.metaData().concreteAllOpenIndices();
+        }
+        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
+        final Set<IndexShardRoutingTable> set = new HashSet<IndexShardRoutingTable>();
+        // we use set here and not list since we might get duplicates
+        for (String index : concreteIndices) {
+            final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+            final Set<String> effectiveRouting = routing.get(index);
+            if (effectiveRouting != null) {
+                for (String r : effectiveRouting) {
+                    int shardId = shardId(clusterState, index, null, null, r);
+                    IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+                    if (indexShard == null) {
+                        throw new IndexShardMissingException(new ShardId(index, shardId));
+                    }
+                    // we might get duplicates, but that's ok, they will override one another
+                    set.add(indexShard);
+                }
+            } else {
+                for (IndexShardRoutingTable indexShard : indexRouting) {
+                    set.add(indexShard);
+                }
+            }
+        }
+        return set;
+    }
+
     private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId, DiscoveryNodes nodes, @Nullable String preference) {
-        if (preference == null) {
+        if (preference == null || preference.isEmpty()) {
             String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
             if (awarenessAttributes.length == 0) {
-                return indexShard.activeShardsRandomIt();
+                return indexShard.activeInitializingShardsRandomIt();
             } else {
-                return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes);
+                return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
             }
         }
         if (preference.charAt(0) == '_') {
@@ -217,9 +194,9 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 if (index == -1 || index == preference.length() - 1) {
                     String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
                     if (awarenessAttributes.length == 0) {
-                        return indexShard.activeShardsRandomIt();
+                        return indexShard.activeInitializingShardsRandomIt();
                     } else {
-                        return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes);
+                        return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
                     }
                 } else {
                     // update the preference and continue
@@ -227,30 +204,30 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 }
             }
             if (preference.startsWith("_prefer_node:")) {
-                return indexShard.preferNodeActiveShardsIt(preference.substring("_prefer_node:".length()));
+                return indexShard.preferNodeActiveInitializingShardsIt(preference.substring("_prefer_node:".length()));
             }
             if ("_local".equals(preference)) {
-                return indexShard.preferNodeActiveShardsIt(localNodeId);
+                return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
             }
             if ("_primary".equals(preference)) {
-                return indexShard.primaryActiveShardIt();
+                return indexShard.primaryActiveInitializingShardIt();
             }
             if ("_primary_first".equals(preference) || "_primaryFirst".equals(preference)) {
-                return indexShard.primaryFirstActiveShardsIt();
+                return indexShard.primaryFirstActiveInitializingShardsIt();
             }
             if ("_only_local".equals(preference) || "_onlyLocal".equals(preference)) {
-                return indexShard.onlyNodeActiveShardsIt(localNodeId);
+                return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
             }
             if (preference.startsWith("_only_node:")) {
-                return indexShard.onlyNodeActiveShardsIt(preference.substring("_only_node:".length()));
+                return indexShard.onlyNodeActiveInitializingShardsIt(preference.substring("_only_node:".length()));
             }
         }
         // if not, then use it as the index
         String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
         if (awarenessAttributes.length == 0) {
-            return indexShard.activeShardsIt(DjbHashFunction.DJB_HASH(preference));
+            return indexShard.activeInitializingShardsIt(DjbHashFunction.DJB_HASH(preference));
         } else {
-            return indexShard.preferAttributesActiveShardsIt(awarenessAttributes, nodes, DjbHashFunction.DJB_HASH(preference));
+            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, DjbHashFunction.DJB_HASH(preference));
         }
     }
 

@@ -22,16 +22,22 @@ package org.elasticsearch.index.search.child;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,15 +52,19 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     final String childType;
     final Filter parentFilter;
     final SearchContext searchContext;
+    final int shortCircuitParentDocSet;
 
-    THashSet<HashedBytesArray> collectedUids;
+    Filter shortCircuitFilter;
+    int remaining;
+    Recycler.V<THashSet<HashedBytesArray>> collectedUids;
 
-    public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext) {
+    public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext, int shortCircuitParentDocSet) {
         this.parentFilter = parentFilter;
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
         this.childQuery = childQuery;
+        this.shortCircuitParentDocSet = shortCircuitParentDocSet;
     }
 
     @Override
@@ -73,16 +83,12 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         if (!childType.equals(that.childType)) {
             return false;
         }
-        if (!parentType.equals(that.parentType)) {
-            return false;
-        }
         return true;
     }
 
     @Override
     public int hashCode() {
         int result = childQuery.hashCode();
-        result = 31 * result + parentType.hashCode();
         result = 31 * result + childType.hashCode();
         return result;
     }
@@ -98,6 +104,12 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         if (collectedUids == null) {
             throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
         }
+        if (remaining == 0) {
+            return null;
+        }
+        if (shortCircuitFilter != null) {
+            return shortCircuitFilter.getDocIdSet(context, acceptDocs);
+        }
 
         DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, null);
         if (DocIdSets.isEmpty(parentDocIdSet)) {
@@ -107,7 +119,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         Bits parentsBits = DocIdSets.toSafeBits(context.reader(), parentDocIdSet);
         IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
         if (idReaderTypeCache != null) {
-            return new ParentDocSet(context.reader(), parentsBits, collectedUids, idReaderTypeCache);
+            return new ParentDocSet(context.reader(), parentsBits, collectedUids.v(), idReaderTypeCache);
         } else {
             return null;
         }
@@ -116,20 +128,34 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        collectedUids = CacheRecycler.popHashSet();
-        UidCollector collector = new UidCollector(parentType, searchContext, collectedUids);
+        collectedUids = searchContext.cacheRecycler().hashSet(-1);
+        UidCollector collector = new UidCollector(parentType, searchContext, collectedUids.v());
         searchContext.searcher().search(childQuery, collector);
+        remaining = collectedUids.v().size();
+        if (remaining == 0) {
+            shortCircuitFilter = Queries.MATCH_NO_FILTER;
+        } else if (remaining == 1) {
+            BytesRef id = collectedUids.v().iterator().next().toBytesRef();
+            shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+        } else if (remaining <= shortCircuitParentDocSet) {
+            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v());
+        }
+    }
+
+    @Override
+    public void executionDone() {
+        if (collectedUids != null) {
+            collectedUids.release();
+        }
+        collectedUids = null;
+        shortCircuitFilter = null;
     }
 
     @Override
     public void contextClear() {
-        if (collectedUids != null) {
-            CacheRecycler.pushHashSet(collectedUids);
-        }
-        collectedUids = null;
     }
 
-    final static class ParentDocSet extends MatchDocIdSet {
+    final class ParentDocSet extends MatchDocIdSet {
 
         final IndexReader reader;
         final THashSet<HashedBytesArray> parents;
@@ -144,7 +170,16 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
         @Override
         protected boolean matchDoc(int doc) {
-            return parents.contains(typeCache.idByDoc(doc));
+            if (remaining == 0) {
+                shortCircuit();
+                return false;
+            }
+
+            boolean match = parents.contains(typeCache.idByDoc(doc));
+            if (match) {
+                remaining--;
+            }
+            return match;
         }
     }
 
@@ -158,7 +193,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         }
 
         @Override
-        public void collect(int doc, HashedBytesArray parentIdByDoc){
+        public void collect(int doc, HashedBytesArray parentIdByDoc) {
             collectedUids.add(parentIdByDoc);
         }
 

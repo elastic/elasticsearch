@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
@@ -31,6 +32,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -239,26 +242,58 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return super.termFilter(value, context);
         }
         BytesRef bValue = BytesRefs.toBytesRef(value);
-        // we use all types, cause we don't know if its exact or not...
-        BytesRef[] typesValues = new BytesRef[context.mapperService().types().size()];
-        int i = 0;
-        for (String type : context.mapperService().types()) {
-            typesValues[i++] = Uid.createUidAsBytes(type, bValue);
+        if (Uid.hasDelimiter(bValue)) {
+            return new TermFilter(new Term(names.indexName(), bValue));
         }
-        return new TermsFilter(names.indexName(), typesValues);
+
+        List<String> types = new ArrayList<String>(context.mapperService().types().size());
+        for (DocumentMapper documentMapper : context.mapperService()) {
+            if (documentMapper.parentFieldMapper() == null) {
+                types.add(documentMapper.type());
+            }
+        }
+
+        if (types.isEmpty()) {
+            return Queries.MATCH_NO_FILTER;
+        } else if (types.size() == 1) {
+            return new TermFilter(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue)));
+        } else {
+            // we use all non child types, cause we don't know if its exact or not...
+            List<BytesRef> typesValues = new ArrayList<BytesRef>(types.size());
+            for (String type : context.mapperService().types()) {
+                typesValues.add(Uid.createUidAsBytes(type, bValue));
+            }
+            return new TermsFilter(names.indexName(), typesValues);
+        }
     }
 
     @Override
-    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
         if (context == null) {
-            return super.termFilter(values, context);
+            return super.termsFilter(values, context);
         }
+        // This will not be invoked if values is empty, so don't check for empty
+        if (values.size() == 1) {
+            return termFilter(values.get(0), context);
+        }
+
+        List<String> types = new ArrayList<String>(context.mapperService().types().size());
+        for (DocumentMapper documentMapper : context.mapperService()) {
+            if (documentMapper.parentFieldMapper() == null) {
+                types.add(documentMapper.type());
+            }
+        }
+
         List<BytesRef> bValues = new ArrayList<BytesRef>(values.size());
         for (Object value : values) {
             BytesRef bValue = BytesRefs.toBytesRef(value);
-            // we use all types, cause we don't know if its exact or not...
-            for (String type : context.mapperService().types()) {
-                bValues.add(Uid.createUidAsBytes(type, bValue));
+            if (Uid.hasDelimiter(bValue)) {
+                bValues.add(bValue);
+            } else {
+                // we use all non child types, cause we don't know if its exact or not...
+                for (String type : types) {
+                    bValues.add(Uid.createUidAsBytes(type, bValue));
+                }
             }
         }
         return new TermsFilter(names.indexName(), bValues);

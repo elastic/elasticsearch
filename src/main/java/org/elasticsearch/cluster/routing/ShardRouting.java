@@ -87,7 +87,7 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     /**
      * Returns <code>true</code> iff the this shard is currently relocating to
      * another node. Otherwise <code>false</code>
-     * 
+     *
      * @see ShardRoutingState#RELOCATING
      */
     boolean relocating();

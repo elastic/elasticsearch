@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +31,8 @@ import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
+
+import java.io.IOException;
 
 public final class PhraseSuggestParser implements SuggestContextParser {
 
@@ -76,6 +77,12 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                         gramSizeSet = true;
                     } else if ("force_unigrams".equals(fieldName) || "forceUnigrams".equals(fieldName)) {
                         suggestion.setRequireUnigram(parser.booleanValue());
+                    } else if ("token_limit".equals(fieldName) || "tokenLimit".equals(fieldName)) {
+                        int tokenLimit = parser.intValue();
+                        if (tokenLimit <= 0) {
+                            throw new ElasticSearchIllegalArgumentException("token_limit must be >= 1");
+                        }
+                        suggestion.setTokenLimit(tokenLimit);
                     } else {
                         throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
                     }
@@ -99,8 +106,27 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 } else {
                     throw new ElasticSearchIllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
                 }
-            } else if (token == Token.START_OBJECT && "smoothing".equals(fieldName)) {
-                parseSmoothingModel(parser, suggestion, fieldName);
+            } else if (token == Token.START_OBJECT) {
+                if ("smoothing".equals(fieldName)) {
+                    parseSmoothingModel(parser, suggestion, fieldName);
+                } else if ("highlight".equals(fieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("pre_tag".equals(fieldName) || "preTag".equals(fieldName)) {
+                                suggestion.setPreTag(parser.bytes());
+                            } else if ("post_tag".equals(fieldName) || "postTag".equals(fieldName)) {
+                                suggestion.setPostTag(parser.bytes());
+                            } else {
+                                throw new ElasticSearchIllegalArgumentException(
+                                    "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
+                            }
+                        }
+                    }
+                } else {
+                    throw new ElasticSearchIllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
+                }
             } else {
                 throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
             }
@@ -108,6 +134,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         
         if (suggestion.getField() == null) {
             throw new ElasticSearchIllegalArgumentException("The required field option is missing");
+        }
+        
+        if (mapperService.smartNameFieldMapper(suggestion.getField()) == null) {
+            throw new ElasticSearchIllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
         }
         
         if (suggestion.model() == null) {
@@ -184,9 +214,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     }
                     suggestion.setModel(new WordScorer.WordScorerFactory() {
                         @Override
-                        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
+                        public WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
                                 throws IOException {
-                            return new LinearInterpoatingScorer(reader, field, realWordLikelyhood, separator, lambdas[0], lambdas[1],
+                            return new LinearInterpoatingScorer(reader, terms, field, realWordLikelyhood, separator, lambdas[0], lambdas[1],
                                     lambdas[2]);
                         }
                     });
@@ -205,9 +235,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     final double alpha = theAlpha;
                     suggestion.setModel(new WordScorer.WordScorerFactory() {
                         @Override
-                        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
+                        public WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
                                 throws IOException {
-                            return new LaplaceScorer(reader, field, realWordLikelyhood, separator, alpha);
+                            return new LaplaceScorer(reader, terms,  field, realWordLikelyhood, separator, alpha);
                         }
                     });
 
@@ -225,9 +255,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                     final double discount = theDiscount;
                     suggestion.setModel(new WordScorer.WordScorerFactory() {
                         @Override
-                        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
+                        public WordScorer newScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator)
                                 throws IOException {
-                            return new StupidBackoffScorer(reader, field, realWordLikelyhood, separator, discount);
+                            return new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, discount);
                         }
                     });
 
@@ -256,6 +286,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator)) {
             if ("field".equals(fieldName)) {
                 generator.setField(parser.text());
+                if (mapperService.smartNameFieldMapper(generator.field()) == null) {
+                    throw new ElasticSearchIllegalArgumentException("No mapping found for field [" + generator.field() + "]");
+                }
             } else if ("size".equals(fieldName)) {
                 generator.size(parser.intValue());
             } else if ("pre_filter".equals(fieldName) || "preFilter".equals(fieldName)) {

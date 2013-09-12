@@ -94,7 +94,12 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
         // Build new field infos, doc values, and return a filter reader
         final FieldInfo newVersionInfo;
         if (versionInfo == null) {
-            newVersionInfo = new FieldInfo(UidFieldMapper.VERSION, false, fieldInfos.size(), false, true, false,
+            // Find a free field number
+            int fieldNumber = 0;
+            for (FieldInfo fi : fieldInfos) {
+                fieldNumber = Math.max(fieldNumber, fi.number + 1);
+            }
+            newVersionInfo = new FieldInfo(UidFieldMapper.VERSION, false, fieldNumber, false, true, false,
                     IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, Collections.<String, String>emptyMap());
         } else {
             newVersionInfo = new FieldInfo(UidFieldMapper.VERSION, versionInfo.isIndexed(), versionInfo.number,

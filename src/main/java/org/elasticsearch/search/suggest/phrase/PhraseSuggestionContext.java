@@ -37,6 +37,9 @@ class PhraseSuggestionContext extends SuggestionContext {
     private List<DirectCandidateGenerator> generators = new ArrayList<PhraseSuggestionContext.DirectCandidateGenerator>();
     private int gramSize = 1;
     private float confidence = 1.0f;
+    private int tokenLimit = NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT;
+    private BytesRef preTag;
+    private BytesRef postTag;
 
     private WordScorer.WordScorerFactory scorer;
 
@@ -153,5 +156,28 @@ class PhraseSuggestionContext extends SuggestionContext {
     public boolean getRequireUnigram() {
         return requireUnigram;
     }
+    
+    public void setTokenLimit(int tokenLimit) {
+        this.tokenLimit = tokenLimit;
+    }
    
+    public int getTokenLimit() {
+        return tokenLimit;
+    }
+
+    public void setPreTag(BytesRef preTag) {
+        this.preTag = preTag;
+    }
+
+    public BytesRef getPreTag() {
+        return preTag;
+    }
+
+    public void setPostTag(BytesRef postTag) {
+        this.postTag = postTag;
+    }
+
+    public BytesRef getPostTag() {
+        return postTag;
+    }
 }

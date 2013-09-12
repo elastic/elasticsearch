@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,7 +54,8 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeOpera
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        // all in memory work here...
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -72,7 +74,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected ClusterSearchShardsResponse masterOperation(ClusterSearchShardsRequest request, ClusterState state) throws ElasticSearchException {
+    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
@@ -98,6 +100,6 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeOpera
         for (String nodeId : nodeIds) {
             nodes[currentNode++] = clusterState.getNodes().get(nodeId);
         }
-        return new ClusterSearchShardsResponse(groupResponses, nodes);
+        listener.onResponse(new ClusterSearchShardsResponse(groupResponses, nodes));
     }
 }

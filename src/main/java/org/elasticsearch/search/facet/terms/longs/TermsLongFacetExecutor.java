@@ -27,8 +27,9 @@ import gnu.trove.set.hash.TLongHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -55,18 +56,18 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
 
-    final TLongIntHashMap facets;
+    final Recycler.V<TLongIntHashMap> facets;
     long missing;
     long total;
 
     public TermsLongFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                  ImmutableSet<BytesRef> excluded, SearchScript script) {
+                                  ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
-        this.facets = CacheRecycler.popLongIntMap();
+        this.facets = cacheRecycler.longIntMap(-1);
 
         if (allTerms) {
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
@@ -76,7 +77,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                     LongValues.WithOrdinals valuesWithOrds = (LongValues.WithOrdinals) values;
                     Ordinals.Docs ordinals = valuesWithOrds.ordinals();
                     for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
-                        facets.putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
+                        facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
                     }
                 } else {
                     // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
@@ -88,7 +89,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
 
                             LongValues.Iter iter = values.getIter(docId);
                             while (iter.hasNext()) {
-                                facets.putIfAbsent(iter.next(), 0);
+                                facets.v().putIfAbsent(iter.next(), 0);
                             }
                         }
                     } else {
@@ -98,7 +99,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                             }
 
                             long value = values.getValue(docId);
-                            facets.putIfAbsent(value, 0);
+                            facets.v().putIfAbsent(value, 0);
                         }
                     }
                 }
@@ -113,13 +114,13 @@ public class TermsLongFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        if (facets.isEmpty()) {
-            CacheRecycler.pushLongIntMap(facets);
+        if (facets.v().isEmpty()) {
+            facets.release();
             return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
-                for (TLongIntIterator it = facets.iterator(); it.hasNext(); ) {
+                for (TLongIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
                 }
@@ -127,15 +128,15 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = (InternalLongTermsFacet.LongEntry) ordered.pop();
                 }
-                CacheRecycler.pushLongIntMap(facets);
+                facets.release();
                 return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), size);
-                for (TLongIntIterator it = facets.iterator(); it.hasNext(); ) {
+                for (TLongIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
                 }
-                CacheRecycler.pushLongIntMap(facets);
+                facets.release();
                 return new InternalLongTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }
@@ -148,9 +149,9 @@ public class TermsLongFacetExecutor extends FacetExecutor {
 
         public Collector() {
             if (script == null && excluded.isEmpty()) {
-                aggregator = new StaticAggregatorValueProc(facets);
+                aggregator = new StaticAggregatorValueProc(facets.v());
             } else {
-                aggregator = new AggregatorValueProc(facets, excluded, script);
+                aggregator = new AggregatorValueProc(facets.v(), excluded, script);
             }
         }
 

@@ -19,23 +19,21 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
- *
+ * @deprecated use {@link FunctionScoreQueryParser} instead.
  */
 public class CustomScoreQueryParser implements QueryParser {
 
@@ -47,7 +45,7 @@ public class CustomScoreQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[] { NAME, Strings.toCamelCase(NAME) };
     }
 
     @Override
@@ -55,7 +53,8 @@ public class CustomScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
-        boolean queryFound = false;
+        Filter filter = null;
+        boolean queryOrFilterFound = false;
         float boost = 1.0f;
         String script = null;
         String scriptLang = null;
@@ -69,11 +68,15 @@ public class CustomScoreQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
-                    queryFound = true;
+                    queryOrFilterFound = true;
+                } else if ("filter".equals(currentFieldName)) {
+                    filter = parseContext.parseInnerFilter();
+                    queryOrFilterFound = true;
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName
+                            + "]");
                 }
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
@@ -83,18 +86,21 @@ public class CustomScoreQueryParser implements QueryParser {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[custom_score] query does not support [" + currentFieldName
+                            + "]");
                 }
             }
         }
-        if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' field");
+        if (!queryOrFilterFound) {
+            throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' or 'filter' field");
         }
         if (script == null) {
             throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'script' field");
         }
-        if (query == null) {
+        if (query == null && filter == null) {
             return null;
+        } else if (filter != null) {
+            query = new XConstantScoreQuery(filter);
         }
 
         SearchScript searchScript;
@@ -106,65 +112,5 @@ public class CustomScoreQueryParser implements QueryParser {
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new ScriptScoreFunction(script, vars, searchScript));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
-    }
-
-    public static class ScriptScoreFunction implements ScoreFunction {
-
-        private final String sScript;
-
-        private final Map<String, Object> params;
-
-        private final SearchScript script;
-
-        public ScriptScoreFunction(String sScript, Map<String, Object> params, SearchScript script) {
-            this.sScript = sScript;
-            this.params = params;
-            this.script = script;
-        }
-
-        @Override
-        public void setNextReader(AtomicReaderContext ctx) {
-            //LUCENE 4 UPGRADE should this pass on a ARC or just and atomic reader? 
-            script.setNextReader(ctx);
-        }
-
-        @Override
-        public float score(int docId, float subQueryScore) {
-            script.setNextDocId(docId);
-            script.setNextScore(subQueryScore);
-            return script.runAsFloat();
-        }
-
-        @Override
-        public float factor(int docId) {
-            // just the factor, so don't provide _score
-            script.setNextDocId(docId);
-            return script.runAsFloat();
-        }
-
-        @Override
-        public Explanation explainScore(int docId, Explanation subQueryExpl) {
-            Explanation exp;
-            if (script instanceof ExplainableSearchScript) {
-                script.setNextDocId(docId);
-                script.setNextScore(subQueryExpl.getValue());
-                exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
-            } else {
-                float score = score(docId, subQueryExpl.getValue());
-                exp = new Explanation(score, "script score function: composed of:");
-                exp.addDetail(subQueryExpl);
-            }
-            return exp;
-        }
-
-        @Override
-        public Explanation explainFactor(int docId) {
-            return new Explanation(factor(docId), "scriptFactor");
-        }
-
-        @Override
-        public String toString() {
-            return "script[" + sScript + "], params [" + params + "]";
-        }
     }
 }

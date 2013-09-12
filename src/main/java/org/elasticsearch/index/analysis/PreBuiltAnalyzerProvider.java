@@ -24,32 +24,29 @@ import org.apache.lucene.analysis.Analyzer;
 /**
  *
  */
-public class PreBuiltAnalyzerProvider<T extends Analyzer> implements AnalyzerProvider<T> {
+public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer> {
 
-    private final String name;
+    private final NamedAnalyzer analyzer;
 
-    private final AnalyzerScope scope;
-
-    private final T analyzer;
-
-    public PreBuiltAnalyzerProvider(String name, AnalyzerScope scope, T analyzer) {
-        this.name = name;
-        this.scope = scope;
-        this.analyzer = analyzer;
+    public PreBuiltAnalyzerProvider(String name, AnalyzerScope scope, Analyzer analyzer) {
+        // we create the named analyzer here so the resources associated with it will be shared
+        // and we won't wrap a shared analyzer with named analyzer each time causing the resources
+        // to not be shared...
+        this.analyzer = new NamedAnalyzer(name, scope, analyzer);
     }
 
     @Override
     public String name() {
-        return name;
+        return analyzer.name();
     }
 
     @Override
     public AnalyzerScope scope() {
-        return scope;
+        return analyzer.scope();
     }
 
     @Override
-    public T get() {
+    public NamedAnalyzer get() {
         return analyzer;
     }
 }

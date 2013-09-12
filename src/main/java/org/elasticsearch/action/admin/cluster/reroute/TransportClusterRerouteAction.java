@@ -20,20 +20,19 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
@@ -52,7 +51,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        // we go async right away
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -71,53 +71,37 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected ClusterRerouteResponse masterOperation(final ClusterRerouteRequest request, ClusterState state) throws ElasticSearchException {
-        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final AtomicReference<ClusterState> clusterStateResponse = new AtomicReference<ClusterState>();
-        final CountDownLatch latch = new CountDownLatch(1);
+    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticSearchException {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
 
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+            private volatile ClusterState clusterStateToSend;
+
             @Override
-            public ClusterState execute(ClusterState currentState) {
-                try {
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands);
-                    ClusterState newState = newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
-                    clusterStateResponse.set(newState);
-                    if (request.dryRun) {
-                        return currentState;
-                    }
-                    return newState;
-                } catch (Exception e) {
-                    logger.debug("failed to reroute", e);
-                    failureRef.set(e);
-                    latch.countDown();
-                    return currentState;
-                } finally {
-                    // we don't release the latch here, only after we rerouted
-                }
+            public TimeValue timeout() {
+                return request.masterNodeTimeout();
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState clusterState) {
-                latch.countDown();
+            public void onFailure(String source, Throwable t) {
+                logger.debug("failed to perform [{}]", t, source);
+                listener.onFailure(t);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands);
+                ClusterState newState = newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                clusterStateToSend = newState;
+                if (request.dryRun) {
+                    return currentState;
+                }
+                return newState;
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new ClusterRerouteResponse(clusterStateToSend));
             }
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            failureRef.set(e);
-        }
-
-        if (failureRef.get() != null) {
-            if (failureRef.get() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) failureRef.get();
-            } else {
-                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
-            }
-        }
-
-        return new ClusterRerouteResponse(clusterStateResponse.get());
-
     }
 }

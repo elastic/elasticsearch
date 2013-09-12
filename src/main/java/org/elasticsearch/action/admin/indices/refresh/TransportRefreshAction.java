@@ -73,11 +73,6 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected boolean ignoreNonActiveExceptions() {
-        return true;
-    }
-
-    @Override
     protected RefreshResponse newResponse(RefreshRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -117,7 +112,8 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     @Override
     protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        indexShard.refresh(new Engine.Refresh(request.waitForOperations()));
+        indexShard.refresh(new Engine.Refresh().force(request.force()));
+        logger.trace("{} refresh request executed, force: [{}]", indexShard.shardId(), request.force());
         return new ShardRefreshResponse(request.index(), request.shardId());
     }
 

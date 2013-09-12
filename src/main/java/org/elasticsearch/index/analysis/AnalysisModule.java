@@ -417,6 +417,7 @@ public class AnalysisModule extends AbstractModule {
         @Override
         public void processCharFilters(CharFiltersBindings charFiltersBindings) {
             charFiltersBindings.processCharFilter("html_strip", HtmlStripCharFilterFactory.class);
+            charFiltersBindings.processCharFilter("pattern_replace", PatternReplaceCharFilterFactory.class);
         }
 
         @Override
@@ -438,6 +439,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("truncate", TruncateTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("trim", TrimTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("limit", LimitTokenCountFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("common_grams", CommonGramsTokenFilterFactory.class);
         }
 
         @Override
@@ -483,6 +485,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("elision", ElisionTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("keep", KeepWordFilterFactory.class);
 
+            tokenFiltersBindings.processTokenFilter("pattern_capture", PatternCaptureGroupTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("pattern_replace", PatternReplaceTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("dictionary_decompounder", DictionaryCompoundWordTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("hyphenation_decompounder", HyphenationCompoundWordTokenFilterFactory.class);
@@ -497,6 +500,9 @@ public class AnalysisModule extends AbstractModule {
 
             tokenFiltersBindings.processTokenFilter("keyword_marker", KeywordMarkerTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);
+
+            tokenFiltersBindings.processTokenFilter("arabic_normalization", ArabicNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("persian_normalization", PersianNormalizationFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_bigram", CJKBigramFilterFactory.class);

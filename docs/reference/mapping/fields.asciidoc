@@ -1,0 +1,33 @@
+[[mapping-fields]]
+== Fields
+
+Each mapping has a number of fields associated with it
+which can be used to control how the document metadata
+(eg <<mapping-all-field>>) is indexed.
+
+include::fields/uid-field.asciidoc[]
+
+include::fields/id-field.asciidoc[]
+
+include::fields/type-field.asciidoc[]
+
+include::fields/source-field.asciidoc[]
+
+include::fields/all-field.asciidoc[]
+
+include::fields/analyzer-field.asciidoc[]
+
+include::fields/boost-field.asciidoc[]
+
+include::fields/parent-field.asciidoc[]
+
+include::fields/routing-field.asciidoc[]
+
+include::fields/index-field.asciidoc[]
+
+include::fields/size-field.asciidoc[]
+
+include::fields/timestamp-field.asciidoc[]
+
+include::fields/ttl-field.asciidoc[]
+

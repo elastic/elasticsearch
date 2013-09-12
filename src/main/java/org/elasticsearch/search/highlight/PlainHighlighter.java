@@ -19,16 +19,16 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableList;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.search.highlight.Formatter;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -37,7 +37,10 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -122,8 +125,11 @@ public class PlainHighlighter implements Highlighter {
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
                 Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
-                TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
-                tokenStream.reset();
+                TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), text);
+                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                    // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
+                    continue;
+                }
                 TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
@@ -135,7 +141,7 @@ public class PlainHighlighter implements Highlighter {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
         if (field.scoreOrdered()) {
-            Collections.sort(fragsList, new Comparator<TextFragment>() {
+            CollectionUtil.introSort(fragsList, new Comparator<TextFragment>() {
                 public int compare(TextFragment o1, TextFragment o2) {
                     return Math.round(o2.getScore() - o1.getScore());
                 }

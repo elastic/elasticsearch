@@ -69,15 +69,18 @@ public class SearchResponse extends ActionResponse implements ToXContent {
 
     public RestStatus status() {
         if (shardFailures.length == 0) {
+            if (successfulShards == 0 && totalShards > 0) {
+                return RestStatus.SERVICE_UNAVAILABLE;
+            }
             return RestStatus.OK;
         }
+        // if total failure, bubble up the status code to the response level
         if (successfulShards == 0 && totalShards > 0) {
-            RestStatus status = shardFailures[0].status();
-            if (shardFailures.length > 1) {
-                for (int i = 1; i < shardFailures.length; i++) {
-                    if (shardFailures[i].status().getStatus() >= 500) {
-                        status = shardFailures[i].status();
-                    }
+            RestStatus status = RestStatus.OK;
+            for (int i = 0; i < shardFailures.length; i++) {
+                RestStatus shardStatus = shardFailures[i].status();
+                if (shardStatus.getStatus() >= status.getStatus()) {
+                    status = shardFailures[i].status();
                 }
             }
             return status;
@@ -142,7 +145,9 @@ public class SearchResponse extends ActionResponse implements ToXContent {
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
-        return totalShards - successfulShards;
+        // we don't return totalShards - successfulShards, we don't count "no shards available" as a failed shard, just don't
+        // count it in the successful counter
+        return shardFailures.length;
     }
 
     /**

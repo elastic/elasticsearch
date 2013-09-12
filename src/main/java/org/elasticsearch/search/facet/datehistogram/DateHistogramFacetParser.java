@@ -179,16 +179,16 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
 
         if (valueScript != null) {
             SearchScript script = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
-            return new ValueScriptDateHistogramFacetExecutor(keyIndexFieldData, script, tzRounding, comparatorType);
+            return new ValueScriptDateHistogramFacetExecutor(keyIndexFieldData, script, tzRounding, comparatorType, context.cacheRecycler());
         } else if (valueField != null) {
             FieldMapper valueMapper = context.smartNameFieldMapper(valueField);
             if (valueMapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "(value) field [" + valueField + "] not found");
             }
             IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueMapper);
-            return new ValueDateHistogramFacetExecutor(keyIndexFieldData, valueIndexFieldData, tzRounding, comparatorType);
+            return new ValueDateHistogramFacetExecutor(keyIndexFieldData, valueIndexFieldData, tzRounding, comparatorType, context.cacheRecycler());
         } else {
-            return new CountDateHistogramFacetExecutor(keyIndexFieldData, tzRounding, comparatorType);
+            return new CountDateHistogramFacetExecutor(keyIndexFieldData, tzRounding, comparatorType, context.cacheRecycler());
         }
     }
 

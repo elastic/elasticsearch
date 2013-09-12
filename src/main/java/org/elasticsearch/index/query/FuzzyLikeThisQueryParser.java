@@ -23,10 +23,13 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -66,6 +69,8 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         int prefixLength = 0;
         boolean ignoreTF = false;
         Analyzer analyzer = null;
+        boolean failOnUnsupportedField = true;
+        String queryName = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -87,12 +92,16 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                     prefixLength = parser.intValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
+                } else if ("fail_on_unsupported_field".equals(currentFieldName) || "failOnUnsupportedField".equals(currentFieldName)) {
+                    failOnUnsupportedField = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("fields".equals(currentFieldName)) {
-                    fields = Lists.newArrayList();
+                    fields = Lists.newLinkedList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         fields.add(parseContext.indexName(parser.text()));
                     }
@@ -112,16 +121,32 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
 
         FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, analyzer);
         if (fields == null) {
-            // add the default _all field
-            query.addTerms(likeText, parseContext.defaultField(), minSimilarity, prefixLength);
-        } else {
-            for (String field : fields) {
-                query.addTerms(likeText, field, minSimilarity, prefixLength);
+            fields = Lists.newArrayList(parseContext.defaultField());
+        } else if (fields.isEmpty()) {
+            throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'fields' to be non-empty");
+        }
+        for (Iterator<String> it = fields.iterator(); it.hasNext(); ) {
+            final String fieldName = it.next();
+            if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
+                if (failOnUnsupportedField) {
+                    throw new ElasticSearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
+                } else {
+                    it.remove();
+                }
             }
+        }
+        if (fields.isEmpty()) {
+            return null;
+        }
+        for (String field : fields) {
+            query.addTerms(likeText, field, minSimilarity, prefixLength);
         }
         query.setBoost(boost);
         query.setIgnoreTF(ignoreTF);
 
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
         return query;
     }
 }

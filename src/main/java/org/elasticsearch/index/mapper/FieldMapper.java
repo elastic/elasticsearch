@@ -169,7 +169,7 @@ public interface FieldMapper<T> {
 
     Filter termFilter(Object value, @Nullable QueryParseContext context);
 
-    Filter termsFilter(List<Object> values, @Nullable QueryParseContext context);
+    Filter termsFilter(List values, @Nullable QueryParseContext context);
 
     Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
@@ -200,6 +200,6 @@ public interface FieldMapper<T> {
     FieldDataType fieldDataType();
 
     PostingsFormatProvider postingsFormatProvider();
-    
+
     boolean isNumeric();
 }

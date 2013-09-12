@@ -23,13 +23,14 @@ import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
@@ -50,7 +51,7 @@ import java.util.List;
  */
 public class InternalStringTermsFacet extends InternalTermsFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("tTerms");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("tTerms"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -168,14 +169,15 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }
 
         InternalStringTermsFacet first = null;
 
-        TObjectIntHashMap<Text> aggregated = CacheRecycler.popObjectIntMap();
+        Recycler.V<TObjectIntHashMap<Text>> aggregated = context.cacheRecycler().objectIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -187,7 +189,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
                 // the assumption is that if one of the facets is of different type, it should do the
                 // reduction (all the facets we iterated so far most likely represent unmapped fields, if not
                 // class cast exception will be thrown)
-                return termsFacet.reduce(facets);
+                return termsFacet.reduce(context);
             }
 
             if (first == null) {
@@ -195,12 +197,12 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             }
 
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(entry.getTerm(), entry.getCount(), entry.getCount());
+                aggregated.v().adjustOrPutValue(entry.getTerm(), entry.getCount(), entry.getCount());
             }
         }
 
         BoundedTreeSet<TermEntry> ordered = new BoundedTreeSet<TermEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TObjectIntIterator<Text> it = aggregated.iterator(); it.hasNext(); ) {
+        for (TObjectIntIterator<Text> it = aggregated.v().iterator(); it.hasNext(); ) {
             it.advance();
             ordered.add(new TermEntry(it.key(), it.value()));
         }
@@ -208,7 +210,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushObjectIntMap(aggregated);
+        aggregated.release();
 
         return first;
     }

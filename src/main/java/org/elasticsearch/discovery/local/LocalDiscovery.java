@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.local;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,14 +56,11 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
 
     private final TransportService transportService;
-
     private final ClusterService clusterService;
-
     private final DiscoveryNodeService discoveryNodeService;
-
     private AllocationService allocationService;
-
     private final ClusterName clusterName;
+    private final Version version;
 
     private DiscoveryNode localNode;
 
@@ -72,19 +70,19 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
-    // use CHM here and not ConcurrentMaps#new since we want to be able to agentify this using TC later on...
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
     private static final AtomicLong nodeIdGenerator = new AtomicLong();
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
-                          DiscoveryNodeService discoveryNodeService) {
+                          DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
+        this.version = version;
     }
 
     @Override
@@ -107,7 +105,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             }
             logger.debug("Connected to cluster [{}]", clusterName);
             this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(),
-                    discoveryNodeService.buildAttributes());
+                    discoveryNodeService.buildAttributes(), version);
 
             clusterGroup.members().add(this);
 
@@ -137,7 +135,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
 
                     @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -150,6 +153,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         // make sure we have the local node id set, we might need it as a result of the new metadata
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
                         return ClusterState.builder().state(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
                     }
                 });
 
@@ -167,7 +175,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
 
                     @Override
-                    public void clusterStateProcessed(ClusterState clusterState) {
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
@@ -222,6 +235,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         ClusterState updatedState = newClusterStateBuilder().state(currentState).nodes(newNodes).build();
                         RoutingAllocation.Result routingResult = master.allocationService.reroute(newClusterStateBuilder().state(updatedState).build());
                         return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.error("unexpected failure during [{}]", t, source);
                     }
                 });
             }
@@ -288,7 +306,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
 
                         @Override
-                        public void clusterStateProcessed(ClusterState clusterState) {
+                        public void onFailure(String source, Throwable t) {
+                            logger.error("unexpected failure during [{}]", t, source);
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             sendInitialStateEventIfNeeded();
                         }
                     });

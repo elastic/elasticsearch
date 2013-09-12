@@ -274,16 +274,11 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         builder.field(Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
-        builder.field(Fields.HEAP_INIT, mem.heapInit().toString());
-        builder.field(Fields.HEAP_INIT_IN_BYTES, mem.heapInit);
-        builder.field(Fields.HEAP_MAX, mem.heapMax().toString());
-        builder.field(Fields.HEAP_MAX_IN_BYTES, mem.heapMax);
-        builder.field(Fields.NON_HEAP_INIT, mem.nonHeapInit().toString());
-        builder.field(Fields.NON_HEAP_INIT_IN_BYTES, mem.nonHeapInit);
-        builder.field(Fields.NON_HEAP_MAX, mem.nonHeapMax().toString());
-        builder.field(Fields.NON_HEAP_MAX_IN_BYTES, mem.nonHeapMax);
-        builder.field(Fields.DIRECT_MAX, mem.directMemoryMax().toString());
-        builder.field(Fields.DIRECT_MAX_IN_BYTES, mem.directMemoryMax().bytes());
+        builder.byteSizeField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, mem.heapInit);
+        builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
+        builder.byteSizeField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, mem.nonHeapInit);
+        builder.byteSizeField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, mem.nonHeapMax);
+        builder.byteSizeField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, mem.directMemoryMax);
         builder.endObject();
 
         builder.endObject();

@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 
 import java.util.Map;
 
@@ -117,12 +118,30 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets the number of retries of a version conflict occurs because the document was updated between
-     * getting it and updating it. Defaults to 1.
+     * getting it and updating it. Defaults to 0.
      */
     public UpdateRequestBuilder setRetryOnConflict(int retryOnConflict) {
         request.retryOnConflict(retryOnConflict);
         return this;
     }
+
+    /**
+     * Sets the version, which will cause the index operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public UpdateRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     */
+    public UpdateRequestBuilder setVersionType(VersionType versionType) {
+        request.versionType(versionType);
+        return this;
+    }
+
 
     /**
      * Should a refresh be executed post this update operation causing the operation to
@@ -147,16 +166,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
-        return this;
-    }
-
-    /**
-     * Causes the updated document to be percolated. The parameter is the percolate query
-     * to use to reduce the percolated queries that are going to run against this doc. Can be
-     * set to <tt>*</tt> to indicate that all percolate queries should be run.
-     */
-    public UpdateRequestBuilder setPercolate(String percolate) {
-        request.percolate(percolate);
         return this;
     }
 
@@ -217,10 +226,27 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(String field, Object value) {
+        request.doc(field, value);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
+     */
+    public UpdateRequestBuilder setDoc(Object... source) {
+        request.doc(source);
+        return this;
+    }
+
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
-    public UpdateRequestBuilder setUpsertRequest(IndexRequest indexRequest) {
+    public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
         request.upsert(indexRequest);
         return this;
     }
@@ -228,7 +254,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsertRequest(XContentBuilder source) {
+    public UpdateRequestBuilder setUpsert(XContentBuilder source) {
         request.upsert(source);
         return this;
     }
@@ -236,7 +262,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsertRequest(Map source) {
+    public UpdateRequestBuilder setUpsert(Map source) {
         request.upsert(source);
         return this;
     }
@@ -244,7 +270,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsertRequest(Map source, XContentType contentType) {
+    public UpdateRequestBuilder setUpsert(Map source, XContentType contentType) {
         request.upsert(source, contentType);
         return this;
     }
@@ -252,7 +278,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsertRequest(String source) {
+    public UpdateRequestBuilder setUpsert(String source) {
         request.upsert(source);
         return this;
     }
@@ -260,7 +286,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsertRequest(byte[] source) {
+    public UpdateRequestBuilder setUpsert(byte[] source) {
         request.upsert(source);
         return this;
     }
@@ -268,8 +294,17 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsertRequest(byte[] source, int offset, int length) {
+    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
         request.upsert(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequestBuilder setUpsert(Object... source) {
+        request.upsert(source);
         return this;
     }
 
@@ -290,6 +325,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
         request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets whether the specified doc parameter should be used as upsert document.
+     */
+    public UpdateRequestBuilder setDocAsUpsert(boolean shouldUpsertDoc) {
+        request.docAsUpsert(shouldUpsertDoc);
         return this;
     }
 

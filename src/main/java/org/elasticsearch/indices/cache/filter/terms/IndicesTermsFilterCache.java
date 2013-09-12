@@ -31,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.MatchNoDocsFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,7 +48,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class IndicesTermsFilterCache extends AbstractComponent {
 
-    private static TermsFilterValue NO_TERMS = new TermsFilterValue(0, null);
+    private static TermsFilterValue NO_TERMS = new TermsFilterValue(0, new MatchNoDocsFilter());
 
     private final Client client;
 

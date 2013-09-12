@@ -69,7 +69,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         private Async(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener, ClusterState clusterState) {
             int expectedOps = 0;
             this.nodes = clusterState.nodes();
-            if (request.getScrollIds() == null || request.getScrollIds().isEmpty()) {
+            if (request.getScrollIds().size() == 1 && "_all".equals(request.getScrollIds().get(0))) {
                 expectedOps = nodes.size();
             } else {
                 for (String parsedScrollId : request.getScrollIds()) {

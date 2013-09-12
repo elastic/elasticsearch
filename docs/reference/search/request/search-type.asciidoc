@@ -142,5 +142,10 @@ resources to keep the view open will cleaned open. Example usage:
 curl -XDELETE 'localhost:9200/_search/scroll/c2NhbjsxOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7MzowSzM3aVhLalNiMmR5ZlVET3hSTmZ3OzU6MEszN2lYS2pTYjJkeWZVRE94Uk5mdzsyOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7NDowSzM3aVhLalNiMmR5ZlVET3hSTmZ3Ow=='
 --------------------------------------------------
 
-Multiple scroll ids can be specified in a comma separated manner, if no id is
-specified then all scroll ids will be cleared up.
+Multiple scroll ids can be specified in a comma separated manner.
+If all scroll ids need to be cleared the reserved `_all` value can used instead of an actual `scroll_id`:
+
+[source,js]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/_search/scroll/_all'
+--------------------------------------------------

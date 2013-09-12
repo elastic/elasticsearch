@@ -273,6 +273,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
     @Test
     @Slow
+    @TestLogging("action.support.broadcast:TRACE")
     public void testSinglePercolator_recovery() throws Exception {
         percolatorRecovery(false);
     }

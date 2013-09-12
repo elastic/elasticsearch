@@ -110,7 +110,7 @@ The following parameters are supported:
 `output`::
     The string to return, if a suggestion matches. This is very
     useful to normalize outputs (i.e. have them always in the format
-    `artist - songname`. This is optional.
+    `artist - songname`). This is optional.
 
 `payload`::
     An arbitrary JSON object, which is simply returned in the

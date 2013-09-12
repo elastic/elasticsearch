@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
@@ -53,7 +54,11 @@ public class ClearScrollRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (scrollIds == null || scrollIds.isEmpty()) {
+            validationException = addValidationError("no scroll ids specified", validationException);
+        }
+        return validationException;
     }
 
     @Override

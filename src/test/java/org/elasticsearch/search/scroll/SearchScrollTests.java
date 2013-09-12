@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.scroll;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -367,7 +367,7 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter2++));
         }
 
-        ClearScrollResponse clearResponse = client().prepareClearScroll()
+        ClearScrollResponse clearResponse = client().prepareClearScroll().addScrollId("_all")
                 .execute().actionGet();
         assertThat(clearResponse.isSucceeded(), equalTo(true));
 

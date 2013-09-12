@@ -19,16 +19,15 @@
 
 package org.elasticsearch.search.matchedqueries;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 
@@ -40,8 +39,8 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
     @Test
     public void simpleMatchedQueryFromFilteredQuery() throws Exception {
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "test1")
@@ -58,15 +57,14 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                 .field("number", 3)
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2"))))
                 .execute().actionGet();
 
+        assertHitCount(searchResponse, 3l);
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
@@ -84,8 +82,8 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3l);
+
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
@@ -102,8 +100,8 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
     @Test
     public void simpleMatchedQueryFromTopLevelFilter() throws Exception {
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "test")
@@ -118,7 +116,7 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                 .field("name", "test")
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -127,8 +125,7 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                         termFilter("title", "title1").filterName("title")))
                 .execute().actionGet();
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3l);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -150,8 +147,7 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                         .should(termQuery("title", "title1").queryName("title"))))
                 .execute().actionGet();
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3l);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -170,8 +166,8 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
     @Test
     public void simpleMatchedQueryFromTopLevelFilterAndFilteredQuery() throws Exception {
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "test")
@@ -188,15 +184,14 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                 .field("title", "title3")
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), termsFilter("title", "title1", "title2", "title3").filterName("title")))
                         .setFilter(termFilter("name", "test").filterName("name"))
                         .execute().actionGet();
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3l);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
@@ -213,8 +208,7 @@ public class MatchedQueriesTests extends AbstractSharedClusterTest {
                 .setFilter(queryFilter(matchQuery("name", "test").queryName("name")))
                 .execute().actionGet();
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertHitCount(searchResponse, 3l);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {

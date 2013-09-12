@@ -391,7 +391,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
             }
         }
         if (forceRefresh) {
-            client().admin().indices().prepareRefresh(index).execute().get();
+            assertNoFailures(client().admin().indices().prepareRefresh(index).execute().get());
         }
     }
     

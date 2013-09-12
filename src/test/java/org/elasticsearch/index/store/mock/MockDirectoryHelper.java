@@ -42,11 +42,11 @@ import java.util.Random;
 import java.util.Set;
 
 public class MockDirectoryHelper {
-    public static final String RANDOM_IO_EXCEPTION_RATE = "store.mock.random.io_exception_rate";
-    public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "store.mock.random.io_exception_rate_on_open";
-    public static final String RANDOM_SEED = "store.mock.random.seed";
-    public static final String RANDOM_THROTTLE = "store.mock.random.throttle";
-    public static final String CHECK_INDEX_ON_CLOSE = "store.mock.check_index_on_close";
+    public static final String RANDOM_IO_EXCEPTION_RATE = "index.store.mock.random.io_exception_rate";
+    public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "index.store.mock.random.io_exception_rate_on_open";
+    public static final String RANDOM_SEED = "index.store.mock.random.seed";
+    public static final String RANDOM_THROTTLE = "index.store.mock.random.throttle";
+    public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
     public static final Set<MockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
     private final Random random;
     private final double randomIOExceptionRate;

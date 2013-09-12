@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.Compressor;
@@ -416,21 +417,31 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 directory = distributor.any();
             }
             IndexOutput out = directory.createOutput(name, context);
-            synchronized (mutex) {
-                StoreFileMetaData metaData = new StoreFileMetaData(name, -1, null, directory);
-                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
-                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
-                boolean computeChecksum = !raw;
-                if (computeChecksum) {
-                    // don't compute checksum for segment based files
-                    if ("segments.gen".equals(name) || name.startsWith("segments")) {
-                        computeChecksum = false;
+            boolean success = false;
+            try {
+                synchronized (mutex) {
+                    StoreFileMetaData metaData = new StoreFileMetaData(name, -1, null, directory);
+                    filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
+                    files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+                    boolean computeChecksum = !raw;
+                    if (computeChecksum) {
+                        // don't compute checksum for segment based files
+                        if ("segments.gen".equals(name) || name.startsWith("segments")) {
+                            computeChecksum = false;
+                        }
                     }
+                    if (computeChecksum) {
+                        out = new BufferedChecksumIndexOutput(out, new Adler32());
+                    }
+                    
+                    final StoreIndexOutput storeIndexOutput = new StoreIndexOutput(metaData, out, name);
+                    success = true;
+                    return storeIndexOutput;
                 }
-                if (computeChecksum) {
-                    out = new BufferedChecksumIndexOutput(out, new Adler32());
+            } finally {
+                if (!success) {
+                    IOUtils.closeWhileHandlingException(out);
                 }
-                return new StoreIndexOutput(metaData, out, name);
             }
         }
 
@@ -441,11 +452,19 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 throw new FileNotFoundException(name);
             }
             IndexInput in = metaData.directory().openInput(name, context);
-            // Only for backward comp. since we now use Lucene codec compression
-            if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
-                Compressor compressor = CompressorFactory.compressor(in);
-                if (compressor != null) {
-                    in = compressor.indexInput(in);
+            boolean success = false;
+            try {
+                // Only for backward comp. since we now use Lucene codec compression
+                if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
+                    Compressor compressor = CompressorFactory.compressor(in);
+                    if (compressor != null) {
+                        in = compressor.indexInput(in);
+                    }
+                }
+                success = true;
+            } finally {
+                if (!success) {
+                    IOUtils.closeWhileHandlingException(in);
                 }
             }
             return in;

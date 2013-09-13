@@ -23,6 +23,7 @@ import com.google.common.collect.Iterators;
 import org.apache.lucene.util.AbstractRandomizedTest.IntegrationTests;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.*;
 
 import java.io.IOException;
@@ -318,10 +320,25 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return actionGet;
     }
 
+    protected void flushAndRefresh() {
+        flush(true);
+        refresh();
+    }
+
     protected FlushResponse flush() {
+        return flush(true);
+    }
+
+    protected FlushResponse flush(boolean ignoreNotAllowed) {
         waitForRelocation();
-        FlushResponse actionGet = client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        assertNoFailures(actionGet);
+        FlushResponse actionGet = client().admin().indices().prepareFlush().execute().actionGet();
+        if (ignoreNotAllowed) {
+            for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
+                assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            }
+        } else {
+            assertNoFailures(actionGet);
+        }
         return actionGet;
     }
 
@@ -386,7 +403,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 } else if (rarely()) {
                     client().admin().indices().prepareFlush(index).execute().get();
                 } else if (rarely()) {
-                    client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute().get();                  
+                    client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute().get();
                 }
             }
         }
@@ -394,7 +411,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
             assertNoFailures(client().admin().indices().prepareRefresh(index).execute().get());
         }
     }
-    
+
     public void clearScroll(String... scrollIds) {
         ClearScrollResponse clearResponse = client().prepareClearScroll()
                 .setScrollIds(Arrays.asList(scrollIds)).get();

@@ -224,27 +224,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         private Type type = Type.COMMIT_TRANSLOG;
-        private boolean refresh = false;
         private boolean force = false;
         /**
          * Should the flush operation wait if there is an ongoing flush operation.
          */
         private boolean waitIfOngoing = false;
-
-        /**
-         * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
-         */
-        public boolean refresh() {
-            return this.refresh;
-        }
-
-        /**
-         * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
-         */
-        public Flush refresh(boolean refresh) {
-            this.refresh = refresh;
-            return this;
-        }
 
         public Type type() {
             return this.type;
@@ -278,7 +262,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         @Override
         public String toString() {
-            return "type[" + type + "], refresh[" + refresh + "], force[" + force + "]";
+            return "type[" + type + "], force[" + force + "]";
         }
     }
 

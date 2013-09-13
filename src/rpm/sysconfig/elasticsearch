@@ -38,3 +38,6 @@ CONF_FILE=/etc/elasticsearch/elasticsearch.yml
 # Also make sure, this user can write into the log directories in case you change them
 # This setting only works for the init script, but has to be configured separately for systemd startup
 ES_USER=elasticsearch
+
+# Configure restart on package upgrade (true, every other setting will lead to not restarting)
+#RESTART_ON_UPGRADE=true

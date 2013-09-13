@@ -20,6 +20,7 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -73,6 +74,12 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+    }
+
+    @Override
+    protected void doExecute(CountRequest request, ActionListener<CountResponse> listener) {
+        request.nowInMillis = System.currentTimeMillis();
+        super.doExecute(request, listener);
     }
 
     @Override
@@ -153,7 +160,9 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
         SearchContext context = new DefaultSearchContext(0,
-                new ShardSearchRequest().types(request.types()).filteringAliases(request.filteringAliases()),
+                new ShardSearchRequest().types(request.types())
+                        .filteringAliases(request.filteringAliases())
+                        .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher(), indexService, indexShard,
                 scriptService, cacheRecycler);
         SearchContext.setCurrent(context);

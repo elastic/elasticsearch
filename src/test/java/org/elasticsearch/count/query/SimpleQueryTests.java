@@ -19,7 +19,7 @@
 
 package org.elasticsearch.count.query;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -41,6 +40,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
@@ -197,7 +199,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertHitCount(countResponse, 0l);
     }
 
-    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/3625")
+    @Test
     public void testDateRangeInQueryString() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
@@ -206,7 +208,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         CountResponse countResponse = client().prepareCount().setQuery(queryString("past:[now-2M/d TO now/d]")).execute().actionGet();
         assertHitCount(countResponse, 1l);
@@ -214,12 +216,12 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         countResponse = client().prepareCount().setQuery(queryString("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
         assertHitCount(countResponse, 1l);
 
-        try {
-            client().prepareCount().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
-            fail("D is an unsupported unit in date math");
-        } catch (Exception e) {
-            // expected
-        }
+        countResponse = client().prepareCount().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).execute().actionGet();
+        //D is an unsupported unit in date math
+        assertThat(countResponse.getSuccessfulShards(), equalTo(0));
+        assertThat(countResponse.getFailedShards(), equalTo(1));
+        assertThat(countResponse.getShardFailures().length, equalTo(1));
+        assertThat(countResponse.getShardFailures()[0].reason(), allOf(containsString("Failed to parse"), containsString("unit [D] not supported for date math")));
     }
 
     @Test

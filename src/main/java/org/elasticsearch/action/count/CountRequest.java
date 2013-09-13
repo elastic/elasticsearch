@@ -70,6 +70,8 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
+    long nowInMillis;
+
     CountRequest() {
     }
 

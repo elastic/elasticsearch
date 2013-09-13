@@ -1,9 +1,20 @@
 #!/bin/sh
 set -e
 
+[ -f /etc/default/elasticsearch ] && . /etc/default/elasticsearch
+
+startElasticsearch() {
+	if [ -x "/etc/init.d/elasticsearch" ]; then
+		if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+			invoke-rc.d elasticsearch start || true
+		else
+			/etc/init.d/elasticsearch start || true
+		fi
+	fi
+}
+
 case "$1" in
-    configure)
-	[ -f /etc/default/elasticsearch ] && . /etc/default/elasticsearch
+	configure)
 	[ -z "$ES_USER" ] && ES_USER="elasticsearch"
 	[ -z "$ES_GROUP" ] && ES_GROUP="elasticsearch"
 	if ! getent group "$ES_GROUP" > /dev/null 2>&1 ; then
@@ -24,16 +35,15 @@ case "$1" in
 	chown -Rh root:root /etc/elasticsearch/*
 	chmod 755 /etc/elasticsearch
 	chmod 644 /etc/elasticsearch/*
-    ;;
-esac
-
-
-if [ -x "/etc/init.d/elasticsearch" ]; then
+	
 	update-rc.d elasticsearch defaults 95 10 >/dev/null
-	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
-		invoke-rc.d elasticsearch start || true
-	else
-		/etc/init.d/elasticsearch start || true
+	# if $2 is set, this is an upgrade
+	if ( [ -n $2 ] && [ "$RESTART_ON_UPGRADE" = "true" ] ) ; then
+		startElasticsearch
+	# this is a fresh installation, start anyway
+	elif [ -z $2 ] ; then
+		startElasticsearch
 	fi
-fi
+	;;
+esac
 

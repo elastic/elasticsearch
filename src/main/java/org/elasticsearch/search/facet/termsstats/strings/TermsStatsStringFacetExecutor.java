@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats.strings;
 
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -26,7 +27,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -40,6 +40,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -53,7 +54,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     private final int size;
     private final int shardSize;
 
-    final Recycler.V<ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry>> entries;
+    final Recycler.V<ObjectObjectOpenHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry>> entries;
     long missing;
 
     public TermsStatsStringFacetExecutor(IndexFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript valueScript,
@@ -81,9 +82,17 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0/* indicates all terms*/, entries.v().values(), missing);
+            List<InternalTermsStatsStringFacet.StringEntry> stringEntries = new ArrayList<InternalTermsStatsStringFacet.StringEntry>();
+            final boolean[] states = entries.v().allocated;
+            final Object[] values = entries.v().values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    stringEntries.add((InternalTermsStatsStringFacet.StringEntry) values[i]);
+                }
+            }
+            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, stringEntries, missing);
         }
-        Object[] values = entries.v().internalValues();
+        Object[] values = entries.v().values;
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         List<InternalTermsStatsStringFacet.StringEntry> ordered = Lists.newArrayList();
@@ -144,7 +153,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
     public static class Aggregator extends HashedAggregator {
 
-        final ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries;
+        final ObjectObjectOpenHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries;
         final HashedBytesRef spare = new HashedBytesRef();
         int missing = 0;
 
@@ -152,7 +161,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
         ValueAggregator valueAggregator = new ValueAggregator();
 
-        public Aggregator(ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries) {
+        public Aggregator(ObjectObjectOpenHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries) {
             this.entries = entries;
         }
 
@@ -191,7 +200,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     public static class ScriptAggregator extends Aggregator {
         private final SearchScript script;
 
-        public ScriptAggregator(ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries, SearchScript script) {
+        public ScriptAggregator(ObjectObjectOpenHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries, SearchScript script) {
             super(entries);
             this.script = script;
         }

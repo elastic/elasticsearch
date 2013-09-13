@@ -19,14 +19,15 @@
 
 package org.elasticsearch.action.termvector;
 
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 
 import java.io.IOException;
@@ -112,7 +113,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
 
 public final class TermVectorFields extends Fields {
 
-    final private TObjectLongHashMap<String> fieldMap;
+    final private ObjectLongOpenHashMap<String> fieldMap;
     final private BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
@@ -124,7 +125,7 @@ public final class TermVectorFields extends Fields {
      */
     public TermVectorFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
         BytesStreamInput header = new BytesStreamInput(headerRef);
-        fieldMap = new TObjectLongHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        fieldMap = new ObjectLongOpenHashMap<String>();
 
         // here we read the header to fill the field offset map
         String headerString = header.readString();
@@ -144,20 +145,36 @@ public final class TermVectorFields extends Fields {
 
     @Override
     public Iterator<String> iterator() {
-        return fieldMap.keySet().iterator();
+        final Iterator<ObjectLongCursor<String>> iterator = fieldMap.iterator();
+        return new Iterator<String>() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public String next() {
+                return iterator.next().key;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     @Override
     public Terms terms(String field) throws IOException {
         // first, find where in the termVectors bytes the actual term vector for
         // this field is stored
-        Long offset = fieldMap.get(field);
-        if (offset.longValue() < 0) {
+        if (!fieldMap.containsKey(field)) {
             return null; // we don't have it.
         }
+        long offset = fieldMap.lget();
         final BytesStreamInput perFieldTermVectorInput = new BytesStreamInput(this.termVectors);
         perFieldTermVectorInput.reset();
-        perFieldTermVectorInput.skip(offset.longValue());
+        perFieldTermVectorInput.skip(offset);
 
         // read how many terms....
         final long numTerms = perFieldTermVectorInput.readVLong();

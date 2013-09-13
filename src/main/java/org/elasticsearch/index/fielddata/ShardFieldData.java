@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import gnu.trove.map.hash.TObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -49,9 +49,9 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     }
 
     public FieldDataStats stats(String... fields) {
-        TObjectLongHashMap<String> fieldTotals = null;
+        ObjectLongOpenHashMap<String> fieldTotals = null;
         if (fields != null && fields.length > 0) {
-            fieldTotals = new TObjectLongHashMap<String>();
+            fieldTotals = new ObjectLongOpenHashMap<String>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
                 for (String field : fields) {
                     if (Regex.simpleMatch(field, entry.getKey())) {

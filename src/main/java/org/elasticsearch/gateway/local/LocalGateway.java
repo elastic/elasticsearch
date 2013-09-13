@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway.local;
 
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Sets;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -136,7 +136,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
-        TObjectIntHashMap<String> indices = new TObjectIntHashMap<String>();
+        ObjectFloatOpenHashMap<String> indices = new ObjectFloatOpenHashMap<String>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
@@ -150,7 +150,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 electedGlobalState = nodeState.metaData();
             }
             for (IndexMetaData indexMetaData : nodeState.metaData().indices().values()) {
-                indices.adjustOrPutValue(indexMetaData.index(), 1, 1);
+                indices.addTo(indexMetaData.index(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -159,29 +159,34 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         }
         // update the global state, and clean the indices, we elect them in the next phase
         metaDataBuilder.metaData(electedGlobalState).removeAllIndices();
-        for (String index : indices.keySet()) {
-            IndexMetaData electedIndexMetaData = null;
-            int indexMetaDataCount = 0;
-            for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
-                if (nodeState.metaData() == null) {
-                    continue;
+        final boolean[] states = indices.allocated;
+        final Object[] keys = indices.keys;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                String index = (String) keys[i];
+                IndexMetaData electedIndexMetaData = null;
+                int indexMetaDataCount = 0;
+                for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {
+                    if (nodeState.metaData() == null) {
+                        continue;
+                    }
+                    IndexMetaData indexMetaData = nodeState.metaData().index(index);
+                    if (indexMetaData == null) {
+                        continue;
+                    }
+                    if (electedIndexMetaData == null) {
+                        electedIndexMetaData = indexMetaData;
+                    } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                        electedIndexMetaData = indexMetaData;
+                    }
+                    indexMetaDataCount++;
                 }
-                IndexMetaData indexMetaData = nodeState.metaData().index(index);
-                if (indexMetaData == null) {
-                    continue;
+                if (electedIndexMetaData != null) {
+                    if (indexMetaDataCount < requiredAllocation) {
+                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                    }
+                    metaDataBuilder.put(electedIndexMetaData, false);
                 }
-                if (electedIndexMetaData == null) {
-                    electedIndexMetaData = indexMetaData;
-                } else if (indexMetaData.version() > electedIndexMetaData.version()) {
-                    electedIndexMetaData = indexMetaData;
-                }
-                indexMetaDataCount++;
-            }
-            if (electedIndexMetaData != null) {
-                if (indexMetaDataCount < requiredAllocation) {
-                    logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
-                }
-                metaDataBuilder.put(electedIndexMetaData, false);
             }
         }
         ClusterState.Builder builder = ClusterState.builder();

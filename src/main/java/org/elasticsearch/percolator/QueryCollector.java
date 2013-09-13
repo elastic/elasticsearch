@@ -19,8 +19,8 @@
 
 package org.elasticsearch.percolator;
 
+import com.carrotsearch.hppc.FloatArrayList;
 import com.google.common.collect.ImmutableMap;
-import gnu.trove.list.array.TFloatArrayList;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
@@ -218,7 +218,7 @@ abstract class QueryCollector extends Collector {
         final List<BytesRef> matches = new ArrayList<BytesRef>();
         final List<Map<String, HighlightField>> hls = new ArrayList<Map<String, HighlightField>>();
         // TODO: Use thread local in order to cache the scores lists?
-        final TFloatArrayList scores = new TFloatArrayList();
+        final FloatArrayList scores = new FloatArrayList();
         final boolean limit;
         final int size;
         long counter = 0;
@@ -278,7 +278,7 @@ abstract class QueryCollector extends Collector {
             return matches;
         }
 
-        TFloatArrayList scores() {
+        FloatArrayList scores() {
             return scores;
         }
 

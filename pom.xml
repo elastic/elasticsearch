@@ -170,9 +170,9 @@
         </dependency>
 
         <dependency>
-            <groupId>net.sf.trove4j</groupId>
-            <artifactId>trove4j</artifactId>
-            <version>3.0.3</version>
+            <groupId>com.carrotsearch</groupId>
+            <artifactId>hppc</artifactId>
+            <version>0.5.2</version>
         </dependency>
 
         <dependency>
@@ -439,7 +439,7 @@
                     <artifactSet>
                         <includes>
                             <include>com.google.guava:guava</include>
-                            <include>net.sf.trove4j:trove4j</include>
+                            <include>com.carrotsearch:hppc</include>
                             <include>org.mvel:mvel2</include>
                             <include>com.fasterxml.jackson.core:jackson-core</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
@@ -455,8 +455,8 @@
                             <shadedPattern>org.elasticsearch.common</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>gnu.trove</pattern>
-                            <shadedPattern>org.elasticsearch.common.trove</shadedPattern>
+                            <pattern>com.carrotsearch.hppc</pattern>
+                            <shadedPattern>org.elasticsearch.common.hppc</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>jsr166y</pattern>

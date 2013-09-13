@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
@@ -235,12 +235,12 @@ public class HashedAggregator {
         // implemenation
         // for
         // assertions
-        private final TObjectIntHashMap<HashedBytesRef> valuesAndCount = new TObjectIntHashMap<HashedBytesRef>();
+        private final ObjectIntOpenHashMap<HashedBytesRef> valuesAndCount = new ObjectIntOpenHashMap<HashedBytesRef>();
         private HashedBytesRef spare = new HashedBytesRef();
 
         @Override
         public boolean add(BytesRef value, int hashCode, BytesValues values) {
-            int adjustedValue = valuesAndCount.adjustOrPutValue(spare.reset(value, hashCode), 1, 1);
+            int adjustedValue = valuesAndCount.addTo(spare.reset(value, hashCode), 1);
             assert adjustedValue >= 1;
             if (adjustedValue == 1) { // only if we added the spare we create a
                 // new instance
@@ -268,7 +268,7 @@ public class HashedAggregator {
         @Override
         public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
             if (!valuesAndCount.containsKey(spare.reset(value, hashCode))) {
-                valuesAndCount.adjustOrPutValue(spare.reset(value, hashCode), 0, 0);
+                valuesAndCount.addTo(spare.reset(value, hashCode), 0);
                 spare.bytes = values.makeSafe(spare.bytes);
                 spare = new HashedBytesRef();
                 return true;

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.search.builder;
 
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import gnu.trove.iterator.TObjectFloatIterator;
-import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -112,7 +111,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private RescoreBuilder rescoreBuilder;
 
-    private TObjectFloatHashMap<String> indexBoost = null;
+    private ObjectFloatOpenHashMap<String> indexBoost = null;
 
     private String[] stats;
 
@@ -590,7 +589,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         if (this.indexBoost == null) {
-            this.indexBoost = new TObjectFloatHashMap<String>();
+            this.indexBoost = new ObjectFloatOpenHashMap<String>();
         }
         this.indexBoost.put(index, indexBoost);
         return this;
@@ -761,9 +760,13 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (indexBoost != null) {
             builder.startObject("indices_boost");
-            for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext(); ) {
-                it.advance();
-                builder.field(it.key(), it.value());
+            final boolean[] states = indexBoost.allocated;
+            final Object[] keys = indexBoost.keys;
+            final float[] values = indexBoost.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    builder.field((String) keys[i], values[i]);
+                }
             }
             builder.endObject();
         }

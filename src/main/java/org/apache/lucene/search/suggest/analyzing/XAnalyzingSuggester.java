@@ -18,7 +18,7 @@
  */
 package org.apache.lucene.search.suggest.analyzing;
 
-import gnu.trove.map.hash.TObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
@@ -33,6 +33,7 @@ import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.Util.MinResult;
+import org.elasticsearch.common.hppc.HppcMaps;
 
 import java.io.File;
 import java.io.IOException;
@@ -917,7 +918,7 @@ public class XAnalyzingSuggester extends Lookup {
         private BytesRef analyzed = new BytesRef();
         private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
         private int count;
-        private TObjectIntHashMap<BytesRef> seenSurfaceForms = new TObjectIntHashMap<BytesRef>(256, 0.75f, -1);
+        private ObjectIntOpenHashMap<BytesRef> seenSurfaceForms = HppcMaps.Object.Integer.ensureNoNullKeys(256, 0.75f);
 
         public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads) {
             this.outputs = new PairOutputs<Long, BytesRef>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
@@ -969,7 +970,8 @@ public class XAnalyzingSuggester extends Lookup {
                 return;
             }
             BytesRef surfaceCopy;
-            if (count > 0 && (surfaceIndex = seenSurfaceForms.get(surface)) >= 0) {
+            if (count > 0 && seenSurfaceForms.containsKey(surface)) {
+                surfaceIndex = seenSurfaceForms.lget();
                 SurfaceFormAndPayload surfaceFormAndPayload = surfaceFormsAndPayload[surfaceIndex];
                 if (encodedWeight >= surfaceFormAndPayload.weight) {
                     return;

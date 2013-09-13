@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.search.child;
 
-import gnu.trove.map.hash.TIntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
@@ -29,13 +30,11 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -64,7 +63,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
-    private Recycler.V<ExtTHashMap<Object, ParentDoc[]>> parentDocs;
+    private Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs;
 
     // Note, the query is expected to already be filtered to only child type docs
     public TopChildrenQuery(Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler) {
@@ -146,7 +145,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
         int parentHitsResolved = 0;
-        Recycler.V<ExtTHashMap<Object, Recycler.V<TIntObjectHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
+        Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
@@ -166,7 +165,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
                     // we found a match, add it and break
 
-                    Recycler.V<TIntObjectHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
+                    Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
                         readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
                         parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
@@ -191,12 +190,18 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 }
             }
         }
+        boolean[] states = parentDocsPerReader.v().allocated;
+        Object[] keys = parentDocsPerReader.v().keys;
+        Object[] values = parentDocsPerReader.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                Recycler.V<IntObjectOpenHashMap<ParentDoc>> value = (Recycler.V<IntObjectOpenHashMap<ParentDoc>>) values[i];
+                ParentDoc[] parentDocs = value.v().values().toArray(ParentDoc.class);
+                Arrays.sort(parentDocs, PARENT_DOC_COMP);
 
-        for (Map.Entry<Object, Recycler.V<TIntObjectHashMap<ParentDoc>>> entry : parentDocsPerReader.v().entrySet()) {
-            ParentDoc[] values = entry.getValue().v().values(new ParentDoc[entry.getValue().v().size()]);
-            Arrays.sort(values, PARENT_DOC_COMP);
-            parentDocs.v().put(entry.getKey(), values);
-            entry.getValue().release();
+                this.parentDocs.v().put(keys[i], parentDocs);
+                value.release();
+            }
         }
         parentDocsPerReader.release();
         return parentHitsResolved;

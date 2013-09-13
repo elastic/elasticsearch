@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
-import gnu.trove.list.array.TIntArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,12 +30,12 @@ import java.util.List;
 
 public class MultiTermVectorsShardResponse extends ActionResponse {
 
-    TIntArrayList locations;
+    IntArrayList locations;
     List<TermVectorResponse> responses;
     List<MultiTermVectorsResponse.Failure> failures;
 
     MultiTermVectorsShardResponse() {
-        locations = new TIntArrayList();
+        locations = new IntArrayList();
         responses = new ArrayList<TermVectorResponse>();
         failures = new ArrayList<MultiTermVectorsResponse.Failure>();
     }
@@ -56,7 +56,7 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        locations = new TIntArrayList(size);
+        locations = new IntArrayList(size);
         responses = new ArrayList<TermVectorResponse>(size);
         failures = new ArrayList<MultiTermVectorsResponse.Failure>(size);
         for (int i = 0; i < size; i++) {

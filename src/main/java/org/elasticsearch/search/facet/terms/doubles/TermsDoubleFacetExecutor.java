@@ -19,11 +19,10 @@
 
 package org.elasticsearch.search.facet.terms.doubles;
 
+import com.carrotsearch.hppc.DoubleIntOpenHashMap;
+import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import gnu.trove.iterator.TDoubleIntIterator;
-import gnu.trove.map.hash.TDoubleIntHashMap;
-import gnu.trove.set.hash.TDoubleHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
@@ -57,7 +56,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
 
-    final Recycler.V<TDoubleIntHashMap> facets;
+    final Recycler.V<DoubleIntOpenHashMap> facets;
     long missing;
     long total;
 
@@ -121,11 +120,15 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
             facets.release();
             return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), missing, total);
         } else {
+            final boolean[] states = facets.v().allocated;
+            final double[] keys = facets.v().keys;
+            final int[] values = facets.v().values;
             if (size < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
-                for (TDoubleIntIterator it = facets.v().iterator(); it.hasNext(); ) {
-                    it.advance();
-                    ordered.insertWithOverflow(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
+                for (int i = 0; i < states.length; i++) {
+                    if (states[i]) {
+                        ordered.insertWithOverflow(new InternalDoubleTermsFacet.DoubleEntry(keys[i], values[i]));
+                    }
                 }
                 InternalDoubleTermsFacet.DoubleEntry[] list = new InternalDoubleTermsFacet.DoubleEntry[ordered.size()];
                 for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -135,9 +138,10 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), shardSize);
-                for (TDoubleIntIterator it = facets.v().iterator(); it.hasNext(); ) {
-                    it.advance();
-                    ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
+                for (int i = 0; i < states.length; i++) {
+                    if (states[i]) {
+                        ordered.add(new InternalDoubleTermsFacet.DoubleEntry(keys[i], values[i]));
+                    }
                 }
                 facets.release();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, missing, total);
@@ -189,15 +193,15 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
         private final SearchScript script;
 
-        private final TDoubleHashSet excluded;
+        private final DoubleOpenHashSet excluded;
 
-        public AggregatorValueProc(TDoubleIntHashMap facets, Set<BytesRef> excluded, SearchScript script) {
+        public AggregatorValueProc(DoubleIntOpenHashMap facets, Set<BytesRef> excluded, SearchScript script) {
             super(facets);
             this.script = script;
             if (excluded == null || excluded.isEmpty()) {
                 this.excluded = null;
             } else {
-                this.excluded = new TDoubleHashSet(excluded.size());
+                this.excluded = new DoubleOpenHashSet(excluded.size());
                 for (BytesRef s : excluded) {
                     this.excluded.add(Double.parseDouble(s.utf8ToString()));
                 }
@@ -230,18 +234,18 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
     public static class StaticAggregatorValueProc extends DoubleFacetAggregatorBase {
 
-        private final TDoubleIntHashMap facets;
+        private final DoubleIntOpenHashMap facets;
 
-        public StaticAggregatorValueProc(TDoubleIntHashMap facets) {
+        public StaticAggregatorValueProc(DoubleIntOpenHashMap facets) {
             this.facets = facets;
         }
 
         @Override
         public void onValue(int docId, double value) {
-            facets.adjustOrPutValue(value, 1, 1);
+            facets.addTo(value, 1);
         }
 
-        public final TDoubleIntHashMap facets() {
+        public final DoubleIntOpenHashMap facets() {
             return facets;
         }
     }

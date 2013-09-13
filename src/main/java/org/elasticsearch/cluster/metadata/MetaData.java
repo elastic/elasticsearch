@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -160,26 +158,24 @@ public class MetaData implements Iterable<IndexMetaData> {
         this.allOpenIndices = allOpenIndices.toArray(new String[allOpenIndices.size()]);
 
         // build aliases map
-        ExtTHashMap<String, Map<String, AliasMetaData>> aliases = new ExtTHashMap<String, Map<String, AliasMetaData>>(numAliases);
+        Map<String, Map<String, AliasMetaData>> tmpAliases = new HashMap<String, Map<String, AliasMetaData>>(numAliases);
         for (IndexMetaData indexMetaData : indices.values()) {
             String index = indexMetaData.index();
             for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
-                Map<String, AliasMetaData> indexAliasMap = aliases.get(aliasMd.alias());
+                Map<String, AliasMetaData> indexAliasMap = tmpAliases.get(aliasMd.alias());
                 if (indexAliasMap == null) {
-                    indexAliasMap = new ExtTHashMap<String, AliasMetaData>(indices.size());
-                    aliases.put(aliasMd.alias(), indexAliasMap);
+                    indexAliasMap = new HashMap<String, AliasMetaData>(indices.size());
+                    tmpAliases.put(aliasMd.alias(), indexAliasMap);
                 }
                 indexAliasMap.put(index, aliasMd);
             }
         }
-        for (int i = 0; i < aliases.internalValues().length; i++) {
-            if (aliases.internalValues()[i] != null) {
-                aliases.internalValues()[i] = XMaps.makeReadOnly((Map) aliases.internalValues()[i]);
-            }
+        for (String alias : tmpAliases.keySet()) {
+            tmpAliases.put(alias, XMaps.makeReadOnly(tmpAliases.get(alias)));
         }
-        this.aliases = XMaps.makeReadOnly(aliases);
+        this.aliases = XMaps.makeReadOnly(tmpAliases);
 
-        ExtTHashMap<String, StringArray> aliasAndIndexToIndexMap = new ExtTHashMap<String, StringArray>(numAliases + numIndices);
+        Map<String, StringArray> aliasAndIndexToIndexMap = new HashMap<String, StringArray>(numAliases + numIndices);
         for (IndexMetaData indexMetaData : indices.values()) {
             StringArray indicesLst = aliasAndIndexToIndexMap.get(indexMetaData.index());
             if (indicesLst == null) {
@@ -198,8 +194,8 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
         }
 
-        for (StringArray stringArray : aliasAndIndexToIndexMap.values()) {
-            stringArray.trim();
+        for (StringArray value : aliasAndIndexToIndexMap.values()) {
+            value.trim();
         }
 
         this.aliasAndIndexToIndexMap = XMaps.makeReadOnly(aliasAndIndexToIndexMap);
@@ -439,7 +435,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         Map<String, Set<String>> routings = null;
         Set<String> paramRouting = null;
         // List of indices that don't require any routing
-        Set<String> norouting = new THashSet<String>();
+        Set<String> norouting = new HashSet<String>();
         if (routing != null) {
             paramRouting = Strings.splitStringByCommaToSet(routing);
         }
@@ -456,7 +452,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                             }
                             Set<String> r = routings.get(indexRouting.getKey());
                             if (r == null) {
-                                r = new THashSet<String>();
+                                r = new HashSet<String>();
                                 routings.put(indexRouting.getKey(), r);
                             }
                             r.addAll(indexRouting.getValue().searchRoutingValues());
@@ -471,7 +467,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                             if (!norouting.contains(indexRouting.getKey())) {
                                 norouting.add(indexRouting.getKey());
                                 if (paramRouting != null) {
-                                    Set<String> r = new THashSet<String>(paramRouting);
+                                    Set<String> r = new HashSet<String>(paramRouting);
                                     if (routings == null) {
                                         routings = newHashMap();
                                     }
@@ -490,7 +486,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 if (!norouting.contains(aliasOrIndex)) {
                     norouting.add(aliasOrIndex);
                     if (paramRouting != null) {
-                        Set<String> r = new THashSet<String>(paramRouting);
+                        Set<String> r = new HashSet<String>(paramRouting);
                         if (routings == null) {
                             routings = newHashMap();
                         }
@@ -523,7 +519,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             for (Map.Entry<String, AliasMetaData> indexRouting : indexToRoutingMap.entrySet()) {
                 if (!indexRouting.getValue().searchRoutingValues().isEmpty()) {
                     // Routing alias
-                    Set<String> r = new THashSet<String>(indexRouting.getValue().searchRoutingValues());
+                    Set<String> r = new HashSet<String>(indexRouting.getValue().searchRoutingValues());
                     if (paramRouting != null) {
                         r.retainAll(paramRouting);
                     }
@@ -536,7 +532,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 } else {
                     // Non-routing alias
                     if (paramRouting != null) {
-                        Set<String> r = new THashSet<String>(paramRouting);
+                        Set<String> r = new HashSet<String>(paramRouting);
                         if (routings == null) {
                             routings = newHashMap();
                         }
@@ -619,7 +615,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return aliasesOrIndices;
         }
 
-        Set<String> actualIndices = new THashSet<String>();
+        Set<String> actualIndices = new HashSet<String>();
         for (String index : aliasesOrIndices) {
             StringArray actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {
@@ -680,7 +676,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             } else if (aliasOrIndex.charAt(0) == '-') {
                 // if its the first, fill it with all the indices...
                 if (i == 0) {
-                    result = new THashSet<String>(Arrays.asList(wildcardOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices()));
+                    result = new HashSet<String>(Arrays.asList(wildcardOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices()));
                 }
                 add = false;
                 aliasOrIndex = aliasOrIndex.substring(1);
@@ -700,7 +696,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             if (result == null) {
                 // add all the previous ones...
-                result = new THashSet<String>();
+                result = new HashSet<String>();
                 result.addAll(Arrays.asList(aliasesOrIndices).subList(0, i));
             }
             String[] indices = wildcardOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();

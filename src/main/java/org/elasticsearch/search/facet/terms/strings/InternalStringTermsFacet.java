@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.iterator.TObjectIntIterator;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -179,7 +178,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
         InternalStringTermsFacet first = null;
 
-        Recycler.V<TObjectIntHashMap<Text>> aggregated = context.cacheRecycler().objectIntMap(-1);
+        Recycler.V<ObjectIntOpenHashMap<Text>> aggregated = context.cacheRecycler().objectIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -199,14 +198,21 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             }
 
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.v().adjustOrPutValue(entry.getTerm(), entry.getCount(), entry.getCount());
+                aggregated.v().addTo(entry.getTerm(), entry.getCount());
             }
         }
 
         BoundedTreeSet<TermEntry> ordered = new BoundedTreeSet<TermEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TObjectIntIterator<Text> it = aggregated.v().iterator(); it.hasNext(); ) {
-            it.advance();
-            ordered.add(new TermEntry(it.key(), it.value()));
+        ObjectIntOpenHashMap<Text> aggregatedEntries = aggregated.v();
+
+        final boolean[] states = aggregatedEntries.allocated;
+        Object[] keys = aggregatedEntries.keys;
+        int[] values = aggregatedEntries.values;
+        for (int i = 0; i < aggregatedEntries.allocated.length; i++) {
+            if (states[i]) {
+                Text key = (Text) keys[i];
+                ordered.add(new TermEntry(key, values[i]));
+            }
         }
         first.entries = ordered;
         first.missing = missing;

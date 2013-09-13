@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import gnu.trove.iterator.TObjectIntIterator;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
@@ -54,7 +53,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     private final ImmutableSet<BytesRef> excluded;
     private final int numberOfShards;
 
-    final Recycler.V<TObjectIntHashMap<BytesRef>> facets;
+    final Recycler.V<ObjectIntOpenHashMap<BytesRef>> facets;
     long missing;
     long total;
 
@@ -84,11 +83,16 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
             facets.release();
             return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
+            final boolean[] states = facets.v().allocated;
+            final Object[] keys = facets.v().keys;
+            final int[] values = facets.v().values;
             if (shardSize < EntryPriorityQueue.LIMIT) {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
-                for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
-                    it.advance();
-                    ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
+                for (int i = 0; i < states.length; i++) {
+                    if (states[i]) {
+                        BytesRef key = (BytesRef) keys[i];
+                        ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(key, values[i]));
+                    }
                 }
                 InternalStringTermsFacet.TermEntry[] list = new InternalStringTermsFacet.TermEntry[ordered.size()];
                 for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -98,9 +102,11 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
-                for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
-                    it.advance();
-                    ordered.add(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
+                for (int i = 0; i < states.length; i++) {
+                    if (states[i]) {
+                        BytesRef key = (BytesRef) keys[i];
+                        ordered.add(new InternalStringTermsFacet.TermEntry(key, values[i]));
+                    }
                 }
                 facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
@@ -113,12 +119,12 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
         private final Matcher matcher;
         private final ImmutableSet<BytesRef> excluded;
         private final SearchScript script;
-        private final TObjectIntHashMap<BytesRef> facets;
+        private final ObjectIntOpenHashMap<BytesRef> facets;
 
         long missing;
         long total;
 
-        Collector(Matcher matcher, ImmutableSet<BytesRef> excluded, SearchScript script, TObjectIntHashMap<BytesRef> facets) {
+        Collector(Matcher matcher, ImmutableSet<BytesRef> excluded, SearchScript script, ObjectIntOpenHashMap<BytesRef> facets) {
             this.matcher = matcher;
             this.excluded = excluded;
             this.script = script;
@@ -150,7 +156,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                     if (match(value)) {
                         found = true;
                         // LUCENE 4 UPGRADE: should be possible to convert directly to BR
-                        facets.adjustOrPutValue(new BytesRef(value), 1, 1);
+                        facets.addTo(new BytesRef(value), 1);
                         total++;
                     }
                 }
@@ -164,7 +170,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                     if (match(value)) {
                         found = true;
                         // LUCENE 4 UPGRADE: should be possible to convert directly to BR
-                        facets.adjustOrPutValue(new BytesRef(value), 1, 1);
+                        facets.addTo(new BytesRef(value), 1);
                         total++;
                     }
                 }
@@ -175,7 +181,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                 String value = o.toString();
                 if (match(value)) {
                     // LUCENE 4 UPGRADE: should be possible to convert directly to BR
-                    facets.adjustOrPutValue(new BytesRef(value), 1, 1);
+                    facets.addTo(new BytesRef(value), 1);
                     total++;
                 } else {
                     missing++;

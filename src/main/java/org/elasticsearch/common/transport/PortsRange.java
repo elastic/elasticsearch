@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.transport;
 
-import gnu.trove.list.array.TIntArrayList;
+
+import com.carrotsearch.hppc.IntArrayList;
 
 import java.util.StringTokenizer;
 
@@ -35,7 +36,7 @@ public class PortsRange {
     }
 
     public int[] ports() throws NumberFormatException {
-        final TIntArrayList ports = new TIntArrayList();
+        final IntArrayList ports = new IntArrayList();
         iterate(new PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {
@@ -43,7 +44,7 @@ public class PortsRange {
                 return false;
             }
         });
-        return ports.toArray(new int[ports.size()]);
+        return ports.toArray();
     }
 
     public boolean iterate(PortCallback callback) throws NumberFormatException {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
-import gnu.trove.list.array.TIntArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +33,7 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
     private int shardId;
     private String preference;
 
-    TIntArrayList locations;
+    IntArrayList locations;
     List<TermVectorRequest> requests;
 
     MultiTermVectorsShardRequest() {
@@ -43,7 +43,7 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
     MultiTermVectorsShardRequest(String index, int shardId) {
         super(index);
         this.shardId = shardId;
-        locations = new TIntArrayList();
+        locations = new IntArrayList();
         requests = new ArrayList<TermVectorRequest>();
     }
 
@@ -75,7 +75,7 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        locations = new TIntArrayList(size);
+        locations = new IntArrayList(size);
         requests = new ArrayList<TermVectorRequest>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());

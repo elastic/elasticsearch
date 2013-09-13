@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -55,7 +55,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private Set<ShardId> clearPostAllocationFlag;
 
-    private final Map<String, TObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<String, TObjectIntHashMap<String>>();
+    private final Map<String, ObjectIntOpenHashMap<String>> nodesPerAttributeNames = new HashMap<String, ObjectIntOpenHashMap<String>>();
 
     public RoutingNodes(ClusterState clusterState) {
         this.metaData = clusterState.metaData();
@@ -188,15 +188,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
-    public TObjectIntHashMap<String> nodesPerAttributesCounts(String attributeName) {
-        TObjectIntHashMap<String> nodesPerAttributesCounts = nodesPerAttributeNames.get(attributeName);
+    public ObjectIntOpenHashMap<String> nodesPerAttributesCounts(String attributeName) {
+        ObjectIntOpenHashMap<String> nodesPerAttributesCounts = nodesPerAttributeNames.get(attributeName);
         if (nodesPerAttributesCounts != null) {
             return nodesPerAttributesCounts;
         }
-        nodesPerAttributesCounts = new TObjectIntHashMap<String>();
+        nodesPerAttributesCounts = new ObjectIntOpenHashMap<String>();
         for (RoutingNode routingNode : this) {
             String attrValue = routingNode.node().attributes().get(attributeName);
-            nodesPerAttributesCounts.adjustOrPutValue(attrValue, 1, 1);
+            nodesPerAttributesCounts.addTo(attrValue, 1);
         }
         nodesPerAttributeNames.put(attributeName, nodesPerAttributesCounts);
         return nodesPerAttributesCounts;

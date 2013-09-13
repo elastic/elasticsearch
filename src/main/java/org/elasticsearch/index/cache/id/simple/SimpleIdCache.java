@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
-import gnu.trove.impl.Constants;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.UTF8SortedAsUnicodeComparator;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -304,7 +302,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     static class TypeBuilder {
-        final ExtTObjectIntHasMap<HashedBytesArray> idToDoc = new ExtTObjectIntHasMap<HashedBytesArray>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+        final ObjectIntOpenHashMap<HashedBytesArray> idToDoc = new ObjectIntOpenHashMap<HashedBytesArray>();
         final HashedBytesArray[] docToId;
         final ArrayList<HashedBytesArray> parentIdsValues = new ArrayList<HashedBytesArray>();
         final int[] parentIdsOrdinals;
@@ -321,7 +319,11 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
          * Returns an already stored instance if exists, if not, returns null;
          */
         public HashedBytesArray canReuse(HashedBytesArray id) {
-            return idToDoc.key(id);
+            if (idToDoc.containsKey(id)) {
+                return idToDoc.lkey();
+            } else {
+                return id;
+            }
         }
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.google.common.collect.Iterators;
-import gnu.trove.map.hash.TIntObjectHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +51,7 @@ public class InternalSearchHits implements SearchHits {
         }
 
         private IdentityHashMap<SearchShardTarget, Integer> shardHandleLookup = new IdentityHashMap<SearchShardTarget, Integer>();
-        private TIntObjectHashMap<SearchShardTarget> handleShardLookup = new TIntObjectHashMap<SearchShardTarget>();
+        private IntObjectOpenHashMap<SearchShardTarget> handleShardLookup = new IntObjectOpenHashMap<SearchShardTarget>();
         private ShardTargetType streamShardTarget = ShardTargetType.STREAM;
 
         public StreamContext reset() {
@@ -65,7 +65,7 @@ public class InternalSearchHits implements SearchHits {
             return shardHandleLookup;
         }
 
-        public TIntObjectHashMap<SearchShardTarget> handleShardLookup() {
+        public IntObjectOpenHashMap<SearchShardTarget> handleShardLookup() {
             return handleShardLookup;
         }
 

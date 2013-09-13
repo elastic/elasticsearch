@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.child;
 
-import gnu.trove.map.hash.TObjectFloatHashMap;
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -27,7 +27,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
@@ -54,7 +53,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     private final Filter childrenFilter;
 
     private Query rewrittenParentQuery;
-    private Recycler.V<TObjectFloatHashMap<HashedBytesArray>> uidToScore;
+    private Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore;
 
     public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, Filter childrenFilter) {
         this.searchContext = searchContext;
@@ -152,14 +151,14 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     static class ParentUidCollector extends NoopCollector {
 
-        final TObjectFloatHashMap<HashedBytesArray> uidToScore;
+        final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
         final SearchContext searchContext;
         final String parentType;
 
         Scorer scorer;
         IdReaderTypeCache typeCache;
 
-        ParentUidCollector(TObjectFloatHashMap<HashedBytesArray> uidToScore, SearchContext searchContext, String parentType) {
+        ParentUidCollector(ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, SearchContext searchContext, String parentType) {
             this.uidToScore = uidToScore;
             this.searchContext = searchContext;
             this.parentType = parentType;
@@ -232,14 +231,14 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     static class ChildScorer extends Scorer {
 
-        final TObjectFloatHashMap<HashedBytesArray> uidToScore;
+        final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
         final DocIdSetIterator childrenIterator;
         final IdReaderTypeCache typeCache;
 
         int currentChildDoc = -1;
         float currentScore;
 
-        ChildScorer(Weight weight, TObjectFloatHashMap<HashedBytesArray> uidToScore, DocIdSetIterator childrenIterator, IdReaderTypeCache typeCache) {
+        ChildScorer(Weight weight, ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, DocIdSetIterator childrenIterator, IdReaderTypeCache typeCache) {
             super(weight);
             this.uidToScore = uidToScore;
             this.childrenIterator = childrenIterator;
@@ -271,7 +270,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                     return currentChildDoc;
                 }
 
-                BytesReference uid = typeCache.parentIdByDoc(currentChildDoc);
+                HashedBytesArray uid = typeCache.parentIdByDoc(currentChildDoc);
                 if (uid == null) {
                     continue;
                 }
@@ -288,7 +287,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
             if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 return currentChildDoc;
             }
-            BytesReference uid = typeCache.idByDoc(currentChildDoc);
+            HashedBytesArray uid = typeCache.idByDoc(currentChildDoc);
             if (uid == null) {
                 return nextDoc();
             }

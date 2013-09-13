@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.child;
 
-import gnu.trove.set.hash.THashSet;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
@@ -47,7 +47,7 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
     final SearchContext context;
     final Filter childrenFilter;
 
-    Recycler.V<THashSet<HashedBytesArray>> parents;
+    Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents;
 
     public HasParentFilter(Query parentQuery, String parentType, SearchContext context, Filter childrenFilter) {
         this.parentQuery = parentQuery;
@@ -120,10 +120,10 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
     final static class ChildrenDocSet extends MatchDocIdSet {
 
         final IndexReader reader;
-        final THashSet<HashedBytesArray> parents;
+        final ObjectOpenHashSet<HashedBytesArray> parents;
         final IdReaderTypeCache idReaderTypeCache;
 
-        ChildrenDocSet(IndexReader reader, Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
+        ChildrenDocSet(IndexReader reader, Bits acceptDocs, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
             super(reader.maxDoc(), acceptDocs);
             this.reader = reader;
             this.parents = parents;
@@ -139,13 +139,13 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
 
     final static class ParentUidsCollector extends NoopCollector {
 
-        final THashSet<HashedBytesArray> collectedUids;
+        final ObjectOpenHashSet<HashedBytesArray> collectedUids;
         final SearchContext context;
         final String parentType;
 
         IdReaderTypeCache typeCache;
 
-        ParentUidsCollector(THashSet<HashedBytesArray> collectedUids, SearchContext context, String parentType) {
+        ParentUidsCollector(ObjectOpenHashSet<HashedBytesArray> collectedUids, SearchContext context, String parentType) {
             this.collectedUids = collectedUids;
             this.context = context;
             this.parentType = parentType;

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.facet.histogram;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
@@ -43,7 +43,7 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
     private final HistogramFacet.ComparatorType comparatorType;
     final long interval;
 
-    final Recycler.V<ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry>> entries;
+    final Recycler.V<LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
     public FullHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
@@ -60,9 +60,16 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        List<InternalFullHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullHistogramFacet.FullEntry>(entries.v().valueCollection());
+        List<InternalFullHistogramFacet.FullEntry> fullEntries = new ArrayList<InternalFullHistogramFacet.FullEntry>(entries.v().size());
+        boolean[] states = entries.v().allocated;
+        Object[] values = entries.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                fullEntries.add((InternalFullHistogramFacet.FullEntry) values[i]);
+            }
+        }
         entries.release();
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
+        return new InternalFullHistogramFacet(facetName, comparatorType, fullEntries);
     }
 
     public static long bucket(double value, long interval) {
@@ -96,9 +103,9 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
     public final static class HistogramProc extends DoubleFacetAggregatorBase {
 
         final long interval;
-        final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
+        final LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-        public HistogramProc(long interval, ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries) {
+        public HistogramProc(long interval, LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries) {
             this.interval = interval;
             this.entries = entries;
         }

@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
-import gnu.trove.iterator.TLongIterator;
-import gnu.trove.set.TDoubleSet;
-import gnu.trove.set.TLongSet;
-import gnu.trove.set.hash.TDoubleHashSet;
-import gnu.trove.set.hash.TLongHashSet;
+import com.carrotsearch.hppc.DoubleOpenHashSet;
+import com.carrotsearch.hppc.LongOpenHashSet;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
@@ -299,17 +296,22 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         public abstract long nextValue(Random r);
     }
 
-    private void test(List<TLongSet> values) throws Exception {
+    private void test(List<LongOpenHashSet> values) throws Exception {
         StringField id = new StringField("_id", "", Field.Store.NO);
 
         for (int i = 0; i < values.size(); ++i) {
             Document doc = new Document();
             id.setStringValue("" + i);
             doc.add(id);
-            final TLongSet v = values.get(i);
-            for (TLongIterator it = v.iterator(); it.hasNext(); ) {
-                LongField value = new LongField("value", it.next(), Field.Store.NO);
-                doc.add(value);
+            final LongOpenHashSet v = values.get(i);
+            final boolean[] states = v.allocated;
+            final long[] keys = v.keys;
+
+            for (int j = 0; j < states.length; j++) {
+                if (states[j]) {
+                    LongField value = new LongField("value", keys[j], Field.Store.NO);
+                    doc.add(value);
+                }
             }
             writer.addDocument(doc);
         }
@@ -319,10 +321,10 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         final AtomicNumericFieldData atomicFieldData = indexFieldData.load(refreshReader());
         final LongValues data = atomicFieldData.getLongValues();
         final DoubleValues doubleData = atomicFieldData.getDoubleValues();
-        final TLongSet set = new TLongHashSet();
-        final TDoubleSet doubleSet = new TDoubleHashSet();
+        final LongOpenHashSet set = new LongOpenHashSet();
+        final DoubleOpenHashSet doubleSet = new DoubleOpenHashSet();
         for (int i = 0; i < values.size(); ++i) {
-            final TLongSet v = values.get(i);
+            final LongOpenHashSet v = values.get(i);
 
             assertThat(data.hasValue(i), equalTo(!v.isEmpty()));
             assertThat(doubleData.hasValue(i), equalTo(!v.isEmpty()));
@@ -338,9 +340,13 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
             assertThat(set, equalTo(v));
 
-            final TDoubleSet doubleV = new TDoubleHashSet();
-            for (TLongIterator it = v.iterator(); it.hasNext(); ) {
-                doubleV.add((double) it.next());
+            final DoubleOpenHashSet doubleV = new DoubleOpenHashSet();
+            final boolean[] states = v.allocated;
+            final long[] keys = v.keys;
+            for (int j = 0; j < states.length; j++) {
+                if (states[j]) {
+                    doubleV.add((double) keys[j]);
+                }
             }
             doubleSet.clear();
             for (DoubleValues.Iter iter = doubleData.getIter(i); iter.hasNext(); ) {
@@ -353,10 +359,10 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
     private void test(Data data) throws Exception {
         Random r = getRandom();
         final int numDocs = 1000 + r.nextInt(19000);
-        final List<TLongSet> values = new ArrayList<TLongSet>(numDocs);
+        final List<LongOpenHashSet> values = new ArrayList<LongOpenHashSet>(numDocs);
         for (int i = 0; i < numDocs; ++i) {
             final int numValues = data.numValues(r);
-            final TLongSet vals = new TLongHashSet(numValues);
+            final LongOpenHashSet vals = new LongOpenHashSet(numValues);
             for (int j = 0; j < numValues; ++j) {
                 vals.add(data.nextValue(r));
             }

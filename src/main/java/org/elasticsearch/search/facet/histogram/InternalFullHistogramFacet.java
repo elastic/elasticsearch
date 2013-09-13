@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -151,7 +151,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             return internalFacet;
         }
 
-        Recycler.V<ExtTLongObjectHashMap<FullEntry>> map = context.cacheRecycler().longObjectMap(-1);
+        Recycler.V<LongObjectOpenHashMap<FullEntry>> map = context.cacheRecycler().longObjectMap(-1);
 
         for (Facet facet : facets) {
             InternalFullHistogramFacet histoFacet = (InternalFullHistogramFacet) facet;
@@ -174,7 +174,8 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         }
 
         // sort
-        Object[] values = map.v().internalValues();
+        // TODO: hppc - toArray?
+        Object[] values = map.v().values().toArray();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
         List<FullEntry> ordered = new ArrayList<FullEntry>(map.v().size());
         for (int i = 0; i < map.v().size(); i++) {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import gnu.trove.map.hash.TIntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -29,8 +29,8 @@ import java.io.IOException;
  */
 public class HandlesStreamInput extends AdapterStreamInput {
 
-    private final TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
-    private final TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
+    private final IntObjectOpenHashMap<String> handles = new IntObjectOpenHashMap<String>();
+    private final IntObjectOpenHashMap<Text> handlesText = new IntObjectOpenHashMap<Text>();
 
     HandlesStreamInput() {
         super();

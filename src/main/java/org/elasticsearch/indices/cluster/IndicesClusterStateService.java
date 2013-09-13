@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.cluster;
 
+import com.carrotsearch.hppc.IntOpenHashSet;
 import com.google.common.collect.Lists;
-import gnu.trove.set.hash.TIntHashSet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -277,7 +277,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (routingNode == null) {
             return;
         }
-        TIntHashSet newShardIds = new TIntHashSet();
+        IntOpenHashSet newShardIds = new IntOpenHashSet();
         for (IndexService indexService : indicesService) {
             String index = indexService.index().name();
             IndexMetaData indexMetaData = event.state().metaData().index(index);

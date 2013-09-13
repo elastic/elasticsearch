@@ -19,19 +19,19 @@
 
 package org.elasticsearch.search.dfs;
 
-import java.io.IOException;
-import java.util.Map;
-
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.XMaps;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.TransportResponse;
+
+import java.io.IOException;
 
 /**
  *
@@ -45,7 +45,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
     private long id;
     private Term[] terms;
     private TermStatistics[] termStatistics;
-    private Map<String, CollectionStatistics> fieldStatistics = XMaps.newNoNullKeysMap();
+    private ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
     private int maxDoc;
 
     public DfsSearchResult() {
@@ -85,7 +85,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return this;
     }
 
-    public DfsSearchResult fieldStatistics(Map<String, CollectionStatistics> fieldStatistics) {
+    public DfsSearchResult fieldStatistics(ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics) {
         this.fieldStatistics = fieldStatistics;
         return this;
     }
@@ -98,7 +98,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return termStatistics;
     }
 
-    public Map<String, CollectionStatistics> fieldStatistics() {
+    public ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
     }
 
@@ -143,15 +143,21 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         out.writeVInt(maxDoc);
     }
     
-    public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
-        for (Map.Entry<String, CollectionStatistics> entry : fieldStatistics.entrySet()) {
-            out.writeString(entry.getKey());
-            assert entry.getValue().maxDoc() >= 0;
-            out.writeVLong(entry.getValue().maxDoc());
-            out.writeVLong(addOne(entry.getValue().docCount()));
-            out.writeVLong(addOne(entry.getValue().sumTotalTermFreq()));
-            out.writeVLong(addOne(entry.getValue().sumDocFreq()));
+        final boolean[] states = fieldStatistics.allocated;
+        Object[] keys = fieldStatistics.keys;
+        Object[] values = fieldStatistics.values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                out.writeString((String) keys[i]);
+                CollectionStatistics statistics = (CollectionStatistics) values[i];
+                assert statistics.maxDoc() >= 0;
+                out.writeVLong(statistics.maxDoc());
+                out.writeVLong(addOne(statistics.docCount()));
+                out.writeVLong(addOne(statistics.sumTotalTermFreq()));
+                out.writeVLong(addOne(statistics.sumDocFreq()));
+            }
         }
     }
     
@@ -168,14 +174,14 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         out.writeVLong(addOne(termStatistic.totalTermFreq()));        
     }
     
-    public static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+    public static ObjectObjectOpenHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         return readFieldStats(in, null);
     }
 
-    public static Map<String, CollectionStatistics> readFieldStats(StreamInput in, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static ObjectObjectOpenHashMap<String, CollectionStatistics> readFieldStats(StreamInput in, ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         final int numFieldStatistics = in.readVInt();
         if (fieldStatistics == null) {
-            fieldStatistics = XMaps.newNoNullKeysMap(numFieldStatistics);
+            fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
         }
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();

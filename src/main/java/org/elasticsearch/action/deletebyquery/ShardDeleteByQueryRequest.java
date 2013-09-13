@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -101,7 +101,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         types = in.readStringArray();
         int routingSize = in.readVInt();
         if (routingSize > 0) {
-            routing = new THashSet<String>(routingSize);
+            routing = new HashSet<String>(routingSize);
             for (int i = 0; i < routingSize; i++) {
                 routing.add(in.readString());
             }

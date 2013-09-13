@@ -19,16 +19,17 @@
 
 package org.elasticsearch.search.controller;
 
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.common.collect.XMaps;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -79,8 +80,8 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
-        Map<Term, TermStatistics> termStatistics = XMaps.newNoNullKeysMap();
-        Map<String, CollectionStatistics> fieldStatistics = XMaps.newNoNullKeysMap();
+        ObjectObjectOpenHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
+        ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
         long aggMaxDoc = 0;
         for (AtomicArray.Entry<DfsSearchResult> lEntry : results.asList()) {
             final Term[] terms = lEntry.value.terms();
@@ -101,19 +102,26 @@ public class SearchPhaseController extends AbstractComponent {
                 }
 
             }
-            for (Map.Entry<String, CollectionStatistics> entry : lEntry.value.fieldStatistics().entrySet()) {
-                assert entry.getKey() != null;
-                CollectionStatistics existing = fieldStatistics.get(entry.getKey());
-                if (existing != null) {
-                    CollectionStatistics merged = new CollectionStatistics(
-                            entry.getKey(), existing.maxDoc() + entry.getValue().maxDoc(),
-                            optionalSum(existing.docCount(), entry.getValue().docCount()),
-                            optionalSum(existing.sumTotalTermFreq(), entry.getValue().sumTotalTermFreq()),
-                            optionalSum(existing.sumDocFreq(), entry.getValue().sumDocFreq())
-                    );
-                    fieldStatistics.put(entry.getKey(), merged);
-                } else {
-                    fieldStatistics.put(entry.getKey(), entry.getValue());
+            final boolean[] states = lEntry.value.fieldStatistics().allocated;
+            final Object[] keys = lEntry.value.fieldStatistics().keys;
+            final Object[] values = lEntry.value.fieldStatistics().values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    String key = (String) keys[i];
+                    CollectionStatistics value = (CollectionStatistics) values[i];
+                    assert key != null;
+                    CollectionStatistics existing = fieldStatistics.get(key);
+                    if (existing != null) {
+                        CollectionStatistics merged = new CollectionStatistics(
+                                key, existing.maxDoc() + value.maxDoc(),
+                                optionalSum(existing.docCount(), value.docCount()),
+                                optionalSum(existing.sumTotalTermFreq(), value.sumTotalTermFreq()),
+                                optionalSum(existing.sumDocFreq(), value.sumDocFreq())
+                        );
+                        fieldStatistics.put(key, merged);
+                    } else {
+                        fieldStatistics.put(key, value);
+                    }
                 }
             }
             aggMaxDoc += lEntry.value.maxDoc();
@@ -285,11 +293,11 @@ public class SearchPhaseController extends AbstractComponent {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public void fillDocIdsToLoad(AtomicArray<ExtTIntArrayList> docsIdsToLoad, ScoreDoc[] shardDocs) {
+    public void fillDocIdsToLoad(AtomicArray<IntArrayList> docsIdsToLoad, ScoreDoc[] shardDocs) {
         for (ScoreDoc shardDoc : shardDocs) {
-            ExtTIntArrayList list = docsIdsToLoad.get(shardDoc.shardIndex);
+            IntArrayList list = docsIdsToLoad.get(shardDoc.shardIndex);
             if (list == null) {
-                list = new ExtTIntArrayList(); // can't be shared!, uses unsafe on it later on
+                list = new IntArrayList(); // can't be shared!, uses unsafe on it later on
                 docsIdsToLoad.set(shardDoc.shardIndex, list);
             }
             list.add(shardDoc.doc);

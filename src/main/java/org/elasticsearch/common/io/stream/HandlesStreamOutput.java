@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -30,8 +29,8 @@ import java.io.IOException;
  */
 public class HandlesStreamOutput extends AdapterStreamOutput {
 
-    private final TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-    private final TObjectIntHashMap<Text> handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+    private final ObjectIntOpenHashMap<String> handles = new ObjectIntOpenHashMap<String>();
+    private final ObjectIntOpenHashMap<Text> handlesText = new ObjectIntOpenHashMap<Text>();
 
     public HandlesStreamOutput(StreamOutput out) {
         super(out);
@@ -39,16 +38,15 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
 
     @Override
     public void writeSharedString(String str) throws IOException {
-        int handle = handles.get(str);
-        if (handle == -1) {
-            handle = handles.size();
+        if (handles.containsKey(str)) {
+            out.writeByte((byte) 1);
+            out.writeVInt(handles.lget());
+        } else {
+            int handle = handles.size();
             handles.put(str, handle);
             out.writeByte((byte) 0);
             out.writeVInt(handle);
             out.writeString(str);
-        } else {
-            out.writeByte((byte) 1);
-            out.writeVInt(handle);
         }
     }
 
@@ -59,16 +57,15 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
 
     @Override
     public void writeSharedText(Text text) throws IOException {
-        int handle = handlesText.get(text);
-        if (handle == -1) {
-            handle = handlesText.size();
+        if (handlesText.containsKey(text)) {
+            out.writeByte((byte) 1);
+            out.writeVInt(handlesText.lget());
+        } else {
+            int handle = handlesText.size();
             handlesText.put(text, handle);
             out.writeByte((byte) 0);
             out.writeVInt(handle);
             out.writeText(text);
-        } else {
-            out.writeByte((byte) 1);
-            out.writeVInt(handle);
         }
     }
 

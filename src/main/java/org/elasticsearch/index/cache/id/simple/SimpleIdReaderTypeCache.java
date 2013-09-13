@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.cache.id.simple;
 
-import gnu.trove.impl.hash.TObjectHash;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 
 /**
@@ -32,7 +31,7 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
     private final String type;
 
-    private final ExtTObjectIntHasMap<HashedBytesArray> idToDoc;
+    private final ObjectIntOpenHashMap<HashedBytesArray> idToDoc;
 
     private final HashedBytesArray[] docIdToId;
 
@@ -42,12 +41,11 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
     private long sizeInBytes = -1;
 
-    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
+    public SimpleIdReaderTypeCache(String type, ObjectIntOpenHashMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
                                    HashedBytesArray[] parentIdsValues, int[] parentIdsOrdinals) {
         this.type = type;
         this.idToDoc = idToDoc;
         this.docIdToId = docIdToId;
-        this.idToDoc.trimToSize();
         this.parentIdsValues = parentIdsValues;
         this.parentIdsOrdinals = parentIdsOrdinals;
     }
@@ -61,7 +59,11 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     public int docById(HashedBytesArray uid) {
-        return idToDoc.get(uid);
+        if (idToDoc.containsKey(uid)) {
+            return idToDoc.lget();
+        } else {
+            return -1;
+        }
     }
 
     public HashedBytesArray idByDoc(int docId) {
@@ -79,20 +81,29 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
      * Returns an already stored instance if exists, if not, returns null;
      */
     public HashedBytesArray canReuse(HashedBytesArray id) {
-        return idToDoc.key(id);
+        if (idToDoc.containsKey(id)) {
+            return idToDoc.lkey();
+        } else {
+            return id;
+        }
     }
 
     long computeSizeInBytes() {
         long sizeInBytes = 0;
         // Ignore type field
         //  sizeInBytes += ((type.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT)) + RamUsage.NUM_BYTES_OBJECT_HEADER;
-        sizeInBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (idToDoc._valuesSize() * RamUsageEstimator.NUM_BYTES_INT);
-        for (Object o : idToDoc._set) {
-            if (o == TObjectHash.FREE || o == TObjectHash.REMOVED) {
-                sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-            } else {
-                HashedBytesArray bytesArray = (HashedBytesArray) o;
-                sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsageEstimator.NUM_BYTES_INT);
+        sizeInBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (idToDoc.values.length * RamUsageEstimator.NUM_BYTES_INT);
+        sizeInBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (idToDoc.allocated.length);
+        final boolean[] states = idToDoc.allocated;
+        final Object[] keys = idToDoc.keys;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                HashedBytesArray bytesArray = (HashedBytesArray) keys[i];
+                if (bytesArray != null) {
+                    sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsageEstimator.NUM_BYTES_INT);
+                } else {
+                    sizeInBytes += RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+                }
             }
         }
 

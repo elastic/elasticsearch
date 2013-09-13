@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.get;
 
-import gnu.trove.list.array.TIntArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,12 +30,12 @@ import java.util.List;
 
 public class MultiGetShardResponse extends ActionResponse {
 
-    TIntArrayList locations;
+    IntArrayList locations;
     List<GetResponse> responses;
     List<MultiGetResponse.Failure> failures;
 
     MultiGetShardResponse() {
-        locations = new TIntArrayList();
+        locations = new IntArrayList();
         responses = new ArrayList<GetResponse>();
         failures = new ArrayList<MultiGetResponse.Failure>();
     }
@@ -56,7 +56,7 @@ public class MultiGetShardResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        locations = new TIntArrayList(size);
+        locations = new IntArrayList(size);
         responses = new ArrayList<GetResponse>(size);
         failures = new ArrayList<MultiGetResponse.Failure>(size);
         for (int i = 0; i < size; i++) {

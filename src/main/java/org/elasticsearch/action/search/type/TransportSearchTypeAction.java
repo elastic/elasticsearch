@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -35,7 +36,6 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -356,7 +356,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
          * Releases shard targets that are not used in the docsIdsToLoad.
          */
         protected void releaseIrrelevantSearchContexts(AtomicArray<? extends QuerySearchResultProvider> queryResults,
-                                                       AtomicArray<ExtTIntArrayList> docIdsToLoad) {
+                                                       AtomicArray<IntArrayList> docIdsToLoad) {
             if (docIdsToLoad == null) {
                 return;
             }

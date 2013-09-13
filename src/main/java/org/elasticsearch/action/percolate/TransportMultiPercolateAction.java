@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
-import gnu.trove.list.array.TIntArrayList;
+import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.*;
@@ -76,7 +76,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
         final List<Object> percolateRequests = new ArrayList<Object>(request.requests().size());
         // Can have a mixture of percolate requests. (normal percolate requests & percolate existing doc),
         // so we need to keep track for what percolate request we had a get request
-        final TIntArrayList getRequestSlots = new TIntArrayList();
+        final IntArrayList getRequestSlots = new IntArrayList();
         List<GetRequest> existingDocsRequests = new ArrayList<GetRequest>();
         for (int slot = 0;  slot < request.requests().size(); slot++) {
             PercolateRequest percolateRequest = request.requests().get(slot);
@@ -139,7 +139,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
         final Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard;
         final List<Object> percolateRequests;
 
-        final Map<ShardId, TIntArrayList> shardToSlots;
+        final Map<ShardId, IntArrayList> shardToSlots;
         final AtomicInteger expectedOperations;
         final AtomicArray<Object> reducedResponses;
         final AtomicReferenceArray<AtomicInteger> expectedOperationsPerItem;
@@ -155,7 +155,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
             // Resolving concrete indices and routing and grouping the requests by shard
             requestsByShard = new HashMap<ShardId, TransportShardMultiPercolateAction.Request>();
             // Keep track what slots belong to what shard, in case a request to a shard fails on all copies
-            shardToSlots = new HashMap<ShardId, TIntArrayList>();
+            shardToSlots = new HashMap<ShardId, IntArrayList>();
             int expectedResults = 0;
             for (int slot = 0;  slot < percolateRequests.size(); slot++) {
                 Object element = percolateRequests.get(slot);
@@ -180,9 +180,9 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                         logger.trace("Adding shard[{}] percolate request for item[{}]", shardId, slot);
                         requests.add(new TransportShardMultiPercolateAction.Request.Item(slot, new PercolateShardRequest(shardId, percolateRequest)));
 
-                        TIntArrayList items = shardToSlots.get(shardId);
+                        IntArrayList items = shardToSlots.get(shardId);
                         if (items == null) {
-                            shardToSlots.put(shardId, items = new TIntArrayList());
+                            shardToSlots.put(shardId, items = new IntArrayList());
                         }
                         items.add(slot);
                     }
@@ -257,7 +257,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
         void onShardFailure(ShardId shardId, Throwable e) {
             logger.debug("{} Shard multi percolate failure", e, shardId);
             try {
-                TIntArrayList slots = shardToSlots.get(shardId);
+                IntArrayList slots = shardToSlots.get(shardId);
                 for (int i = 0; i < slots.size(); i++) {
                     int slot = slots.get(i);
                     AtomicReferenceArray shardResults = responsesByItemAndShard.get(slot);

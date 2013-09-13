@@ -18,8 +18,8 @@
 
 package org.elasticsearch.percolator;
 
+import com.carrotsearch.hppc.ByteObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
-import gnu.trove.map.hash.TByteObjectHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexableField;
@@ -92,7 +92,7 @@ public class PercolatorService extends AbstractComponent {
 
     private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndicesService indicesService;
-    private final TByteObjectHashMap<PercolatorType> percolatorTypes;
+    private final ByteObjectOpenHashMap<PercolatorType> percolatorTypes;
 
     private final ClusterService clusterService;
 
@@ -112,8 +112,8 @@ public class PercolatorService extends AbstractComponent {
                 return new ExtendedMemoryIndex(true, maxReuseBytes);
             }
         };
-
-        percolatorTypes = new TByteObjectHashMap<PercolatorType>(6);
+        
+        percolatorTypes = new ByteObjectOpenHashMap<PercolatorType>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);
         percolatorTypes.put(queryCountPercolator.id(), queryCountPercolator);
         percolatorTypes.put(matchPercolator.id(), matchPercolator);
@@ -450,8 +450,7 @@ public class PercolatorService extends AbstractComponent {
 
             // Use a custom impl of AbstractBigArray for Object[]?
             List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize == 0 ? numMatches : requestedSize);
-            outer:
-            for (PercolateShardResponse response : shardResults) {
+            outer: for (PercolateShardResponse response : shardResults) {
                 Text index = new StringText(response.getIndex());
                 for (int i = 0; i < response.matches().length; i++) {
                     float score = response.scores().length == 0 ? NO_SCORE : response.scores()[i];

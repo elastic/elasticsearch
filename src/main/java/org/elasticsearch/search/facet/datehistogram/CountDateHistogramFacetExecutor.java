@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import gnu.trove.iterator.TLongLongIterator;
-import gnu.trove.map.hash.TLongLongHashMap;
+import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
@@ -43,7 +42,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     final DateHistogramFacet.ComparatorType comparatorType;
 
-    final Recycler.V<TLongLongHashMap> counts;
+    final Recycler.V<LongLongOpenHashMap> counts;
 
     public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
@@ -60,14 +59,19 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        InternalCountDateHistogramFacet.CountEntry[] entries = new InternalCountDateHistogramFacet.CountEntry[counts.v().size()];
-        int i = 0;
-        for (TLongLongIterator it = counts.v().iterator(); it.hasNext(); ) {
-            it.advance();
-            entries[i++] = new InternalCountDateHistogramFacet.CountEntry(it.key(), it.value());
+        InternalCountDateHistogramFacet.CountEntry[] countEntries = new InternalCountDateHistogramFacet.CountEntry[counts.v().size()];
+        final boolean[] states = counts.v().allocated;
+        final long[] keys = counts.v().keys;
+        final long[] values = counts.v().values;
+
+        int entryIndex = 0;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                countEntries[entryIndex++] = new InternalCountDateHistogramFacet.CountEntry(keys[i], values[i]);
+            }
         }
         counts.release();
-        return new InternalCountDateHistogramFacet(facetName, comparatorType, entries);
+        return new InternalCountDateHistogramFacet(facetName, comparatorType, countEntries);
     }
 
     class Collector extends FacetExecutor.Collector {
@@ -96,20 +100,20 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     public static class DateHistogramProc extends LongFacetAggregatorBase {
 
-        private final TLongLongHashMap counts;
+        private final LongLongOpenHashMap counts;
         private final TimeZoneRounding tzRounding;
 
-        public DateHistogramProc(TLongLongHashMap counts, TimeZoneRounding tzRounding) {
+        public DateHistogramProc(LongLongOpenHashMap counts, TimeZoneRounding tzRounding) {
             this.counts = counts;
             this.tzRounding = tzRounding;
         }
 
         @Override
         public void onValue(int docId, long value) {
-            counts.adjustOrPutValue(tzRounding.calc(value), 1, 1);
+            counts.addTo(tzRounding.calc(value), 1);
         }
 
-        public TLongLongHashMap counts() {
+        public LongLongOpenHashMap counts() {
             return counts;
         }
     }

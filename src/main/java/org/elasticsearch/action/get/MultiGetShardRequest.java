@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.get;
 
-import gnu.trove.list.array.TIntArrayList;
-import gnu.trove.list.array.TLongArrayList;
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.LongArrayList;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,11 +39,11 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     Boolean realtime;
     boolean refresh;
 
-    TIntArrayList locations;
+    IntArrayList locations;
     List<String> types;
     List<String> ids;
     List<String[]> fields;
-    TLongArrayList versions;
+    LongArrayList versions;
     List<VersionType> versionTypes;
     List<FetchSourceContext> fetchSourceContexts;
 
@@ -54,11 +54,11 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     MultiGetShardRequest(String index, int shardId) {
         super(index);
         this.shardId = shardId;
-        locations = new TIntArrayList();
+        locations = new IntArrayList();
         types = new ArrayList<String>();
         ids = new ArrayList<String>();
         fields = new ArrayList<String[]>();
-        versions = new TLongArrayList();
+        versions = new LongArrayList();
         versionTypes = new ArrayList<VersionType>();
         fetchSourceContexts = new ArrayList<FetchSourceContext>();
     }
@@ -113,11 +113,11 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        locations = new TIntArrayList(size);
+        locations = new IntArrayList(size);
         types = new ArrayList<String>(size);
         ids = new ArrayList<String>(size);
         fields = new ArrayList<String[]>(size);
-        versions = new TLongArrayList(size);
+        versions = new LongArrayList(size);
         versionTypes = new ArrayList<VersionType>(size);
         fetchSourceContexts = new ArrayList<FetchSourceContext>(size);
         for (int i = 0; i < size; i++) {

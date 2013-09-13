@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
@@ -35,6 +35,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -50,7 +51,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
     private final int size;
     private final int shardSize;
 
-    final Recycler.V<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> entries;
+    final Recycler.V<DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> entries;
     long missing;
 
     public TermsStatsDoubleFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
@@ -78,9 +79,18 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.v().valueCollection(), missing);
+            List<InternalTermsStatsDoubleFacet.DoubleEntry> doubleEntries = new ArrayList<InternalTermsStatsDoubleFacet.DoubleEntry>(entries.v().size());
+            boolean[] states = entries.v().allocated;
+            Object[] values = entries.v().values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    doubleEntries.add((InternalTermsStatsDoubleFacet.DoubleEntry) values[i]);
+                }
+            }
+            entries.release();
+            return new InternalTermsStatsDoubleFacet(facetName, comparatorType, 0 /* indicates all terms*/, doubleEntries, missing);
         }
-        Object[] values = entries.v().internalValues();
+        Object[] values = entries.v().values;
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         int limit = shardSize;
@@ -140,12 +150,12 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
     public static class Aggregator extends DoubleFacetAggregatorBase {
 
-        final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
+        final DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
         int missing;
         DoubleValues valueFieldData;
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        public Aggregator(ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries) {
+        public Aggregator(DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries) {
             this.entries = entries;
         }
 
@@ -184,7 +194,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
         private final SearchScript script;
 
-        public ScriptAggregator(ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries, SearchScript script) {
+        public ScriptAggregator(DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries, SearchScript script) {
             super(entries);
             this.script = script;
         }

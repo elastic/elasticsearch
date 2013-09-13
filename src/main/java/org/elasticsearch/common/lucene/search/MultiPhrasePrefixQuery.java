@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import gnu.trove.set.hash.THashSet;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -138,7 +138,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        Set<Term> terms = new THashSet<Term>();
+        ObjectOpenHashSet<Term> terms = new ObjectOpenHashSet<Term>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -148,11 +148,11 @@ public class MultiPhrasePrefixQuery extends Query {
         if (terms.isEmpty()) {
             return MatchNoDocsQuery.INSTANCE;
         }
-        query.add(terms.toArray(new Term[terms.size()]), position);
+        query.add(terms.toArray(Term.class), position);
         return query.rewrite(reader);
     }
 
-    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(ObjectOpenHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         TermsEnum termsEnum = null;

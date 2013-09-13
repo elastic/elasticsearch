@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats.strings;
 
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -189,7 +189,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return tsFacet;
         }
         int missing = 0;
-        Recycler.V<ExtTHashMap<Text, StringEntry>> map = context.cacheRecycler().hashMap(-1);
+        Recycler.V<ObjectObjectOpenHashMap<Text, StringEntry>> map = context.cacheRecycler().hashMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
@@ -214,12 +214,12 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
         // sort
         if (requiredSize == 0) { // all terms
-            StringEntry[] entries1 = map.v().values().toArray(new StringEntry[map.v().size()]);
+            StringEntry[] entries1 = map.v().values().toArray(StringEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
             map.release();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.v().internalValues();
+            Object[] values = map.v().values;
             Arrays.sort(values, (Comparator) comparatorType.comparator());
             List<StringEntry> ordered = new ArrayList<StringEntry>(Math.min(map.v().size(), requiredSize));
             for (int i = 0; i < requiredSize; i++) {

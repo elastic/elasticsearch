@@ -19,11 +19,6 @@
 
 package org.elasticsearch.common.collect;
 
-import com.google.common.collect.ForwardingMap;
-import gnu.trove.impl.Constants;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.trove.ExtTHashMap;
-
 import java.util.Collections;
 import java.util.Map;
 
@@ -35,59 +30,6 @@ import java.util.Map;
  * Implementation you should use a concrete constructor.
  */
 public final class XMaps {
-
-    public static final int DEFAULT_CAPACITY = Constants.DEFAULT_CAPACITY;
-
-    /**
-     * Returns a new map with the given initial capacity
-     */
-    public static <K, V> Map<K, V> newMap(int capacity) {
-        return new ExtTHashMap<K, V>(capacity, Constants.DEFAULT_LOAD_FACTOR);
-    }
-
-    /**
-     * Returns a new map with a default initial capacity of
-     * {@value #DEFAULT_CAPACITY}
-     */
-    public static <K, V> Map<K, V> newMap() {
-        return newMap(DEFAULT_CAPACITY);
-    }
-
-    /**
-     * Returns a map like {@link #newMap()} that does not accept <code>null</code> keys
-     */
-    public static <K, V> Map<K, V> newNoNullKeysMap() {
-        Map<K, V> delegate = newMap();
-        return ensureNoNullKeys(delegate);
-    }
-
-    /**
-     * Returns a map like {@link #newMap(in)} that does not accept <code>null</code> keys
-     */
-    public static <K, V> Map<K, V> newNoNullKeysMap(int capacity) {
-        Map<K, V> delegate = newMap(capacity);
-        return ensureNoNullKeys(delegate);
-    }
-
-    /**
-     * Wraps the given map and prevent adding of <code>null</code> keys.
-     */
-    public static <K, V> Map<K, V> ensureNoNullKeys(final Map<K, V> delegate) {
-        return new ForwardingMap<K, V>() {
-            @Override
-            public V put(K key, V value) {
-                if (key == null) {
-                    throw new ElasticSearchIllegalArgumentException("Map key must not be null");
-                }
-                return super.put(key, value);
-            }
-
-            @Override
-            protected Map<K, V> delegate() {
-                return delegate;
-            }
-        };
-    }
 
     /**
      * Wraps the given map into a read only implementation.

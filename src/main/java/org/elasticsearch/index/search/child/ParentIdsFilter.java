@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * Advantages over using this filter over Lucene's TermsFilter in the parent child context:
@@ -46,11 +45,13 @@ import java.util.Set;
 final class ParentIdsFilter extends Filter {
 
     private final BytesRef parentTypeBr;
-    private final Set<HashedBytesArray> collectedUids;
+    private final Object[] keys;
+    private final boolean[] allocated;
 
-    public ParentIdsFilter(String parentType, Set<HashedBytesArray> collectedUids) {
+    public ParentIdsFilter(String parentType, Object[] keys, boolean[] allocated) {
         this.parentTypeBr = new BytesRef(parentType);
-        this.collectedUids = collectedUids;
+        this.keys = keys;
+        this.allocated = allocated;
     }
 
     @Override
@@ -66,8 +67,12 @@ final class ParentIdsFilter extends Filter {
 
         DocsEnum docsEnum = null;
         FixedBitSet result = null;
-        for (HashedBytesArray parentId : collectedUids) {
-            idSpare.bytes = parentId.toBytes();
+        for (int i = 0; i < allocated.length; i++) {
+            if (!allocated[i]) {
+                continue;
+            }
+
+            idSpare.bytes = ((HashedBytesArray) keys[i]).toBytes();
             idSpare.length = idSpare.bytes.length;
             Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
             if (termsEnum.seekExact(uidSpare, false)) {

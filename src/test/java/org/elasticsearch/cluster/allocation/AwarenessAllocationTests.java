@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
-import gnu.trove.map.hash.TObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,7 +69,7 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         String node3 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
 
         long start = System.currentTimeMillis();
-        TObjectIntHashMap<String> counts;
+        ObjectIntOpenHashMap<String> counts;
         // On slow machines the initial relocation might be delayed
         do {
             Thread.sleep(100);
@@ -81,11 +81,11 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
             ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
             //System.out.println(clusterState.routingTable().prettyPrint());
             // verify that we have 10 shards on node3
-            counts = new TObjectIntHashMap<String>();
+            counts = new ObjectIntOpenHashMap<String>();
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                        counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
                     }
                 }
             }
@@ -112,12 +112,12 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForRelocatingShards(0).execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();
+        ObjectIntOpenHashMap<String> counts = new ObjectIntOpenHashMap<String>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
                 }
             }
         }
@@ -145,12 +145,12 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").setWaitForRelocatingShards(0).execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();
+        ObjectIntOpenHashMap<String> counts = new ObjectIntOpenHashMap<String>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
                 }
             }
         }
@@ -167,12 +167,12 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        counts = new TObjectIntHashMap<String>();
+        counts = new ObjectIntOpenHashMap<String>();
 
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
                 }
             }
         }

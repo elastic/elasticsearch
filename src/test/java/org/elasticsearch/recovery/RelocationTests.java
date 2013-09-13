@@ -19,9 +19,8 @@
 
 package org.elasticsearch.recovery;
 
-import gnu.trove.procedure.TIntProcedure;
-import gnu.trove.set.TIntSet;
-import gnu.trove.set.hash.TIntHashSet;
+import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -231,19 +230,20 @@ public class RelocationTests extends AbstractIntegrationTest {
                     for (int hit = 0; hit < indexCounter.get(); hit++) {
                         hitIds[hit] = hit + 1;
                     }
-                    TIntSet set = new TIntHashSet(hitIds);
+                    IntOpenHashSet set = IntOpenHashSet.from(hitIds);
                     for (SearchHit hit : hits.hits()) {
                         int id = Integer.parseInt(hit.id());
                         if (!set.remove(id)) {
                             logger.error("Extra id [{}]", id);
                         }
                     }
-                    set.forEach(new TIntProcedure() {
+                    set.forEach(new IntProcedure() {
+
                         @Override
-                        public boolean execute(int value) {
+                        public void apply(int value) {
                             logger.error("Missing id [{}]", value);
-                            return true;
                         }
+
                     });
                 }
                 assertThat(hits.totalHits(), equalTo(indexCounter.get()));
@@ -390,18 +390,18 @@ public class RelocationTests extends AbstractIntegrationTest {
                     for (int hit = 0; hit < indexCounter.get(); hit++) {
                         hitIds[hit] = hit + 1;
                     }
-                    TIntSet set = new TIntHashSet(hitIds);
+                    IntOpenHashSet set = IntOpenHashSet.from(hitIds);
                     for (SearchHit hit : hits.hits()) {
                         int id = Integer.parseInt(hit.id());
                         if (!set.remove(id)) {
                             logger.error("Extra id [{}]", id);
                         }
                     }
-                    set.forEach(new TIntProcedure() {
+                    set.forEach(new IntProcedure() {
+
                         @Override
-                        public boolean execute(int value) {
+                        public void apply(int value) {
                             logger.error("Missing id [{}]", value);
-                            return true;
                         }
                     });
                 }

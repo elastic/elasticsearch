@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean refresh = OptimizeRequest.Defaults.REFRESH;
 
     ShardOptimizeRequest() {
     }
@@ -45,7 +45,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
-        refresh = request.refresh();
     }
 
     boolean waitForMerge() {
@@ -64,10 +63,6 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         return flush;
     }
 
-    public boolean refresh() {
-        return refresh;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -75,7 +70,9 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        refresh = in.readBoolean();
+        if (in.getVersion().onOrBefore(Version.V_0_90_3)) {
+            in.readBoolean(); // old refresh flag
+        }
     }
 
     @Override
@@ -85,6 +82,8 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        out.writeBoolean(refresh);
+        if (out.getVersion().onOrBefore(Version.V_0_90_3)) {
+            out.writeBoolean(false); // old refresh flag
+        }
     }
 }

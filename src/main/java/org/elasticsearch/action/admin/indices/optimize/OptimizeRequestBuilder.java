@@ -74,14 +74,6 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
         return this;
     }
 
-    /**
-     * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
-     */
-    public OptimizeRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<OptimizeResponse> listener) {
         ((IndicesAdminClient) client).optimize(request, listener);

@@ -700,16 +700,18 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                 .field("somefield", "somevalue")
                 .endObject()
         ).get(); // we have 2 docs in a segment...
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).setRefresh(true).execute().actionGet();
+        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
         assertNoFailures(actionGet);
+        refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject()
                 .field("somefield", "somevalue")
                 .endObject()
         ).get();
-        actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).setRefresh(true).execute().actionGet();
+        actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
         assertNoFailures(actionGet);
+        refresh();
 
         assertSuggestions("b");
         assertThat(2l, equalTo(client().prepareCount(INDEX).get().getCount()));

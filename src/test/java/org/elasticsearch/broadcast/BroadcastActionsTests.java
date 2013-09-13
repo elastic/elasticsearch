@@ -20,23 +20,20 @@
 package org.elasticsearch.broadcast;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -56,15 +53,9 @@ public class BroadcastActionsTests extends AbstractSharedClusterTest {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
-        FlushResponse flushResponse = client().admin().indices().flush(flushRequest("test")).actionGet();
-        assertThat(flushResponse.getTotalShards(), equalTo(10));
-        assertThat(flushResponse.getSuccessfulShards(), equalTo(5));
-        assertThat(flushResponse.getFailedShards(), equalTo(0));
+        flush();
         client().index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
-        RefreshResponse refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.getTotalShards(), equalTo(10));
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(5));
-        assertThat(refreshResponse.getFailedShards(), equalTo(0));
+        refresh();
 
         logger.info("Count");
         // check count

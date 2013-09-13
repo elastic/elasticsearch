@@ -995,9 +995,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         if (optimize.flush()) {
             flush(new Flush().force(true));
         }
-        if (optimize.refresh()) {
-            refresh(new Refresh().force(true));
-        }
     }
 
     @Override
@@ -1522,7 +1519,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             return searcher;
         }
     }
-    
+
     private static final class RecoveryCounter {
         private volatile int ongoingRecoveries = 0;
 

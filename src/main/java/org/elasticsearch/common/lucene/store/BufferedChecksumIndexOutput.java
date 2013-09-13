@@ -56,8 +56,12 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
 
     @Override
     public void close() throws IOException {
-        super.close();
-        out.close();
+        try {
+            super.close();
+        } finally {
+            out.close();    
+        }
+        
     }
 
     @Override

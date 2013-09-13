@@ -1042,7 +1042,7 @@ public class Strings {
     }
 
     public static String[] splitStringToArray(final CharSequence s, final char c) {
-        if (s.length() == 0) {
+        if (s == null || s.length() == 0) {
             return Strings.EMPTY_ARRAY;
         }
         int count = 1;
@@ -1501,7 +1501,7 @@ public class Strings {
         System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
         return bytes;
     }
-    
+
     private static class SecureRandomHolder {
         // class loading is atomic - this is a lazy & safe singleton
         private static final SecureRandom INSTANCE = new SecureRandom();

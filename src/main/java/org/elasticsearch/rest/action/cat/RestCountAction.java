@@ -24,6 +24,7 @@ import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -31,14 +32,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestTable;
-import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 public class RestCountAction extends BaseRestHandler {
 
@@ -53,7 +52,7 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String[] indices = splitIndices(request.param("index"));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         CountRequest countRequest = new CountRequest(indices);
         countRequest.operationThreading(BroadcastOperationThreading.SINGLE_THREAD);
 

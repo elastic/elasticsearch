@@ -38,12 +38,6 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
 
     public GetIndexTemplatesRequest() {}
 
-    @Deprecated
-    public GetIndexTemplatesRequest(String name) {
-        this.names = new String[1];
-        this.names[0] = name;
-    }
-
     public GetIndexTemplatesRequest(String... names) {
         this.names = names;
     }
@@ -61,27 +55,6 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
             }
         }
         return validationException;
-    }
-
-    /**
-     * Sets the name of the index template.
-     */
-    @Deprecated
-    public GetIndexTemplatesRequest name(String name) {
-        this.names = new String[1];
-        this.names[0] = name;
-        return this;
-    }
-
-    /**
-     * The name of the index template.
-     */
-    @Deprecated
-    public String name() {
-        if (this.names != null && this.names.length > 0) {
-            return this.names[0];
-        }
-        return null;
     }
 
     /**

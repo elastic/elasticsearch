@@ -19,8 +19,11 @@
 
 package org.elasticsearch;
 
-import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -28,14 +31,14 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({
-    ReproduceInfoPrinter.class
+        ReproduceInfoPrinter.class
 })
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @SuppressCodecs("Lucene3x")
-public class ElasticsearchLuceneTestCase extends LuceneTestCase {
-    
+public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
+
     private static final Codec DEFAULT_CODEC = Codec.getDefault();
 
     /**

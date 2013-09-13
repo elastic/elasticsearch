@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -172,7 +172,6 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
     @Test
     // For now don't handle closed indices
     public void testClosed() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
         createIndex("test1", "test2");
         ensureGreen();
         client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();

@@ -21,6 +21,7 @@ package org.elasticsearch.gateway.fs;
 
 import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -39,7 +40,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -364,7 +364,7 @@ public class IndexGatewayTests extends AbstractNodesTests {
     @Test
     @Slow
     public void testRandom() {
-        testLoad(getRandom().nextBoolean());
+        testLoad(randomBoolean());
     }
 
     @Test

@@ -31,8 +31,4 @@ public class SimpleFacetsMultiShardMultiNodeTests extends SimpleFacetsTests {
         return 3;
     }
 
-    @Override
-    protected int numberOfNodes() {
-        return 2;
-    }
 }

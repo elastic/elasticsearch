@@ -1,5 +1,6 @@
 package org.elasticsearch.indices.mapping;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -13,7 +14,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -285,7 +285,7 @@ public class UpdateMappingTests extends AbstractSharedClusterTest {
     @Test
     public void updateMappingConcurrently() throws Throwable {
         // Test that we can concurrently update different indexes and types.
-        int shardNo = Math.max(5, numberOfNodes());
+        int shardNo = Math.max(5, cluster().numNodes());
 
         prepareCreate("test1").setSettings("index.number_of_shards", shardNo).execute().actionGet();
         prepareCreate("test2").setSettings("index.number_of_shards", shardNo).execute().actionGet();

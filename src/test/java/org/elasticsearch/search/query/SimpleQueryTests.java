@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -34,7 +35,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -55,10 +55,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleQueryTests extends AbstractSharedClusterTest {
 
-
-    public int numberOfNodes() {
-        return 4;
-    }
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
@@ -1512,7 +1508,6 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleDFSQuery() throws ElasticSearchException, IOException {
-        cluster().ensureAtLeastNumNodes(5);
         prepareCreate("test", -1,
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 5)

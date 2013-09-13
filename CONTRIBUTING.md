@@ -52,7 +52,8 @@ Further instructions for specific projects are given below.
 Once your changes and tests are ready to submit for review:
 
 1. Test your changes
-Run the test suite to make sure that nothing is broken.
+Run the test suite to make sure that nothing is broken. See the
+[TESTING](TESTING.asciidoc) file for help running tests.
 
 2. Sign the Contributor License Agreement
 Please make sure you have signed our [Contributor License Agreement](http://www.elasticsearch.org/contributor-agreement/). We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction. We ask this of all contributors in order to assure our users of the origin and continuing existence of the code. You only need to sign the CLA once.

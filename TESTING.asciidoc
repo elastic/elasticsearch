@@ -1,0 +1,168 @@
+[[Testing Framework Cheatsheet]]
+= Testing
+
+[partintro]
+--
+Elasticsearch uses jUnit for testing, it also uses randomness in the
+tests, that can be set using a seed, the following is a cheatsheet of
+options for running the tests for ES.
+
+== Creating packages
+
+To create a distribution without running the tests, simply run the
+following:
+
+-----------------------------
+mvn clean package -DskipTests
+-----------------------------
+
+== Other test options
+
+To disable and enable netty transport, set the `ES_TEST_LOCAL`
+environment variable.
+
+Use netty transport:
+
+------------------------------------
+export ES_TEST_LOCAL=true && mvn test
+------------------------------------
+
+Use local transport:
+
+-------------------------------------
+export ES_TEST_LOCAL=false && mvn test
+-------------------------------------
+
+Wait on mapping changes:
+
+------------------------------------------------
+export ES_WAIT_ON_MAPPING_CHANGE=true && mvn test
+------------------------------------------------
+
+=== Test case filtering.
+
+- `tests.class` is a class-filtering shell-like glob pattern,
+- `tests.method` is a method-filtering glob pattern.
+
+Run a single test case (variants)
+
+----------------------------------------------------------
+mvn test -Dtests.class=org.elasticsearch.package.ClassName
+mvn test "-Dtests.class=*.ClassName"
+----------------------------------------------------------
+
+Run all tests in a package and sub-packages
+
+----------------------------------------------------
+mvn test "-Dtests.class=org.elasticsearch.package.*"
+----------------------------------------------------
+
+Run any test methods that contain 'esi' (like: ...r*esi*ze...).
+
+-------------------------------
+mvn test "-Dtests.method=*esi*"
+-------------------------------
+
+=== Seed and repetitions.
+
+Run with a given seed (seed is a hex-encoded long).
+
+------------------------------
+mvn test -Dtests.seed=DEADBEEF
+------------------------------
+
+=== Repeats _all_ tests of ClassName N times.
+
+Every test repetition will have a different seed.
+
+--------------------------------------------------
+mvn test -Dtests.iters=N -Dtests.class=*.ClassName
+--------------------------------------------------
+
+=== Repeats _all_ tests of ClassName N times.
+
+Every test repetition will have exactly the same master (dead) and
+method-level (beef) seed.
+
+------------------------------------------------------------------------
+mvn test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.seed=DEADBEEF
+------------------------------------------------------------------------
+
+=== Repeats a given test N times
+
+(note the filters - individual test repetitions are given suffixes,
+ie: testFoo[0], testFoo[1], etc... so using testmethod or tests.method
+ending in a glob is necessary to ensure iterations are run).
+
+-------------------------------------------------------------------------
+mvn test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.method=mytest*
+-------------------------------------------------------------------------
+
+Repeats N times but skips any tests after the first failure or M initial failures.
+
+-------------------------------------------------------------
+mvn test -Dtests.iters=N -Dtests.failfast=true -Dtestcase=...
+mvn test -Dtests.iters=N -Dtests.maxfailures=M -Dtestcase=...
+-------------------------------------------------------------
+
+=== Test groups.
+
+Test groups can be enabled or disabled (true/false).
+
+Default value provided below in [brackets].
+
+------------------------------------------------------------------
+mvn test -Dtests.nightly=[false]   - nightly test group (@Nightly)
+mvn test -Dtests.weekly=[false]    - weekly tests (@Weekly)
+mvn test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
+mvn test -Dtests.slow=[true]       - slow tests (@Slow)
+------------------------------------------------------------------
+
+=== Load balancing and caches.
+
+Run sequentially (one slave JVM). By default, the tests run with 3
+concurrent JVMs.
+
+----------------------------
+mvn test -Dtests.jvms=1 test
+----------------------------
+
+Run with more slave JVMs than the default. Don't count hypercores for
+CPU-intense tests. Make sure there is enough RAM to handle child JVMs.
+
+----------------------------
+mvn test -Dtests.jvms=8 test
+----------------------------
+
+=== Miscellaneous.
+
+Run all tests without stopping on errors (inspect log files).
+
+-----------------------------------------
+mvn test -Dtests.haltonfailure=false test
+-----------------------------------------
+
+Run more verbose output (slave JVM parameters, etc.).
+
+----------------------
+mvn test -verbose test
+----------------------
+
+Change the default suite timeout to 5 seconds.
+
+---------------------------------------
+mvn test -Dtests.timeoutSuite=5000! ...
+---------------------------------------
+
+Change the logging level of ES (not mvn)
+
+--------------------------------
+mvn test -Des.logger.level=DEBUG
+--------------------------------
+
+Print all the logging output from the test runs to the commandline
+even if tests are passing.
+
+------------------------------
+mvn test -Dtests.output=always
+------------------------------

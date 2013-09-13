@@ -650,14 +650,6 @@ public interface IndicesAdminClient {
     void getTemplates(GetIndexTemplatesRequest request, ActionListener<GetIndexTemplatesResponse> listener);
 
     /**
-     * Gets an index template.
-     *
-     * @param name The name of the template.
-     */
-    @Deprecated
-    GetIndexTemplatesRequestBuilder prepareGetTemplates(String name);
-
-    /**
      * Gets an index template (optional).
      */
     GetIndexTemplatesRequestBuilder prepareGetTemplates(String... name);

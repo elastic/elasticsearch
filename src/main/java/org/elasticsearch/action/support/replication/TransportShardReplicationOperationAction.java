@@ -342,7 +342,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
                 if (blockException != null) {
                     if (blockException.retryable()) {
-                        logger.debug("Cluster is blocked ({}), scheduling a retry", blockException.getMessage());
+                        logger.trace("cluster is blocked ({}), scheduling a retry", blockException.getMessage());
                         retry(fromClusterEvent, blockException);
                         return false;
                     } else {
@@ -356,7 +356,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {
                     if (blockException.retryable()) {
-                        logger.debug("Cluster is blocked ({}), scheduling a retry", blockException.getMessage());
+                        logger.trace("cluster is blocked ({}), scheduling a retry", blockException.getMessage());
                         retry(fromClusterEvent, blockException);
                         return false;
                     } else {
@@ -371,7 +371,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             // no shardIt, might be in the case between index gateway recovery and shardIt initialization
             if (shardIt.size() == 0) {
-                logger.debug("No shard instances known for index [{}]. Scheduling a retry", shardIt.shardId());
+                logger.trace("no shard instances known for index [{}], scheduling a retry", shardIt.shardId());
 
                 retry(fromClusterEvent, null);
                 return false;
@@ -386,7 +386,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     continue;
                 }
                 if (!shard.active() || !clusterState.nodes().nodeExists(shard.currentNodeId())) {
-                    logger.debug("primary shard [{}] is not yet active or we do not know the node it is assigned to [{}]. Scheduling a retry.", shard.shardId(), shard.currentNodeId());
+                    logger.trace("primary shard [{}] is not yet active or we do not know the node it is assigned to [{}], scheduling a retry.", shard.shardId(), shard.currentNodeId());
                     retry(fromClusterEvent, null);
                     return false;
                 }
@@ -406,7 +406,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
 
                     if (shardIt.sizeActive() < requiredNumber) {
-                        logger.debug("Not enough active copies of shard [{}] to meet write consistency of [{}] (have {}, needed {}). Scheduling a retry.",
+                        logger.trace("not enough active copies of shard [{}] to meet write consistency of [{}] (have {}, needed {}), scheduling a retry.",
                                 shard.shardId(), consistencyLevel, shardIt.sizeActive(), requiredNumber);
                         retry(fromClusterEvent, null);
                         return false;
@@ -465,7 +465,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 primaryOperationStarted.set(false);
                                 // we already marked it as started when we executed it (removed the listener) so pass false
                                 // to re-add to the cluster listener
-                                logger.debug("received an error from node the primary was assigned to ({}). Scheduling a retry", exp.getMessage());
+                                logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());
                                 retry(false, null);
                             } else {
                                 listener.onFailure(exp);
@@ -477,7 +477,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             // we won't find a primary if there are no shards in the shard iterator, retry...
             if (!foundPrimary) {
-                logger.debug("Couldn't find a eligible primary shard. Scheduling for retry.");
+                logger.trace("couldn't find a eligible primary shard, scheduling for retry.");
                 retry(fromClusterEvent, null);
                 return false;
             }
@@ -493,7 +493,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
                     @Override
                     public void postAdded() {
-                        logger.debug("Listener to cluster state added. Trying to index again.");
+                        logger.trace("listener to cluster state added, trying to index again");
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
@@ -508,7 +508,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override
                     public void clusterChanged(ClusterChangedEvent event) {
-                        logger.debug("Cluster changed (version {}). Trying to index again.", event.state().version());
+                        logger.trace("cluster changed (version {}), trying to index again", event.state().version());
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
@@ -535,7 +535,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 });
             } else {
-                logger.debug("Retry scheduling ignored as it as we already have a listener in place.");
+                logger.trace("retry scheduling ignored as it as we already have a listener in place");
             }
         }
 
@@ -547,7 +547,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     primaryOperationStarted.set(false);
-                    logger.debug("Had an error while performing operation on primary ({}). Scheduling a retry.", e.getMessage());
+                    logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
                     retry(fromDiscoveryListener, null);
                     return;
                 }

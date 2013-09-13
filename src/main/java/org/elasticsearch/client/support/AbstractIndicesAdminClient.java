@@ -510,8 +510,8 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String name) {
-        return new GetIndexTemplatesRequestBuilder(this, name);
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String... names) {
+        return new GetIndexTemplatesRequestBuilder(this, names);
     }
 
     @Override

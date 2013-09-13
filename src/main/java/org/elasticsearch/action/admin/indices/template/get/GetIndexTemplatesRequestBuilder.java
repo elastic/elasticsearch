@@ -32,8 +32,8 @@ public class GetIndexTemplatesRequestBuilder extends MasterNodeOperationRequestB
         super((InternalIndicesAdminClient) indicesClient, new GetIndexTemplatesRequest());
     }
 
-    public GetIndexTemplatesRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super((InternalIndicesAdminClient) indicesClient, new GetIndexTemplatesRequest(name));
+    public GetIndexTemplatesRequestBuilder(IndicesAdminClient indicesClient, String... names) {
+        super((InternalIndicesAdminClient) indicesClient, new GetIndexTemplatesRequest(names));
     }
 
     @Override

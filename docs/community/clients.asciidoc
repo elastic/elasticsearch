@@ -153,3 +153,9 @@
 
 * http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -
   Smalltalk client for Elasticsearch
+
+=== Cold Fusion
+
+* https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-ElasticSearch-Client]
+  Cold Fusion client for Elasticsearch
+

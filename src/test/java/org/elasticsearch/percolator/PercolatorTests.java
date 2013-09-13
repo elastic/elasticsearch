@@ -19,6 +19,7 @@
 
 package org.elasticsearch.percolator;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.*;
@@ -60,11 +60,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class PercolatorTests extends AbstractSharedClusterTest {
-
-    @Override
-    protected int numberOfNodes() {
-        return 2;
-    }
 
     @Test
     public void testSimple1() throws Exception {
@@ -1300,7 +1295,7 @@ public class PercolatorTests extends AbstractSharedClusterTest {
 
     @Test
     public void testPercolatorWithHighlighting() throws Exception {
-        Client client = cluster().nodeClient();
+        Client client = client();
         client.admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .execute().actionGet();

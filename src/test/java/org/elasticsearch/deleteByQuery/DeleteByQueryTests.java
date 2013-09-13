@@ -19,6 +19,7 @@
 
 package org.elasticsearch.deleteByQuery;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -26,22 +27,13 @@ import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DeleteByQueryTests extends AbstractSharedClusterTest {
-    
-
-    @Before
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-    }
 
     @Test
     public void testDeleteAllNoIndices() {

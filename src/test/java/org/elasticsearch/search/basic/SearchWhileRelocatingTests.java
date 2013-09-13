@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -46,11 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchWhileRelocatingTests extends AbstractSharedClusterTest {
-
-    @Override
-    protected int numberOfNodes() {
-        return 3;
-    }
 
     @Test
     public void testSearchAndRelocateConcurrently() throws Exception {

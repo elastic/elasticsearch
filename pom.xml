@@ -388,6 +388,7 @@
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                                 <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <tests.integration>${tests.integration}</tests.integration>
+                                <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
                                 <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}

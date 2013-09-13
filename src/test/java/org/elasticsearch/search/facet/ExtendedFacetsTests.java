@@ -1,5 +1,7 @@
 package org.elasticsearch.search.facet;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
@@ -9,7 +11,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.*;
@@ -34,17 +35,13 @@ public class ExtendedFacetsTests extends AbstractSharedClusterTest {
         return 1;
     }
 
-    @Override
-    protected int numberOfNodes() {
-        return 1;
-    }
-
     protected int numDocs() {
         return 2500;
     }
 
 
     @Test
+    @Slow
     public void testTermFacet_stringFields() throws Throwable {
         prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject()

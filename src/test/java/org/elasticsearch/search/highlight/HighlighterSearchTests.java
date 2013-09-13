@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,7 +37,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -57,11 +57,6 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 public class HighlighterSearchTests extends AbstractSharedClusterTest {
-    
-    @Override
-    protected int numberOfNodes() {
-        return 4; // why 4?
-    }
     
     @Test
     // see #3486

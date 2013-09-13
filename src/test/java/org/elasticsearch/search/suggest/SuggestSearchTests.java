@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -142,7 +142,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, between(1,5))
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, numberOfNodes() - 1))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().numNodes() - 1))
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -692,7 +692,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
     public void testShardFailures() throws IOException, InterruptedException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, numberOfNodes() - 1))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().numNodes() - 1))
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -800,7 +800,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
 
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, numberOfNodes() - 1))
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().numNodes() - 1))
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")
@@ -854,11 +854,6 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .maxErrors(5f)
                 .size(1));
         assertSuggestion(searchSuggest, 0, 0, "simple_phrase", "nobel prize");
-    }
-
-    @Override
-    protected int numberOfNodes() {
-        return 3;
     }
 
     protected Suggest searchSuggest(Client client, SuggestionBuilder<?>... suggestion) {

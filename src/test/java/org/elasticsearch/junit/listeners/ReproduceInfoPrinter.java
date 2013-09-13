@@ -2,10 +2,12 @@ package org.elasticsearch.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
+import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -40,7 +42,10 @@ public class ReproduceInfoPrinter extends RunListener {
         final StringBuilder b = new StringBuilder();
         b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
         b.append("REPRODUCE WITH  : mvn test");
-        new MavenMessageBuilder(b).appendAllOpts(failure.getDescription());
+        ReproduceErrorMessageBuilder builder = new MavenMessageBuilder(b).appendAllOpts(failure.getDescription());
+        if (AbstractSharedClusterTest.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+            builder.appendOpt("tests.cluster_seed", SeedUtils.formatSeed(ElasticsearchTestCase.SHARED_CLUSTER_SEED));
+        }
 
         b.append("\n");
         b.append("Throwable:\n");
@@ -69,7 +74,10 @@ public class ReproduceInfoPrinter extends RunListener {
             if (sysPropName.equals("tests.iters")) { // we don't want the iters to be in there!
                 return this;
             }
-            return super.appendOpt(sysPropName, value);
+            if (value != null && !value.isEmpty()) {
+                return super.appendOpt(sysPropName, value);
+            } 
+            return this;
         }
     }
 }

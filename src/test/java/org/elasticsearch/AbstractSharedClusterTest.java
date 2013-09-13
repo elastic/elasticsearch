@@ -55,7 +55,10 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.rest.RestStatus;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.*;
@@ -88,16 +91,11 @@ import static org.hamcrest.Matchers.equalTo;
 @IntegrationTests
 public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
-    private static TestCluster cluster;
-
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        cluster();
-    }
+    private static final TestCluster cluster = new TestCluster(SHARED_CLUSTER_SEED, TestCluster.clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
 
     @Before
     public final void before() {
-        cluster.ensureAtLeastNumNodes(numberOfNodes());
+        cluster.beforeTest(getRandom());
         wipeIndices();
         wipeTemplates();
     }
@@ -116,9 +114,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     public static TestCluster cluster() {
-        if (cluster == null) {
-            cluster = ClusterManager.accquireCluster(getRandom());
-        }
         return cluster;
     }
 
@@ -128,8 +123,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     @AfterClass
     public static void afterClass() {
-        cluster = null;
-        ClusterManager.releaseCluster();
     }
 
     public static Client client() {
@@ -285,10 +278,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public static String commaString(Iterable<String> strings) {
         return Joiner.on(',').join(strings);
-    }
-
-    protected int numberOfNodes() {
-        return 2;
     }
 
     // utils

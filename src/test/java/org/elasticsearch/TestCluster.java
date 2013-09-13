@@ -18,6 +18,7 @@
  */
 package org.elasticsearch;
 
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
@@ -40,30 +41,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
+import org.elasticsearch.index.store.mock.MockRamIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.google.common.collect.Maps.newHashMap;
+import static com.google.common.collect.Maps.newTreeMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 public class TestCluster {
 
-    /* some random options to consider
-     *  "action.auto_create_index"
-     *  "node.local"
-     */
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
-    private Map<String, NodeAndClient> nodes = newHashMap();
+    /* sorted map to make traverse order reproducible */
+    private final TreeMap<String, NodeAndClient> nodes = newTreeMap(); 
 
     private final String clusterName;
 
@@ -71,38 +68,65 @@ public class TestCluster {
 
     private final Settings defaultSettings;
 
-    private NodeAndClient clientNode;
-
+    private NodeAndClient clientNode; // currently unused
+    
     private Random random;
     
-    private ClientFactory clientFactory;
-
     private AtomicInteger nextNodeId = new AtomicInteger(0);
+    
+    /* We have a fixed number of shared nodes that we keep around across tests */
+    private final int numSharedNodes;
+    
+    /* Each shared node has a node seed that is used to start up the node and get default settings
+     * this is important if a node is randomly shut down in a test since the next test relies on a
+     * fully shared cluster to be more reproducible */
+    private final long[] sharedNodesSeeds;
 
-
-    public TestCluster(Random random) {
-
-        this(random, "shared-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "CHILD_VM=[" + ElasticsearchTestCase.CHILD_VM_ID + "]" + "_" + System.currentTimeMillis(), ImmutableSettings.settingsBuilder().build());
+    public TestCluster(long clusterSeed, String clusterName) {
+        this(clusterSeed, clusterName, ImmutableSettings.EMPTY);
     }
 
-    private TestCluster(Random random, String clusterName, Settings defaultSettings) {
-        this.random = new Random(random.nextLong());
-        clientFactory = new RandomClientFactory(random);
+    private TestCluster(long clusterSeed, String clusterName, Settings defaultSettings) {
         this.clusterName = clusterName;
+        Random random = new Random(clusterSeed);
+        numSharedNodes = 2 + random.nextInt(4); // at least 2 nodes
+        /*
+         *  TODO 
+         *  - we might want start some master only nodes?
+         *  - we could add a flag that returns a client to the master all the time?
+         *  - we could add a flag that never returns a client to the master 
+         *  - along those lines use a dedicated node that is master eligible and let all other nodes be only data nodes
+         */
+        sharedNodesSeeds = new long[numSharedNodes];
+        for (int i = 0; i < sharedNodesSeeds.length; i++) {
+            sharedNodesSeeds[i] = random.nextLong();
+        }
+        logger.info("Started TestCluster with seed [{}] using [{}] nodes" , SeedUtils.formatSeed(clusterSeed), numSharedNodes);
+
         if (defaultSettings.get("gateway.type") == null) {
             // default to non gateway
             defaultSettings = settingsBuilder().put(defaultSettings).put("gateway.type", "none").build();
         }
         if (defaultSettings.get("cluster.routing.schedule") != null) {
-            // decrease the routing schedule so new nodes will be added quickly
-            defaultSettings = settingsBuilder().put(defaultSettings).put("cluster.routing.schedule", "50ms").build();
+            // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
+            defaultSettings = settingsBuilder().put(defaultSettings).put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms").build();
         }
-        // TODO once we are reproducible here use MockRamIndexStoreModule
         this.defaultSettings = ImmutableSettings.settingsBuilder()
-                .put("index.store.type", MockFSIndexStoreModule.class.getName())
-                .put(defaultSettings).put("cluster.name", clusterName).build();
+                /* use RAM directories in 10% of the runs */
+                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
+                .put(defaultSettings)
+                .put("cluster.name", clusterName).build();
     }
-
+    
+    public static String clusterName(String prefix, String childVMId, long clusterSeed) {
+        StringBuilder builder = new StringBuilder(prefix);
+        builder.append('-').append(NetworkUtils.getLocalAddress().getHostName());
+        builder.append("-CHILD_VM=[").append(childVMId).append(']');
+        builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
+        // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
+        builder.append("-HASH=[").append(SeedUtils.formatSeed(System.nanoTime())).append(']');
+        return builder.toString();
+    }
 
     private void ensureOpen() {
         if (!open.get()) {
@@ -110,31 +134,40 @@ public class TestCluster {
         }
     }
 
-    public Node getOneNode() {
+    private synchronized Node getOrBuildRandomNode() {
+        ensureOpen();
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.node();
+        }
+        NodeAndClient buildNode = buildNode();
+        nodes.put(buildNode.name, buildNode);
+        return buildNode.node().start();
+    }
+    
+    private synchronized NodeAndClient getRandomNodeAndClient() {
         ensureOpen();
         Collection<NodeAndClient> values = nodes.values();
+        int whichOne = random.nextInt(values.size());
         for (NodeAndClient nodeAndClient : values) {
-            return nodeAndClient.node();
+            if (whichOne-- == 0) {
+                return nodeAndClient;
+            }
         }
-        return buildNode().start();
+        return null;
     }
 
-    public void ensureAtLeastNumNodes(int num) {
+    public synchronized void ensureAtLeastNumNodes(int num) {
         int size = nodes.size();
         for (int i = size; i < num; i++) {
             logger.info("increasing cluster size from {} to {}", size, num);
-            buildNode().start();
+            NodeAndClient buildNode = buildNode();
+            buildNode.node().start(); 
+            nodes.put(buildNode.name, buildNode);
         }
     }
 
-    public void ensureAtLeastNumNodes(Settings settings, int num) {
-        int size = nodes.size();
-        for (int i = size; i < num; i++) {
-            buildNode(settings).start();
-        }
-    }
-
-    public void ensureAtMostNumNodes(int num) {
+    public synchronized void ensureAtMostNumNodes(int num) {
         if (nodes.size() <= num) {
             return;
         }
@@ -147,59 +180,32 @@ public class TestCluster {
             next.close();
         }
     }
-
-    public Node startNode(Settings.Builder settings) {
-        ensureOpen();
-        return startNode(settings.build());
+    
+    private NodeAndClient buildNode() {
+        return buildNode(nextNodeId.getAndIncrement(), random.nextLong());
     }
 
-    public Node startNode(Settings settings) {
+    private NodeAndClient buildNode(int nodeId, long seed) {
         ensureOpen();
-        return buildNode(settings).start();
-    }
-
-    public Node buildNode() {
-        ensureOpen();
-        return buildNode(EMPTY_SETTINGS);
-    }
-
-    public Node buildNode(Settings.Builder settings) {
-        ensureOpen();
-        return buildNode(settings.build());
-    }
-
-    public Node buildNode(Settings settings) {
-        ensureOpen();
-        String name = buildNodeName();
-        String settingsSource = getClass().getName().replace('.', '/') + ".yml";
+        String name = buildNodeName(nodeId);
+        assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
-                .loadFromClasspath(settingsSource)
-                .put(defaultSettings).put(settings)
+                .put(defaultSettings)
                 .put("name", name)
-                .put("discovery.id.seed", random.nextLong())
+                .put("discovery.id.seed", seed)
                 .build();
         Node node = nodeBuilder().settings(finalSettings).build();
-        nodes.put(name, new NodeAndClient(name, node, clientFactory));
-        return node;
+        return new NodeAndClient(name, node, new RandomClientFactory());
     }
 
-    private String buildNodeName() {
-        return "node_" + nextNodeId.getAndIncrement();
+    private String buildNodeName(int id) {
+        return "node_" + id;
     }
 
-    public void setClientFactory(ClientFactory factory) {
-        this.clientFactory = factory;
-    }
-
-    public void closeNode(Node node) {
+    public synchronized Client client() {
         ensureOpen();
-        NodeAndClient remove = nodes.remove(node.settings().get("name"));
-        IOUtils.closeWhileHandlingException(remove); // quiet
-    }
-
-    public Client client() {
-        ensureOpen();
-        return getOneNode().client();
+        /* Randomly return either a pure client node or a client to on of the nodes in the cluster */
+        return getOrBuildRandomNode().client();
     }
 
     public void close() {
@@ -213,7 +219,7 @@ public class TestCluster {
         }
     }
 
-    public ImmutableSet<ClusterBlock> waitForNoBlocks(TimeValue timeout, Node node) throws InterruptedException {
+    public synchronized ImmutableSet<ClusterBlock> waitForNoBlocks(TimeValue timeout, Node node) throws InterruptedException {
         ensureOpen();
         long start = System.currentTimeMillis();
         ImmutableSet<ClusterBlock> blocks;
@@ -224,34 +230,44 @@ public class TestCluster {
         return blocks;
     }
 
-    public class NodeAndClient implements Closeable {
-        final Node node;
-        Client client;
-        final AtomicBoolean closed = new AtomicBoolean(false);
-        final ClientFactory clientFactory;
-        final String name;
+    private final class NodeAndClient implements Closeable {
+        private final Node node;
+        private Client client;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final ClientFactory clientFactory;
+        private final String name;
 
-        public NodeAndClient(String name, Node node, ClientFactory factory) {
+        NodeAndClient(String name, Node node, ClientFactory factory) {
             this.node = node;
             this.name = name;
             this.clientFactory = factory;
         }
 
-        public Node node() {
+        Node node() {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
             return node;
         }
 
-        public Client client() {
+        Client client(Random random) {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
             if (client != null) {
                 return client;
             }
-            return client = clientFactory.client(node, clusterName);
+            return client = clientFactory.client(node, clusterName, random);
+        }
+        
+        void resetClient() {
+            if (closed.get()) {
+                throw new RuntimeException("already closed");
+            }
+            if (client != null) {
+                client.close();
+                client = null;
+            }
         }
 
         @Override
@@ -259,6 +275,7 @@ public class TestCluster {
             closed.set(true);
             if (client != null) {
                 client.close();
+                client = null;
             }
             node.close();
 
@@ -267,7 +284,7 @@ public class TestCluster {
 
     public static class ClientFactory {
 
-        public Client client(Node node, String clusterName) {
+        public Client client(Node node, String clusterName, Random random) {
             return node.client();
         }
     }
@@ -283,7 +300,7 @@ public class TestCluster {
         }
 
         @Override
-        public Client client(Node node, String clusterName) {
+        public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "30s")
                     .put("cluster.name", clusterName).put("client.transport.sniff", sniff).build());
@@ -293,52 +310,86 @@ public class TestCluster {
     }
 
     public static class RandomClientFactory extends ClientFactory {
-        private final Random random;
-
-        public RandomClientFactory(Random random) {
-            this.random = random;
-        }
 
         @Override
-        public Client client(Node node, String clusterName) {
+        public Client client(Node node, String clusterName,  Random random) {
             switch (random.nextInt(10)) {
                 case 5:
-                    return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName);
+                    return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
                 case 3:
-                    return TransportClientFactory.SNIFF_CLIENT_FACTORY.client(node, clusterName);
+                    return TransportClientFactory.SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
                 default:
                     return node.client();
             }
         }
     }
 
-    void reset(Random random) {
+    public synchronized void beforeTest(Random random) {
         this.random = new Random(random.nextLong());
-        this.clientFactory = new RandomClientFactory(this.random);
+        resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
+        if (nextNodeId.get() == sharedNodesSeeds.length) {
+            return;
+        }
+        if (nodes.size() > 0) {
+            client().admin().cluster().prepareHealth().setWaitForNodes(""+nodes.size()).get();
+        }
+        Set<NodeAndClient> sharedNodes = new HashSet<NodeAndClient>();
+        boolean changed = false;
+        for (int i = 0; i < sharedNodesSeeds.length; i++) {
+            String buildNodeName = buildNodeName(i);
+            NodeAndClient nodeAndClient = nodes.get(buildNodeName);
+            if (nodeAndClient == null) {
+                changed = true;
+                nodeAndClient = buildNode(i, sharedNodesSeeds[i]);
+                nodeAndClient.node.start();
+            }
+            sharedNodes.add(nodeAndClient);
+        }
+        if (!changed && sharedNodes.size() == nodes.size()) {
+            return; // we are consistent - return
+        }
+        for (NodeAndClient nodeAndClient : sharedNodes) {
+            nodes.remove(nodeAndClient.name);
+        }
+        
+        // trash the remaining nodes
+        final Collection<NodeAndClient> toShutDown = nodes.values();
+        for (NodeAndClient nodeAndClient : toShutDown) {
+            nodeAndClient.close();
+        }
+        nodes.clear();
+        for (NodeAndClient nodeAndClient : sharedNodes) {
+            nodes.put(nodeAndClient.name, nodeAndClient);
+        }
+        nextNodeId.set(sharedNodesSeeds.length);
+        assert numNodes() == sharedNodesSeeds.length;
+    }
+    
+    private void resetClients() {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            nodeAndClient.resetClient();
+        }
     }
 
-    public ClusterService clusterService() {
-        return ((InternalNode) getOneNode()).injector().getInstance(ClusterService.class);
+    public synchronized ClusterService clusterService() {
+        return ((InternalNode) getOrBuildRandomNode()).injector().getInstance(ClusterService.class);
     }
 
-    public int numNodes() {
+    public synchronized int numNodes() {
         return this.nodes.size();
     }
 
-    public void stopRandomNode() {
+    public synchronized void stopRandomNode() {
         ensureOpen();
-
-        // TODO randomize
-        Set<Entry<String, NodeAndClient>> entrySet = nodes.entrySet();
-        if (entrySet.isEmpty()) {
-            return;
+        NodeAndClient nodeAndClient = getRandomNodeAndClient();
+        if (nodeAndClient != null) {
+            nodes.remove(nodeAndClient.name);
+            nodeAndClient.close();
         }
-        Entry<String, NodeAndClient> next = entrySet.iterator().next();
-        nodes.remove(next.getKey());
-        next.getValue().close();
     }
 
-    public Iterable<Client> clients() {
+    public synchronized Iterable<Client> clients() {
         final Map<String, NodeAndClient> nodes = this.nodes;
         return new Iterable<Client>() {
 
@@ -355,7 +406,7 @@ public class TestCluster {
 
                     @Override
                     public Client next() {
-                        return iterator.next().client();
+                        return iterator.next().client(random);
                     }
 
                     @Override
@@ -369,31 +420,31 @@ public class TestCluster {
 
     }
 
-    public Set<String> allButN(int numNodes) {
+    public synchronized Set<String> allButN(int numNodes) {
         return nRandomNodes(numNodes() - numNodes);
     }
 
-    public Set<String> nRandomNodes(int numNodes) {
+    public synchronized Set<String> nRandomNodes(int numNodes) {
         assert numNodes() >= numNodes;
         return Sets.newHashSet(Iterators.limit(this.nodes.keySet().iterator(), numNodes));
     }
 
-    public Client nodeClient() {
-        ensureOpen();
+    private synchronized Client nodeClient() {
+        ensureOpen(); // currently unused
         if (clientNode == null) {
-            String name = "client_" + buildNodeName();
-            String settingsSource = getClass().getName().replace('.', '/') + ".yml";
-            Settings finalSettings = settingsBuilder().loadFromClasspath(settingsSource).put(defaultSettings).put("node.client", true).put("name", name)
+            String name = "client_node";
+            Settings finalSettings = settingsBuilder().put(defaultSettings).put("name", name)
                     .build();
-            Node node = nodeBuilder().settings(finalSettings).build();
+            Node node = nodeBuilder().settings(finalSettings).client(true).build();
             node.start();
-            this.clientNode = new NodeAndClient(name, node, clientFactory);
+            this.clientNode = new NodeAndClient(name, node, new ClientFactory());
 
         }
-        return clientNode.client();
+        return clientNode.client(random);
+        
     }
 
-    public Set<String> nodesInclude(String index) {
+    public synchronized Set<String> nodesInclude(String index) {
         if (clusterService().state().routingTable().hasIndex(index)) {
             List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
             DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
@@ -410,7 +461,7 @@ public class TestCluster {
     }
 
 
-    public Set<String> nodeExclude(String index) {
+    public synchronized Set<String> nodeExclude(String index) {
         final Set<String> nodesInclude = nodesInclude(index);
         return Sets.newHashSet(Iterators.transform(Iterators.filter(nodes.values().iterator(), new Predicate<NodeAndClient>() {
             @Override

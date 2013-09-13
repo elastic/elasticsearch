@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.simple;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -158,7 +158,7 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertHitCount(searchResponse, 2l);
     }
-
+    
     @Test
     public void localDependentDateTests() throws Exception {
         prepareCreate("test")

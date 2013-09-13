@@ -19,13 +19,13 @@
 
 package org.elasticsearch.mlt;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -123,7 +123,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
 
     @Test
     public void testMoreLikeThisIssue2197() throws Exception {
-        Client client = cluster().nodeClient();
+        Client client = client();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
@@ -167,7 +167,6 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
     @Test
     // See issue: https://github.com/elasticsearch/elasticsearch/issues/3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        cluster().ensureAtLeastNumNodes(3);
         prepareCreate("foo", 2, ImmutableSettings.builder().put("index.number_of_replicas", 0)
                 .put("index.number_of_shards", 2))
                 .execute().actionGet();

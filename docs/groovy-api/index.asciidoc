@@ -1,6 +1,6 @@
 = Groovy API
-:ref:  http://www.elasticsearch.org/guide/elasticsearch/reference/current
-:java: http://www.elasticsearch.org/guide/elasticsearch/client/java-api/current
+:ref:  http://www.elasticsearch.org/guide/en/elasticsearch/reference/current
+:java: http://www.elasticsearch.org/guide/en/elasticsearch/client/java-api/current
 
 [preface]
 == Preface

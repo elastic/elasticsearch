@@ -849,7 +849,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                         SearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
-                        IOUtils.closeWhileHandlingException(current); // ignore
+                        try {
+                            IOUtils.close(current);
+                        } catch (Throwable t) {
+                            logger.warn("Failed to close current SearcherManager", t);
+                        }
                         refreshVersioningTable(threadPool.estimatedTimeInMillis());
                     } catch (OutOfMemoryError e) {
                         failEngine(e);
@@ -1292,7 +1296,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.versionMap.clear();
         this.failedEngineListeners.clear();
         try {
-            IOUtils.closeWhileHandlingException(searcherManager);
+            try {
+                IOUtils.close(searcherManager);
+            } catch (Throwable t) {
+                logger.warn("Failed to close SearcherManager", t);
+            }
             // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
                 try {

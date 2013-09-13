@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -28,5 +29,10 @@ public class FlushNotAllowedEngineException extends EngineException {
 
     public FlushNotAllowedEngineException(ShardId shardId, String msg) {
         super(shardId, msg);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
     }
 }

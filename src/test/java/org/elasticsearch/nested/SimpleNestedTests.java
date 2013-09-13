@@ -58,17 +58,17 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
     public void simpleNested() throws Exception {
         XContentBuilder builder = jsonBuilder().
                 startObject().
-                    field("type1").
-                    startObject().
-                        field("properties").
-                        startObject().
-                            field("nested1").
-                            startObject().
-                                field("type").
-                                value("nested").
-                            endObject().
-                        endObject().
-                    endObject().
+                field("type1").
+                startObject().
+                field("properties").
+                startObject().
+                field("nested1").
+                startObject().
+                field("type").
+                value("nested").
+                endObject().
+                endObject().
+                endObject().
                 endObject();
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", builder));
         ensureGreen();
@@ -227,7 +227,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total * 3l));
 
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
         statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total * 3l) - 3));
 
@@ -273,12 +274,15 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         }
 
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
+
         IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total));
 
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
         statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total) - 1));
 
@@ -408,8 +412,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").nested("nested1.nested2"))
                 .addFacet(FacetBuilders.statisticalFacet("facet2").field("field2_2").nested("nested1.nested2"))
                 .addFacet(FacetBuilders.statisticalFacet("facet2_blue").field("field2_2").nested("nested1.nested2")
-                .facetFilter(boolFilter().must(termFilter("field2_1", "blue"))))
-        .execute().actionGet();
+                        .facetFilter(boolFilter().must(termFilter("field2_1", "blue"))))
+                .execute().actionGet();
 
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -539,12 +543,14 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .endArray()
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
         IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
 
         client().prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
         statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
 
         // This must be 3, otherwise child docs aren't deleted.
@@ -605,7 +611,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .setSettings(settingsBuilder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
-                        .put("index.referesh_interval", -1)
+                        .put("index.refresh_interval", -1)
                         .build()
                 )
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")

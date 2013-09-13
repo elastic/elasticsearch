@@ -21,8 +21,6 @@ The flush API accepts the following request parameters:
 [cols="<,<",options="header",]
 |=======================================================================
 |Name |Description
-|`refresh` |Should a refresh be performed after the flush. Defaults to
-`false`.
 |=======================================================================
 
 [float]

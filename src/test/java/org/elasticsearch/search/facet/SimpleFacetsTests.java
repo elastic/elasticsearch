@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,7 +42,6 @@ import org.elasticsearch.search.facet.terms.TermsFacet.Entry;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
@@ -62,8 +62,8 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleFacetsTests extends AbstractSharedClusterTest {
-    
-    
+
+
     @Override
     public Settings getSettings() {
         return randomSettingsBuilder()
@@ -95,7 +95,8 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "green")
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "blue")
@@ -137,32 +138,32 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .startObject("float").field("type", "float").endObject()
                 .startObject("double").field("type", "double").endObject()
                 .endObject().endObject().endObject())
-        .execute().actionGet();
+                .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("name", ""+i)
-                    .field("multiValued", ""+i, "" + (90 + i%10))
-                    .field("byte", i )
+            client().prepareIndex("test", "type", "" + i).setSource(jsonBuilder().startObject()
+                    .field("name", "" + i)
+                    .field("multiValued", "" + i, "" + (90 + i % 10))
+                    .field("byte", i)
                     .field("short", i + Byte.MAX_VALUE)
                     .field("integer", i + Short.MAX_VALUE)
                     .field("long", i + Integer.MAX_VALUE)
-                    .field("float", (float)i)
-                    .field("double", (double)i)
+                    .field("float", (float) i)
+                    .field("double", (double) i)
                     .endObject()).execute().actionGet();
         }
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
-                    .field("foo", ""+i)
+            client().prepareIndex("test", "type", "" + (i + 100)).setSource(jsonBuilder().startObject()
+                    .field("foo", "" + i)
                     .endObject()).execute().actionGet();
         }
 
-        String[] execHint = new String[] {"map", null};
+        String[] execHint = new String[]{"map", null};
         for (String hint : execHint) {
 
-            client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+            flushAndRefresh();
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("double").executionHint(hint).field("double").size(10))
@@ -268,161 +269,165 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
     @Slow
     public void testConcurrentFacets() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
-        .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("byte").field("type", "byte").endObject()
-                .startObject("short").field("type", "short").endObject()
-                .startObject("integer").field("type", "integer").endObject()
-                .startObject("long").field("type", "long").endObject()
-                .startObject("float").field("type", "float").endObject()
-                .startObject("double").field("type", "double").endObject()
-                .endObject().endObject().endObject())
-        .execute().actionGet();
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("byte").field("type", "byte").endObject()
+                        .startObject("short").field("type", "short").endObject()
+                        .startObject("integer").field("type", "integer").endObject()
+                        .startObject("long").field("type", "long").endObject()
+                        .startObject("float").field("type", "float").endObject()
+                        .startObject("double").field("type", "double").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("name", ""+i)
-                    .field("byte", i )
+            client().prepareIndex("test", "type", "" + i).setSource(jsonBuilder().startObject()
+                    .field("name", "" + i)
+                    .field("byte", i)
                     .field("short", i + Byte.MAX_VALUE)
                     .field("integer", i + Short.MAX_VALUE)
                     .field("long", i + Integer.MAX_VALUE)
-                    .field("float", (float)i)
-                    .field("double", (double)i)
+                    .field("float", (float) i)
+                    .field("double", (double) i)
                     .endObject()).execute().actionGet();
         }
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
-                    .field("foo", ""+i)
+            client().prepareIndex("test", "type", "" + (i + 100)).setSource(jsonBuilder().startObject()
+                    .field("foo", "" + i)
                     .endObject()).execute().actionGet();
         }
 
-       client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-       ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
+        flushAndRefresh();
+        ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
         {
             final Client cl = client();
 
             duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
 
-                @Override
-                public void judge(Facets firstRun, Facets result) {
-                    for (Facet f : result) {
-                        TermsFacet facet = (TermsFacet) f;
-                        assertThat(facet.getName(), isIn(new String[] {"short", "double", "byte", "float", "integer", "long", "termFacet"}));
-                        TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
-                        assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
+                          @Override
+                          public void judge(Facets firstRun, Facets result) {
+                              for (Facet f : result) {
+                                  TermsFacet facet = (TermsFacet) f;
+                                  assertThat(facet.getName(), isIn(new String[]{"short", "double", "byte", "float", "integer", "long", "termFacet"}));
+                                  TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
+                                  assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
 
-                        assertThat(facet.getEntries().size(), equalTo(10));
-                        assertThat(facet.getTotalCount(), equalTo(100l));
-                        assertThat(facet.getOtherCount(), equalTo(90l));
-                        assertThat(facet.getMissingCount(), equalTo(10l));
+                                  assertThat(facet.getEntries().size(), equalTo(10));
+                                  assertThat(facet.getTotalCount(), equalTo(100l));
+                                  assertThat(facet.getOtherCount(), equalTo(90l));
+                                  assertThat(facet.getMissingCount(), equalTo(10l));
 
-                        List<? extends Entry> right = facet.getEntries();
-                        List<? extends Entry> left = firstRunFacet.getEntries();
+                                  List<? extends Entry> right = facet.getEntries();
+                                  List<? extends Entry> left = firstRunFacet.getEntries();
 
-                        for (int i = 0; i < facet.getEntries().size(); i++) {
-                            assertThat(left.get(i).getTerm(), equalTo(right.get(i).getTerm()));
-                            assertThat(left.get(i).getCount(), equalTo(right.get(i).getCount()));
-                        }
-                    }
-                }
-            }, new ConcurrentDuel.DuelExecutor<Facets>() {
-                AtomicInteger count = new AtomicInteger();
-                @Override
-                public Facets run() {
-                    final SearchRequestBuilder facetRequest;
-                    if (count.incrementAndGet() % 2 == 0) { // every second request is mapped
-                        facetRequest = cl.prepareSearch().setQuery(matchAllQuery())
-                        .addFacet(termsFacet("double").field("double").size(10))
-                        .addFacet(termsFacet("float").field("float").size(10))
-                        .addFacet(termsFacet("integer").field("integer").size(10))
-                        .addFacet(termsFacet("long").field("long").size(10))
-                        .addFacet(termsFacet("short").field("short").size(10))
-                        .addFacet(termsFacet("byte").field("byte").size(10))
-                        .addFacet(termsFacet("termFacet").field("name").size(10));
-                    } else {
-                        facetRequest = cl.prepareSearch()
-                        .setQuery(matchAllQuery())
-                        .addFacet(termsFacet("double").executionHint("map").field("double").size(10))
-                        .addFacet(termsFacet("float").executionHint("map").field("float").size(10))
-                        .addFacet(termsFacet("integer").executionHint("map").field("integer").size(10))
-                        .addFacet(termsFacet("long").executionHint("map").field("long").size(10))
-                        .addFacet(termsFacet("short").executionHint("map").field("short").size(10))
-                        .addFacet(termsFacet("byte").executionHint("map").field("byte").size(10))
-                        .addFacet(termsFacet("termFacet").executionHint("map").field("name").size(10));
-                    }
+                                  for (int i = 0; i < facet.getEntries().size(); i++) {
+                                      assertThat(left.get(i).getTerm(), equalTo(right.get(i).getTerm()));
+                                      assertThat(left.get(i).getCount(), equalTo(right.get(i).getCount()));
+                                  }
+                              }
+                          }
+                      }, new ConcurrentDuel.DuelExecutor<Facets>() {
+                          AtomicInteger count = new AtomicInteger();
 
-                    SearchResponse actionGet = facetRequest.execute().actionGet();
-                    return actionGet.getFacets();
-                }
-            }, 5000);
+                          @Override
+                          public Facets run() {
+                              final SearchRequestBuilder facetRequest;
+                              if (count.incrementAndGet() % 2 == 0) { // every second request is mapped
+                                  facetRequest = cl.prepareSearch().setQuery(matchAllQuery())
+                                          .addFacet(termsFacet("double").field("double").size(10))
+                                          .addFacet(termsFacet("float").field("float").size(10))
+                                          .addFacet(termsFacet("integer").field("integer").size(10))
+                                          .addFacet(termsFacet("long").field("long").size(10))
+                                          .addFacet(termsFacet("short").field("short").size(10))
+                                          .addFacet(termsFacet("byte").field("byte").size(10))
+                                          .addFacet(termsFacet("termFacet").field("name").size(10));
+                              } else {
+                                  facetRequest = cl.prepareSearch()
+                                          .setQuery(matchAllQuery())
+                                          .addFacet(termsFacet("double").executionHint("map").field("double").size(10))
+                                          .addFacet(termsFacet("float").executionHint("map").field("float").size(10))
+                                          .addFacet(termsFacet("integer").executionHint("map").field("integer").size(10))
+                                          .addFacet(termsFacet("long").executionHint("map").field("long").size(10))
+                                          .addFacet(termsFacet("short").executionHint("map").field("short").size(10))
+                                          .addFacet(termsFacet("byte").executionHint("map").field("byte").size(10))
+                                          .addFacet(termsFacet("termFacet").executionHint("map").field("name").size(10));
+                              }
+
+                              SearchResponse actionGet = facetRequest.execute().actionGet();
+                              return actionGet.getFacets();
+                          }
+                      }, 5000
+            );
         }
         {
-             duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
+            duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
 
-                 @Override
-                 public void judge(Facets firstRun, Facets result) {
-                     for (Facet f : result) {
-                         TermsFacet facet = (TermsFacet) f;
-                         assertThat(facet.getName(), equalTo("termFacet"));
-                         TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
-                         assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
+                          @Override
+                          public void judge(Facets firstRun, Facets result) {
+                              for (Facet f : result) {
+                                  TermsFacet facet = (TermsFacet) f;
+                                  assertThat(facet.getName(), equalTo("termFacet"));
+                                  TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
+                                  assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
 
-                         assertThat(facet.getEntries().size(), equalTo(10));
-                         assertThat(facet.getTotalCount(), equalTo(100l));
-                         assertThat(facet.getOtherCount(), equalTo(90l));
-                         assertThat(facet.getMissingCount(), equalTo(10l));
+                                  assertThat(facet.getEntries().size(), equalTo(10));
+                                  assertThat(facet.getTotalCount(), equalTo(100l));
+                                  assertThat(facet.getOtherCount(), equalTo(90l));
+                                  assertThat(facet.getMissingCount(), equalTo(10l));
 
-                         List<? extends Entry> right = facet.getEntries();
-                         List<? extends Entry> left = firstRunFacet.getEntries();
+                                  List<? extends Entry> right = facet.getEntries();
+                                  List<? extends Entry> left = firstRunFacet.getEntries();
 
-                         for (int i = 0; i < facet.getEntries().size(); i++) {
-                             assertThat(left.get(i).getTerm(), equalTo(right.get(i).getTerm()));
-                             assertThat(left.get(i).getCount(), equalTo(right.get(i).getCount()));
-                         }
-                     }
-                 }
-             }, new ConcurrentDuel.DuelExecutor<Facets>() {
-                 AtomicInteger count = new AtomicInteger();
-                 @Override
-                 public Facets run() {
-                     final SearchRequestBuilder facetRequest;
-                     switch(count.incrementAndGet() % 6) {
-                     case 4:
-                         facetRequest = client().prepareSearch()
-                          .setQuery(matchAllQuery())
-                          .addFacet(termsFacet("termFacet").executionHint("map").field("name").script("\"\" + (Integer.parseInt(term) % 100)").size(10));
-                         break;
-                     case 3:
-                         facetRequest = client().prepareSearch()
-                          .setQuery(matchAllQuery())
-                          .addFacet(termsFacet("termFacet").field("name").regex("\\d+").size(10));
-                         break;
-                     case 2:
-                        facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").executionHint("map").field("name").regex("\\d+").script("term").size(10));
-                        break;
-                     case 1:
-                         facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").field("name").regex("\\d+").script("term").size(10));
-                         break;
-                     case 0:
-                         facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").field("name").size(10));
-                         break;
-                     default:
-                         facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").executionHint("map").field("name").size(10));
-                         break;
-                     }
-                     SearchResponse actionGet = facetRequest.execute().actionGet();
-                     return actionGet.getFacets();
-                 }
-             }, 5000);
+                                  for (int i = 0; i < facet.getEntries().size(); i++) {
+                                      assertThat(left.get(i).getTerm(), equalTo(right.get(i).getTerm()));
+                                      assertThat(left.get(i).getCount(), equalTo(right.get(i).getCount()));
+                                  }
+                              }
+                          }
+                      }, new ConcurrentDuel.DuelExecutor<Facets>() {
+                          AtomicInteger count = new AtomicInteger();
+
+                          @Override
+                          public Facets run() {
+                              final SearchRequestBuilder facetRequest;
+                              switch (count.incrementAndGet() % 6) {
+                                  case 4:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").executionHint("map").field("name").script("\"\" + (Integer.parseInt(term) % 100)").size(10));
+                                      break;
+                                  case 3:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").field("name").regex("\\d+").size(10));
+                                      break;
+                                  case 2:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").executionHint("map").field("name").regex("\\d+").script("term").size(10));
+                                      break;
+                                  case 1:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").field("name").regex("\\d+").script("term").size(10));
+                                      break;
+                                  case 0:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").field("name").size(10));
+                                      break;
+                                  default:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").executionHint("map").field("name").size(10));
+                                      break;
+                              }
+                              SearchResponse actionGet = facetRequest.execute().actionGet();
+                              return actionGet.getFacets();
+                          }
+                      }, 5000
+            );
         }
 
         duel.close();
@@ -432,148 +437,150 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
     @Slow
     public void testDuelByteFieldDataImpl() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
         prepareCreate("test")
-        .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                 .startObject("name_paged")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "paged_bytes").endObject()
-                 .endObject()
-                 .startObject("name_fst")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "fst").endObject()
-                 .endObject()
-                 .startObject("name_paged_mv")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "paged_bytes").endObject()
-                 .endObject()
-                 .startObject("name_fst_mv")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "fst").endObject()
-                 .endObject()
-                 .startObject("filtered")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "fst").startObject("filter")
-                    .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
-                    .endObject()
-                    // only 1 or 2 digits 
-                 .endObject()
-                  .startObject("filtered_mv")
-                    .field("type", "string")
-                    .startObject("fielddata").field("format", "fst").startObject("filter")
-                    .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
-                    .endObject()
-                .endObject().endObject().endObject())
-        .execute().actionGet();
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("name_paged")
+                        .field("type", "string")
+                        .startObject("fielddata").field("format", "paged_bytes").endObject()
+                        .endObject()
+                        .startObject("name_fst")
+                        .field("type", "string")
+                        .startObject("fielddata").field("format", "fst").endObject()
+                        .endObject()
+                        .startObject("name_paged_mv")
+                        .field("type", "string")
+                        .startObject("fielddata").field("format", "paged_bytes").endObject()
+                        .endObject()
+                        .startObject("name_fst_mv")
+                        .field("type", "string")
+                        .startObject("fielddata").field("format", "fst").endObject()
+                        .endObject()
+                        .startObject("filtered")
+                        .field("type", "string")
+                        .startObject("fielddata").field("format", "fst").startObject("filter")
+                        .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
+                        .endObject()
+                                // only 1 or 2 digits
+                        .endObject()
+                        .startObject("filtered_mv")
+                        .field("type", "string")
+                        .startObject("fielddata").field("format", "fst").startObject("filter")
+                        .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
-                    .field("name_paged", ""+i)
-                    .field("name_fst", ""+i)
-                    .field("filtered", ""+i)
-                    .field("name_paged_mv", ""+i,""+ Math.min(99, i+1))
-                    .field("name_fst_mv", ""+i,""+Math.min(99, i+1))
-                    .field("filtered_mv", ""+i,""+Math.min(99, i+1), ""+(100 + i))
+            client().prepareIndex("test", "type", "" + i).setSource(jsonBuilder().startObject()
+                    .field("name_paged", "" + i)
+                    .field("name_fst", "" + i)
+                    .field("filtered", "" + i)
+                    .field("name_paged_mv", "" + i, "" + Math.min(99, i + 1))
+                    .field("name_fst_mv", "" + i, "" + Math.min(99, i + 1))
+                    .field("filtered_mv", "" + i, "" + Math.min(99, i + 1), "" + (100 + i))
                     .endObject()).execute().actionGet();
         }
-        
+
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
-                    .field("foo", ""+i)
+            client().prepareIndex("test", "type", "" + (i + 100)).setSource(jsonBuilder().startObject()
+                    .field("foo", "" + i)
                     .endObject()).execute().actionGet();
         }
-       
-       client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-       ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
-       String[] fieldPostFix = new String[] {"", "_mv"};
-       for (final String postfix : fieldPostFix) {
-             duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
-    
-                 @Override
-                 public void judge(Facets firstRun, Facets result) {
-                     for (Facet f : result) {
-                         TermsFacet facet = (TermsFacet) f;
-                         assertThat(facet.getName(), equalTo("termFacet"));
-                         TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
-                         assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
-                       
-                         if ("_mv".equals(postfix)) {
-                             assertThat(facet.getEntries().size(), equalTo(10));
-                             assertThat(facet.getTotalCount(), equalTo(199l));
-                             assertThat(facet.getOtherCount(), equalTo(179l));
-                             assertThat(facet.getMissingCount(), equalTo(10l));
-                         } else {
-                             assertThat(facet.getEntries().size(), equalTo(10));
-                             assertThat(facet.getTotalCount(), equalTo(100l));
-                             assertThat(facet.getOtherCount(), equalTo(90l));
-                             assertThat(facet.getMissingCount(), equalTo(10l));
-                         }
-                         List<? extends Entry> right = facet.getEntries();
-                         List<? extends Entry> left = firstRunFacet.getEntries();
-                         
-                         for (int i = 0; i < facet.getEntries().size(); i++) {
-                             assertThat(left.get(i).getTerm(), equalTo(right.get(i).getTerm()));
-                             assertThat(left.get(i).getCount(), equalTo(right.get(i).getCount()));
-                         }              
-                     }
-                 }
-             }, new ConcurrentDuel.DuelExecutor<Facets>() {
-                 AtomicInteger count = new AtomicInteger();
-                 @Override
-                 public Facets run() {
-                     final SearchRequestBuilder facetRequest;
-                     int incrementAndGet = count.incrementAndGet();
-                     final String field;
-                    switch (incrementAndGet % 2) {
-                    case 1:
-                        field =  "filtered"+postfix;
-                        break;
-                    case 0:
-                        field = "name_paged"+postfix;
-                        break;
-                    default:
-                        field = "name_fst"+postfix;
-                    }
-                     switch(incrementAndGet % 5) {
-                     case 4:
-                         facetRequest = client().prepareSearch()
-                          .setQuery(matchAllQuery())
-                          .addFacet(termsFacet("termFacet").executionHint("map").field(field).script("\"\" + (Integer.parseInt(term) % 100)").size(10));
-                         break;
-                     case 3:
-                         facetRequest = client().prepareSearch()
-                          .setQuery(matchAllQuery())
-                          .addFacet(termsFacet("termFacet").field(field).regex("\\d+").size(10));
-                         break;
-                     case 2:
-                        facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").executionHint("map").field(field).regex("\\d+").script("term").size(10));
-                        break;
-                     case 1:
-                         facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").field(field).regex("\\d+").script("term").size(10));
-                         break;
-                     case 0:
-                         facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").field(field).size(10));
-                         break;
-                     default:
-                         facetRequest = client().prepareSearch()
-                         .setQuery(matchAllQuery())
-                         .addFacet(termsFacet("termFacet").executionHint("map").field(field).size(10));
-                         break;
-                     }
-                     SearchResponse actionGet = facetRequest.execute().actionGet();
-                     return actionGet.getFacets();
-                 }
-             }, 5000);
+
+        flushAndRefresh();
+        ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
+        String[] fieldPostFix = new String[]{"", "_mv"};
+        for (final String postfix : fieldPostFix) {
+            duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
+
+                          @Override
+                          public void judge(Facets firstRun, Facets result) {
+                              for (Facet f : result) {
+                                  TermsFacet facet = (TermsFacet) f;
+                                  assertThat(facet.getName(), equalTo("termFacet"));
+                                  TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
+                                  assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
+
+                                  if ("_mv".equals(postfix)) {
+                                      assertThat(facet.getEntries().size(), equalTo(10));
+                                      assertThat(facet.getTotalCount(), equalTo(199l));
+                                      assertThat(facet.getOtherCount(), equalTo(179l));
+                                      assertThat(facet.getMissingCount(), equalTo(10l));
+                                  } else {
+                                      assertThat(facet.getEntries().size(), equalTo(10));
+                                      assertThat(facet.getTotalCount(), equalTo(100l));
+                                      assertThat(facet.getOtherCount(), equalTo(90l));
+                                      assertThat(facet.getMissingCount(), equalTo(10l));
+                                  }
+                                  List<? extends Entry> right = facet.getEntries();
+                                  List<? extends Entry> left = firstRunFacet.getEntries();
+
+                                  for (int i = 0; i < facet.getEntries().size(); i++) {
+                                      assertThat(left.get(i).getTerm(), equalTo(right.get(i).getTerm()));
+                                      assertThat(left.get(i).getCount(), equalTo(right.get(i).getCount()));
+                                  }
+                              }
+                          }
+                      }, new ConcurrentDuel.DuelExecutor<Facets>() {
+                          AtomicInteger count = new AtomicInteger();
+
+                          @Override
+                          public Facets run() {
+                              final SearchRequestBuilder facetRequest;
+                              int incrementAndGet = count.incrementAndGet();
+                              final String field;
+                              switch (incrementAndGet % 2) {
+                                  case 1:
+                                      field = "filtered" + postfix;
+                                      break;
+                                  case 0:
+                                      field = "name_paged" + postfix;
+                                      break;
+                                  default:
+                                      field = "name_fst" + postfix;
+                              }
+                              switch (incrementAndGet % 5) {
+                                  case 4:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").executionHint("map").field(field).script("\"\" + (Integer.parseInt(term) % 100)").size(10));
+                                      break;
+                                  case 3:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").field(field).regex("\\d+").size(10));
+                                      break;
+                                  case 2:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").executionHint("map").field(field).regex("\\d+").script("term").size(10));
+                                      break;
+                                  case 1:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").field(field).regex("\\d+").script("term").size(10));
+                                      break;
+                                  case 0:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").field(field).size(10));
+                                      break;
+                                  default:
+                                      facetRequest = client().prepareSearch()
+                                              .setQuery(matchAllQuery())
+                                              .addFacet(termsFacet("termFacet").executionHint("map").field(field).size(10));
+                                      break;
+                              }
+                              SearchResponse actionGet = facetRequest.execute().actionGet();
+                              return actionGet.getFacets();
+                          }
+                      }, 5000
+            );
         }
-        
+
         duel.close();
     }
-    
+
     @Test
     public void testSearchFilter() throws Exception {
         createIndex("test");
@@ -584,7 +591,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "green")
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "blue")
@@ -637,7 +644,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .startArray("tag").value("xxx").value("yyy").endArray()
                 .startArray("ltag").value(1000l).value(2000l).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -698,7 +705,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         client().prepareIndex("test2", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
 
         for (int i = 0; i < numberOfRuns(); i++) {
@@ -735,7 +742,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("stag", "111")
                 .startArray("tag").value("xxx").value("yyy").endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -797,7 +804,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("kuku", "kuku")
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -845,7 +852,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .startArray("ltag").value(1000l).value(2000l).endArray()
                 .startArray("dtag").value(1000.1).value(2000.1).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -1286,7 +1293,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("num", 1)
                 .startArray("multi_num").value(1.0).value(2.0f).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 2)
@@ -1388,7 +1395,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 300)
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -1432,7 +1439,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("date", "1970-01-01T00:00:00")
                 .startArray("multi_num").value(13.0f).value(23.f).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1065)
@@ -1603,7 +1610,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .startArray("multi_num").value(13.0f).value(23.f).endArray()
                 .startArray("multi_value").value(10).value(11).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1065)
@@ -1769,7 +1776,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("date", "2009-03-05T01:01:01")
                 .field("num", 1)
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T04:01:01")
@@ -1883,7 +1890,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("date", "2009-03-05T23:31:01")
                 .field("num", 1)
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T18:01:01")
@@ -1961,7 +1968,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("num", 500.0)
                 .startArray("multi_num").value(5.0).value(6.0f).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -2150,7 +2157,7 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
                 .field("num", 500.0)
                 .startArray("multi_num").value(5.0).value(6.0f).endArray()
                 .endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client().prepareSearch()

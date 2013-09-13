@@ -20,9 +20,9 @@
 package org.elasticsearch.search.sort;
 
 
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util._TestUtil;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -55,7 +54,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleSortTests extends AbstractSharedClusterTest {
-    
+
     @Override
     public Settings getSettings() {
         return randomSettingsBuilder()
@@ -63,7 +62,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .put("index.number_of_replicas", 0)
                 .build();
     }
-    
+
     @Test
     public void testTrackScores() throws Exception {
         createIndex("test");
@@ -104,7 +103,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
             assertThat(hit.getScore(), not(equalTo(Float.NaN)));
         }
     }
-    
+
     public void testRandomSorting() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
         int numberOfShards = between(1, 10);
         Random random = getRandom();
@@ -112,20 +111,20 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type",
                         XContentFactory.jsonBuilder()
-                            .startObject()
+                                .startObject()
                                 .startObject("type")
-                                    .startObject("properties")
-                                        .startObject("sparse_bytes")
-                                            .field("type", "string")
-                                            .field("index", "not_analyzed")
-                                        .endObject()
-                                        .startObject("dense_bytes")
-                                            .field("type", "string")
-                                            .field("index", "not_analyzed")
-                                        .endObject()
-                                    .endObject()
+                                .startObject("properties")
+                                .startObject("sparse_bytes")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
                                 .endObject()
-                            .endObject()).execute().actionGet();
+                                .startObject("dense_bytes")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                                .endObject()).execute().actionGet();
         ensureGreen();
 
         TreeMap<BytesRef, String> sparseBytes = new TreeMap<BytesRef, String>();
@@ -182,7 +181,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
             }
         }
     }
-    
+
 
     @Test
     public void test3078() {
@@ -197,7 +196,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
-        
+
         // reindex and refresh
         client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
         refresh();
@@ -206,7 +205,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
-        
+
         // reindex - no refresh
         client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
 
@@ -214,7 +213,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
-        
+
         // optimize
         optimize();
         refresh();
@@ -224,7 +223,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
-        
+
         refresh();
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
@@ -263,7 +262,6 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
-    
 
     @Test
     public void testScoreSortDirection_withFunctionScore() throws Exception {
@@ -328,17 +326,17 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
             refresh();
 
             client().prepareIndex("test", "type", "4").setSource("tag", "delta").execute().actionGet();
-            
+
             refresh();
             client().prepareIndex("test", "type", "2").setSource("tag", "beta").execute().actionGet();
-            
+
             refresh();
             SearchResponse resp = client().prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.ASC)).execute().actionGet();
             assertHitCount(resp, 4);
             assertThat(resp.getHits().hits().length, equalTo(2));
             assertFirstHit(resp, hasId("1"));
             assertSecondHit(resp, hasId("2"));
-            
+
             resp = client().prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.DESC)).execute().actionGet();
             assertHitCount(resp, 4);
             assertThat(resp.getHits().hits().length, equalTo(2));
@@ -386,10 +384,10 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 if (random.nextInt(5) != 0) {
                     refresh();
                 } else {
-                  client().admin().indices().prepareFlush().execute().actionGet();
+                    client().admin().indices().prepareFlush().execute().actionGet();
                 }
             }
-            
+
         }
         refresh();
 
@@ -422,8 +420,8 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
-        
-        
+
+
         // STRING script
         size = 1 + random.nextInt(10);
 
@@ -642,13 +640,13 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertNoFailures(searchResponse);
     }
-    
-    @Test 
+
+    @Test
     public void test2920() throws IOException {
-       assertAcked(prepareCreate("test").addMapping("test", 
-               jsonBuilder().startObject().startObject("test").startObject("properties")
-                   .startObject("value").field("type", "string").endObject()
-                   .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("test",
+                jsonBuilder().startObject().startObject("test").startObject("properties")
+                        .startObject("value").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "test", Integer.toString(i)).setSource(jsonBuilder().startObject()
@@ -661,7 +659,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertNoFailures(searchResponse);
     }
-    
+
     @Test
     public void testSortMinValueScript() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -674,28 +672,28 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            IndexRequestBuilder req = client().prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
+            IndexRequestBuilder req = client().prepareIndex("test", "type1", "" + i).setSource(jsonBuilder().startObject()
                     .field("ord", i)
-                    .field("svalue", new String[]{""+i, ""+(i+1), ""+(i+2)})
-                    .field("lvalue", new long[] {i, i+1, i+2})
-                    .field("dvalue", new double[] {i, i+1, i+2})
+                    .field("svalue", new String[]{"" + i, "" + (i + 1), "" + (i + 2)})
+                    .field("lvalue", new long[]{i, i + 1, i + 2})
+                    .field("dvalue", new double[]{i, i + 1, i + 2})
                     .startObject("gvalue")
-                        .startObject("location")
-                             .field("lat", (double)i+1)
-                             .field("lon", (double)i)
-                        .endObject()
+                    .startObject("location")
+                    .field("lat", (double) i + 1)
+                    .field("lon", (double) i)
+                    .endObject()
                     .endObject()
                     .endObject());
             req.execute().actionGet();
         }
-        
+
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
-            client().prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", "" + i).setSource(jsonBuilder().startObject()
                     .field("ord", i)
-            .endObject()).execute().actionGet();
+                    .endObject()).execute().actionGet();
         }
         client().admin().indices().prepareRefresh("test").execute().actionGet();
-        
+
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -707,7 +705,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Long)searchResponse.getHits().getAt(i).field("min").value(), equalTo((long)i));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Long) searchResponse.getHits().getAt(i).field("min").value(), equalTo((long) i));
         }
         // test the double values
         searchResponse = client().prepareSearch()
@@ -720,9 +718,9 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double)searchResponse.getHits().getAt(i).field("min").value(), equalTo((double)i));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), equalTo((double) i));
         }
-        
+
         // test the string values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -734,9 +732,9 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Integer)searchResponse.getHits().getAt(i).field("min").value(), equalTo(i));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Integer) searchResponse.getHits().getAt(i).field("min").value(), equalTo(i));
         }
-        
+
         // test the geopoint values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -748,7 +746,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double)searchResponse.getHits().getAt(i).field("min").value(), equalTo((double)i));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), equalTo((double) i));
         }
     }
 
@@ -779,7 +777,8 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .endObject()).execute().actionGet();
 
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -793,7 +792,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("1"));
         assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("3"));
         assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
-        
+
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].values[0]")
@@ -849,18 +848,18 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     public void testSortMissingNumbers() throws Exception {
         prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type1")
+                        .startObject()
+                        .startObject("type1")
                         .startObject("properties")
-                            .startObject("i_value")
-                                .field("type", "integer")
-                            .endObject()
-                            .startObject("d_value")
-                                .field("type", "float")
-                            .endObject()
+                        .startObject("i_value")
+                        .field("type", "integer")
                         .endObject()
-                    .endObject()
-                .endObject()).execute().actionGet();
+                        .startObject("d_value")
+                        .field("type", "float")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()).execute().actionGet();
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
@@ -878,7 +877,8 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .field("d_value", 2.2)
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        refresh();
 
         logger.info("--> sort with no missing (same as missing _last)");
         SearchResponse searchResponse = client().prepareSearch()
@@ -921,16 +921,16 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     public void testSortMissingStrings() throws ElasticSearchException, IOException {
         prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type1")
+                        .startObject()
+                        .startObject("type1")
                         .startObject("properties")
-                            .startObject("value")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
-                            .endObject()
+                        .startObject("value")
+                        .field("type", "string")
+                        .field("index", "not_analyzed")
                         .endObject()
-                    .endObject()
-                .endObject()).execute().actionGet();
+                        .endObject()
+                        .endObject()
+                        .endObject()).execute().actionGet();
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
@@ -945,8 +945,11 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .field("id", "1")
                 .field("value", "c")
                 .endObject()).execute().actionGet();
-        
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();try {
+
+        flush();
+        refresh();
+
+        try {
             Thread.sleep(2000);
         } catch (InterruptedException e) {
             throw new RuntimeException();
@@ -1014,11 +1017,11 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         logger.info("--> sort with an unmapped field, verify it fails");
         try {
-                SearchResponse result = client().prepareSearch()
+            SearchResponse result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addSort(SortBuilders.fieldSort("kkk"))
                     .execute().actionGet();
-                assertThat("Expected exception but returned with", result, nullValue());
+            assertThat("Expected exception but returned with", result, nullValue());
         } catch (SearchPhaseExecutionException e) {
             //we check that it's a parse failure rather than a different shard failure
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
@@ -1350,7 +1353,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
     }
-    
+
     @Test
     public void testSortOnRareField() throws ElasticSearchException, IOException {
         prepareCreate("test")
@@ -1364,9 +1367,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .array("string_values", "01", "05", "10", "08")
                 .endObject()).execute().actionGet();
 
-        
-       
-       
+
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1379,12 +1380,12 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(1)));
         assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("10"));
-        
+
         client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
                 .array("string_values", "11", "15", "20", "07")
                 .endObject()).execute().actionGet();
         for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(300 + i)).setSource(jsonBuilder().startObject()
                     .array("some_other_field", "foobar")
                     .endObject()).execute().actionGet();
         }
@@ -1404,12 +1405,12 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
         assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("10"));
 
-        
+
         client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
                 .array("string_values", "02", "01", "03", "!4")
                 .endObject()).execute().actionGet();
         for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(300 + i)).setSource(jsonBuilder().startObject()
                     .array("some_other_field", "foobar")
                     .endObject()).execute().actionGet();
         }
@@ -1431,14 +1432,14 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
-        
+
         for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(300 + i)).setSource(jsonBuilder().startObject()
                     .array("some_other_field", "foobar")
                     .endObject()).execute().actionGet();
             refresh();
         }
-        
+
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(3)

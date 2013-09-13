@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -41,12 +41,12 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
 
     @Test
     public void consistentHitsWithSameSeed() throws Exception {
-        final int replicas = between(0,2); // needed for green status!
-        cluster().ensureAtLeastNumNodes(replicas+1);
+        final int replicas = between(0, 2); // needed for green status!
+        cluster().ensureAtLeastNumNodes(replicas + 1);
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.builder().put("index.number_of_shards", between(2, 5))
-                        .put("index.number_of_replicas", replicas)
+                                .put("index.number_of_replicas", replicas)
                                 .build()));
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = atLeast(100);
@@ -54,6 +54,7 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
             index("test", "type", "" + i, jsonBuilder().startObject().endObject());
         }
         flush();
+        refresh();
         int outerIters = atLeast(10);
         for (int o = 0; o < outerIters; o++) {
             final long seed = randomLong();
@@ -81,7 +82,8 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
         }
     }
 
-    @Test @Ignore
+    @Test
+    @Ignore
     public void distribution() throws Exception {
         int count = 10000;
 
@@ -93,6 +95,7 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
         }
 
         flush();
+        refresh();
 
         int[] matrix = new int[count];
 
@@ -118,9 +121,9 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
         }
 
         System.out.println();
-        System.out.println("max repeat: " +  maxRepeat);
-        System.out.println("avg repeat: " +  sumRepeat / (double)filled);
-        System.out.println("distribution: " +  filled/(double)count);
+        System.out.println("max repeat: " + maxRepeat);
+        System.out.println("avg repeat: " + sumRepeat / (double) filled);
+        System.out.println("distribution: " + filled / (double) count);
 
         int percentile50 = filled / 2;
         int percentile25 = (filled / 4);
@@ -145,7 +148,7 @@ public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
             percentile75--;
         }
 
-        System.out.println("mean: " + sum/(double)count);
+        System.out.println("mean: " + sum / (double) count);
 
     }
 

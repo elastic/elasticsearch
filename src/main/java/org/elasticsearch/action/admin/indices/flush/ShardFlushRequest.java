@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,6 @@ import java.io.IOException;
  */
 class ShardFlushRequest extends BroadcastShardOperationRequest {
 
-    private boolean refresh;
     private boolean full;
     private boolean force;
 
@@ -39,13 +39,8 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     public ShardFlushRequest(String index, int shardId, FlushRequest request) {
         super(index, shardId, request);
-        this.refresh = request.refresh();
         this.full = request.full();
         this.force = request.force();
-    }
-
-    public boolean refresh() {
-        return this.refresh;
     }
 
     public boolean full() {
@@ -59,7 +54,9 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        refresh = in.readBoolean();
+        if (in.getVersion().onOrBefore(Version.V_0_90_3)) {
+            in.readBoolean(); // refresh flag
+        }
         full = in.readBoolean();
         force = in.readBoolean();
     }
@@ -67,7 +64,9 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(refresh);
+        if (out.getVersion().onOrBefore(Version.V_0_90_3)) {
+            out.writeBoolean(false); // refresh flag
+        }
         out.writeBoolean(full);
         out.writeBoolean(force);
     }

@@ -1,24 +1,43 @@
-hasBeenEnabledOnStart=false
 
-if [ $1 -eq 1 ] ; then 
-    # Initial installation 
+[ -f /etc/sysconfig/elasticsearch ] && . /etc/sysconfig/elasticsearch
+
+startElasticsearch() {
+	if [ -x /bin/systemctl ] ; then
+		/bin/systemctl start elasticsearch.service
+	elif [ -x /etc/init.d/elasticsearch ] ; then
+		/etc/init.d/elasticsearch start
+	# older suse linux distributions do not ship with systemd
+	# but do not have an /etc/init.d/ directory
+	# this tries to start elasticsearch on these as well without failing this script
+	elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
+		/etc/rc.d/init.d/elasticsearch start
+	fi
+}
+
+stopElasticsearch() {
+	if [ -x /bin/systemctl ] ; then
+		/bin/systemctl stop elasticsearch.service > /dev/null 2>&1 || :
+	elif [ -x /etc/init.d/elasticsearch ] ; then
+		/etc/init.d/elasticsearch stop
+	elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
+		/etc/rc.d/init.d/elasticsearch stop
+	fi
+}
+
+# Initial installation: $1 == 1
+# Upgrade: $1 == 2, and configured to restart on upgrade
+if [ $1 -eq 1 ] ; then
+
     if [ -x /bin/systemctl ] ; then
         /bin/systemctl daemon-reload >/dev/null 2>&1 || :
         /bin/systemctl enable elasticsearch.service
-        /bin/systemctl start elasticsearch.service
-        hasBeenEnabledOnStart=true
-    fi
-
-    if [ -x /sbin/chkconfig -a "$hasBeenEnabledOnStart" == "false" ] ; then
+    elif [ -x /sbin/chkconfig ] ; then
         /sbin/chkconfig --add elasticsearch
-        # older suse linux distributions do not ship with systemd
-        # but do not have an /etc/init.d/ directory
-        # this tries to start elasticsearch on these as well without failing this script
-        if [ -x /etc/init.d/elasticsearch ] ; then
-            /etc/init.d/elasticsearch start
-        elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
-            /etc/rc.d/init.d/elasticsearch start
-        fi
     fi
 
+	startElasticsearch
+elif [ $1 -ge 2 -a "$RESTART_ON_UPGRADE" == "true" ] ; then
+	stopElasticsearch
+	startElasticsearch
 fi
+

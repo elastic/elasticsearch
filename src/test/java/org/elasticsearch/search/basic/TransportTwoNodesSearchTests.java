@@ -23,6 +23,7 @@ package org.elasticsearch.search.basic;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -38,7 +39,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -62,7 +62,6 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     private Set<String> prepareData() throws Exception {
         Set<String> fullExpectedIds = Sets.newHashSet();
-        cluster().ensureAtLeastNumNodes(2);
         client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.number_of_shards", 3)
                         .put("index.number_of_replicas", 0)

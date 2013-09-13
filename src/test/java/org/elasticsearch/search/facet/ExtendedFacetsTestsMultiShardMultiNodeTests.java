@@ -10,11 +10,6 @@ public class ExtendedFacetsTestsMultiShardMultiNodeTests extends ExtendedFacetsT
     }
 
     @Override
-    protected int numberOfNodes() {
-        return 4;
-    }
-
-    @Override
     protected int numDocs() {
         return 10000;
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -36,7 +37,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,11 +52,6 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class DocumentActionsTests extends AbstractSharedClusterTest {
-
-    @Override
-    protected int numberOfNodes() {
-        return 2;
-    }
 
     protected void createIndex() {
         wipeIndex(getConcreteIndexName());

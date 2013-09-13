@@ -19,9 +19,9 @@
 
 package org.elasticsearch.routing;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -30,7 +30,6 @@ import java.util.Set;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -38,11 +37,6 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class AliasResolveRoutingTests extends AbstractSharedClusterTest {
-
-    @Override
-    protected int numberOfNodes() {
-        return 2;
-    }
 
     @Test
     public void testResolveIndexRouting() throws Exception {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.recovery;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -26,11 +27,9 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -38,10 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SimpleRecoveryTests extends AbstractSharedClusterTest {
 
-    @Override
-    protected int numberOfNodes() {
-        return 3;
-    }
     @Override
     public Settings getSettings() {
         return recoverySettings();

@@ -52,11 +52,6 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
         return 5;
     }
 
-    @Override
-    protected int numberOfNodes() {
-        return 1;
-    }
-
     /**
      * Tests the terms facet when faceting on unmapped field
      */

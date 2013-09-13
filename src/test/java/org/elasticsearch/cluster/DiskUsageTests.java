@@ -38,7 +38,8 @@ public class DiskUsageTests extends ElasticsearchTestCase {
 
     @Test
     public void randomDiskUsageTest() {
-        for (int i=1;i<1000000;i++) {
+        int iters = atLeast(1000);
+        for (int i = 1; i < iters; i++) {
             long total = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             long free = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             if (free > total || total <= 0) {

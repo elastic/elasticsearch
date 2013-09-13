@@ -20,12 +20,12 @@
 package org.elasticsearch.search.basic;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -39,10 +39,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
 public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
-
-    protected int numberOfNodes() {
-        return 1;
-    }
 
     @Test
     @Slow

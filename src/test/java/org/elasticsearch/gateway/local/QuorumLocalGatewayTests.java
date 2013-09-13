@@ -19,21 +19,26 @@
 
 package org.elasticsearch.gateway.local;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -70,10 +75,12 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         Node node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
 
         logger.info("--> indexing...");
-        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
-        node1.client().admin().indices().prepareFlush().execute().actionGet();
-        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
-        node1.client().admin().indices().prepareRefresh().execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        //We don't check for failures in the flush response: if we do we might get the following:
+        // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
+        node1.client().admin().indices().prepareFlush().get();
+        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        assertNoFailures(node1.client().admin().indices().prepareRefresh().execute().get());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
@@ -82,7 +89,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
 
         logger.info("--> closing nodes");
@@ -93,12 +100,16 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
         node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").build());
 
-        Thread.sleep(300);
-        ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setMasterNodeTimeout("500ms").execute().actionGet();
-        assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), equalTo(false));
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+                return !clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive();
+            }
+        }, 30, TimeUnit.SECONDS), equalTo(true));
 
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
-        client("node1").admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).execute().actionGet();
+        client("node1").admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
 
         logger.info("--> running cluster_health (wait for the shards to startup), 4 shards since we only have 2 nodes");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
@@ -107,7 +118,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
     }
 
@@ -127,10 +138,12 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         Node node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
 
         logger.info("--> indexing...");
-        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
-        node1.client().admin().indices().prepareFlush().execute().actionGet();
-        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
-        node1.client().admin().indices().prepareRefresh().execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        //We don't check for failures in the flush response: if we do we might get the following:
+        // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
+        node1.client().admin().indices().prepareFlush().get();
+        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        assertNoFailures(node1.client().admin().indices().prepareRefresh().get());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
@@ -139,23 +152,27 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
 
         logger.info("--> closing first node, and indexing more data to the second node");
         closeNode("node1");
 
-        logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                logger.info("--> running cluster_health (wait for the shards to startup)");
+                ClusterHealthResponse clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
+                logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+                return clusterHealth.isTimedOut() && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
+            }
+        }, 30, TimeUnit.SECONDS), equalTo(false));
 
-        node2.client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
-        node2.client().admin().indices().prepareRefresh().execute().actionGet();
+        node2.client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
+        assertNoFailures(node2.client().admin().indices().prepareRefresh().get());
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
+            assertHitCount(node2.client().prepareCount().setQuery(matchAllQuery()).get(), 3l);
         }
 
         logger.info("--> closing the second node and third node");
@@ -166,7 +183,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
 
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
         node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").build());
-        node2 = startNode("node3", settingsBuilder().put("gateway.type", "local").build());
+        node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
@@ -175,7 +192,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 3l);
         }
     }
 }

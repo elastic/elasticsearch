@@ -22,7 +22,7 @@ eclipse-build
 */.project
 */.classpath
 */eclipse-build
-.settings/
+/.settings/org.eclipse.m2e.*
 
 ## netbeans ignores
 nb-configuration.xml

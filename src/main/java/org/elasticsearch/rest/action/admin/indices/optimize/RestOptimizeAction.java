@@ -67,7 +67,6 @@ public class RestOptimizeAction extends BaseRestHandler {
             optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));
             optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
             optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
-            optimizeRequest.refresh(request.paramAsBoolean("refresh", optimizeRequest.refresh()));
 
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

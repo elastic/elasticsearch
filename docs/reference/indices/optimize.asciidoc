@@ -30,9 +30,6 @@ just marked as deleted. During a merge process of segments, a new
 segment is created that does not have those deletes. This flag allow to
 only merge segments that have deletes. Defaults to `false`.
 
-|refresh |Should a refresh be performed after the optimize. Defaults to
-`true`.
-
 |flush |Should a flush be performed after the optimize. Defaults to
 `true`.
 

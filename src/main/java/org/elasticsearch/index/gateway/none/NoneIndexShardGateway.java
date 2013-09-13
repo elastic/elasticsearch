@@ -61,7 +61,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     @Override
     public void recover(boolean indexShouldExists, RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
-        recoveryStatus().index().startTime(System.currentTimeMillis());
+        recoveryStatus.index().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {

@@ -47,8 +47,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -145,9 +148,9 @@ public class RecoveryTarget extends AbstractComponent {
                 }
             }
         } finally {
-            removeAndCleanOnGoingRecovery(recoveryStatus);    
+            removeAndCleanOnGoingRecovery(recoveryStatus);
         }
-        
+
     }
 
     public void startRecovery(final StartRecoveryRequest request, final InternalIndexShard indexShard, final RecoveryListener listener) {
@@ -217,6 +220,8 @@ public class RecoveryTarget extends AbstractComponent {
             }
             stopWatch.stop();
             if (logger.isDebugEnabled()) {
+                logger.debug("recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
+            } else if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
                 sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
@@ -230,7 +235,7 @@ public class RecoveryTarget extends AbstractComponent {
                         .append("\n");
                 sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
-                logger.debug(sb.toString());
+                logger.trace(sb.toString());
             }
             removeAndCleanOnGoingRecovery(recoveryStatus);
             listener.onRecoveryDone();
@@ -344,13 +349,13 @@ public class RecoveryTarget extends AbstractComponent {
         Set<Entry<String, IndexOutput>> entrySet = status.cancleAndClearOpenIndexInputs();
         Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
         while (iterator.hasNext()) {
-            Map.Entry<String, IndexOutput> entry = iterator.next(); 
+            Map.Entry<String, IndexOutput> entry = iterator.next();
             synchronized (entry.getValue()) {
                 IOUtils.closeWhileHandlingException(entry.getValue());
             }
             iterator.remove();
-            
-        } 
+
+        }
         status.checksums = null;
     }
 
@@ -640,11 +645,11 @@ public class RecoveryTarget extends AbstractComponent {
                     }
                     success = true;
                 } finally {
-                  if (!success || onGoingRecovery.isCanceled()) {
-                      IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                      assert remove == indexOutput;
-                      IOUtils.closeWhileHandlingException(indexOutput);
-                  }
+                    if (!success || onGoingRecovery.isCanceled()) {
+                        IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                        assert remove == indexOutput;
+                        IOUtils.closeWhileHandlingException(indexOutput);
+                    }
                 }
             }
             if (onGoingRecovery.isCanceled()) {

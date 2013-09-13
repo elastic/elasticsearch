@@ -19,25 +19,23 @@
 
 package org.elasticsearch.search.preference;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class SearchPreferenceTests extends AbstractSharedClusterTest {
 
     @Test // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException {
-        cluster().ensureAtLeastNumNodes(3);
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", cluster().numNodes()+2).put("index.number_of_replicas", 0)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -60,18 +58,16 @@ public class SearchPreferenceTests extends AbstractSharedClusterTest {
 
     @Test
     public void noPreferenceRandom() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        final Client client = client();
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
         String firstNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
-
-        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
         String secondNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
 
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
@@ -79,8 +75,6 @@ public class SearchPreferenceTests extends AbstractSharedClusterTest {
 
     @Test
     public void simplePreferenceTests() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 

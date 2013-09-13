@@ -57,8 +57,10 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.rest.RestStatus;
-import org.hamcrest.Matchers;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.*;
@@ -68,6 +70,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -93,16 +96,11 @@ import static org.hamcrest.Matchers.equalTo;
 @IntegrationTests
 public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
-    private static TestCluster cluster;
-
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        cluster();
-    }
+    private static final TestCluster cluster = new TestCluster(SHARED_CLUSTER_SEED, TestCluster.clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
 
     @Before
     public final void before() {
-        cluster.ensureAtLeastNumNodes(numberOfNodes());
+        cluster.beforeTest(getRandom());
         wipeIndices();
         wipeTemplates();
     }
@@ -121,9 +119,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     public static TestCluster cluster() {
-        if (cluster == null) {
-            cluster = ClusterManager.accquireCluster(getRandom());
-        }
         return cluster;
     }
 
@@ -133,8 +128,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     @AfterClass
     public static void afterClass() {
-        cluster = null;
-        ClusterManager.releaseCluster();
     }
 
     public static Client client() {
@@ -292,10 +285,6 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return Joiner.on(',').join(strings);
     }
 
-    protected int numberOfNodes() {
-        return 2;
-    }
-
     // utils
     protected IndexResponse index(String index, String type, XContentBuilder source) {
         return client().prepareIndex(index, type).setSource(source).execute().actionGet();
@@ -446,7 +435,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         for (CountDownLatch countDownLatch : latches) {
             countDownLatch.await();
         }
-        assertThat(errors, Matchers.emptyIterable());
+        assertThat(errors, emptyIterable());
         if (forceRefresh) {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
         }

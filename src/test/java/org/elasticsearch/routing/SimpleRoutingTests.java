@@ -19,6 +19,7 @@
 
 package org.elasticsearch.routing;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.client.Requests;
@@ -26,11 +27,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -40,11 +39,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleRoutingTests extends AbstractSharedClusterTest {
    
     
-    @Override
-    protected int numberOfNodes() {
-        return 2;
-    }
-
     @Test
     public void testSimpleCrudRouting() throws Exception {
         createIndex("test");
@@ -105,11 +99,6 @@ public class SimpleRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleSearchRouting() {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -177,11 +166,6 @@ public class SimpleRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRequiredRoutingMapping() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
@@ -226,11 +210,6 @@ public class SimpleRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRequiredRoutingWithPathMapping() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
@@ -262,11 +241,6 @@ public class SimpleRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRequiredRoutingWithPathMappingBulk() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()

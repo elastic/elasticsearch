@@ -19,18 +19,16 @@
 
 package org.elasticsearch.explain;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -40,11 +38,6 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimple() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-        }
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)
         ).execute().actionGet();
@@ -106,11 +99,6 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testExplainWithFields() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-        }
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
@@ -173,11 +161,6 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testExplainWitSource() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-        }
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
@@ -218,11 +201,6 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
 
     @Test
     public void testExplainWithAlias() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-        }
         client().admin().indices().prepareCreate("test")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();

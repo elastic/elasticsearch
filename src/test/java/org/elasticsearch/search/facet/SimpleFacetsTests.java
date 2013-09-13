@@ -76,11 +76,6 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         return 1;
     }
 
-    @Override
-    protected int numberOfNodes() {
-        return 1;
-    }
-
     protected int numberOfRuns() {
         return 5;
     }

@@ -54,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
-import org.elasticsearch.rest.RestStatus;
 import org.junit.*;
 
 import java.io.IOException;
@@ -299,7 +298,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     protected IndexResponse index(String index, String type, String id, Map<String, Object> source) {
         return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
     }
-    
+
     protected GetResponse get(String index, String type, String id) {
         return client().prepareGet(index, type, id).execute().actionGet();
     }
@@ -334,7 +333,9 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         FlushResponse actionGet = client().admin().indices().prepareFlush().execute().actionGet();
         if (ignoreNotAllowed) {
             for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
-                assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+                if (!failure.reason().contains("FlushNotAllowed")) {
+                    assert false : "unexpected failed flush " + failure.reason();
+                }
             }
         } else {
             assertNoFailures(actionGet);

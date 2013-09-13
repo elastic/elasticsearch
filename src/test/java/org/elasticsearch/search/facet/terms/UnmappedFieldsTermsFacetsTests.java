@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -71,7 +71,7 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
                     .endObject()).execute().actionGet();
         }
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("mapped").field("mapped").size(10))
@@ -198,7 +198,7 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
         }
 
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         SearchResponse searchResponse = client().prepareSearch("mapped_idx", "unmapped_idx")
                 .setQuery(matchAllQuery())
@@ -307,7 +307,7 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
                     .field("foo", "bar")
                     .endObject()).execute().actionGet();
         }
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -353,7 +353,7 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
                     .endObject()).execute().actionGet();
         }
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flushAndRefresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("string").fields("mapped_str", "unmapped").size(10))

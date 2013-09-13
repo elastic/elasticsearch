@@ -33,11 +33,6 @@ public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushR
         super((InternalIndicesAdminClient) indicesClient, new FlushRequest());
     }
 
-    public FlushRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
-        return this;
-    }
-
     public FlushRequestBuilder setFull(boolean full) {
         request.full(full);
         return this;

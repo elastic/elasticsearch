@@ -755,7 +755,10 @@ public class MapperQueryParser extends QueryParser {
 
     private void applyBoost(String field, Query q) {
         if (settings.boosts() != null) {
-            float boost = settings.boosts().get(field);
+            float boost = 1f;
+            if (settings.boosts().containsKey(field)) {
+                boost = settings.boosts().lget();
+            }
             q.setBoost(boost);
         }
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.child;
 
-import gnu.trove.set.hash.THashSet;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -56,7 +56,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
     Filter shortCircuitFilter;
     int remaining;
-    Recycler.V<THashSet<HashedBytesArray>> collectedUids;
+    Recycler.V<ObjectOpenHashSet<HashedBytesArray>> collectedUids;
 
     public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext, int shortCircuitParentDocSet) {
         this.parentFilter = parentFilter;
@@ -135,10 +135,10 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         if (remaining == 0) {
             shortCircuitFilter = Queries.MATCH_NO_FILTER;
         } else if (remaining == 1) {
-            BytesRef id = collectedUids.v().iterator().next().toBytesRef();
+            BytesRef id = collectedUids.v().iterator().next().value.toBytesRef();
             shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
         } else if (remaining <= shortCircuitParentDocSet) {
-            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v());
+            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v().keys, collectedUids.v().allocated);
         }
     }
 
@@ -158,10 +158,10 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     final class ParentDocSet extends MatchDocIdSet {
 
         final IndexReader reader;
-        final THashSet<HashedBytesArray> parents;
+        final ObjectOpenHashSet<HashedBytesArray> parents;
         final IdReaderTypeCache typeCache;
 
-        ParentDocSet(IndexReader reader, Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+        ParentDocSet(IndexReader reader, Bits acceptDocs, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
             super(reader.maxDoc(), acceptDocs);
             this.reader = reader;
             this.parents = parents;
@@ -185,9 +185,9 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
     final static class UidCollector extends ParentIdCollector {
 
-        final THashSet<HashedBytesArray> collectedUids;
+        final ObjectOpenHashSet<HashedBytesArray> collectedUids;
 
-        UidCollector(String parentType, SearchContext context, THashSet<HashedBytesArray> collectedUids) {
+        UidCollector(String parentType, SearchContext context, ObjectOpenHashSet<HashedBytesArray> collectedUids) {
             super(parentType, context);
             this.collectedUids = collectedUids;
         }

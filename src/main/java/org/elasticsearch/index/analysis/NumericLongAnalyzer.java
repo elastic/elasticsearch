@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import gnu.trove.map.hash.TIntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
@@ -30,10 +30,10 @@ import java.io.Reader;
  */
 public class NumericLongAnalyzer extends NumericAnalyzer<NumericLongTokenizer> {
 
-    private final static TIntObjectHashMap<NamedAnalyzer> builtIn;
+    private final static IntObjectOpenHashMap<NamedAnalyzer> builtIn;
 
     static {
-        builtIn = new TIntObjectHashMap<NamedAnalyzer>();
+        builtIn = new IntObjectOpenHashMap<NamedAnalyzer>();
         builtIn.put(Integer.MAX_VALUE, new NamedAnalyzer("_long/max", AnalyzerScope.GLOBAL, new NumericLongAnalyzer(Integer.MAX_VALUE)));
         for (int i = 0; i <= 64; i += 4) {
             builtIn.put(i, new NamedAnalyzer("_long/" + i, AnalyzerScope.GLOBAL, new NumericLongAnalyzer(i)));

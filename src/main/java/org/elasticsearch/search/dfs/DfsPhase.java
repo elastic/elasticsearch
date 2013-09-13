@@ -19,18 +19,23 @@
 
 package org.elasticsearch.search.dfs;
 
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
-import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
-import org.elasticsearch.common.collect.XMaps;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.AbstractSet;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -38,10 +43,10 @@ import java.util.Map;
  */
 public class DfsPhase implements SearchPhase {
 
-    private static ThreadLocal<THashSet<Term>> cachedTermsSet = new ThreadLocal<THashSet<Term>>() {
+    private static ThreadLocal<ObjectOpenHashSet<Term>> cachedTermsSet = new ThreadLocal<ObjectOpenHashSet<Term>>() {
         @Override
-        protected THashSet<Term> initialValue() {
-            return new THashSet<Term>();
+        protected ObjectOpenHashSet<Term> initialValue() {
+            return new ObjectOpenHashSet<Term>();
         }
     };
 
@@ -55,22 +60,21 @@ public class DfsPhase implements SearchPhase {
     }
 
     public void execute(SearchContext context) {
-        THashSet<Term> termsSet = null;
+        final ObjectOpenHashSet<Term> termsSet = cachedTermsSet.get();
         try {
             if (!context.queryRewritten()) {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            termsSet = cachedTermsSet.get();
             if (!termsSet.isEmpty()) {
                 termsSet.clear();
             }
-            context.query().extractTerms(termsSet);
+            context.query().extractTerms(new DelegateSet(termsSet));
             if (context.rescore() != null) {
-                context.rescore().rescorer().extractTerms(context, context.rescore(), termsSet);
+                context.rescore().rescorer().extractTerms(context, context.rescore(), new DelegateSet(termsSet));
             }
 
-            Term[] terms = termsSet.toArray(new Term[termsSet.size()]);
+            Term[] terms = termsSet.toArray(Term.class);
             TermStatistics[] termStatistics = new TermStatistics[terms.length];
             IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();
             for (int i = 0; i < terms.length; i++) {
@@ -79,7 +83,7 @@ public class DfsPhase implements SearchPhase {
                 termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
             }
 
-            Map<String, CollectionStatistics> fieldStatistics = XMaps.newNoNullKeysMap();
+            ObjectObjectOpenHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
             for (Term term : terms) {
                 assert term.field() != null : "field is null";
                 if (!fieldStatistics.containsKey(term.field())) {
@@ -94,9 +98,58 @@ public class DfsPhase implements SearchPhase {
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
         } finally {
-            if (termsSet != null) {
-                termsSet.clear(); // don't hold on to terms
-            }
+            termsSet.clear(); // don't hold on to terms
         }
     }
+
+    // We need to bridge to JCF world, b/c of Query#extractTerms
+    private static class DelegateSet extends AbstractSet<Term> {
+
+        private final ObjectOpenHashSet<Term> delegate;
+
+        private DelegateSet(ObjectOpenHashSet<Term> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean add(Term term) {
+            return delegate.add(term);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends Term> terms) {
+            boolean result = false;
+            for (Term term : terms) {
+                result = delegate.add(term);
+            }
+            return result;
+        }
+
+        @Override
+        public Iterator<Term> iterator() {
+            final Iterator<ObjectCursor<Term>> iterator = delegate.iterator();
+            return new Iterator<Term>() {
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public Term next() {
+                    return iterator.next().value;
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        @Override
+        public int size() {
+            return delegate.size();
+        }
+    }
+
 }

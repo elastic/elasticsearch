@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.facet.terms.doubles;
 
+import com.carrotsearch.hppc.DoubleIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.iterator.TDoubleIntIterator;
-import gnu.trove.map.hash.TDoubleIntHashMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -173,7 +172,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
         InternalDoubleTermsFacet first = null;
 
-        Recycler.V<TDoubleIntHashMap> aggregated = context.cacheRecycler().doubleIntMap(-1);
+        Recycler.V<DoubleIntOpenHashMap> aggregated = context.cacheRecycler().doubleIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -185,15 +184,20 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.v().adjustOrPutValue(((DoubleEntry) entry).term, entry.getCount(), entry.getCount());
+                aggregated.v().addTo(((DoubleEntry) entry).term, entry.getCount());
             }
         }
 
         BoundedTreeSet<DoubleEntry> ordered = new BoundedTreeSet<DoubleEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TDoubleIntIterator it = aggregated.v().iterator(); it.hasNext(); ) {
-            it.advance();
-            ordered.add(new DoubleEntry(it.key(), it.value()));
+        final boolean[] states = aggregated.v().allocated;
+        final double[] keys = aggregated.v().keys;
+        final int[] values = aggregated.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                ordered.add(new DoubleEntry(keys[i], values[i]));
+            }
         }
+
         first.entries = ordered;
         first.missing = missing;
         first.total = total;

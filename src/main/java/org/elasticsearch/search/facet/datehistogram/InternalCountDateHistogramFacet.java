@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import gnu.trove.iterator.TLongLongIterator;
-import gnu.trove.map.hash.TLongLongHashMap;
+import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -139,25 +138,29 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
             return facets.get(0);
         }
 
-        Recycler.V<TLongLongHashMap> counts = context.cacheRecycler().longLongMap(-1);
+        Recycler.V<LongLongOpenHashMap> counts = context.cacheRecycler().longLongMap(-1);
         for (Facet facet : facets) {
             InternalCountDateHistogramFacet histoFacet = (InternalCountDateHistogramFacet) facet;
             for (CountEntry entry : histoFacet.entries) {
-                counts.v().adjustOrPutValue(entry.getTime(), entry.getCount(), entry.getCount());
+                counts.v().addTo(entry.getTime(), entry.getCount());
             }
         }
 
-        CountEntry[] entries = new CountEntry[counts.v().size()];
-        int i = 0;
-        for (TLongLongIterator it = counts.v().iterator(); it.hasNext(); ) {
-            it.advance();
-            entries[i++] = new CountEntry(it.key(), it.value());
+        CountEntry[] countEntries = new CountEntry[counts.v().size()];
+        final boolean[] states = counts.v().allocated;
+        final long[] keys = counts.v().keys;
+        final long[] values = counts.v().values;
+        int entriesIndex = 0;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                countEntries[entriesIndex++] = new CountEntry(keys[i], values[i]);
+            }
         }
         counts.release();
 
-        Arrays.sort(entries, comparatorType.comparator());
+        Arrays.sort(countEntries, comparatorType.comparator());
 
-        return new InternalCountDateHistogramFacet(getName(), comparatorType, entries);
+        return new InternalCountDateHistogramFacet(getName(), comparatorType, countEntries);
     }
 
     static final class Fields {

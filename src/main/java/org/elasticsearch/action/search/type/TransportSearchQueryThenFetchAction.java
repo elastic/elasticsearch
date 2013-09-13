@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchOperationThreading;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
@@ -62,12 +62,12 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
     private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
 
         final AtomicArray<FetchSearchResult> fetchResults;
-        final AtomicArray<ExtTIntArrayList> docIdsToLoad;
+        final AtomicArray<IntArrayList> docIdsToLoad;
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
             fetchResults = new AtomicArray<FetchSearchResult>(firstResults.length());
-            docIdsToLoad = new AtomicArray<ExtTIntArrayList>(firstResults.length());
+            docIdsToLoad = new AtomicArray<IntArrayList>(firstResults.length());
         }
 
         @Override
@@ -93,7 +93,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
 
             int localOperations = 0;
-            for (AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
+            for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 QuerySearchResult queryResult = firstResults.get(entry.index);
                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
@@ -109,7 +109,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
-                            for (AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
+                            for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                                 QuerySearchResult queryResult = firstResults.get(entry.index);
                                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
@@ -121,7 +121,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
+                    for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                         final QuerySearchResult queryResult = firstResults.get(entry.index);
                         final DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {

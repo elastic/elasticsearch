@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
@@ -46,7 +46,7 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
     final SearchScript valueScript;
     final TimeZoneRounding tzRounding;
 
-    final Recycler.V<ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry>> entries;
+    final Recycler.V<LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry>> entries;
 
     public ValueScriptDateHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, SearchScript valueScript, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
@@ -64,7 +64,16 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        ArrayList<InternalFullDateHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullDateHistogramFacet.FullEntry>(entries.v().valueCollection());
+        ArrayList<InternalFullDateHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullDateHistogramFacet.FullEntry>(entries.v().size());
+        final boolean[] states = entries.v().allocated;
+        final Object[] values = entries.v().values;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                InternalFullDateHistogramFacet.FullEntry value = (InternalFullDateHistogramFacet.FullEntry) values[i];
+                entries1.add(value);
+            }
+        }
+
         entries.release();
         return new InternalFullDateHistogramFacet(facetName, comparatorType, entries1);
     }
@@ -104,9 +113,9 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
         private final TimeZoneRounding tzRounding;
         protected final SearchScript valueScript;
 
-        final ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries;
+        final LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry> entries;
 
-        public DateHistogramProc(TimeZoneRounding tzRounding, SearchScript valueScript, final ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries) {
+        public DateHistogramProc(TimeZoneRounding tzRounding, SearchScript valueScript, final LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry> entries) {
             this.tzRounding = tzRounding;
             this.valueScript = valueScript;
             this.entries = entries;

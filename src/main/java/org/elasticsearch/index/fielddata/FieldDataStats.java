@@ -19,8 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import gnu.trove.iterator.TObjectLongIterator;
-import gnu.trove.map.hash.TObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,13 +38,13 @@ public class FieldDataStats implements Streamable, ToXContent {
     long memorySize;
     long evictions;
     @Nullable
-    TObjectLongHashMap<String> fields;
+    ObjectLongOpenHashMap<String> fields;
 
     public FieldDataStats() {
 
     }
 
-    public FieldDataStats(long memorySize, long evictions, @Nullable TObjectLongHashMap<String> fields) {
+    public FieldDataStats(long memorySize, long evictions, @Nullable ObjectLongOpenHashMap<String> fields) {
         this.memorySize = memorySize;
         this.evictions = evictions;
         this.fields = fields;
@@ -55,10 +54,14 @@ public class FieldDataStats implements Streamable, ToXContent {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
-            if (fields == null) fields = new TObjectLongHashMap<String>();
-            for (TObjectLongIterator<String> it = stats.fields.iterator(); it.hasNext(); ) {
-                it.advance();
-                fields.adjustOrPutValue(it.key(), it.value(), it.value());
+            if (fields == null) fields = new ObjectLongOpenHashMap<String>();
+            final boolean[] states = stats.fields.allocated;
+            final Object[] keys = stats.fields.keys;
+            final long[] values = stats.fields.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    fields.addTo((String) keys[i], values[i]);
+                }
             }
         }
     }
@@ -76,7 +79,7 @@ public class FieldDataStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public TObjectLongHashMap<String> getFields() {
+    public ObjectLongOpenHashMap<String> getFields() {
         return fields;
     }
 
@@ -92,7 +95,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         evictions = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fields = new TObjectLongHashMap<String>(size);
+            fields = new ObjectLongOpenHashMap<String>(size);
             for (int i = 0; i < size; i++) {
                 fields.put(in.readString(), in.readVLong());
             }
@@ -108,10 +111,14 @@ public class FieldDataStats implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             out.writeVInt(fields.size());
-            for (TObjectLongIterator<String> it = fields.iterator(); it.hasNext(); ) {
-                it.advance();
-                out.writeString(it.key());
-                out.writeVLong(it.value());
+            final boolean[] states = fields.allocated;
+            final Object[] keys = fields.keys;
+            final long[] values = fields.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    out.writeString((String) keys[i]);
+                    out.writeVLong(values[i]);
+                }
             }
         }
     }
@@ -123,11 +130,15 @@ public class FieldDataStats implements Streamable, ToXContent {
         builder.field(Fields.EVICTIONS, getEvictions());
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
-            for (TObjectLongIterator<String> it = fields.iterator(); it.hasNext(); ) {
-                it.advance();
-                builder.startObject(it.key(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, it.value());
-                builder.endObject();
+            final boolean[] states = fields.allocated;
+            final Object[] keys = fields.keys;
+            final long[] values = fields.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
+                    builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, values[i]);
+                    builder.endObject();
+                }
             }
             builder.endObject();
         }

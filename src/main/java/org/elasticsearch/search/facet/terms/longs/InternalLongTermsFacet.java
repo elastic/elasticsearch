@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.facet.terms.longs;
 
+import com.carrotsearch.hppc.LongIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import gnu.trove.iterator.TLongIntIterator;
-import gnu.trove.map.hash.TLongIntHashMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -174,7 +173,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
 
         InternalLongTermsFacet first = null;
 
-        Recycler.V<TLongIntHashMap> aggregated = context.cacheRecycler().longIntMap(-1);
+        Recycler.V<LongIntOpenHashMap> aggregated = context.cacheRecycler().longIntMap(-1);
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -186,14 +185,19 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.v().adjustOrPutValue(((LongEntry) entry).term, entry.getCount(), entry.getCount());
+                aggregated.v().addTo(((LongEntry) entry).term, entry.getCount());
             }
         }
 
         BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
-        for (TLongIntIterator it = aggregated.v().iterator(); it.hasNext(); ) {
-            it.advance();
-            ordered.add(new LongEntry(it.key(), it.value()));
+        LongIntOpenHashMap entries = aggregated.v();
+        final boolean[] states = aggregated.v().allocated;
+        final long[] keys = aggregated.v().keys;
+        final int[] values = aggregated.v().values;
+        for (int i = 0; i < entries.allocated.length; i++) {
+            if (states[i]) {
+                ordered.add(new LongEntry(keys[i], values[i]));
+            }
         }
         first.entries = ordered;
         first.missing = missing;

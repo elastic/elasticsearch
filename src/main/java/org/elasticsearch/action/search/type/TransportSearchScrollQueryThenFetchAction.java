@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -226,7 +226,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private void executeFetchPhase() {
             sortedShardList = searchPhaseController.sortDocs(queryResults);
-            AtomicArray<ExtTIntArrayList> docIdsToLoad = new AtomicArray<ExtTIntArrayList>(queryResults.length());
+            AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<IntArrayList>(queryResults.length());
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
             if (docIdsToLoad.asList().isEmpty()) {
@@ -235,8 +235,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
 
-            for (final AtomicArray.Entry<ExtTIntArrayList> entry : docIdsToLoad.asList()) {
-                ExtTIntArrayList docIds = entry.value;
+            for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
+                IntArrayList docIds = entry.value;
                 final QuerySearchResult querySearchResult = queryResults.get(entry.index);
                 FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, querySearchResult.id(), docIds);
                 DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());

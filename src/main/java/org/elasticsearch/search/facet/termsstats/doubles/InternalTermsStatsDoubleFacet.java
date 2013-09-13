@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -184,7 +184,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        Recycler.V<ExtTDoubleObjectHashMap<DoubleEntry>> map = context.cacheRecycler().doubleObjectMap(-1);
+        Recycler.V<DoubleObjectOpenHashMap<DoubleEntry>> map = context.cacheRecycler().doubleObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
             missing += tsFacet.missing;
@@ -209,12 +209,12 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
 
         // sort
         if (requiredSize == 0) { // all terms
-            DoubleEntry[] entries1 = map.v().values(new DoubleEntry[map.v().size()]);
+            DoubleEntry[] entries1 = map.v().values().toArray(DoubleEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
             map.release();
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.v().internalValues();
+            Object[] values = map.v().values;
             Arrays.sort(values, (Comparator) comparatorType.comparator());
             List<DoubleEntry> ordered = new ArrayList<DoubleEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {

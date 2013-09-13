@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import gnu.trove.iterator.TObjectLongIterator;
-import gnu.trove.map.hash.TObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,12 +38,12 @@ public class CompletionStats implements Streamable, ToXContent {
     private long sizeInBytes;
 
     @Nullable
-    private TObjectLongHashMap<String> fields;
+    private ObjectLongOpenHashMap<String> fields;
 
     public CompletionStats() {
     }
 
-    public CompletionStats(long size, @Nullable TObjectLongHashMap<String> fields) {
+    public CompletionStats(long size, @Nullable ObjectLongOpenHashMap<String> fields) {
         this.sizeInBytes = size;
         this.fields = fields;
     }
@@ -57,7 +56,7 @@ public class CompletionStats implements Streamable, ToXContent {
         return new ByteSizeValue(sizeInBytes);
     }
 
-    public TObjectLongHashMap<String> getFields() {
+    public ObjectLongOpenHashMap<String> getFields() {
         return fields;
     }
 
@@ -66,7 +65,7 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fields = new TObjectLongHashMap<String>(size);
+            fields = new ObjectLongOpenHashMap<String>(size);
             for (int i = 0; i < size; i++) {
                 fields.put(in.readString(), in.readVLong());
             }
@@ -81,10 +80,14 @@ public class CompletionStats implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             out.writeVInt(fields.size());
-            for (TObjectLongIterator<String> it = fields.iterator(); it.hasNext(); ) {
-                it.advance();
-                out.writeString(it.key());
-                out.writeVLong(it.value());
+            final boolean[] states = fields.allocated;
+            final Object[] keys = fields.keys;
+            final long[] values = fields.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    out.writeString((String) keys[i]);
+                    out.writeVLong(values[i]);
+                }
             }
         }
     }
@@ -95,11 +98,15 @@ public class CompletionStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
-            for (TObjectLongIterator<String> it = fields.iterator(); it.hasNext(); ) {
-                it.advance();
-                builder.startObject(it.key(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, it.value());
-                builder.endObject();
+            final boolean[] states = fields.allocated;
+            final Object[] keys = fields.keys;
+            final long[] values = fields.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
+                    builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, values[i]);
+                    builder.endObject();
+                }
             }
             builder.endObject();
         }
@@ -128,10 +135,15 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes += completion.getSizeInBytes();
 
         if (completion.fields != null) {
-            if (fields == null) fields = new TObjectLongHashMap<String>();
-            for (TObjectLongIterator<String> it = completion.fields.iterator(); it.hasNext(); ) {
-                it.advance();
-                fields.adjustOrPutValue(it.key(), it.value(), it.value());
+            if (fields == null) fields = new ObjectLongOpenHashMap<String>();
+
+            final boolean[] states = completion.fields.allocated;
+            final Object[] keys = completion.fields.keys;
+            final long[] values = completion.fields.values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    fields.addTo((String) keys[i], values[i]);
+                }
             }
         }
     }

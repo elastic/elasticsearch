@@ -21,7 +21,7 @@ package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import gnu.trove.set.hash.THashSet;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -1021,7 +1021,8 @@ public class Strings {
                 count++;
             }
         }
-        final THashSet<String> result = new THashSet<String>(count);
+        // TODO (MvG): No push: hppc or jcf?
+        final Set<String> result = new HashSet<String>(count);
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.

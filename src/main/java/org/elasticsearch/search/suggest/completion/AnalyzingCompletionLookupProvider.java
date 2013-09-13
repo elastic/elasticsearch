@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import gnu.trove.map.hash.TObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.FieldInfo;
@@ -259,9 +259,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             @Override
             public CompletionStats stats(String... fields) {
                 long sizeInBytes = 0;
-                TObjectLongHashMap<String> completionFields = null;
-                if (fields != null && fields.length > 0) {
-                    completionFields = new TObjectLongHashMap<String>(fields.length);
+                ObjectLongOpenHashMap<String> completionFields = null;
+                if (fields != null  && fields.length > 0) {
+                    completionFields = new ObjectLongOpenHashMap<String>(fields.length);
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {
@@ -273,7 +273,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         // support for getting fields by regex as in fielddata
                         if (Regex.simpleMatch(field, entry.getKey())) {
                             long fstSize = entry.getValue().fst.sizeInBytes();
-                            completionFields.adjustOrPutValue(field, fstSize, fstSize);
+                            completionFields.addTo(field, fstSize);
                         }
                     }
                 }

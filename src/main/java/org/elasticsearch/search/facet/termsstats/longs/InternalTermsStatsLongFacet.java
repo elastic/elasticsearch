@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats.longs;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.facet.Facet;
@@ -184,7 +184,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        Recycler.V<ExtTLongObjectHashMap<LongEntry>> map = context.cacheRecycler().longObjectMap(-1);
+        Recycler.V<LongObjectOpenHashMap<LongEntry>> map = context.cacheRecycler().longObjectMap(-1);
         for (Facet facet : facets) {
             InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facet;
             missing += tsFacet.missing;
@@ -209,12 +209,12 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
 
         // sort
         if (requiredSize == 0) { // all terms
-            LongEntry[] entries1 = map.v().values(new LongEntry[map.v().size()]);
+            LongEntry[] entries1 = map.v().values().toArray(LongEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
             map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
-            Object[] values = map.v().internalValues();
+            Object[] values = map.v().values;
             Arrays.sort(values, (Comparator) comparatorType.comparator());
             List<LongEntry> ordered = new ArrayList<LongEntry>(map.v().size());
             for (int i = 0; i < requiredSize; i++) {

@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import gnu.trove.iterator.TLongLongIterator;
-import gnu.trove.map.hash.TLongLongHashMap;
+import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -140,18 +139,22 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
             return facets.get(0);
         }
 
-        Recycler.V<TLongLongHashMap> counts = context.cacheRecycler().longLongMap(-1);
+        Recycler.V<LongLongOpenHashMap> counts = context.cacheRecycler().longLongMap(-1);
         for (Facet facet : facets) {
             InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
             for (Entry entry : histoFacet.entries) {
-                counts.v().adjustOrPutValue(entry.getKey(), entry.getCount(), entry.getCount());
+                counts.v().addTo(entry.getKey(), entry.getCount());
             }
         }
+        final boolean[] states = counts.v().allocated;
+        final long[] keys = counts.v().keys;
+        final long[] values = counts.v().values;
         CountEntry[] entries = new CountEntry[counts.v().size()];
-        int i = 0;
-        for (TLongLongIterator it = counts.v().iterator(); it.hasNext(); ) {
-            it.advance();
-            entries[i++] = new CountEntry(it.key(), it.value());
+        int entryIndex = 0;
+        for (int i = 0; i < states.length; i++) {
+            if (states[i]) {
+                entries[entryIndex++] = new CountEntry(keys[i], values[i]);
+            }
         }
         counts.release();
 

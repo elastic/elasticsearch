@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.hppc.FloatArrayList;
 import com.google.common.collect.Maps;
-import gnu.trove.list.array.TFloatArrayList;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
@@ -50,7 +50,7 @@ public class CustomFiltersScoreQueryBuilder extends BaseQueryBuilder implements 
 
     private ArrayList<FilterBuilder> filters = new ArrayList<FilterBuilder>();
     private ArrayList<String> scripts = new ArrayList<String>();
-    private TFloatArrayList boosts = new TFloatArrayList();
+    private FloatArrayList boosts = new FloatArrayList();
 
     public CustomFiltersScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;

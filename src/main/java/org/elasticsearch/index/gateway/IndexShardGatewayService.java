@@ -189,6 +189,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
 
                     if (logger.isDebugEnabled()) {
+                        logger.debug("recovery completed from [{}], took [{}]", shardGateway, timeValueMillis(recoveryStatus.time()));
+                    } else if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();
                         sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryStatus.time())).append("]\n");
                         sb.append("    index    : files           [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().totalSize())).append("], took[").append(TimeValue.timeValueMillis(recoveryStatus.index().time())).append("]\n");
@@ -196,7 +198,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfReusedFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().reusedTotalSize())).append("]\n");
                         sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryStatus.start().time())).append("], check_index [").append(timeValueMillis(recoveryStatus.start().checkIndexTime())).append("]\n");
                         sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(recoveryStatus.translog().time())).append("]");
-                        logger.debug(sb.toString());
+                        logger.trace(sb.toString());
                     }
                     listener.onRecoveryDone();
                     scheduleSnapshotIfNeeded();

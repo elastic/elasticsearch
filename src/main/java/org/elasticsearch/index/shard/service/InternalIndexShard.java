@@ -435,7 +435,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
-        verifyStarted();
+        verifyNotClosed();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with {}", refresh);
         }
@@ -532,7 +532,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
-        try{
+        try {
             final Engine.Searcher currentSearcher = acquireSearcher();
             try {
                 PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(Completion090PostingsFormat.CODEC_NAME).get();
@@ -728,7 +728,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-            throw new IllegalIndexShardStateException(shardId, state, "Read operations only allowed when started/relocated");
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
         }
     }
 
@@ -739,7 +739,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING) {
-            throw new IllegalIndexShardStateException(shardId, state, "write operation only allowed when started/recovering");
+            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
+        }
+    }
+
+    private void verifyNotClosed() throws IllegalIndexShardStateException {
+        IndexShardState state = this.state; // one time volatile read
+        if (state == IndexShardState.CLOSED) {
+            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when not closed");
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,6 +40,8 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
+    private long nowInMillis;
+
     @Nullable
     private String[] filteringAliases;
 
@@ -52,6 +55,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         this.querySource = request.querySource();
         this.types = request.types();
         this.filteringAliases = filteringAliases;
+        this.nowInMillis = request.nowInMillis;
     }
 
     public float minScore() {
@@ -68,6 +72,10 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     public String[] filteringAliases() {
         return filteringAliases;
+    }
+
+    public long nowInMillis() {
+        return this.nowInMillis;
     }
 
     @Override
@@ -91,6 +99,11 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
                 filteringAliases[i] = in.readString();
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+            nowInMillis = in.readVLong();
+        } else {
+            nowInMillis = System.currentTimeMillis();
+        }
     }
 
     @Override
@@ -111,6 +124,9 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
             }
         } else {
             out.writeVInt(0);
+        }
+        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+            out.writeVLong(nowInMillis);
         }
     }
 }

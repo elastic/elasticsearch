@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ElasticSearchTokenStreamTestCase;
@@ -57,6 +58,19 @@ public class KeepFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
             Assert.fail("path and array are configured");
         } catch (Exception e) {
             assertThat(e.getCause(), instanceOf(ElasticSearchIllegalArgumentException.class));
+        }
+    }
+
+    @Test
+    public void testKeepWordsPathSettings() {
+        Settings settings = ImmutableSettings.settingsBuilder()
+        .put("index.analysis.filter.non_broken_keep_filter.type", "keep")
+        .put("index.analysis.filter.non_broken_keep_filter.keep_words_path", "does/not/exists.txt")
+        .build();
+        try {
+            AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+        } catch (Exception e) {
+            assertThat(e.getCause(), instanceOf(FailedToResolveConfigException.class));
         }
     }
 

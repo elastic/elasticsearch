@@ -75,7 +75,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
                                      @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         
-        final String[] arrayKeepWords = settings.getAsArray(KEEP_WORDS_KEY);
+        final String[] arrayKeepWords = settings.getAsArray(KEEP_WORDS_KEY, null);
         final String keepWordsPath = settings.get(KEEP_WORDS_PATH_KEY, null);
         if (!(arrayKeepWords == null ^ keepWordsPath == null)) {
             // we don't allow both or non

@@ -122,7 +122,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> indexing threads stopped");
 
         logger.info("--> refreshing the index");
-        refreshAndAssert(10);
+        refreshAndAssert();
         logger.info("--> verifying indexed content");
         iterateAssertCount(5, indexCounter.get(), 10);
     }
@@ -196,7 +196,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("--> indexing threads stopped");
 
         logger.info("--> refreshing the index");
-        refreshAndAssert(10);
+        refreshAndAssert();
         logger.info("--> verifying indexed content");
         iterateAssertCount(5, indexCounter.get(), 10);
     }
@@ -287,7 +287,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForNodes(">=1").execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("--> refreshing the index");
-        refreshAndAssert(10);
+        refreshAndAssert();
         logger.info("--> verifying indexed content");
         iterateAssertCount(5, indexCounter.get(), 10);
 
@@ -331,13 +331,12 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, countResponse.getCount(), numberOfDocs);
     }
 
-    private void refreshAndAssert(final int numberOfShards) throws InterruptedException {
+    private void refreshAndAssert() throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 try {
                     RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
                     assertNoFailures(actionGet);
-                    assertThat(actionGet.getSuccessfulShards(), equalTo(numberOfShards));
                     return actionGet.getTotalShards() == actionGet.getSuccessfulShards();
                 } catch (Throwable e) {
                     throw new RuntimeException(e);

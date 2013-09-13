@@ -1042,7 +1042,7 @@ public class Strings {
     }
 
     public static String[] splitStringToArray(final CharSequence s, final char c) {
-        if (s.length() == 0) {
+        if (s == null || s.length() == 0) {
             return Strings.EMPTY_ARRAY;
         }
         int count = 1;

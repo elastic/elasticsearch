@@ -60,17 +60,11 @@ import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ActionRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
-
     protected final ClusterService clusterService;
-
     protected final IndicesService indicesService;
-
     protected final ShardStateAction shardStateAction;
-
     protected final ReplicationType defaultReplicationType;
-
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
-
     protected final TransportRequestOptions transportOptions;
 
     final String transportAction;
@@ -307,15 +301,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected class AsyncShardOperationAction {
 
         private final ActionListener<Response> listener;
-
         private final Request request;
-
-        private ClusterState clusterState;
-
-        private ShardIterator shardIt;
-
+        private volatile ClusterState clusterState;
+        private volatile ShardIterator shardIt;
         private final AtomicBoolean primaryOperationStarted = new AtomicBoolean();
-
         private final ReplicationType replicationType;
 
         AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
@@ -371,7 +360,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             // no shardIt, might be in the case between index gateway recovery and shardIt initialization
             if (shardIt.size() == 0) {
-                logger.trace("no shard instances known for index [{}], scheduling a retry", shardIt.shardId());
+                logger.trace("no shard instances known for shard [{}], scheduling a retry", shardIt.shardId());
 
                 retry(fromClusterEvent, null);
                 return false;

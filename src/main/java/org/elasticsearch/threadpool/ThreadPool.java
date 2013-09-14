@@ -67,6 +67,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String INDEX = "index";
         public static final String BULK = "bulk";
         public static final String SEARCH = "search";
+        public static final String SUGGEST = "suggest";
         public static final String PERCOLATE = "percolate";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
@@ -108,7 +109,8 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.BULK, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
                 .put(Names.GET, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
                 .put(Names.SEARCH, settingsBuilder().put("type", "fixed").put("size", availableProcessors * 3).put("queue_size", 1000).build())
-                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
+                .put(Names.SUGGEST, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
+                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
                 .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.MERGE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())

@@ -73,7 +73,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SEARCH;
+        return ThreadPool.Names.SUGGEST;
     }
 
     @Override

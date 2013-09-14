@@ -15,6 +15,10 @@ pools, but the important ones include:
     `0.90.0`, size `3x # of available processors`. (previously type
     `cached`)
 
+`suggest`::
+    For suggest operations, defaults to `fixed`,
+    size `# of available processors`.
+
 `get`:: 
     For get operations, defaults to `fixed` type since `0.90.0`,
     size `# of available processors`. (previously type `cached`)

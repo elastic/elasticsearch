@@ -168,7 +168,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                             logger.warn("[{}] failed to remove shard (disabled block persistence)", e, index);
                         }
                     }
-                    indicesService.removeIndex(index, "cleaning index (disabled block persistence)");
+                    removeIndex(index, "cleaning index (disabled block persistence)");
                 }
                 return;
             }
@@ -240,11 +240,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] cleaning index (no shards allocated)", index);
                 }
                 // clean the index
-                try {
-                    indicesService.removeIndex(index, "removing index (no shards allocated)");
-                } catch (Throwable e) {
-                    logger.warn("[{}] failed to clean index (no shards of that index are allocated on this node)", e, index);
-                }
+                removeIndex(index, "removing index (no shards allocated)");
             }
         }
     }
@@ -255,17 +251,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] cleaning index, no longer part of the metadata", index);
                 }
-                try {
-                    indicesService.removeIndex(index, "index no longer part of the metadata");
-                } catch (Throwable e) {
-                    logger.warn("failed to clean index", e);
-                }
-                // clear seen mappings as well
-                for (Tuple<String, String> tuple : seenMappings.keySet()) {
-                    if (tuple.v1().equals(index)) {
-                        seenMappings.remove(tuple);
-                    }
-                }
+                removeIndex(index, "index no longer part of the metadata");
             }
         }
     }
@@ -787,6 +773,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 } catch (Throwable e1) {
                     logger.warn("[{}][{}] failed to mark shard as failed after a failed start", e1, indexService.index().name(), shardRouting.id());
                 }
+            }
+        }
+    }
+
+    private void removeIndex(String index, String reason) {
+        try {
+            indicesService.removeIndex(index, reason);
+        } catch (Throwable e) {
+            logger.warn("failed to clean index ({})", e, reason);
+        }
+        // clear seen mappings as well
+        for (Tuple<String, String> tuple : seenMappings.keySet()) {
+            if (tuple.v1().equals(index)) {
+                seenMappings.remove(tuple);
             }
         }
     }

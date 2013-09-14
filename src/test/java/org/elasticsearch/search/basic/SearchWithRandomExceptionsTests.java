@@ -20,6 +20,7 @@
 package org.elasticsearch.search.basic;
 
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.client.Requests;
@@ -37,6 +38,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public class SearchWithRandomExceptionsTests extends AbstractSharedClusterTest {
     
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/3694")
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         final int numShards = between(1, 5);
         String mapping = XContentFactory.jsonBuilder().

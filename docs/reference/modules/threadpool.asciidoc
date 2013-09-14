@@ -14,6 +14,10 @@ pools, but the important ones include:
     For count/search operations, defaults to `fixed`,
     size `3x # of available processors`. 
 
+`suggest`::
+    For suggest operations, defaults to `fixed`,
+    size `# of available processors`.
+
 `get`:: 
     For get operations, defaults to `fixed`
     size `# of available processors`.

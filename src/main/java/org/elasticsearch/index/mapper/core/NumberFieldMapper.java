@@ -126,6 +126,27 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     };
 
+    private static ThreadLocal<NumericTokenStream> tokenStream4 = new ThreadLocal<NumericTokenStream>() {
+        @Override
+        protected NumericTokenStream initialValue() {
+            return new NumericTokenStream(4);
+        }
+    };
+
+    private static ThreadLocal<NumericTokenStream> tokenStream8 = new ThreadLocal<NumericTokenStream>() {
+        @Override
+        protected NumericTokenStream initialValue() {
+            return new NumericTokenStream(8);
+        }
+    };
+
+    private static ThreadLocal<NumericTokenStream> tokenStreamMax = new ThreadLocal<NumericTokenStream>() {
+        @Override
+        protected NumericTokenStream initialValue() {
+            return new NumericTokenStream(Integer.MAX_VALUE);
+        }
+    };
+
     protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                 Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer,
                                 NamedAnalyzer searchAnalyzer, PostingsFormatProvider provider, SimilarityProvider similarity,
@@ -248,10 +269,18 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     @Override
     public void close() {
-        tokenStream.remove();
     }
 
     protected NumericTokenStream popCachedStream() {
+        if (precisionStep == 4) {
+            return tokenStream4.get();
+        }
+        if (precisionStep == 8) {
+            return tokenStream8.get();
+        }
+        if (precisionStep == Integer.MAX_VALUE) {
+            return tokenStreamMax.get();
+        }
         return tokenStream.get();
     }
 
@@ -288,7 +317,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
     }
-    
+
     @Override
     public boolean isNumeric() {
         return true;

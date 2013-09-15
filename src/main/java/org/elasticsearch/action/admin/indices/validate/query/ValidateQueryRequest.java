@@ -56,6 +56,8 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
 
     private String[] types = Strings.EMPTY_ARRAY;
 
+    long nowInMillis;
+
     ValidateQueryRequest() {
     }
 
@@ -128,7 +130,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     @Required
     public ValidateQueryRequest query(String querySource) {
         this.querySource = new BytesArray(querySource);
-        ;
         this.querySourceUnsafe = false;
         return this;
     }

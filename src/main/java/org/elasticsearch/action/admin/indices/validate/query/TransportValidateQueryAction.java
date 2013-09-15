@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -70,6 +71,12 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
+    }
+
+    @Override
+    protected void doExecute(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
+        request.nowInMillis = System.currentTimeMillis();
+        super.doExecute(request, listener);
     }
 
     @Override
@@ -170,7 +177,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             valid = true;
         } else {
             SearchContext.setCurrent(new SearchContext(0,
-                    new ShardSearchRequest().types(request.types()),
+                    new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()),
                     null, indexShard.acquireSearcher(), indexService, indexShard,
                     scriptService, cacheRecycler));
             try {

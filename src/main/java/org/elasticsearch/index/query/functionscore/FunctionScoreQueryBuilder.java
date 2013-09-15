@@ -22,10 +22,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.BaseQueryBuilder;
-import org.elasticsearch.index.query.BoostableQueryBuilder;
-import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,7 +125,11 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
             for (int i = 0; i < filters.size(); i++) {
                 builder.startObject();
                 builder.field("filter");
-                filters.get(i).toXContent(builder, params);
+                if (filters.get(i) == null) {
+                    FilterBuilders.matchAllFilter().toXContent(builder, params);
+                } else {
+                    filters.get(i).toXContent(builder, params);
+                }
                 scoreFunctions.get(i).toXContent(builder, params);
                 builder.endObject();
             }

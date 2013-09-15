@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -503,8 +503,8 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(false).query(
                                 functionScoreQuery(termQuery("test", "value"))
-                                        .add(new MatchAllFilterBuilder(), linearDecayFunction("num1", "2013-05-28", "+3d"))
-                                        .add(new MatchAllFilterBuilder(), linearDecayFunction("num2", "0.0", "1")).scoreMode("multiply"))));
+                                        .add(linearDecayFunction("num1", "2013-05-28", "+3d"))
+                                        .add(linearDecayFunction("num2", "0.0", "1")).scoreMode("multiply"))));
 
         SearchResponse sr = response.actionGet();
         ElasticsearchAssertions.assertNoFailures(sr);

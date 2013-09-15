@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -47,6 +48,8 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
     private boolean sourceUnsafe;
 
     private String[] filteringAlias = Strings.EMPTY_ARRAY;
+
+    long nowInMillis;
 
     ExplainRequest() {
     }
@@ -178,6 +181,11 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         if (in.readBoolean()) {
             fields = in.readStringArray();
         }
+        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+            nowInMillis = in.readVLong();
+        } else {
+            nowInMillis = System.currentTimeMillis();
+        }
     }
 
     @Override
@@ -194,6 +202,9 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
             out.writeStringArray(fields);
         } else {
             out.writeBoolean(false);
+        }
+        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+            out.writeVLong(nowInMillis);
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,6 +37,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
     private BytesReference querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
+    private long nowInMillis;
 
     @Nullable
     private String[] filteringAliases;
@@ -50,6 +52,7 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         this.types = request.types();
         this.explain = request.explain();
         this.filteringAliases = filteringAliases;
+        this.nowInMillis = request.nowInMillis;
     }
 
     public BytesReference querySource() {
@@ -66,6 +69,10 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     public String[] filteringAliases() {
         return filteringAliases;
+    }
+
+    public long nowInMillis() {
+        return this.nowInMillis;
     }
 
     @Override
@@ -89,6 +96,12 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         }
 
         explain = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+            nowInMillis = in.readVLong();
+        } else {
+            nowInMillis = System.currentTimeMillis();
+        }
     }
 
     @Override
@@ -110,5 +123,9 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
         }
 
         out.writeBoolean(explain);
+
+        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+            out.writeVLong(nowInMillis);
+        }
     }
 }

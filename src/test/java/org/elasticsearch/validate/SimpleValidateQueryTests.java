@@ -20,6 +20,7 @@
 package org.elasticsearch.validate;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -30,13 +31,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -228,6 +232,29 @@ public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
         }
     }
 
+    @Test //https://github.com/elasticsearch/elasticsearch/issues/3629
+    public void explainDateRangeInQueryString() {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
+
+        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
+        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+
+        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+
+        refresh();
+
+        ValidateQueryResponse response = client().admin().indices().prepareValidateQuery()
+                .setQuery(queryString("past:[now-2M/d TO now/d]")).setExplain(true).get();
+
+        assertNoFailures(response);
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
+        DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
+        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay();
+        assertThat(response.getQueryExplanation().get(0).getExplanation(),
+                equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
+        assertThat(response.isValid(), equalTo(true));
+    }
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
@@ -240,5 +267,4 @@ public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
         assertThat(response.getQueryExplanation().get(0).getExplanation(), matcher);
         assertThat(response.isValid(), equalTo(true));
     }
-
 }

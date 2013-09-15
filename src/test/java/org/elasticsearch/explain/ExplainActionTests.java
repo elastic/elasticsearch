@@ -19,18 +19,21 @@
 
 package org.elasticsearch.explain;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -240,4 +243,19 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
         assertFalse(response.isMatch());
     }
 
+    @Test
+    public void explainDateRangeInQueryString() {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
+
+        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
+        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+
+        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+
+        refresh();
+
+        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryString("past:[now-2M/d TO now/d]")).get();
+        assertThat(explainResponse.isExists(), equalTo(true));
+        assertThat(explainResponse.isMatch(), equalTo(true));
+    }
 }

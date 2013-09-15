@@ -22,6 +22,7 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
@@ -75,6 +76,12 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         this.cacheRecycler = cacheRecycler;
     }
 
+    @Override
+    protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+        request.nowInMillis = System.currentTimeMillis();
+        super.doExecute(request, listener);
+    }
+
     protected String transportAction() {
         return ExplainAction.NAME;
     }
@@ -102,7 +109,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         SearchContext context = new DefaultSearchContext(
                 0,
                 new ShardSearchRequest().types(new String[]{request.type()})
-                        .filteringAliases(request.filteringAlias()),
+                        .filteringAliases(request.filteringAlias())
+                        .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
                 scriptService, cacheRecycler
         );

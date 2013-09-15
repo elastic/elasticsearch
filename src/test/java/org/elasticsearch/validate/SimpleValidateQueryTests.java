@@ -32,10 +32,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -227,6 +232,29 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
         }
     }
 
+    @Test //https://github.com/elasticsearch/elasticsearch/issues/3629
+    public void explainDateRangeInQueryString() {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
+
+        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
+        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+
+        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+
+        refresh();
+
+        ValidateQueryResponse response = client().admin().indices().prepareValidateQuery()
+                .setQuery(queryString("past:[now-2M/d TO now/d]")).setExplain(true).get();
+
+        assertNoFailures(response);
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
+        DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
+        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay();
+        assertThat(response.getQueryExplanation().get(0).getExplanation(),
+                equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
+        assertThat(response.isValid(), equalTo(true));
+    }
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
@@ -239,5 +267,4 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
         assertThat(response.getQueryExplanation().get(0).getExplanation(), matcher);
         assertThat(response.isValid(), equalTo(true));
     }
-
 }

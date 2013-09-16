@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import com.google.common.collect.Sets;
 import jsr166e.ConcurrentHashMapV8;
 import jsr166y.LinkedTransferQueue;
-import org.elasticsearch.common.collect.MapBackedSet;
 
 import java.util.Queue;
 import java.util.Set;
@@ -73,7 +73,7 @@ public abstract class ConcurrentCollections {
     }
 
     public static <V> Set<V> newConcurrentSet() {
-        return new MapBackedSet<V>(ConcurrentCollections.<V, Boolean>newConcurrentMap());
+        return Sets.newSetFromMap(ConcurrentCollections.<V, Boolean>newConcurrentMap());
     }
 
     public static <T> Queue<T> newQueue() {

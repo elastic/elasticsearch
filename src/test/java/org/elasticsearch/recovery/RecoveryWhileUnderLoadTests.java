@@ -21,15 +21,16 @@ package org.elasticsearch.recovery;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.junit.annotations.TestLogging;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -294,13 +295,13 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
     }
 
     private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, int iterations) {
-        CountResponse[] iterationResults = new CountResponse[iterations];
+        SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
-            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            logCountResponse(numberOfShards, numberOfDocs, i, countResponse);
-            iterationResults[i] = countResponse;
-            if (countResponse.getCount() != numberOfDocs) {
+            SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).get();
+            logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
+            iterationResults[i] = searchResponse;
+            if (searchResponse.getHits().totalHits() != numberOfDocs) {
                 error = true;
             }
         }
@@ -311,8 +312,8 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
             logger.info("--> refreshing again");
             refresh();
             for (int i = 0; i < iterations; i++) {
-                CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-                logCountResponse(numberOfShards, numberOfDocs, i, countResponse);
+                SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).execute().actionGet();
+                logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             }
         }
 
@@ -322,13 +323,13 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
         }
     }
 
-    private void logCountResponse(int numberOfShards, long numberOfDocs, int iteration, CountResponse countResponse) {
-        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration, countResponse.getSuccessfulShards(), numberOfShards);
-        logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, countResponse.getFailedShards());
-        if (countResponse.getShardFailures() != null && countResponse.getShardFailures().length > 0) {
-            logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(countResponse.getShardFailures()));
+    private void logSearchResponse(int numberOfShards, long numberOfDocs, int iteration, SearchResponse searchResponse) {
+        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration, searchResponse.getSuccessfulShards(), numberOfShards);
+        logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, searchResponse.getFailedShards());
+        if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+            logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
         }
-        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, countResponse.getCount(), numberOfDocs);
+        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, searchResponse.getHits().totalHits(), numberOfDocs);
     }
 
     private void refreshAndAssert() throws InterruptedException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
@@ -34,8 +35,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -45,7 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -54,11 +53,6 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleDistanceTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
@@ -207,19 +201,18 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 7);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "4", "5", "6", "2", "7");
+        assertOrderedSearchHits(searchResponse, "1", "3", "4", "5", "6", "2", "7");
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("location").point(40.7143528, -74.0059731).order(SortOrder.DESC))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 7);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "7", "2", "6", "5", "4", "3", "1");
+        assertOrderedSearchHits(searchResponse, "7", "2", "6", "5", "4", "3", "1");
     }
 
     @Test
     public void testDistanceSortingMVFields() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
@@ -274,7 +267,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
+        assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
@@ -286,7 +279,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
+        assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
@@ -298,7 +291,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
+        assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
@@ -310,7 +303,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "3", "2", "1");
+        assertOrderedSearchHits(searchResponse, "4", "3", "2", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
@@ -321,7 +314,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
+        assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
@@ -332,7 +325,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");        
+        assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");        
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
@@ -351,7 +344,6 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
     @Test
     // Regression bug: https://github.com/elasticsearch/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject().string();
@@ -384,7 +376,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 2);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "2");
+        assertOrderedSearchHits(searchResponse, "1", "2");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
 
@@ -395,19 +387,13 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
 
         // Doc with missing geo point is first, is consistent with 0.20.x
         assertHitCount(searchResponse, 2);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "2", "1");        
+        assertOrderedSearchHits(searchResponse, "2", "1");        
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
     }
 
     @Test
     public void distanceScriptTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         double source_lat = 32.798;
         double source_long = -117.151;
         double target_lat = 32.81;
@@ -472,7 +458,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addMapping("company", mapping)
                 .execute().actionGet();
         client().admin().cluster().prepareHealth("companies").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        indexRandom("companies", true, 
         client().prepareIndex("companies", "company", "1").setSource(jsonBuilder().startObject()
                 .field("name", "company 1")
                 .startArray("branches")
@@ -481,8 +467,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                         .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
                     .endObject()
                 .endArray()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         client().prepareIndex("companies", "company", "2").setSource(jsonBuilder().startObject()
                 .field("name", "company 2")
                 .startArray("branches")
@@ -495,8 +480,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                         .startObject("location").field("lat", 40.718266).field("lon", -74.007819).endObject() // to NY: 0.4621 km
                     .endObject()
                 .endArray()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         client().prepareIndex("companies", "company", "3").setSource(jsonBuilder().startObject()
                 .field("name", "company 3")
                 .startArray("branches")
@@ -509,9 +493,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                         .startObject("location").field("lat", 40.7247222).field("lon", -74).endObject() // to NY: 1.258 km
                     .endObject()
                 .endArray()
-                .endObject()).execute().actionGet();
-
-
+                .endObject()),
         client().prepareIndex("companies", "company", "4").setSource(jsonBuilder().startObject()
                 .field("name", "company 4")
                 .startArray("branches")
@@ -524,9 +506,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                         .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject() // to NY: 8.572 km
                     .endObject()
                 .endArray()
-                .endObject()).execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+                .endObject()));
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
@@ -534,7 +514,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
+        assertOrderedSearchHits(searchResponse, "1", "2", "3", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
@@ -546,7 +526,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
+        assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
@@ -558,7 +538,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
+        assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
@@ -570,7 +550,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "3", "2", "1");
+        assertOrderedSearchHits(searchResponse, "4", "3", "2", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
@@ -581,7 +561,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
+        assertOrderedSearchHits(searchResponse, "1", "3", "2", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
@@ -595,7 +575,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
+        assertOrderedSearchHits(searchResponse, "4", "2", "3", "1");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
@@ -607,9 +587,9 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                                 .point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC)
                 )
                 .execute().actionGet();
-
         assertHitCount(searchResponse, 4);
-        ElasticsearchAssertions.assertOrderedSearchHits(searchResponse, "4", "1", "2", "3");
+        assertFirstHit(searchResponse, hasId("4"));
+        assertSearchHits(searchResponse, "1", "2", "3", "4");
         assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
         assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));

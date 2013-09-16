@@ -376,6 +376,7 @@ abstract class NestedFieldComparator extends FieldComparator {
         @Override
         public void copy(int slot, int rootDoc) throws IOException {
             if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                copyMissing(wrappedComparator, slot);
                 return;
             }
 

@@ -157,7 +157,7 @@ public class PluginManagerTests extends AbstractNodesTests {
 
     private void singlePluginInstallAndRemove(String pluginName, String pluginCoordinates) throws IOException {
         PluginManager pluginManager = pluginManager(pluginCoordinates);
-        pluginManager.downloadAndExtract("plugin");
+        pluginManager.downloadAndExtract(pluginName);
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
@@ -172,12 +172,12 @@ public class PluginManagerTests extends AbstractNodesTests {
     @Test
     public void testRemovePlugin() throws Exception {
         // We want to remove plugin with plugin short name
-        singlePluginInstallAndRemove("plugin", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        singlePluginInstallAndRemove("plugintest", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
 
         // We want to remove plugin with groupid/artifactid/version form
-        singlePluginInstallAndRemove("groupid/plugin/1.0.0", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
 
         // We want to remove plugin with groupid/artifactid form
-        singlePluginInstallAndRemove("groupid/plugin", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        singlePluginInstallAndRemove("groupid/plugintest", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
     }
 }

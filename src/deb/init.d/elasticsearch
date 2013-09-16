@@ -114,7 +114,7 @@ checkJava() {
 	if [ -x "$JAVA_HOME/bin/java" ]; then
 		JAVA="$JAVA_HOME/bin/java"
 	else
-		JAVA=$(which java)
+		JAVA=`which java`
 	fi
 
 	if [ ! -x "$JAVA" ]; then
@@ -134,7 +134,7 @@ case "$1" in
 
 	log_daemon_msg "Starting $DESC"
 
-	pid=$( pidofproc -p $PID_FILE elasticsearch)
+	pid=`pidofproc -p $PID_FILE elasticsearch`
 	if [ -n "$pid" ] ; then
 		log_begin_msg "Already running."
 		log_end_msg 0

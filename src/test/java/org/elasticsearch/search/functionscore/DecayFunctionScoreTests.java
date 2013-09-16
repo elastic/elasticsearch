@@ -29,10 +29,12 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.index.query.MatchAllFilterBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -52,11 +54,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("loc").field("type", "geo_point").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
@@ -154,11 +155,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("num").field("type", "double").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
         // add tw docs within offset
@@ -235,11 +235,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test
     public void testBoostModeSettingWorks() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("loc").field("type", "geo_point").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
@@ -294,11 +293,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test
     public void testParseGeoPoint() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("loc").field("type", "geo_point").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
@@ -341,11 +339,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
     @Test
     public void testCombineModes() throws Exception {
 
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("num").field("type", "double").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
@@ -434,11 +431,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test(expected = SearchPhaseExecutionException.class)
     public void testExceptionThrownIfScaleLE0() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("num1").field("type", "date").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
                 indexRequest("test").type("type1").id("1")
@@ -471,12 +467,11 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
     @Test
     public void testValueMissingLin() throws Exception {
 
-        assertAcked(prepareCreate("test").addMapping("type1", 
-                jsonBuilder().startObject().startObject("type1").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("num1").field("type", "date").endObject()
-                    .startObject("num2").field("type", "double").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num1").field("type", "date").endObject().startObject("num2").field("type", "double")
+                        .endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
                 indexRequest("test")
@@ -502,8 +497,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(false).query(
-                                functionScoreQuery(termQuery("test", "value"))
-                                        .add(linearDecayFunction("num1", "2013-05-28", "+3d"))
+                                functionScoreQuery(termQuery("test", "value")).add(linearDecayFunction("num1", "2013-05-28", "+3d"))
                                         .add(linearDecayFunction("num2", "0.0", "1")).scoreMode("multiply"))));
 
         SearchResponse sr = response.actionGet();
@@ -520,14 +514,60 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testDateWithoutOrigin() throws Exception {
+        DateTime dt = new DateTime();
+
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+
+        DateTime docDate = dt.minusDays(1);
+        String docDateString = docDate.getYear() + "-" + docDate.getMonthOfYear() + "-" + docDate.getDayOfMonth();
+        client().index(
+                indexRequest("test").type("type1").id("1")
+                        .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
+        docDate = dt.minusDays(2);
+        docDateString = docDate.getYear() + "-" + docDate.getMonthOfYear() + "-" + docDate.getDayOfMonth();
+        client().index(
+                indexRequest("test").type("type1").id("2")
+                        .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
+        docDate = dt.minusDays(3);
+        docDateString = docDate.getYear() + "-" + docDate.getMonthOfYear() + "-" + docDate.getDayOfMonth();
+        client().index(
+                indexRequest("test").type("type1").id("3")
+                        .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
+
+        refresh();
+
+        ActionFuture<SearchResponse> response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(false).query(
+                                functionScoreQuery(QueryBuilders.matchAllQuery()).add(linearDecayFunction("num1", "1000w"))
+                                        .add(gaussDecayFunction("num1", "1d")).add(exponentialDecayFunction("num1", "1000w"))
+                                        .scoreMode("multiply"))));
+
+        SearchResponse sr = response.actionGet();
+        ElasticsearchAssertions.assertNoFailures(sr);
+        SearchHits sh = sr.getHits();
+        assertThat(sh.hits().length, equalTo(3));
+        double[] scores = new double[4];
+        for (int i = 0; i < sh.hits().length; i++) {
+            scores[Integer.parseInt(sh.getAt(i).getId()) - 1] = sh.getAt(i).getScore();
+        }
+        assertThat(scores[1], lessThan(scores[0]));
+        assertThat(scores[2], lessThan(scores[1]));
+
+    }
+
+    @Test
     public void testManyDocsLin() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("date").field("type", "date").endObject()
-                    .startObject("num").field("type", "double").endObject()
-                    .startObject("geo").field("type", "geo_point").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
+                        .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
@@ -554,13 +594,11 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         lonlat.add(new Float(110));
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource()
-                                .size(numDocs)
-                                .query(functionScoreQuery(termQuery("test", "value"))
+                        searchSource().size(numDocs).query(
+                                functionScoreQuery(termQuery("test", "value"))
                                         .add(new MatchAllFilterBuilder(), linearDecayFunction("date", "2013-05-30", "+15d"))
                                         .add(new MatchAllFilterBuilder(), linearDecayFunction("geo", lonlat, "1000km"))
-                                        .add(new MatchAllFilterBuilder(),
-                                                linearDecayFunction("num", numDocs, numDocs / 2.0))
+                                        .add(new MatchAllFilterBuilder(), linearDecayFunction("num", numDocs, numDocs / 2.0))
                                         .scoreMode("multiply").boostMode(CombineFunction.REPLACE.getName()))));
 
         SearchResponse sr = response.actionGet();
@@ -580,11 +618,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test(expected = SearchPhaseExecutionException.class)
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("geo").field("type", "geo_point").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
         int numDocs = 2;
         client().index(
@@ -608,11 +645,10 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
     @Test(expected = SearchPhaseExecutionException.class)
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("num").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "string").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
                 indexRequest("test").type("type").source(
@@ -626,26 +662,25 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                         linearDecayFunction("num", 1.0, 0.5)).scoreMode("multiply"))));
         response.actionGet();
     }
+
     @Test
     public void testNoQueryGiven() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("test").field("type", "string").endObject()
-                    .startObject("num").field("type", "double").endObject()
-                    .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
         client().index(
-                indexRequest("test").type("type").source(
-                        jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject())).actionGet();
+                indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
+                .actionGet();
         refresh();
         // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery().add(new MatchAllFilterBuilder(),
-                                        linearDecayFunction("num", 1, 0.5)).scoreMode("multiply"))));
+                                functionScoreQuery().add(new MatchAllFilterBuilder(), linearDecayFunction("num", 1, 0.5)).scoreMode(
+                                        "multiply"))));
         response.actionGet();
     }
-
 
 }

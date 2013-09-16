@@ -1,14 +1,19 @@
-[[search-request-named-filters]]
-=== Named Filters
+[[search-request-named-queries-and-filters]]
+== Named Queries and Filters
 
-Each filter can accept a _name in its top level definition, for example:
+Each filter and query can accept a `_name` in its top level definition.
 
 [source,js]
 --------------------------------------------------
 {
     "filtered" : {
         "query" : {
-            "term" : { "name.first" : "shay" }
+            "bool" : {
+                "should" : [
+                    {"match" : { "name.first" : {"query" : "shay", "_name" : "first"} }},
+                    {"match" : { "name.last" : {"query" : "banon", "_name" : "last"} }}
+                ]
+            }
         },
         "filter" : {
             "terms" : {
@@ -20,8 +25,8 @@ Each filter can accept a _name in its top level definition, for example:
 }
 --------------------------------------------------
 
-The search response will include for each hit the `matched_filters` it
-matched on (note, this feature make sense for `or` / `bool` filters).
+The search response will include for each hit the `matched_filters` it matched on. The tagging of queries and filters
+only make sense for compound queries and filters (such as `bool` query and filter, `or` and `and` filter, `filtered` query etc.).
 
 Note, the query filter had to be enhanced in order to support this. In
 order to set a name, the `fquery` filter should be used, which wraps a
@@ -45,3 +50,10 @@ query (just so there will be a place to set a name for it), for example:
     }
 }
 --------------------------------------------------
+
+=== Named queries
+
+added[0.90.4]
+
+The support for the `_name` option on queries as available from version `0.90.4` and the support on filters is available
+also in versions before `0.90.4`.

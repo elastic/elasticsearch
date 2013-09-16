@@ -3,24 +3,24 @@
 
  - do:
       index:
-          index:  weird-index-中文
+          index:  test-weird-index-中文
           type:   weird.type
           id:     1
           body:   { foo: bar }
 
  - is_true:   ok
- - match:   { _index:   weird-index-中文 }
+ - match:   { _index:   test-weird-index-中文 }
  - match:   { _type:    weird.type }
  - match:   { _id:      "1"}
  - match:   { _version: 1}
 
  - do:
       get:
-          index:  weird-index-中文
+          index:  test-weird-index-中文
           type:   weird.type
           id:     1
 
- - match:   { _index:   weird-index-中文 }
+ - match:   { _index:   test-weird-index-中文 }
  - match:   { _type:    weird.type }
  - match:   { _id:      "1"}
  - match:   { _version: 1}

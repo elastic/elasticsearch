@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
@@ -42,7 +43,7 @@ public class DiscoveryModule extends AbstractModule implements SpawnModules {
     @Override
     public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> defaultDiscoveryModule;
-        if (settings.getAsBoolean("node.local", false)) {
+        if (DiscoveryNode.localNode(settings)) {
             defaultDiscoveryModule = LocalDiscoveryModule.class;
         } else {
             defaultDiscoveryModule = ZenDiscoveryModule.class;

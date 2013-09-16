@@ -15,7 +15,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 	<tbody>
 		<tr>
 			<td>1.15.0-SNAPSHOT (master)</td>
-			<td>0.90.3 -> master</td>
+			<td>0.90.4 -> master</td>
 		</tr>
 		<tr>
 			<td>1.14.0</td>

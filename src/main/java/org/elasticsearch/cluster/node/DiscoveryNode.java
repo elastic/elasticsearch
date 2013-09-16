@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,23 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  * A discovery node represents a node that is part of the cluster.
  */
 public class DiscoveryNode implements Streamable, Serializable {
+
+    public static boolean localNode(Settings settings) {
+        if (settings.get("node.local") != null) {
+            return settings.getAsBoolean("node.local", false);
+        }
+        if (settings.get("node.mode") != null) {
+            String nodeMode = settings.get("node.mode");
+            if ("local".equals(nodeMode)) {
+                return true;
+            } else if ("network".equals(nodeMode)) {
+                return false;
+            } else {
+                throw new ElasticSearchIllegalArgumentException("unsupported node.mode [" + nodeMode + "]");
+            }
+        }
+        return false;
+    }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         return !(settings.getAsBoolean("node.client", false) || (!settings.getAsBoolean("node.data", true) && !settings.getAsBoolean("node.master", true)));

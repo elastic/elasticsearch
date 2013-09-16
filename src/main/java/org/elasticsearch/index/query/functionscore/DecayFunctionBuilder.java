@@ -60,7 +60,9 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.startObject(fieldName);
-        builder.field(ORIGIN, origin);
+        if (origin != null) {
+            builder.field(ORIGIN, origin);
+        }
         builder.field(SCALE, scale);
         if (decay > 0) {
             builder.field(DECAY, decay);

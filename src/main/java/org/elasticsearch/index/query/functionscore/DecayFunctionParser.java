@@ -254,7 +254,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         if (scaleString == null) {
-            throw new ElasticSearchParseException(DecayFunctionBuilder.SCALE + "must be set for geo fields.");
+            throw new ElasticSearchParseException(DecayFunctionBuilder.SCALE + "must be set for date fields.");
         }
         TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24));
         double scale = val.getMillis();

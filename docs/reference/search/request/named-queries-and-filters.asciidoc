@@ -1,5 +1,5 @@
 [[search-request-named-queries-and-filters]]
-== Named Queries and Filters
+==== Named Queries and Filters
 
 Each filter and query can accept a `_name` in its top level definition.
 
@@ -51,7 +51,7 @@ query (just so there will be a place to set a name for it), for example:
 }
 --------------------------------------------------
 
-=== Named queries
+===== Named queries
 
 added[0.90.4]
 

@@ -14,16 +14,6 @@ $ curl -XPOST 'http://localhost:9200/twitter/_flush'
 --------------------------------------------------
 
 [float]
-=== Request Parameters
-
-The flush API accepts the following request parameters:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Name |Description
-|=======================================================================
-
-[float]
 === Multi Index
 
 The flush API can be applied to more than one index with a single call,

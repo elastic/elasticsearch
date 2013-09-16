@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
@@ -59,6 +58,18 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     public FunctionScoreQueryBuilder(FilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
         this.queryBuilder = null;
+    }
+
+    public FunctionScoreQueryBuilder() {
+        this.filterBuilder = null;
+        this.queryBuilder = null;
+    }
+
+    public FunctionScoreQueryBuilder(ScoreFunctionBuilder scoreFunctionBuilder) {
+        queryBuilder = null;
+        filterBuilder = null;
+        this.filters.add(null);
+        this.scoreFunctions.add(scoreFunctionBuilder);
     }
 
     public FunctionScoreQueryBuilder add(FilterBuilder filter, ScoreFunctionBuilder scoreFunctionBuilder) {
@@ -112,10 +123,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
         } else if (filterBuilder != null) {
             builder.field("filter");
             filterBuilder.toXContent(builder, params);
-        } else {
-            throw new ElasticSearchException(FunctionScoreQueryParser.NAME
-                    + " builder requires that either a filter or a query is defined!");
-        }
+        } 
         // If there is only one function without a filter, we later want to
         // create a FunctionScoreQuery.
         // For this, we only build the scoreFunction.Tthis will be translated to

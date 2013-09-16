@@ -23,7 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -95,7 +95,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             }
         }
         if (query == null) {
-            throw new QueryParsingException(parseContext.index(), NAME + " requires 'query' field");
+            query = Queries.newMatchAllQuery();
         }
         // if all filter elements returned null, just use the query
         if (filterFunctions.isEmpty()) {
@@ -150,7 +150,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 }
             }
             if (filter == null) {
-                filter = new MatchAllDocsFilter();
+                filter = Queries.MATCH_ALL_FILTER;
             }
             filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(filter, scoreFunction));
 

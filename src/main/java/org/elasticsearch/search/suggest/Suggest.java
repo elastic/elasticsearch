@@ -21,6 +21,9 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -176,11 +179,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return groupedSuggestions;
     }
 
-    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions, ReduceContext context) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(groupedSuggestions.size());
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
             List<Suggestion> value = unmergedResults.getValue();
             Suggestion reduce = value.get(0).reduce(value);
+            reduce.filter(context);
             reduce.trim();
             reduced.add(reduce);
         }
@@ -265,7 +269,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         protected Comparator<Option> sortComparator() {
             return COMPARATOR;
         }
-        
+
+        /**
+         * Filter options after they've been reduced.
+         */
+        protected void filter(ReduceContext context) {
+            // Default implementation is noop
+        }
+
         /**
          * Trims the number of options per suggest text term to the requested size.
          * For internal usage.
@@ -645,6 +656,53 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     throw new ElasticSearchException("Illegal suggest sort " + id);
                 }
             }
+        }
+    }
+    
+    public static class ReduceContext {
+        private final Client client;
+        private final String[] indecies;
+        @Nullable
+        private String routing;
+        @Nullable
+        private String preference;
+        private String[] types = Strings.EMPTY_ARRAY;
+        
+        public ReduceContext(Client client, String[] indecies) {
+            this.client = client;
+            this.indecies = indecies;
+        }
+        
+        public Client getClient() {
+            return client;
+        }
+        
+        public String[] getIndecies() {
+            return indecies;
+        }
+        
+        public void setRouting(String routing) {
+            this.routing = routing;
+        }
+        
+        public String getRouting() {
+            return routing;
+        }
+        
+        public void setPreference(String preference) {
+            this.preference = preference;
+        }
+        
+        public String getPreference() {
+            return preference;
+        }
+        
+        public void setTypes(String[] types) {
+            this.types = types;
+        }
+        
+        public String[] getTypes() {
+            return types;
         }
     }
 }

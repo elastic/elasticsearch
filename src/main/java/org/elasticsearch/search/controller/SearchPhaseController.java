@@ -23,7 +23,9 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.XMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -66,12 +68,14 @@ public class SearchPhaseController extends AbstractComponent {
 
     private final CacheRecycler cacheRecycler;
     private final boolean optimizeSingleShard;
+    private final Client client;
 
     @Inject
-    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler) {
+    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler, Client client) {
         super(settings);
         this.cacheRecycler = cacheRecycler;
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
+        this.client = client;
     }
 
     public boolean optimizeSingleShard() {
@@ -296,7 +300,7 @@ public class SearchPhaseController extends AbstractComponent {
         }
     }
 
-    public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr, AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
+    public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr, AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr, SearchRequest request) {
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
         List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
@@ -411,7 +415,14 @@ public class SearchPhaseController extends AbstractComponent {
                 Suggest.group(groupedSuggestions, shardResult);
             }
 
-            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions)) : null;
+            Suggest.ReduceContext reduceContext = null;
+            if (request != null) {
+                reduceContext = new Suggest.ReduceContext(client, request.indices());
+                reduceContext.setPreference(request.preference());
+                reduceContext.setRouting(request.routing());
+                reduceContext.setTypes(request.types());
+            }
+            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions, reduceContext)) : null;
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);

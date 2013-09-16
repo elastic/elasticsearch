@@ -25,6 +25,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -62,13 +63,16 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     private final IndicesService indicesService;
 
     private final SuggestPhase suggestPhase;
+    
+    private final Client client;
 
     @Inject
     public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, SuggestPhase suggestPhase) {
+                                  IndicesService indicesService, SuggestPhase suggestPhase, Client client) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.suggestPhase = suggestPhase;
+        this.client = client;
     }
 
     @Override
@@ -142,7 +146,10 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
             }
         }
 
-        return new SuggestResponse(new Suggest(Suggest.reduce(groupedSuggestions)), shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        Suggest.ReduceContext reduceContext = new Suggest.ReduceContext(client, request.indices());
+        reduceContext.setPreference(request.preference());
+        reduceContext.setRouting(request.routing());
+        return new SuggestResponse(new Suggest(Suggest.reduce(groupedSuggestions, reduceContext)), shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override

@@ -273,7 +273,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         private void innerFinishHim() {
-            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults, null);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

@@ -190,7 +190,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         }
 
         void innerFinishHim() throws Exception {
-            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, fetchResults);
+            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, fetchResults, request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);

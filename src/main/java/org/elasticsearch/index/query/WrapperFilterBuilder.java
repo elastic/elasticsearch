@@ -25,7 +25,8 @@ package org.elasticsearch.index.query;
  * Time: 11:30
  */
 
-import com.google.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,27 +37,24 @@ import java.io.IOException;
  * query builders.
  */
 public class WrapperFilterBuilder extends BaseFilterBuilder {
-
-    private final byte[] source;
-    private final int offset;
-    private final int length;
+    private final BytesReference bytes;
 
     public WrapperFilterBuilder(String source) {
-        this.source = source.getBytes(Charsets.UTF_8);
-        this.offset = 0;
-        this.length = this.source.length;
+        this(new BytesArray(source));
     }
 
     public WrapperFilterBuilder(byte[] source, int offset, int length) {
-        this.source = source;
-        this.offset = offset;
-        this.length = length;
+        this(new BytesArray(source, offset, length));
+    }
+    
+    public WrapperFilterBuilder(BytesReference bytes) {
+        this.bytes = bytes;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(WrapperFilterParser.NAME);
-        builder.field("filter", source, offset, length);
+        builder.field("filter", bytes);
         builder.endObject();
     }
 }

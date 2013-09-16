@@ -23,6 +23,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
@@ -46,7 +48,8 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         XContentParser.Token token;
         String fieldName = null;
-        boolean gramSizeSet = false; 
+        boolean gramSizeSet = false;
+        boolean filterTypeSet = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -124,6 +127,25 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             }
                         }
                     }
+                } else if ("filter".equals(fieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("type".equals(fieldName)) {
+                                suggestion.setFilterType(PhraseSuggestion.FilterType.fromString(parser.text()));
+                                filterTypeSet = true;
+                            } else if ("extra".equals(fieldName)) {
+                                // Copy the filter data
+                                XContentBuilder copier = XContentFactory.contentBuilder(parser.contentType());
+                                copier.copyCurrentStructure(parser);
+                                suggestion.setFilterExtra(copier.bytes());
+                            } else {
+                                throw new ElasticSearchIllegalArgumentException(
+                                    "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
+                            }
+                        }
+                    }
                 } else {
                     throw new ElasticSearchIllegalArgumentException("suggester[phrase]  doesn't support array field [" + fieldName + "]");
                 }
@@ -166,7 +188,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             }
         }
         
-        
+        // filterType defaults to PHRASE if filterExtra is set but it isn't
+        if (!filterTypeSet && suggestion.getFilterExtra().length() > 0) {
+            suggestion.setFilterType(PhraseSuggestion.FilterType.MATCH_PHRASE);
+        }
         
         return suggestion;
     }

@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion.FilterType;
+
+import java.util.ArrayList;
+import java.util.List;
 
 class PhraseSuggestionContext extends SuggestionContext {
     private final BytesRef SEPARATOR = new BytesRef(" ");
@@ -40,6 +43,14 @@ class PhraseSuggestionContext extends SuggestionContext {
     private int tokenLimit = NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT;
     private BytesRef preTag;
     private BytesRef postTag;
+    /**
+     * Type of filter to apply to suggestions. null is invalid.
+     */
+    private FilterType filterType = FilterType.NONE;
+    /**
+     * Extra filter to apply to suggestions. a zero length reference means none.
+     */
+    private BytesReference filterExtra = BytesArray.EMPTY;
 
     private WordScorer.WordScorerFactory scorer;
 
@@ -179,5 +190,21 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     public BytesRef getPostTag() {
         return postTag;
+    }
+
+    public PhraseSuggestion.FilterType getFilterType() {
+        return filterType;
+    }
+
+    public void setFilterType(PhraseSuggestion.FilterType filterType) {
+        this.filterType = filterType;
+    }
+
+    public BytesReference getFilterExtra() {
+        return filterExtra;
+    }
+
+    public void setFilterExtra(BytesReference filterExtra) {
+        this.filterExtra = filterExtra;
     }
 }

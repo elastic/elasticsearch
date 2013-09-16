@@ -289,7 +289,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         void innerFinishHim() throws Exception {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults, request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);

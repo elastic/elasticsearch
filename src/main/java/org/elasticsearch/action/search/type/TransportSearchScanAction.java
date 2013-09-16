@@ -70,7 +70,7 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
 
         @Override
         protected void moveToSecondPhase() throws Exception {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty());
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty(), request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), firstResults, ImmutableMap.of("total_hits", Long.toString(internalResponse.hits().totalHits())));

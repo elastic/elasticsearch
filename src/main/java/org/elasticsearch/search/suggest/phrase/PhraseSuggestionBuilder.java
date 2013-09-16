@@ -21,7 +21,9 @@ package org.elasticsearch.search.suggest.phrase;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion.FilterType;
 
 import java.io.IOException;
 import java.util.*;
@@ -42,6 +44,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer tokenLimit;
     private String preTag;
     private String postTag;
+    private FilterType filterType;
+    private FilterBuilder filterExtra;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -148,7 +152,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
     
-    public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
+    public PhraseSuggestionBuilder tokenLimit(Integer tokenLimit) {
         this.tokenLimit = tokenLimit;
         return this;
     }
@@ -163,6 +167,16 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         this.preTag = preTag;
         this.postTag = postTag;
+        return this;
+    }
+    
+    public PhraseSuggestionBuilder filterType(FilterType filterType) {
+        this.filterType = filterType;
+        return this;
+    }
+    
+    public PhraseSuggestionBuilder filterExtra(FilterBuilder filterExtra) {
+        this.filterExtra = filterExtra;
         return this;
     }
 
@@ -208,6 +222,17 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.startObject("highlight");
             builder.field("pre_tag", preTag);
             builder.field("post_tag", postTag);
+            builder.endObject();
+        }
+        if (filterType != null || filterExtra != null) {
+            builder.startObject("filter");
+            if (filterType != null) {
+                builder.field("type", filterType.name().toLowerCase(Locale.US));
+            }
+            if (filterExtra != null) {
+                builder.field("extra");
+                filterExtra.toXContent(builder, params);
+            }
             builder.endObject();
         }
         return builder;

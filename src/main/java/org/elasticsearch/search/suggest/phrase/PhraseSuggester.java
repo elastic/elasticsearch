@@ -55,6 +55,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             IndexReader indexReader, CharsRef spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
+        response.setFilterType(suggestion.getFilterType());
+        response.setFilterExtra(suggestion.getFilterExtra());
+        response.setField(new StringText(suggestion.getField()));
 
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
         final int numGenerators = generators.size();

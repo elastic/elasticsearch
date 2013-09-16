@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -32,11 +33,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion.FilterType;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,6 +47,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.prefixFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
@@ -519,6 +521,40 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel xorr the god jewel xorr the god jewel");
         // Check the name this time because we're repeating it which is funky
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
+
+        // You can filter the results to just phrases that exist
+        phraseSuggest.tokenLimit(null).smoothingModel(null).filterType(FilterType.MATCH_PHRASE);
+        searchSuggest = searchSuggest(client(), "more power borker", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+        searchSuggest = searchSuggest(client(), "power borker", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "power broker");
+        
+        // Or you can filter results to just those that would pass a match query with the operator set to or
+        phraseSuggest.filterType(FilterType.MATCH_OR);
+        searchSuggest = searchSuggest(client(), "more power borker", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "more power broker");
+        searchSuggest = searchSuggest(client(), "power borker", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "power broker");
+        
+        // And you can ask for an and filter as well
+        phraseSuggest.filterType(FilterType.MATCH_AND);
+        searchSuggest = searchSuggest(client(), "more power borker", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+        searchSuggest = searchSuggest(client(), "power borker", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "power broker");
+
+        // Adding an extra filter will only produce suggestions that find results using that filter
+        phraseSuggest.filterType(FilterType.MATCH_PHRASE).filterExtra(prefixFilter("body", "power"));
+        searchSuggest = searchSuggest(client(), "power borker", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "power broker");
+        phraseSuggest.filterType(FilterType.MATCH_PHRASE).filterExtra(prefixFilter("body", "king"));
+        searchSuggest = searchSuggest(client(), "power borker", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
+
+        // If you do not specify a filter type but specify filter_extra then PHRASE is the default
+        phraseSuggest.filterType(null).filterExtra(prefixFilter("body", "power"));
+        searchSuggest = searchSuggest(client(), "more power borker", phraseSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
     }
     
     @Test

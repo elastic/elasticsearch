@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -552,6 +553,10 @@ public abstract class FilterBuilders {
 
     public static WrapperFilterBuilder wrapperFilter(byte[] data, int offset, int length) {
         return new WrapperFilterBuilder(data, offset, length);
+    }
+    
+    public static WrapperFilterBuilder wrapperFilter(BytesReference bytes) {
+        return new WrapperFilterBuilder(bytes);
     }
 
     private FilterBuilders() {

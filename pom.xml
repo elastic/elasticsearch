@@ -158,7 +158,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>14.0.1</version>
+            <version>15.0</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -976,7 +976,7 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-eclipse-plugin</artifactId>
                     <configuration>
-                      <buildOutputDirectory>eclipse-build</buildOutputDirectory>
+                        <buildOutputDirectory>eclipse-build</buildOutputDirectory>
                     </configuration>
                 </plugin>
             </plugins>

@@ -16,10 +16,11 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.base.Function;
-import com.google.common.collect.MapMaker;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 
-import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Lazily creates (and caches) values for keys. If creating the value fails (with errors), an
@@ -29,31 +30,35 @@ import java.util.Map;
  */
 public abstract class FailableCache<K, V> {
 
-    private final Map<K, Object> delegate = new MapMaker().makeComputingMap(
-            new Function<K, Object>() {
-                public Object apply(@Nullable K key) {
-                    Errors errors = new Errors();
-                    V result = null;
-                    try {
-                        result = FailableCache.this.create(key, errors);
-                    } catch (ErrorsException e) {
-                        errors.merge(e.getErrors());
-                    }
-                    return errors.hasErrors() ? errors : result;
-                }
-            });
+    private final LoadingCache<K, Object> delegate = CacheBuilder.newBuilder().build(new CacheLoader<K, Object>() {
+        @Override
+        public Object load(K key) throws Exception {
+            Errors errors = new Errors();
+            V result = null;
+            try {
+                result = FailableCache.this.create(key, errors);
+            } catch (ErrorsException e) {
+                errors.merge(e.getErrors());
+            }
+            return errors.hasErrors() ? errors : result;
+        }
+    });
 
     protected abstract V create(K key, Errors errors) throws ErrorsException;
 
     public V get(K key, Errors errors) throws ErrorsException {
-        Object resultOrError = delegate.get(key);
-        if (resultOrError instanceof Errors) {
-            errors.merge((Errors) resultOrError);
-            throw errors.toException();
-        } else {
-            @SuppressWarnings("unchecked") // create returned a non-error result, so this is safe
-                    V result = (V) resultOrError;
-            return result;
+        try {
+            Object resultOrError = delegate.get(key);
+            if (resultOrError instanceof Errors) {
+                errors.merge((Errors) resultOrError);
+                throw errors.toException();
+            } else {
+                @SuppressWarnings("unchecked") // create returned a non-error result, so this is safe
+                        V result = (V) resultOrError;
+                return result;
+            }
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
         }
     }
 }

@@ -105,5 +105,5 @@ include::request/index-boost.asciidoc[]
 
 include::request/min-score.asciidoc[]
 
-include::request/named-filters.asciidoc[]
+include::request/named-queries-and-filters.asciidoc[]
 

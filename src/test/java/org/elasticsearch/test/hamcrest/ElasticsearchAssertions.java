@@ -120,7 +120,7 @@ public class ElasticsearchAssertions {
         assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
         for (int i=0; i<ids.length; i++) {
             SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat("Expected id: " + hit.getId() + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
+            assertThat("Expected id: " + ids[i] + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
         }
     }
 

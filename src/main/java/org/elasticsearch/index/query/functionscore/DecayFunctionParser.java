@@ -197,7 +197,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();
-        String scaleString = "1km";
+        String scaleString = null;
         String offsetString = "0km";
         double decay = 0.5;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -215,8 +215,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                 throw new ElasticSearchParseException("Parameter " + parameterName + " not supported!");
             }
         }
-        if (origin == null) {
-            throw new ElasticSearchParseException(DecayFunctionBuilder.ORIGIN + "must be set for geo fields.");
+        if (origin == null || scaleString == null) {
+            throw new ElasticSearchParseException(DecayFunctionBuilder.ORIGIN + " and " + DecayFunctionBuilder.SCALE + " must be set for geo fields.");
         }
         double scale = DistanceUnit.parse(scaleString, DistanceUnit.METERS, DistanceUnit.METERS);
         double offset = DistanceUnit.parse(offsetString, DistanceUnit.METERS, DistanceUnit.METERS);

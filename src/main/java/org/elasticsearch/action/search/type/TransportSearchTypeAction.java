@@ -42,11 +42,11 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,15 +119,15 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             // we need to add 1 for non active partition, since we count it in the total!
             expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
-            if (expectedSuccessfulOps == 0) {
-                // not search shards to search on...
-                throw new SearchPhaseExecutionException("initial", "No indices / shards to search on, requested indices are " + Arrays.toString(request.indices()), buildShardFailures());
-            }
-
             firstResults = new AtomicArray<FirstResult>(shardsIts.size());
         }
 
         public void start() {
+            if (expectedSuccessfulOps == 0) {
+                // no search shards to search on, bail with empty response (it happens with search across _all with no indices around and consistent with broadcast operations)
+                listener.onResponse(new SearchResponse(InternalSearchResponse.EMPTY, null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
+                return;
+            }
             request.beforeStart();
             // count the local operations, and perform the non local ones
             int localOperations = 0;

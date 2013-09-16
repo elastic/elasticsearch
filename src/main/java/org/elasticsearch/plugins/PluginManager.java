@@ -132,7 +132,7 @@ public class PluginManager {
 
         if (!downloaded) {
             // We try all possible locations
-            for (URL url: pluginHandle.urls()) {
+            for (URL url : pluginHandle.urls()) {
                 log("Trying " + url.toExternalForm() + "...");
                 try {
                     downloadHelper.download(url, pluginFile, progress);
@@ -154,7 +154,7 @@ public class PluginManager {
             //we check whether we need to remove the top-level folder while extracting
             //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
             boolean removeTopLevelDir = topLevelDirInExcess(zipFile);
-            Enumeration <? extends ZipEntry> zipEntries = zipFile.entries();
+            Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
             while (zipEntries.hasMoreElements()) {
                 ZipEntry zipEntry = zipEntries.nextElement();
                 if (zipEntry.isDirectory()) {
@@ -204,10 +204,14 @@ public class PluginManager {
             if (!FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
                 log("Identified as a _site plugin, moving to _site structure ...");
                 File site = new File(extractLocation, "_site");
-                File tmpLocation = new File(environment.pluginsFile(), name + ".tmp");
-                extractLocation.renameTo(tmpLocation);
+                File tmpLocation = new File(environment.pluginsFile(), extractLocation.getName() + ".tmp");
+                if (!extractLocation.renameTo(tmpLocation)) {
+                    throw new IOException("failed to rename in order to copy to _site (rename to " + tmpLocation.getAbsolutePath() + "");
+                }
                 FileSystemUtils.mkdirs(extractLocation);
-                tmpLocation.renameTo(site);
+                if (!tmpLocation.renameTo(site)) {
+                    throw new IOException("failed to rename in order to copy to _site (rename to " + site.getAbsolutePath() + "");
+                }
                 debug("Installed " + name + " into " + site.getAbsolutePath());
             }
         }
@@ -270,7 +274,7 @@ public class PluginManager {
 
             int slash = zipEntryName.indexOf('/');
             //if there isn't a slash in the entry name it means that we have a file in the top-level
-            if (slash == -1 ) {
+            if (slash == -1) {
                 return false;
             }
 
@@ -385,7 +389,7 @@ public class PluginManager {
                                 ": " + e.getMessage());
                     }
                     break;
-                    
+
                 default:
                     pluginManager.log("Unknown Action [" + action + "]");
                     exitCode = EXIT_CODE_ERROR;

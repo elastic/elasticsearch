@@ -128,7 +128,7 @@ returned. The total_hits will be maintained between scroll requests.
 Note, scan search type does not support sorting (either on score or a
 field) or faceting.
 
-=== Clear scroll api
+===== Clear scroll api
 
 added[0.90.4]
 

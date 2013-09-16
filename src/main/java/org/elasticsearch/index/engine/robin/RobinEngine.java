@@ -1013,7 +1013,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     @Override
     public void optimize(Optimize optimize) throws EngineException {
         if (optimize.flush()) {
-            flush(new Flush().force(true));
+            flush(new Flush().force(true).waitIfOngoing(true));
         }
         if (optimizeMutex.compareAndSet(false, true)) {
             rwl.readLock().lock();
@@ -1049,7 +1049,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             indexWriter.waitForMerges();
         }
         if (optimize.flush()) {
-            flush(new Flush().force(true));
+            flush(new Flush().force(true).waitIfOngoing(true));
         }
     }
 

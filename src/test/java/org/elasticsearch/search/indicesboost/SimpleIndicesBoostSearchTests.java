@@ -19,19 +19,19 @@
 
 package org.elasticsearch.search.indicesboost;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -46,13 +46,7 @@ public class SimpleIndicesBoostSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testIndicesBoost() throws Exception {
-        // execute a search before we create an index
-        try {
-            client().prepareSearch().setQuery(termQuery("test", "value")).execute().actionGet();
-            assert false : "should fail";
-        } catch (Exception e) {
-            // ignore, no indices
-        }
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
 
         try {
             client().prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();

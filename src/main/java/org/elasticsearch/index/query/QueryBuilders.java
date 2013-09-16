@@ -550,6 +550,24 @@ public abstract class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
         return new FunctionScoreQueryBuilder(queryBuilder);
     }
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     * 
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery() {
+        return new FunctionScoreQueryBuilder();
+    }
+    
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param filterBuilder The filterBuilder to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
+        return new FunctionScoreQueryBuilder(function);
+    }
+    
     /**
      * A query that allows to define a custom scoring function.
      *

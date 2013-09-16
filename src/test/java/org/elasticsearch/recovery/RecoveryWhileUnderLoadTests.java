@@ -23,6 +23,8 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -294,7 +297,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
 
     }
 
-    private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, int iterations) {
+    private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, int iterations) throws Exception {
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
@@ -306,15 +309,24 @@ public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
             }
         }
 
-        //if there was an error we try to refresh again and run another iteration
-        //we want to find out if we had a refresh problem or if we are missing documents on a shard
         if (error) {
-            logger.info("--> refreshing again");
-            refresh();
-            for (int i = 0; i < iterations; i++) {
-                SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).execute().actionGet();
-                logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
+            //Printing out shards and their doc count
+            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
+            for (ShardStats shardStats : indicesStatsResponse.getShards()) {
+                DocsStats docsStats = shardStats.getStats().docs;
+                logger.info("Shard [{}] - count {}, primary {}", shardStats.getShardId(), docsStats.getCount(), shardStats.getShardRouting().primary());
             }
+
+            //if there was an error we try to wait and see if at some point it'll get fixed
+            //otherwise it means we are losing documents
+            logger.info("--> trying to wait");
+            assertThat(awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object o) {
+                    SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).get();
+                    return searchResponse.getHits().totalHits() == numberOfDocs;
+                }
+            }, 30, TimeUnit.SECONDS), equalTo(true));
         }
 
         //lets now make the test fail if it was supposed to fail

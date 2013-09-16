@@ -58,49 +58,41 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .endObject().endObject().string();
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        indexRandom("test", true, 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         // to NY: 5.286 km
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
                 .startObject("location").field("lat", 40.759011).field("lon", -73.9844722).endObject()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         // to NY: 0.4621 km
         client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
                 .field("name", "Tribeca")
                 .startObject("location").field("lat", 40.718266).field("lon", -74.007819).endObject()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         // to NY: 1.055 km
         client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
                 .field("name", "Wall Street")
                 .startObject("location").field("lat", 40.7051157).field("lon", -74.0088305).endObject()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         // to NY: 1.258 km
         client().prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
                 .field("name", "Soho")
                 .startObject("location").field("lat", 40.7247222).field("lon", -74).endObject()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         // to NY: 2.029 km
         client().prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
                 .field("name", "Greenwich Village")
                 .startObject("location").field("lat", 40.731033).field("lon", -73.9962255).endObject()
-                .endObject()).execute().actionGet();
-
+                .endObject()),
         // to NY: 8.572 km
         client().prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
                 .field("name", "Brooklyn")
                 .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject()
-                .endObject()).execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+                .endObject()));
 
         SearchResponse searchResponse = client().prepareSearch() // from NY
                 .setQuery(filteredQuery(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731)))

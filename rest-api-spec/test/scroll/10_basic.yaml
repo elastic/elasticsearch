@@ -15,8 +15,9 @@
 
   - do:
       search:
+        index: test_scroll
         search_type: scan
-        scroll: 1m        
+        scroll: 1m
         body:
           query:
             match_all: {}

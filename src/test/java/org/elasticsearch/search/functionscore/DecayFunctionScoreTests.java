@@ -560,7 +560,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                         .add(new MatchAllFilterBuilder(), linearDecayFunction("date", "2013-05-30", "+15d"))
                                         .add(new MatchAllFilterBuilder(), linearDecayFunction("geo", lonlat, "1000km"))
                                         .add(new MatchAllFilterBuilder(),
-                                                linearDecayFunction("num", Integer.toString(numDocs), Integer.toString(numDocs / 2)))
+                                                linearDecayFunction("num", numDocs, numDocs / 2.0))
                                         .scoreMode("multiply").boostMode(CombineFunction.REPLACE.getName()))));
 
         SearchResponse sr = response.actionGet();
@@ -623,8 +623,29 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(),
-                                        linearDecayFunction("num", Integer.toString(1), Integer.toString(1 / 2))).scoreMode("multiply"))));
+                                        linearDecayFunction("num", 1.0, 0.5)).scoreMode("multiply"))));
         response.actionGet();
     }
+    @Test
+    public void testNoQueryGiven() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", 
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("test").field("type", "string").endObject()
+                    .startObject("num").field("type", "double").endObject()
+                    .endObject().endObject().endObject()));
+        ensureYellow();
+        client().index(
+                indexRequest("test").type("type").source(
+                        jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject())).actionGet();
+        refresh();
+        // so, we indexed a string field, but now we try to score a num field
+        ActionFuture<SearchResponse> response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery().add(new MatchAllFilterBuilder(),
+                                        linearDecayFunction("num", 1, 0.5)).scoreMode("multiply"))));
+        response.actionGet();
+    }
+
 
 }

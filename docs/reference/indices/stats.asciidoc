@@ -39,10 +39,19 @@ are returned, other stats can be enabled as well:
 				groups).
 
 `warmer`:: 		Warmer statistics.
-`merge`:: 		merge stats.
-`flush`:: 		flush stats.
-`refresh`:: 	refresh stats.
+`merge`:: 		Merge statistics.
+`fielddata`:: 		Fielddata statistics.
+`flush`:: 		Flush statistics.
+`completion`:: 		Completion suggest statistics.
+`refresh`:: 	Refresh statistics.
 `clear`:: 		Clears all the flags (first).
+
+Some statistics allow per field granularity which accepts a list comma-separated list of included fields. By default all fields are included:
+
+[horizontal]
+`fields`::	List of fields to be included in the statistics. This is used as the default list unless a more specific field list is provided (see below).
+`completion_fields`::	List of fields to be included in the Completion Suggest statistics
+`fielddata_fields`:: 	List of fields to be included in the Fielddata statistics
 
 Here are some samples:
 

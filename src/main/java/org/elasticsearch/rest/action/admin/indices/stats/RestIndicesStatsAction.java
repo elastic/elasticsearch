@@ -35,7 +35,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.*;
+import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
  */
@@ -118,6 +118,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         if (request.hasParam("groups")) {
             indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
         }
+        /* We use "fields" as the default field list for stats that support field inclusion filters and further down
+         * a more specific list of fields that overrides this list.*/
+        final String[] defaultIncludedFields = request.paramAsStringArray("fields", null); 
         indicesStatsRequest.docs(request.paramAsBoolean("docs", indicesStatsRequest.docs()));
         indicesStatsRequest.store(request.paramAsBoolean("store", indicesStatsRequest.store()));
         indicesStatsRequest.indexing(request.paramAsBoolean("indexing", indicesStatsRequest.indexing()));
@@ -130,8 +133,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.filterCache(request.paramAsBoolean("filter_cache", indicesStatsRequest.filterCache()));
         indicesStatsRequest.idCache(request.paramAsBoolean("id_cache", indicesStatsRequest.idCache()));
         indicesStatsRequest.fieldData(request.paramAsBoolean("fielddata", indicesStatsRequest.fieldData()));
-        indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fields", null));
+        indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", defaultIncludedFields));
         indicesStatsRequest.percolate(request.paramAsBoolean("percolate", indicesStatsRequest.percolate()));
+        indicesStatsRequest.completion(request.paramAsBoolean("completion", indicesStatsRequest.completion()));
+        indicesStatsRequest.completionFields(request.paramAsStringArray("completion_fields", defaultIncludedFields));
 
         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
             @Override

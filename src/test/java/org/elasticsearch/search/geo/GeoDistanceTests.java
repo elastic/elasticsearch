@@ -58,11 +58,10 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .endObject().endObject().string();
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        indexRandom("test", true, 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
-                .endObject()),
+                .endObject()), 
         // to NY: 5.286 km
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
@@ -450,8 +449,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                 .addMapping("company", mapping)
                 .execute().actionGet();
         client().admin().cluster().prepareHealth("companies").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        indexRandom("companies", true, 
-        client().prepareIndex("companies", "company", "1").setSource(jsonBuilder().startObject()
+        indexRandom(true, client().prepareIndex("companies", "company", "1").setSource(jsonBuilder().startObject()
                 .field("name", "company 1")
                 .startArray("branches")
                     .startObject()
@@ -459,7 +457,7 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
                         .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
                     .endObject()
                 .endArray()
-                .endObject()),
+                .endObject()), 
         client().prepareIndex("companies", "company", "2").setSource(jsonBuilder().startObject()
                 .field("name", "company 2")
                 .startArray("branches")

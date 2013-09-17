@@ -79,7 +79,7 @@ public class SearchWhileRelocatingTests extends AbstractSharedClusterTest {
                             jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21)
                                     .endObject().endObject()));
         }
-        indexRandom("test", true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
+        indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
         final int numIters = atLeast(3);
         for (int i = 0; i < numIters; i++) {
             allowNodes("test", between(1,3));

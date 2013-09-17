@@ -20,8 +20,7 @@ public class SimpleCountTests extends AbstractSharedClusterTest {
     @Test
     public void testCountRandomPreference() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1, 3))).get();
-        indexRandom("test", true,
-                client().prepareIndex("test", "type", "1").setSource("field", "value"),
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", "value"),
                 client().prepareIndex("test", "type", "2").setSource("field", "value"),
                 client().prepareIndex("test", "type", "3").setSource("field", "value"),
                 client().prepareIndex("test", "type", "4").setSource("field", "value"),

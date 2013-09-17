@@ -80,8 +80,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=whitespace")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        indexRandom("test", true,
-                client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
+        indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree")
         );
@@ -139,8 +138,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
 
-        indexRandom("test", true,
-                client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
 
@@ -243,8 +241,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
                 .execute().actionGet();
-        indexRandom("test", true,
-                client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "2").setSource("field1", "value1"),

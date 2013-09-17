@@ -172,13 +172,30 @@ decay function is specified as
     "FIELD_NAME": {
           "origin": "11, 12",
           "scale": "2km",
-          "offset": "1km",
-          "decay": 0.5
+          "offset": "0km",
+          "decay": 0.33
     }
 }
 --------------------------------------------------
 
-where `DECAY_FUNCTION` can be "linear", "exp" and "gauss" (see below).
+where `DECAY_FUNCTION` can be "linear", "exp" and "gauss" (see below). The specified field must be a numeric field. In the above example, the field is a <<mapping-geo-point-type>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example: 
+
+[source,js]
+--------------------------------------------------
+    "DECAY_FUNCTION": {
+        "FIELD_NAME": {
+              "origin": "2013-09-17",
+              "scale": "10d",
+              "offset": "5d",
+              "decay" : 0.5
+        }
+    }
+--------------------------------------------------
+
+
+The format of the origin depends on the <<mapping-date-format>> defined in your mapping. If you do not define the origin, the current time is used. 
+
+ 
 The `offset` and `decay` parameters are optional.
 
 `offset`::
@@ -191,29 +208,20 @@ The `decay` parameter defines how documents are scored at the distance
 given at `scale`. If no `decay` is defined, documents at the distance
 `scale` will be scored 0.5.
 
-For example, your documents might represents hotels and contain a geo
+In the first example, your documents might represents hotels and contain a geo
 location field. You want to compute a decay function depending on how
 far the hotel is from a given location. You might not immediately see
 what scale to choose for the gauss function, but you can say something
 like: "At a distance of 2km from the desired location, the score should
 be reduced by one third."
-
-You can provide this parameter like this:
-
-[source,js]
---------------------------------------------------
-    "DECAY_FUNCTION": {
-        "location": {
-              "origin": "11, 12",
-              "scale": "2km",
-              "decay" : 0.33
-        }
-    }
---------------------------------------------------
-
 The parameter "scale" will then be adjusted automatically to assure that
-the score function computes a score of 0.33 for hotels that are 2km away
+the score function computes a score of 0.5 for hotels that are 2km away
 from the desired location.
+
+
+In the second example, documents with a field value between 2013-09-12 and 2013-09-22 would get a weight of 1.0 and documents which are 15 days from that date a weight of 0.5. 
+
+
 
 The `DECAY_FUNCTION` determines the shape of the decay:
 

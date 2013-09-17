@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleGetMappingsTests extends AbstractSharedClusterTest {
+public class SimpleGetMappingsTests extends AbstractIntegrationTest {
 
     @Test
     public void getMappingsWhereThereAreNone() {

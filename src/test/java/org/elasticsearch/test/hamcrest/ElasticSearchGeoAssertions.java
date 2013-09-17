@@ -34,7 +34,7 @@ import com.vividsolutions.jts.geom.MultiPoint;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
 
-public class ElasticsearchGeoAssertions {
+public class ElasticSearchGeoAssertions {
 
     private static int top(Coordinate...points) {
         int top = 0;

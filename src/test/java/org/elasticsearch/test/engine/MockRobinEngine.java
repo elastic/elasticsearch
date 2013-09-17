@@ -24,7 +24,6 @@ import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map.Entry;
@@ -62,7 +62,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
             CodecService codecService) throws EngineException {
        super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
                 deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
-        final long seed = indexSettings.getAsLong(ElasticsearchTestCase.INDEX_SEED_SETTING, 0l);
+        final long seed = indexSettings.getAsLong(ElasticSearchTestCase.INDEX_SEED_SETTING, 0l);
         if (logger.isTraceEnabled()){
             logger.trace("Using [{}] for shard [{}] seed: [{}]", this.getClass().getName(), shardId, seed);
         }

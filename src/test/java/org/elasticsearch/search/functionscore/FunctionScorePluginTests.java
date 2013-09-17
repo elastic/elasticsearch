@@ -33,8 +33,8 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -89,7 +89,7 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
                 searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value")).add(gfb))));
 
         SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
+        ElasticSearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
 
         assertThat(sh.hits().length, equalTo(2));

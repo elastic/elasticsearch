@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  */
-public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
+public class SimpleIndicesWarmerTests extends AbstractIntegrationTest {
 
 
     @Test

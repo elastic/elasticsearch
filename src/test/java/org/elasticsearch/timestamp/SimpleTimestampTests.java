@@ -22,15 +22,14 @@ package org.elasticsearch.timestamp;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SimpleTimestampTests  extends AbstractSharedClusterTest {
+public class SimpleTimestampTests  extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleTimestamp() throws Exception {

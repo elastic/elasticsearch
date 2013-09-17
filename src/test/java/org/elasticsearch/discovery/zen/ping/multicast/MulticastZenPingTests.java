@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class MulticastZenPingTests extends ElasticsearchTestCase {
+public class MulticastZenPingTests extends ElasticSearchTestCase {
 
     private Settings buildRandomMulticast(Settings settings) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(settings);

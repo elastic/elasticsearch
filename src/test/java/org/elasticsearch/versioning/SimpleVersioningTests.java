@@ -27,20 +27,19 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class SimpleVersioningTests extends AbstractSharedClusterTest {
+public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testExternalVersioningInitialDelete() throws Exception {

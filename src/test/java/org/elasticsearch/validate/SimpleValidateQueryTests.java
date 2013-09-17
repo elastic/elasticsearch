@@ -20,7 +20,6 @@
 package org.elasticsearch.validate;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matcher;
 import org.junit.Test;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
+public class SimpleValidateQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleValidateQuery() throws Exception {

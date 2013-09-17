@@ -20,10 +20,12 @@ package org.elasticsearch.cluster.shards;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -31,30 +33,26 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ClusterSearchShardsTests extends AbstractNodesTests {
-
+@ClusterScope(scope=Scope.SUITE, numNodes=2)
+public class ClusterSearchShardsTests extends AbstractIntegrationTest {
+    
     @Override
-    protected void beforeClass() throws Exception {
-        startNode("node1", settingsBuilder().put("node.tag", "A"));
-        startNode("node2", settingsBuilder().put("node.tag", "B"));
-    }
-
-    public Client client() {
-        return client("node1");
+    protected Settings nodeSettings(int nodeOrdinal) {
+        switch(nodeOrdinal) {
+        case 1:
+            return settingsBuilder().put("node.tag", "B").build();
+        case 0:
+            return settingsBuilder().put("node.tag", "A").build();
+        }
+        return super.nodeSettings(nodeOrdinal);
     }
 
     @Test
     public void testSingleShardAllocation() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder()
                 .put("index.number_of_shards", "1").put("index.number_of_replicas", 0).put("index.routing.allocation.include.tag", "A")).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        ClusterSearchShardsResponse response = client("node1").admin().cluster().prepareSearchShards("test").execute().actionGet();
+        ensureGreen();
+        ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getIndex(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId(), equalTo(0));
@@ -62,7 +60,7 @@ public class ClusterSearchShardsTests extends AbstractNodesTests {
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = client("node2").admin().cluster().prepareSearchShards("test").setRouting("A").execute().actionGet();
+        response = client().admin().cluster().prepareSearchShards("test").setRouting("A").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getIndex(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId(), equalTo(0));
@@ -74,41 +72,26 @@ public class ClusterSearchShardsTests extends AbstractNodesTests {
 
     @Test
     public void testMultipleShardsSingleNodeAllocation() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder()
                 .put("index.number_of_shards", "4").put("index.number_of_replicas", 0).put("index.routing.allocation.include.tag", "A")).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
-        ClusterSearchShardsResponse response = client("node1").admin().cluster().prepareSearchShards("test").execute().actionGet();
+        ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(4));
         assertThat(response.getGroups()[0].getIndex(), equalTo("test"));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = client("node1").admin().cluster().prepareSearchShards("test").setRouting("ABC").execute().actionGet();
+        response = client().admin().cluster().prepareSearchShards("test").setRouting("ABC").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
 
-        response = client("node1").admin().cluster().prepareSearchShards("test").setPreference("_shards:2").execute().actionGet();
+        response = client().admin().cluster().prepareSearchShards("test").setPreference("_shards:2").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId(), equalTo(2));
     }
 
     @Test
     public void testMultipleIndicesAllocation() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test1").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("test2").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test1").setSettings(settingsBuilder()
                 .put("index.number_of_shards", "4").put("index.number_of_replicas", 1)).execute().actionGet();
         client().admin().indices().prepareCreate("test2").setSettings(settingsBuilder()

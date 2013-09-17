@@ -22,7 +22,7 @@ package org.elasticsearch.indexing;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
-public class IndexActionTests extends AbstractSharedClusterTest {
+public class IndexActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreatedFlag() throws Exception {

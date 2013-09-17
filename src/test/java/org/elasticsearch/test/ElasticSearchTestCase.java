@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
+package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.*;
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
 @Listeners(LoggingListener.class)
-public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
+public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 

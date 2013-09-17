@@ -21,45 +21,35 @@ package org.elasticsearch.plugin;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.plugin.responseheader.TestResponseHeaderPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.helper.HttpClient;
 import org.elasticsearch.rest.helper.HttpClientResponse;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.Map;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test a rest action that sets special response headers
  */
-public class ResponseHeaderPluginTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.SUITE, numNodes=1)
+public class ResponseHeaderPluginTests extends AbstractIntegrationTest {
 
-    public static final String NODE_ID = "TEST";
-
-    @Before
-    public void startNode() throws Exception {
-        ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", TestResponseHeaderPlugin.class.getName());
-        startNode(NODE_ID, settings);
-        client(NODE_ID).admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-    }
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put("plugin.types", TestResponseHeaderPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Test
     public void testThatSettingHeadersWorks() throws Exception {
+        ensureGreen();
         HttpClientResponse response = httpClient().request("/_protected");
         assertThat(response.errorCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
         assertThat(response.getHeader("Secret"), equalTo("required"));
@@ -72,7 +62,7 @@ public class ResponseHeaderPluginTests extends AbstractNodesTests {
     }
 
     private HttpClient httpClient() {
-        HttpServerTransport httpServerTransport = ((InternalNode) node(NODE_ID)).injector().getInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
         return new HttpClient(httpServerTransport.boundAddress().publishAddress());
     }
 }

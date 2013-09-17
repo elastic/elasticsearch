@@ -19,7 +19,6 @@
 
 package org.elasticsearch.aliases;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Set;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IndexAliasesTests extends AbstractSharedClusterTest {
+public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testAliases() throws Exception {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.client.Requests;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class SimpleRoutingTests extends AbstractSharedClusterTest {
+public class SimpleRoutingTests extends AbstractIntegrationTest {
    
     
     @Test

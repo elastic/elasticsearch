@@ -18,20 +18,19 @@
  */
 package org.elasticsearch.cluster.allocation;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.junit.Test;
 
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.AbstractSharedClusterTest;
-import org.junit.Test;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleAllocationTests extends AbstractSharedClusterTest {
+public class SimpleAllocationTests extends AbstractIntegrationTest {
     
     /**
      * Test for 

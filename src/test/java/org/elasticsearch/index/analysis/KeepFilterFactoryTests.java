@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 

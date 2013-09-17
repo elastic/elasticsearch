@@ -22,7 +22,7 @@ package org.elasticsearch.gateway.none;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 

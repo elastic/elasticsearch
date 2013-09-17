@@ -23,34 +23,30 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class CacheTests extends AbstractNodesTests {
-
-
-    @Override
-    protected void beforeClass() throws Exception {
-        // Filter cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        startNode("node1", ImmutableSettings.settingsBuilder().put("indices.cache.filter.clean_interval", "1ms"));
-    }
+@ClusterScope(scope=Scope.SUITE, numNodes=1)
+public class CacheTests extends AbstractIntegrationTest {
 
     @Override
-    public Client client() {
-        return client("node1");
+    protected Settings nodeSettings(int nodeOrdinal) {
+        //Filter cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
+        return  ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("indices.cache.filter.clean_interval", "1ms").build();
     }
-    
+
     @Test
     public void testClearCacheFilterKeys() {
         client().admin().indices().prepareDelete().execute().actionGet();

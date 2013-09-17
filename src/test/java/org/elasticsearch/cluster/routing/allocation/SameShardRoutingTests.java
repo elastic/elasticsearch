@@ -1,6 +1,5 @@
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -10,6 +9,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SameShardRoutingTests extends ElasticsearchTestCase {
+public class SameShardRoutingTests extends ElasticSearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.indicesboost;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleIndicesBoostSearchTests extends AbstractSharedClusterTest {
+public class SimpleIndicesBoostSearchTests extends AbstractIntegrationTest {
 
     private static final Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -46,7 +46,7 @@ public class SimpleIndicesBoostSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testIndicesBoost() throws Exception {
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
+        ElasticSearchAssertions.assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
 
         try {
             client().prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();

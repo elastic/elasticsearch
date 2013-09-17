@@ -21,17 +21,17 @@ package org.elasticsearch.search.suggest;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -39,30 +39,27 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class CustomSuggesterSearchTests extends AbstractNodesTests {
-
-    private Client client;
+@ClusterScope(scope=Scope.SUITE, numNodes=1)
+public class CustomSuggesterSearchTests extends AbstractIntegrationTest {
 
     @Override
-    protected void beforeClass() throws Exception {
-        ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomSuggesterPlugin.class.getName());
-        startNode("server1", settings);
-        client = client("server1");
-
-        client.prepareIndex("test", "test", "1").setSource(jsonBuilder()
-                .startObject()
-                .field("name", "arbitrary content")
-                .endObject())
-                .setRefresh(true).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put("plugin.types", CustomSuggesterPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Test
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder()
+                .startObject()
+                .field("name", "arbitrary content")
+                .endObject())
+                .setRefresh(true).execute().actionGet();
+        ensureYellow();
+        
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);
         String randomSuffix = randomAsciiOfLength(10);
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch("test").setTypes("test").setFrom(0).setSize(1);
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1);
         XContentBuilder query = jsonBuilder().startObject()
                 .startObject("suggest")
                 .startObject("someName")

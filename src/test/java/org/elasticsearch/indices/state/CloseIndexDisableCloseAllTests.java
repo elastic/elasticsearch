@@ -22,84 +22,74 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class CloseIndexDisableCloseAllTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.SUITE, numNodes=2)
+public class CloseIndexDisableCloseAllTests extends AbstractIntegrationTest {
 
     @Override
-    protected void beforeClass() {
-        ImmutableSettings.Builder settings = ImmutableSettings.builder().put("action.disable_close_all_indices", true);
-        startNode("server1", settings);
-        startNode("server2", settings);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put("action.disable_close_all_indices", true).put(super.nodeSettings(nodeOrdinal)).build();
     }
 
-    @After
-    public void wipeAllIndices() {
-        wipeIndices(client("server1"), "_all");
-    }
 
     @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseAllExplicitly() {
-        Client client = client("server1");
-        createIndices(client, "test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1", "test2", "test3");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        client.admin().indices().prepareClose("_all").execute().actionGet();
+        client().admin().indices().prepareClose("_all").execute().actionGet();
     }
 
     @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseAllWildcard() {
-        Client client = client("server2");
-        createIndices(client, "test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1", "test2", "test3");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        client.admin().indices().prepareClose("*").execute().actionGet();
+        client().admin().indices().prepareClose("*").execute().actionGet();
     }
 
     @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseAllWildcard2() {
-        Client client = client("server2");
-        createIndices(client, "test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1", "test2", "test3");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        client.admin().indices().prepareClose("test*").execute().actionGet();
+        client().admin().indices().prepareClose("test*").execute().actionGet();
     }
 
     @Test
     public void testCloseWildcardNonMatchingAll() {
-        Client client = client("server1");
-        createIndices(client, "test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1", "test2", "test3");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        CloseIndexResponse closeIndexResponse = client.admin().indices().prepareClose("*", "-test1").execute().actionGet();
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("*", "-test1").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsClosed("test2", "test3");
     }
 
     @Test(expected = ElasticSearchIllegalArgumentException.class)
     public void testCloseWildcardMatchingAll() {
-        Client client = client("server2");
-        createIndices(client, "test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1", "test2", "test3");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        client.admin().indices().prepareClose("*", "-test1", "+test1").execute().actionGet();
+        client().admin().indices().prepareClose("*", "-test1", "+test1").execute().actionGet();
     }
 
     @Test
     public void testCloseWildcardNonMatchingAll2() {
-        Client client = client("server1");
-        createIndices(client, "test1", "test2", "test3", "a");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        createIndex( "test1", "test2", "test3", "a");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        CloseIndexResponse closeIndexResponse = client.admin().indices().prepareClose("test*").execute().actionGet();
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test*").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsClosed("test1", "test2", "test3");
     }
@@ -109,7 +99,7 @@ public class CloseIndexDisableCloseAllTests extends AbstractNodesTests {
     }
 
     private void checkIndexState(IndexMetaData.State state, String... indices) {
-        ClusterStateResponse clusterStateResponse = client("server1").admin().cluster().prepareState().execute().actionGet();
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
         for (String index : indices) {
             IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get(index);
             assertThat(indexMetaData, notNullValue());

@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.store.*;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.store.fs.NioFsDirectoryService;
 import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
 import org.elasticsearch.index.store.memory.ByteBufferDirectoryService;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
+import org.elasticsearch.test.ElasticSearchTestCase;
 
 import java.util.Random;
 import java.util.Set;
@@ -58,7 +58,7 @@ public class MockDirectoryHelper {
     public MockDirectoryHelper(ShardId shardId, Settings indexSettings, ESLogger logger) {
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
         randomIOExceptionRateOnOpen = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0.0d);
-        final long seed = indexSettings.getAsLong(ElasticsearchTestCase.INDEX_SEED_SETTING, 0l);
+        final long seed = indexSettings.getAsLong(ElasticSearchTestCase.INDEX_SEED_SETTING, 0l);
         random = new Random(seed);
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = Throttling.valueOf(indexSettings.get(RANDOM_THROTTLE, random.nextDouble() < 0.1 ? "SOMETIMES" : "NEVER"));

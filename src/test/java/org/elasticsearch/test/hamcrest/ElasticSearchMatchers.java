@@ -22,7 +22,7 @@ import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
-public class ElasticsearchMatchers {
+public class ElasticSearchMatchers {
 
     public static class SearchHitHasIdMatcher extends TypeSafeMatcher<SearchHit> {
         private String id;

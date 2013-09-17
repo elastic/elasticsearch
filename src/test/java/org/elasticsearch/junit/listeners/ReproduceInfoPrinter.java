@@ -1,11 +1,12 @@
 package org.elasticsearch.junit.listeners;
 
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticSearchTestCase;
+
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
-import org.elasticsearch.AbstractSharedClusterTest;
-import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.junit.internal.AssumptionViolatedException;
@@ -21,7 +22,7 @@ import java.util.Arrays;
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final ESLogger logger = Loggers.getLogger(ElasticsearchTestCase.class);
+    protected final ESLogger logger = Loggers.getLogger(ElasticSearchTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {
@@ -45,8 +46,8 @@ public class ReproduceInfoPrinter extends RunListener {
         b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
         b.append("REPRODUCE WITH  : mvn test");
         ReproduceErrorMessageBuilder builder = new MavenMessageBuilder(b).appendAllOpts(failure.getDescription());
-        if (AbstractSharedClusterTest.class.isAssignableFrom(failure.getDescription().getTestClass())) {
-            builder.appendOpt("tests.cluster_seed", SeedUtils.formatSeed(ElasticsearchTestCase.SHARED_CLUSTER_SEED));
+        if (AbstractIntegrationTest.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+            builder.appendOpt("tests.cluster_seed", SeedUtils.formatSeed(ElasticSearchTestCase.SHARED_CLUSTER_SEED));
         }
 
         b.append("\n");

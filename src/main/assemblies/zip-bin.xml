@@ -16,6 +16,15 @@
             <includes>
                 <include>elasticsearch.bat</include>
                 <include>plugin.bat</include>
+                <include>service.bat</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <filtered>false</filtered>
+            <directory>bin</directory>
+            <outputDirectory>bin</outputDirectory>
+            <includes>
+                <include>*.exe</include>
             </includes>
         </fileSet>
         <fileSet>

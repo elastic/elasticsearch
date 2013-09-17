@@ -516,6 +516,16 @@
                                 <resource>
                                     <directory>${basedir}/bin</directory>
                                     <filtering>true</filtering>
+                                    <excludes>
+                                        <exclude>*.exe</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${basedir}/bin</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.exe</include>
+                                    </includes>
                                 </resource>
                             </resources>
                         </configuration>
@@ -607,7 +617,7 @@
                                     <!-- use the filtered one from the resources plugin -->
                                     <src>${project.build.directory}/bin</src>
                                     <type>directory</type>
-                                    <excludes>*.bat, .DS_Store</excludes>
+                                    <excludes>*.bat, .DS_Store, *.exe</excludes>
                                     <mapper>
                                         <type>perm</type>
                                         <prefix>/usr/share/elasticsearch/bin</prefix>

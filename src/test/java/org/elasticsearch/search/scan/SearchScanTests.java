@@ -21,13 +21,14 @@ package org.elasticsearch.search.scan;
 
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Set;
@@ -40,40 +41,24 @@ public class SearchScanTests extends AbstractSharedClusterTest {
 
     @Test
     @Slow 
-    // TODO Randomize and reduce execution time
     public void testNarrowingQuery() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1,5))).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
 
         Set<String> ids = Sets.newHashSet();
         Set<String> expectedIds = Sets.newHashSet();
-
-        for (int i = 0; i < 100; i++) {
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[atLeast(50)];
+        for (int i = 0; i < builders.length/2; i++) {
             expectedIds.add(Integer.toString(i));
-            client().prepareIndex("test", "tweet", Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("user", "kimchy1").field("postDate", System.currentTimeMillis()).field("message", "test").endObject()).execute().actionGet();
-            // make some segments
-            if (i % 10 == 0) {
-                client().admin().indices().prepareFlush().execute().actionGet();
-            }
+            builders[i] = client().prepareIndex("test", "tweet", Integer.toString(i)).setSource(
+                    jsonBuilder().startObject().field("user", "kimchy1").field("postDate", System.currentTimeMillis()).field("message", "test").endObject());
         }
 
-        for (int i = 100; i < 200; i++) {
-            client().prepareIndex("test", "tweet", Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("user", "kimchy2").field("postDate", System.currentTimeMillis()).field("message", "test").endObject()).execute().actionGet();
-            // make some segments
-            if (i % 10 == 0) {
-                client().admin().indices().prepareFlush().execute().actionGet();
-            }
+        for (int i = builders.length/2; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "tweet", Integer.toString(i)).setSource(
+                    jsonBuilder().startObject().field("user", "kimchy2").field("postDate", System.currentTimeMillis()).field("message", "test").endObject());
         }
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandom(true, builders);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.SCAN)
@@ -82,12 +67,12 @@ public class SearchScanTests extends AbstractSharedClusterTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)builders.length/2));
 
         // start scrolling, until we get not results
         while (true) {
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-            assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().totalHits(), equalTo((long)builders.length/2));
             assertThat(searchResponse.getFailedShards(), equalTo(0));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));

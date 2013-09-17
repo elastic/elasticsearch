@@ -37,6 +37,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.client.AdminClient;
@@ -396,8 +397,16 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     // TODO move this into a base class for integration tests
-    public void indexRandom(String index, boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
+    public void indexRandom(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
+        if (builders.length == 0) {
+            return;
+        }
         Random random = getRandom();
+        Set<String> indicesSet = new HashSet<String>();
+        for (int i = 0; i < builders.length; i++) {
+            indicesSet.add(builders[i].request().index());
+        }
+        final String[] indices = indicesSet.toArray(new String[0]);
         List<IndexRequestBuilder> list = Arrays.asList(builders);
         Collections.shuffle(list, random);
         final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<Throwable>();
@@ -410,11 +419,11 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 indexRequestBuilder.execute(new LatchedActionListener<IndexResponse>(latch, errors));
                 if (rarely()) {
                     if (rarely()) {
-                        client().admin().indices().prepareRefresh(index).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches), errors));
+                        client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches), errors));
                     } else if (rarely()) {
-                        client().admin().indices().prepareFlush(index).execute(new LatchedActionListener<FlushResponse>(newLatch(latches), errors));
+                        client().admin().indices().prepareFlush(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<FlushResponse>(newLatch(latches), errors));
                     } else if (rarely()) {
-                        client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches), errors));
+                        client().admin().indices().prepareOptimize(indices).setIgnoreIndices(IgnoreIndices.MISSING).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches), errors));
                     }
                 }
             }
@@ -425,11 +434,11 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 indexRequestBuilder.execute().actionGet();
                 if (rarely()) {
                     if (rarely()) {
-                        client().admin().indices().prepareRefresh(index).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches), errors));
+                        client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<RefreshResponse>(newLatch(latches), errors));
                     } else if (rarely()) {
-                        client().admin().indices().prepareFlush(index).execute(new LatchedActionListener<FlushResponse>(newLatch(latches), errors));
+                        client().admin().indices().prepareFlush(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute(new LatchedActionListener<FlushResponse>(newLatch(latches), errors));
                     } else if (rarely()) {
-                        client().admin().indices().prepareOptimize(index).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches), errors));
+                        client().admin().indices().prepareOptimize(indices).setIgnoreIndices(IgnoreIndices.MISSING).setMaxNumSegments(between(1, 10)).setFlush(random.nextBoolean()).execute(new LatchedActionListener<OptimizeResponse>(newLatch(latches), errors));
                     }
                 }
             }
@@ -439,7 +448,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         }
         assertThat(errors, Matchers.emptyIterable());
         if (forceRefresh) {
-            assertNoFailures(client().admin().indices().prepareRefresh(index).execute().get());
+            assertNoFailures(client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
         }
     }
     

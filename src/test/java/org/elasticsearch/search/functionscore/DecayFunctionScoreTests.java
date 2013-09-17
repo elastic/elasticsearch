@@ -88,7 +88,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         }
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
-        indexRandom("test", false, builders);
+        indexRandom(false, builders);
         refresh();
 
         // Test Gauss
@@ -176,7 +176,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         }
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
-        indexRandom("test", false, builders);
+        indexRandom(false, builders);
         refresh();
 
         // Test Gauss
@@ -258,7 +258,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                 .endObject().endObject()));
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
-        indexRandom("test", false, builders);
+        indexRandom(false, builders);
         refresh();
 
         // Test Gauss
@@ -309,7 +309,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                 .endObject()));
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
-        indexRandom("test", false, builders);
+        indexRandom(false, builders);
         refresh();
         GeoPoint point = new GeoPoint(20, 11);
         ActionFuture<SearchResponse> response = client().search(
@@ -350,7 +350,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()));
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
-        indexRandom("test", false, builders);
+        indexRandom(false, builders);
         refresh();
 
         // function score should return 0.5 for this function
@@ -588,7 +588,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                     .field("lat", lat).field("lon", lon).endObject().endObject()));
         }
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
-        indexRandom("test", true, builders);
+        indexRandom(true, builders);
         List<Float> lonlat = new ArrayList<Float>();
         lonlat.add(new Float(100));
         lonlat.add(new Float(110));

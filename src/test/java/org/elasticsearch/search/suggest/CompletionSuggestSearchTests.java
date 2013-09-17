@@ -662,7 +662,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                             .endObject()
                     );
         }
-        indexRandom(INDEX, false, builders);
+        indexRandom(false, builders);
 
         for (int i = 0; i < builders.length; i++) { // add them again to make sure we deduplicate on the surface form
             builders[i] = client().prepareIndex(INDEX, TYPE, "n" + i)
@@ -676,7 +676,7 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
                             .endObject()
                     );
         }
-        indexRandom(INDEX, false, builders);
+        indexRandom(false, builders);
 
         client().admin().indices().prepareRefresh(INDEX).execute().actionGet();
         if (optimize) {

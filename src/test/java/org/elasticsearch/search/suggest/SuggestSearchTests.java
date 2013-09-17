@@ -169,8 +169,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        indexRandom("test", true,
-        client().prepareIndex("test", "type1").setSource("name", "I like iced tea"),
+        indexRandom(true, client().prepareIndex("test", "type1").setSource("name", "I like iced tea"),
         client().prepareIndex("test", "type1").setSource("name", "I like tea."),
         client().prepareIndex("test", "type1").setSource("name", "I like ice cream."));
         refresh();
@@ -677,8 +676,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
-        indexRandom("text", true,
-                client().prepareIndex("text", "type1", "1").setSource("field1", "foobar1").setRouting("1"),
+        indexRandom(true, client().prepareIndex("text", "type1", "1").setSource("field1", "foobar1").setRouting("1"),
                 client().prepareIndex("text", "type1", "2").setSource("field1", "foobar2").setRouting("2"),
                 client().prepareIndex("text", "type1", "3").setSource("field1", "foobar3").setRouting("3"));
 

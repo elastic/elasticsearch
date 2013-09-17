@@ -124,8 +124,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public void testConstantScoreQuery() throws Exception {
         Random random = getRandom();
         createIndex("test");
-        indexRandom("test", true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"), client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
         ensureYellow();
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick"))).get();
         SearchHits hits = searchResponse.getHits();
@@ -162,7 +161,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
             builders[i] = client().prepareIndex("test", "type", "" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test_1");
-        indexRandom("test_1", true, builders);
+        indexRandom(true, builders);
         ensureYellow();
         int queryRounds = atLeast(10);
         for (int i = 0; i < queryRounds; i++) {
@@ -199,8 +198,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
-        indexRandom("test", true,
-            client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
             client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
         );
         int iters = atLeast(100);
@@ -228,8 +226,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=whitespace")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        indexRandom("test", true,
-                client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
+        indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree")
         );
@@ -315,8 +312,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                 .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
 
-        indexRandom("test", true,
-                client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
 
@@ -419,8 +415,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
                 .execute().actionGet();
-        indexRandom("test", true,
-                client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "2").setSource("field1", "value1"),
@@ -885,8 +880,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
         float boost = 10.0f;
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        indexRandom("test", true,
-            client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
             client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
 

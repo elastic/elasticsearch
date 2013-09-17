@@ -169,7 +169,7 @@ itself.
 |=======================================================================
 |Option |Description
 |`unit` |The unit the ranges are provided in. Defaults to `km`. Can also
-be `mi` or `miles`.
+be `mi`, `miles`, `in`, `inch`, `yd`, `yards`, `kilometers`, `mm`, `millimeters`, `cm`, `centimeters`, `m` or `meters`.
 
 |`distance_type` |How to compute the distance. Can either be `arc`
 (better precision) or `plane` (faster). Defaults to `arc`.

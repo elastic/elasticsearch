@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
@@ -38,8 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class AliasRoutingTests extends AbstractSharedClusterTest {
-
+public class AliasRoutingTests extends AbstractIntegrationTest {
 
     @Test
     public void testAliasCrudRouting() throws Exception {

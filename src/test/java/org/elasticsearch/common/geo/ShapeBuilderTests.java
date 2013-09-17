@@ -28,8 +28,8 @@ import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
+import static org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions.assertMultiLineString;
+import static org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions.assertMultiPolygon;
 import static org.junit.Assert.assertEquals;
 /**
  * Tests for {@link ShapeBuilder}

@@ -43,7 +43,7 @@ import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.Polygon;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertEquals;
+import static org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions.assertEquals;
 
 /**
  * Tests for {@link GeoJSONShapeParser}

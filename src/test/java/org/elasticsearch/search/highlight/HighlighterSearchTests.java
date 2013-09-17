@@ -20,7 +20,6 @@
 package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,7 +35,8 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -48,15 +48,15 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
  */
-public class HighlighterSearchTests extends AbstractSharedClusterTest {
+public class HighlighterSearchTests extends AbstractIntegrationTest {
     
     @Test
     // see #3486
@@ -177,7 +177,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         endObject().
                     endObject().
                 endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("test", builder).setSettings(
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("test", builder).setSettings(
                 ImmutableSettings.settingsBuilder()                .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")

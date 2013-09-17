@@ -20,7 +20,6 @@
 package org.elasticsearch.broadcast;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class BroadcastActionsTests extends AbstractSharedClusterTest {
+public class BroadcastActionsTests extends AbstractIntegrationTest {
 
     @Test
     public void testBroadcastOperations() throws IOException {

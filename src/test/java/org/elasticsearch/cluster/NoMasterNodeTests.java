@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
-import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 

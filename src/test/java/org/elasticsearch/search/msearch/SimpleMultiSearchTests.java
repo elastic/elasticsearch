@@ -2,16 +2,15 @@ package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SimpleMultiSearchTests extends AbstractSharedClusterTest {
+public class SimpleMultiSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleMultiSearch() {

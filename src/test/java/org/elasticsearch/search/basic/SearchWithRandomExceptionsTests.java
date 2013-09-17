@@ -20,7 +20,6 @@
 package org.elasticsearch.search.basic;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.store.mock.MockDirectoryHelper;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -42,7 +42,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 
-public class SearchWithRandomExceptionsTests extends AbstractSharedClusterTest {
+public class SearchWithRandomExceptionsTests extends AbstractIntegrationTest {
     
     @Test
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {

@@ -24,19 +24,19 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacet;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.geoDistanceFacet;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class GeoDistanceFacetTests extends AbstractSharedClusterTest {
+public class GeoDistanceFacetTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleGeoFacetTests() throws Exception {

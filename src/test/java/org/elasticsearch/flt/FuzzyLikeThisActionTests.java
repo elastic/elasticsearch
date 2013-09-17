@@ -21,19 +21,19 @@ package org.elasticsearch.flt;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class FuzzyLikeThisActionTests extends AbstractSharedClusterTest {
+public class FuzzyLikeThisActionTests extends AbstractIntegrationTest {
 
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252

@@ -34,13 +34,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetTermVectorTests extends AbstractTermVectorTests {
@@ -57,7 +57,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
         ensureYellow();
 
@@ -83,7 +83,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
         ensureYellow();
         // when indexing a field that simply has a question mark, the term
@@ -111,7 +111,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureYellow();
         // when indexing a field that simply has a question mark, the term
         // vectors will be null
@@ -139,7 +139,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
@@ -251,7 +251,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));

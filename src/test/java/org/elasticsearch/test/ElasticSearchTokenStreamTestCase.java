@@ -17,13 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
 
-public class ElasticSearchThreadFilter implements ThreadFilter {
-    @Override
-    public boolean reject(Thread t) {
-        return true;
-    }
+@Listeners({
+        ReproduceInfoPrinter.class
+})
+@ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
+@ThreadLeakScope(Scope.NONE)
+@TimeoutSuite(millis = TimeUnits.HOUR)
+public abstract class ElasticSearchTokenStreamTestCase extends BaseTokenStreamTestCase {
+
 }

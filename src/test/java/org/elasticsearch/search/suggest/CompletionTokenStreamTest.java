@@ -35,7 +35,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ByteTermAttribute;
-import org.elasticsearch.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;

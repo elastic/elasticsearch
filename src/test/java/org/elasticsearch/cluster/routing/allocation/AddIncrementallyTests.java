@@ -1,16 +1,5 @@
 package org.elasticsearch.cluster.routing.allocation;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
-import static org.hamcrest.MatcherAssert.assertThat;
-
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -26,6 +15,17 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Test;
+
+import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
+import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
+import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
+import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
 
 public class AddIncrementallyTests {
     private final ESLogger logger = Loggers.getLogger(AddIncrementallyTests.class);

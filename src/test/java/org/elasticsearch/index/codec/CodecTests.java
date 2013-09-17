@@ -42,14 +42,14 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticSearchLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CodecTests extends ElasticsearchLuceneTestCase {
+public class CodecTests extends ElasticSearchLuceneTestCase {
     
     @Override
     @Before

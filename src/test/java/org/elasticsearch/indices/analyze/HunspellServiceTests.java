@@ -25,10 +25,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,14 +36,9 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class HunspellServiceTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class HunspellServiceTests extends AbstractIntegrationTest {
 
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
-    }
-    
     @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
@@ -53,9 +47,8 @@ public class HunspellServiceTests extends AbstractNodesTests {
                 .put("indices.analysis.hunspell.dictionary.ignore_case", true)
                 .build();
 
-        Node node = startNode("node1", settings);
-
-        HunspellDictionary dictionary = ((InternalNode) node).injector().getInstance(HunspellService.class).getDictionary("en_US");
+        cluster().startNode(settings);
+        HunspellDictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
         Version expectedVersion = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
         assertThat(dictionary.getVersion(), equalTo(expectedVersion));
@@ -72,9 +65,8 @@ public class HunspellServiceTests extends AbstractNodesTests {
                 .put("indices.analysis.hunspell.dictionary.en_US.ignore_case", false)
                 .build();
 
-        Node node = startNode("node1", settings);
-
-        HunspellDictionary dictionary = ((InternalNode) node).injector().getInstance(HunspellService.class).getDictionary("en_US");
+        cluster().startNode(settings);
+        HunspellDictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
         Version expectedVersion = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
         assertThat(dictionary.getVersion(), equalTo(expectedVersion));
@@ -82,7 +74,7 @@ public class HunspellServiceTests extends AbstractNodesTests {
 
 
         // testing that dictionary specific settings override node level settings
-        dictionary = ((InternalNode) node).injector().getInstance(HunspellService.class).getDictionary("en_US_custom");
+        dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US_custom");
         assertThat(dictionary, notNullValue());
         assertThat(dictionary.getVersion(), equalTo(expectedVersion));
         assertThat(dictionary.isIgnoreCase(), equalTo(true));
@@ -94,9 +86,8 @@ public class HunspellServiceTests extends AbstractNodesTests {
                 .put("indices.analysis.hunspell.dictionary.location", getResource("/indices/analyze/conf_dir/hunspell"))
                 .build();
 
-        Node node = startNode("node1", settings);
-
-        HunspellDictionary dictionary = ((InternalNode) node).injector().getInstance(HunspellService.class).getDictionary("en_US");
+        cluster().startNode(settings);
+        HunspellDictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
     }
 

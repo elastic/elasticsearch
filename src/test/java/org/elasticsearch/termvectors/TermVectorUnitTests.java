@@ -28,7 +28,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.ElasticsearchLuceneTestCase;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.action.termvector.TermVectorResponse;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
+import org.elasticsearch.test.ElasticSearchLuceneTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -51,7 +51,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
+public class TermVectorUnitTests extends ElasticSearchLuceneTestCase {
 
     @Test
     public void streamResponse() throws Exception {

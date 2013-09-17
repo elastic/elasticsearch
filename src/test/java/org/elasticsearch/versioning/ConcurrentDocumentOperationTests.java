@@ -1,8 +1,8 @@
 package org.elasticsearch.versioning;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class ConcurrentDocumentOperationTests extends AbstractSharedClusterTest {
+public class ConcurrentDocumentOperationTests extends AbstractIntegrationTest {
 
     @Test
     public void concurrentOperationOnSameDocTest() throws Exception {

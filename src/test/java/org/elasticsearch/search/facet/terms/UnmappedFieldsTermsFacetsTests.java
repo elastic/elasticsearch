@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
+public class UnmappedFieldsTermsFacetsTests extends AbstractIntegrationTest {
 
     @Override
     public Settings getSettings() {

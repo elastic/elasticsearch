@@ -26,14 +26,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchScanScrollingTests extends AbstractSharedClusterTest {
+public class SearchScanScrollingTests extends AbstractIntegrationTest {
     
     public void testRandomized() throws Exception {
         testScroll(between(1, 4), atLeast(100), between(1, 300), getRandom().nextBoolean());

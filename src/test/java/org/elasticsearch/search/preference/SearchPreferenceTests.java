@@ -19,20 +19,20 @@
 
 package org.elasticsearch.search.preference;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.*;
 
-public class SearchPreferenceTests extends AbstractSharedClusterTest {
+public class SearchPreferenceTests extends AbstractIntegrationTest {
 
     @Test // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException {

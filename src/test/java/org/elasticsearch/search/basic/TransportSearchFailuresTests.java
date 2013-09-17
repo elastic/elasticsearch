@@ -19,17 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-
-import java.io.IOException;
-
+import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -41,15 +31,21 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
+import java.io.IOException;
+
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  *
  */
-public class TransportSearchFailuresTests extends AbstractSharedClusterTest {
+public class TransportSearchFailuresTests extends AbstractIntegrationTest {
 
     @Test
     public void testFailedSearchWithWrongQuery() throws Exception {

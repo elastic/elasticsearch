@@ -19,9 +19,9 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class AliasResolveRoutingTests extends AbstractSharedClusterTest {
+public class AliasResolveRoutingTests extends AbstractIntegrationTest {
 
     @Test
     public void testResolveIndexRouting() throws Exception {

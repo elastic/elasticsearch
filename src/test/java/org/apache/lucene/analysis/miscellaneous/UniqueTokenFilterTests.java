@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class UniqueTokenFilterTests extends ElasticsearchTestCase {
+public class UniqueTokenFilterTests extends ElasticSearchTestCase {
 
     @Test
     public void simpleTest() throws IOException {

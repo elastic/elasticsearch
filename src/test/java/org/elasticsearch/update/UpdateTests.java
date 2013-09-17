@@ -28,7 +28,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.*;
 
-public class UpdateTests extends AbstractSharedClusterTest {
+public class UpdateTests extends AbstractIntegrationTest {
 
 
     protected void createIndex() throws Exception {

@@ -2,15 +2,16 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
 
@@ -23,28 +24,20 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SimpleThreadPoolTests extends AbstractNodesTests {
-
-    private Client client1;
-
-    private Client client2;
-
-    private ThreadPool threadPool;
+@ClusterScope(scope=Scope.SUITE, numNodes=2)
+public class SimpleThreadPoolTests extends AbstractIntegrationTest {
 
     @Override
-    protected void beforeClass() {
-        startNode("node1", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
-        startNode("node2", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
-        client1 = client("node1");
-        client2 = client("node2");
-        threadPool = ((InternalNode) node("node1")).injector().getInstance(ThreadPool.class);
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Test(timeout = 20000)
     public void testUpdatingThreadPoolSettings() throws Exception {
+        ThreadPool threadPool = cluster().getInstance(ThreadPool.class);
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(5L));
-        client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.keep_alive", "10m").build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.keep_alive", "10m").build()).execute().actionGet();
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
 
         // Make sure that threads continue executing when executor is replaced
@@ -62,7 +55,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
                 }
             }
         });
-        client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
         assertThat(threadPool.executor(Names.SEARCH), not(sameInstance(oldExecutor)));
         assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
@@ -82,12 +75,12 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
                 }
             }
         });
-        client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
         barrier.await();
         Thread.sleep(200);
 
         // Check that node info is correct
-        NodesInfoResponse nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().all().execute().actionGet();
         for (int i = 0; i < 2; i++) {
             NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
             boolean found = false;

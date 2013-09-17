@@ -26,9 +26,9 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.ElasticSearchTokenStreamTestCase;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 

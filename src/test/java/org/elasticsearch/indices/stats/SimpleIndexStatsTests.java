@@ -23,12 +23,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,22 +41,11 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleIndexStatsTests extends AbstractNodesTests {
-
-    @Override
-    protected void beforeClass() {
-        startNode("node1");
-        startNode("node2");
-    }
-
-    @Override
-    public Client client() {
-        return client("node2");
-    }
+@ClusterScope(scope=Scope.SUITE, numNodes=2)
+public class SimpleIndexStatsTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleStats() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
         client().admin().indices().prepareCreate("test1").execute().actionGet();
         client().admin().indices().prepareCreate("test2").execute().actionGet();

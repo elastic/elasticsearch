@@ -26,7 +26,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -60,6 +59,7 @@ import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class RobinEngineTests extends ElasticsearchTestCase {
+public class RobinEngineTests extends ElasticSearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

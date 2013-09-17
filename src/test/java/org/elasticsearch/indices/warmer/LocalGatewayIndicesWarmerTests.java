@@ -30,7 +30,7 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Test;

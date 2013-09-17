@@ -49,7 +49,7 @@ import static org.junit.Assert.fail;
 /**
  *
  */
-public class ElasticsearchAssertions {
+public class ElasticSearchAssertions {
 
 
     public static void assertAcked(PutMappingRequestBuilder builder) {
@@ -209,15 +209,15 @@ public class ElasticsearchAssertions {
      * matchers
      */
     public static Matcher<SearchHit> hasId(final String id) {
-        return new ElasticsearchMatchers.SearchHitHasIdMatcher(id);
+        return new ElasticSearchMatchers.SearchHitHasIdMatcher(id);
     }
 
     public static Matcher<SearchHit> hasType(final String type) {
-        return new ElasticsearchMatchers.SearchHitHasTypeMatcher(type);
+        return new ElasticSearchMatchers.SearchHitHasTypeMatcher(type);
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {
-        return new ElasticsearchMatchers.SearchHitHasIndexMatcher(index);
+        return new ElasticSearchMatchers.SearchHitHasIndexMatcher(index);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

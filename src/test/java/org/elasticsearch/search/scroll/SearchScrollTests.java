@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SearchScrollTests extends AbstractSharedClusterTest {
+public class SearchScrollTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch() throws Exception {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.hasItem;
 /**
  *
  */
-public class SimplePercolatorTests extends AbstractSharedClusterTest {
+public class SimplePercolatorTests extends AbstractIntegrationTest {
 
     @Test
     public void percolateOnRecreatedIndex() throws Exception {

@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util._TestUtil;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -46,14 +46,14 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 
 /**
  *
  */
-public class SimpleSortTests extends AbstractSharedClusterTest {
+public class SimpleSortTests extends AbstractIntegrationTest {
 
     @Override
     public Settings getSettings() {

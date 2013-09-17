@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plugin;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.rest.helper.HttpClient;
 import org.elasticsearch.rest.helper.HttpClientResponse;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -39,24 +39,25 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * We want to test site plugins
  */
-public class SitePluginTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.SUITE, numNodes=1)
+public class SitePluginTests extends AbstractIntegrationTest {
 
 
-    @Before
-    public void startNodes() throws URISyntaxException {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        try {
         File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/plugin").toURI());
-        startNode("test", settingsBuilder()
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("path.plugins", pluginDir.getAbsolutePath())
-                .build());
-    }
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
+                .build();
+        } catch (URISyntaxException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     public HttpClient httpClient(String id) {
-        HttpServerTransport httpServerTransport = ((InternalNode) node(id)).injector().getInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
         return new HttpClient(httpServerTransport.boundAddress().publishAddress());
     }
 

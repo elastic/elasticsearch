@@ -22,7 +22,6 @@ package org.elasticsearch.percolator;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.AbstractNodesTests;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 
@@ -44,8 +44,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryPercolatorTests extends AbstractNodesTests {

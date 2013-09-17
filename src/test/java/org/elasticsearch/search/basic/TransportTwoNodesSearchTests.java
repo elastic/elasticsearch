@@ -23,7 +23,6 @@ package org.elasticsearch.search.basic;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,13 +52,13 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
+public class TransportTwoNodesSearchTests extends AbstractIntegrationTest {
 
     private Set<String> prepareData() throws Exception {
         Set<String> fullExpectedIds = Sets.newHashSet();

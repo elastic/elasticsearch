@@ -29,7 +29,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -41,13 +41,13 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class SearchFieldsTests extends AbstractSharedClusterTest {
+public class SearchFieldsTests extends AbstractIntegrationTest {
     
     @Override
     public Settings getSettings() {

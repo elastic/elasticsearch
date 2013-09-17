@@ -21,7 +21,6 @@ package org.elasticsearch.recovery;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.junit.annotations.TestLogging;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -43,14 +43,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class RecoveryWhileUnderLoadTests extends AbstractSharedClusterTest {
+public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 

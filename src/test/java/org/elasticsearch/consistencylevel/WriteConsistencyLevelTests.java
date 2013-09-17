@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class WriteConsistencyLevelTests extends AbstractSharedClusterTest {
+public class WriteConsistencyLevelTests extends AbstractIntegrationTest {
 
 
     @Test

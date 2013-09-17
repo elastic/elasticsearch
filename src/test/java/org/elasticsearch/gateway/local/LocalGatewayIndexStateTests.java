@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 

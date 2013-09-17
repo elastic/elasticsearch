@@ -19,15 +19,6 @@
 
 package org.elasticsearch.search.stats;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.util.Set;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -37,12 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
+
+import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SearchStatsTests extends AbstractSharedClusterTest {
+public class SearchStatsTests extends AbstractIntegrationTest {
     
     @Override
     public Settings getSettings() {

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facet;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -43,6 +42,7 @@ import org.elasticsearch.search.facet.terms.TermsFacet.Entry;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
@@ -57,13 +57,13 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class SimpleFacetsTests extends AbstractSharedClusterTest {
+public class SimpleFacetsTests extends AbstractIntegrationTest {
 
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -40,7 +39,8 @@ import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,11 +48,11 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleNestedTests extends AbstractSharedClusterTest {
+public class SimpleNestedTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleNested() throws Exception {
@@ -70,7 +70,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 endObject().
                 endObject().
                 endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", builder));
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", builder));
         ensureGreen();
 
         // check on no data, see it works

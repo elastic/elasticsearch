@@ -47,7 +47,7 @@ import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProv
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionContext;
-import org.elasticsearch.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
+public class CompletionPostingsFormatTest extends ElasticSearchTestCase {
 
     @Test
     public void testCompletionPostingsFormat() throws IOException {

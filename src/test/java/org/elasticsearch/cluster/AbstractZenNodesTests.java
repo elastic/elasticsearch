@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 

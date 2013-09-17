@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.common.regex;
 
-import org.elasticsearch.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.util.Random;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
-public class RegexTests extends ElasticsearchTestCase {
+public class RegexTests extends ElasticSearchTestCase {
 
     @Test
     public void testFlags() {

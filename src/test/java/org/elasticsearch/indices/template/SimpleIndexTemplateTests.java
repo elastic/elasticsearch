@@ -20,13 +20,13 @@
 package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
+public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleIndexTemplateTests() throws Exception {

@@ -22,28 +22,28 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiscoveryTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.SUITE, numNodes=2)
+public class DiscoveryTests extends AbstractIntegrationTest {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put("discovery.zen.multicast.enabled", false)
+                .put("discovery.zen.unicast.hosts", "localhost").put(super.nodeSettings(nodeOrdinal)).build();
+    }
+    
     @Test
     public void testUnicastDiscovery() {
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put("discovery.zen.multicast.enabled", false)
-                .put("discovery.zen.unicast.hosts", "localhost")
-                .build();
-
-        startNode("node1", settings);
-        startNode("node2", settings);
-
-        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
 
-        state = client("node2").admin().cluster().prepareState().execute().actionGet().getState();
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.test;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.AbstractRandomizedTest.IntegrationTests;
@@ -44,7 +44,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 @Ignore
 @IntegrationTests
-public abstract class AbstractNodesTests extends ElasticsearchTestCase {
+public abstract class AbstractNodesTests extends ElasticSearchTestCase {
     private static Map<String, Node> nodes = newHashMap();
 
     private static Map<String, Client> clients = newHashMap();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.get;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -30,12 +29,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class GetActionTests extends AbstractSharedClusterTest {
+public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleGetTests() {

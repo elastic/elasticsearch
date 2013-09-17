@@ -19,20 +19,19 @@
 
 package org.elasticsearch.search.timeout;
 
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.junit.Test;
+
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractSharedClusterTest;
-import org.junit.Test;
 
 /**
  */
-public class SearchTimeoutTests extends AbstractSharedClusterTest {
+public class SearchTimeoutTests extends AbstractIntegrationTest {
     
     @Override
     public Settings getSettings() {

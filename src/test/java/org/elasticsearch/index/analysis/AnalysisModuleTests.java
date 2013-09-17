@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.google.common.base.Charsets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -38,20 +39,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
-import java.io.StringReader;
+import java.io.*;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -35,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -47,13 +47,13 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class SimpleQueryTests extends AbstractSharedClusterTest {
+public class SimpleQueryTests extends AbstractIntegrationTest {
 
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177

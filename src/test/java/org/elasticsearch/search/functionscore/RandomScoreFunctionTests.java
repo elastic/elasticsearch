@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -33,11 +33,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RandomScoreFunctionTests extends AbstractSharedClusterTest {
+public class RandomScoreFunctionTests extends AbstractIntegrationTest {
 
     @Test
     public void consistentHitsWithSameSeed() throws Exception {

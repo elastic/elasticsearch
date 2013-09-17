@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -36,7 +35,8 @@ import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchTests extends AbstractSharedClusterTest {
+public class SuggestSearchTests extends AbstractIntegrationTest {
     @Test // see #3037
     public void testSuggestModes() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
@@ -425,7 +425,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                          .endObject()
                      .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(builder.addMapping("type1", mapping));
+        ElasticSearchAssertions.assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         for (String line: Resources.readLines(SuggestSearchTests.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
@@ -683,7 +683,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         Suggest suggest = searchSuggest(client(), "foobar",
                 termSuggestion("simple")
                         .size(10).minDocFreq(0).field("field1").suggestMode("always"));
-        ElasticsearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
+        ElasticSearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
     }
 
     @Test // see #3469
@@ -736,8 +736,8 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
             .setSuggestText("tetsting sugestion")
             .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+        ElasticSearchAssertions.assertNoFailures(searchResponse);
+        ElasticSearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
     }
 
     @Test // see #3469
@@ -759,7 +759,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                         endObject().
                     endObject().
                 endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").setSettings(settingsBuilder()
+        ElasticSearchAssertions.assertAcked(prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")

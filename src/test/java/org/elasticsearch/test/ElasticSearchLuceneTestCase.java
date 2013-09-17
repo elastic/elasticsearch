@@ -17,13 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -37,7 +34,7 @@ import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @SuppressCodecs("Lucene3x")
-public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
+public abstract class ElasticSearchLuceneTestCase extends LuceneTestCase {
 
     private static final Codec DEFAULT_CODEC = Codec.getDefault();
 

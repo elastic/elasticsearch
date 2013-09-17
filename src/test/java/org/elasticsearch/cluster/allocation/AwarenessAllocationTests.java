@@ -31,8 +31,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -41,14 +42,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class AwarenessAllocationTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class AwarenessAllocationTests extends AbstractIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);
-
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        closeAllNodes();
-    }
 
     @Test
     public void testSimpleAwareness() throws Exception {
@@ -57,19 +54,19 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build();
 
-
+      
         logger.info("--> starting 2 nodes on the same rack");
-        startNode("node1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1"));
-        startNode("node2", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1"));
+        cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build());
+        cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build());
 
-        client("node1").admin().indices().prepareCreate("test1").execute().actionGet();
-        client("node1").admin().indices().prepareCreate("test2").execute().actionGet();
+        client().admin().indices().prepareCreate("test1").execute().actionGet();
+        client().admin().indices().prepareCreate("test2").execute().actionGet();
 
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> starting 1 node on a different rack");
-        startNode("node3", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2"));
+        String node3 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
 
         long start = System.currentTimeMillis();
         TObjectIntHashMap<String> counts;
@@ -77,11 +74,11 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         do {
             Thread.sleep(100);
             logger.info("--> waiting for no relocation");
-            health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
+            health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
             assertThat(health.isTimedOut(), equalTo(false));
 
             logger.info("--> checking current state");
-            ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+            ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
             //System.out.println(clusterState.routingTable().prettyPrint());
             // verify that we have 10 shards on node3
             counts = new TObjectIntHashMap<String>();
@@ -92,8 +89,8 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                     }
                 }
             }
-        } while (counts.get("node3") != 10 && (System.currentTimeMillis() - start) < 10000);
-        assertThat(counts.get("node3"), equalTo(10));
+        } while (counts.get(node3) != 10 && (System.currentTimeMillis() - start) < 10000);
+        assertThat(counts.get(node3), equalTo(10));
     }
     
     @Test
@@ -105,10 +102,10 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                 .build();
 
         logger.info("--> starting 6 nodes on different zones");
-        startNode("A-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
-        startNode("B-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
-        startNode("B-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));       
-        startNode("A-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
+        String A_0 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build());
+        String B_0 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
+        String B_1 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
+        String A_1 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build());
         client().admin().indices().prepareCreate("test")
         .setSettings(settingsBuilder().put("index.number_of_shards", 5)
                 .put("index.number_of_replicas", 1)).execute().actionGet();
@@ -124,10 +121,10 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                 }
             }
         }
-        assertThat(counts.get("A-1"), anyOf(equalTo(2),equalTo(3)));
-        assertThat(counts.get("B-1"), anyOf(equalTo(2),equalTo(3)));
-        assertThat(counts.get("A-0"), anyOf(equalTo(2),equalTo(3)));
-        assertThat(counts.get("B-0"), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get(A_1), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get(B_1), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get(A_0), anyOf(equalTo(2),equalTo(3)));
+        assertThat(counts.get(B_0), anyOf(equalTo(2),equalTo(3)));
     }
     
     @Test
@@ -140,8 +137,8 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
 
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
-        startNode("A-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a"));
-        startNode("B-0", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
+        String A_0 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build());
+        String B_0 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
         client().admin().indices().prepareCreate("test")
         .setSettings(settingsBuilder().put("index.number_of_shards", 5)
                 .put("index.number_of_replicas", 1)).execute().actionGet();
@@ -157,11 +154,11 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                 }
             }
         }
-        assertThat(counts.get("A-0"), equalTo(5));
-        assertThat(counts.get("B-0"), equalTo(5));
+        assertThat(counts.get(A_0), equalTo(5));
+        assertThat(counts.get(B_0), equalTo(5));
         logger.info("--> starting another node in zone 'b'");
 
-        startNode("B-1", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b"));
+        String B_1 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();
@@ -179,9 +176,8 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
                 }
             }
         }
-        assertThat(counts.get("A-0"), equalTo(5));
-        assertThat(counts.get("B-0"), equalTo(3));
-        assertThat(counts.get("B-1"), equalTo(2));
-        
+        assertThat(counts.get(A_0), equalTo(5));
+        assertThat(counts.get(B_0), equalTo(3));
+        assertThat(counts.get(B_1), equalTo(2));
     }
 }

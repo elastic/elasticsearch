@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class UnicastZenPingTests extends ElasticsearchTestCase {
+public class UnicastZenPingTests extends ElasticSearchTestCase {
 
     @Test
     public void testSimplePings() {

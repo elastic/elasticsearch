@@ -20,9 +20,9 @@
 package org.elasticsearch.indices.mapping;
 
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleDeleteMappingTests extends AbstractSharedClusterTest {
+public class SimpleDeleteMappingTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleDeleteMapping() throws Exception {

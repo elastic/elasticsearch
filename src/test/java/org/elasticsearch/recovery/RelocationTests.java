@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 

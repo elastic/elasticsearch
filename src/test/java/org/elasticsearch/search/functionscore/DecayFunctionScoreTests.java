@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -33,7 +32,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
 import org.joda.time.DateTime;
 import org.junit.Test;
 
@@ -47,10 +47,10 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
+public class DecayFunctionScoreTests extends AbstractIntegrationTest {
 
     @Test
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
@@ -450,7 +450,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "2013-05-28", "-1d")))));
 
         SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
+        ElasticSearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
         assertThat(sh.hits().length, equalTo(2));
         assertThat(sh.getAt(0).getId(), equalTo("2"));
@@ -501,7 +501,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                         .add(linearDecayFunction("num2", "0.0", "1")).scoreMode("multiply"))));
 
         SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
+        ElasticSearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
         assertThat(sh.hits().length, equalTo(4));
         double[] scores = new double[4];
@@ -549,7 +549,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                         .scoreMode("multiply"))));
 
         SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
+        ElasticSearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
         assertThat(sh.hits().length, equalTo(3));
         double[] scores = new double[4];
@@ -602,7 +602,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
                                         .scoreMode("multiply").boostMode(CombineFunction.REPLACE.getName()))));
 
         SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
+        ElasticSearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
         assertThat(sh.hits().length, equalTo(numDocs));
         double[] scores = new double[numDocs];

@@ -20,16 +20,15 @@ package org.elasticsearch.mget;
 
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.AbstractSharedClusterTest;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-public class SimpleMgetTests extends AbstractSharedClusterTest {
+public class SimpleMgetTests extends AbstractIntegrationTest {
 
     @Test
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {

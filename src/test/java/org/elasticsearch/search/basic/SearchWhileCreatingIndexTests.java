@@ -20,16 +20,16 @@
 package org.elasticsearch.search.basic;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * This test basically verifies that search with a single shard active (cause we indexed to it) and other
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
-public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
+public class SearchWhileCreatingIndexTests extends AbstractIntegrationTest {
 
     @Test
     @Slow

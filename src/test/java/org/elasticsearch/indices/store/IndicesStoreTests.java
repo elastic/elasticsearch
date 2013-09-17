@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.Test;
 
 import java.io.File;

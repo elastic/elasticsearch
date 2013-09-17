@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
@@ -35,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -44,12 +44,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class GeoDistanceTests extends AbstractSharedClusterTest {
+public class GeoDistanceTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleDistanceTests() throws Exception {

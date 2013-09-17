@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
+package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Function;
@@ -37,14 +37,14 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -56,7 +56,7 @@ import static com.google.common.collect.Maps.newTreeMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
-public class TestCluster {
+public class TestCluster implements Closeable {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -83,14 +83,17 @@ public class TestCluster {
      * fully shared cluster to be more reproducible */
     private final long[] sharedNodesSeeds;
 
+    private final Map<Integer, Settings> perNodeSettingsMap;
+    private static final Map<Integer, Settings> EMPTY = Collections.emptyMap();
     public TestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, clusterName, ImmutableSettings.EMPTY);
+        this(clusterSeed, -1, clusterName, EMPTY);
     }
 
-    private TestCluster(long clusterSeed, String clusterName, Settings defaultSettings) {
+    public TestCluster(long clusterSeed, int numNodes, String clusterName, Map<Integer, Settings> perNodeSettings) {
         this.clusterName = clusterName;
         Random random = new Random(clusterSeed);
-        numSharedNodes = 2 + random.nextInt(4); // at least 2 nodes
+        numSharedNodes = numNodes == -1 ? 2 + random.nextInt(4) : numNodes; // at least 2 nodes if randomized
+        assert numSharedNodes >= 0;
         /*
          *  TODO 
          *  - we might want start some master only nodes?
@@ -102,23 +105,30 @@ public class TestCluster {
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             sharedNodesSeeds[i] = random.nextLong();
         }
-        logger.info("Started TestCluster with seed [{}] using [{}] nodes" , SeedUtils.formatSeed(clusterSeed), numSharedNodes);
-
-        if (defaultSettings.get("gateway.type") == null) {
-            // default to non gateway
-            defaultSettings = settingsBuilder().put(defaultSettings).put("gateway.type", "none").build();
-        }
-        if (defaultSettings.get("cluster.routing.schedule") != null) {
-            // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
-            defaultSettings = settingsBuilder().put(defaultSettings).put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms").build();
-        }
+        logger.info("Setup TestCluster [{}] with seed [{}] using [{}] nodes" , clusterName, SeedUtils.formatSeed(clusterSeed), numSharedNodes);
         this.defaultSettings = ImmutableSettings.settingsBuilder()
                 /* use RAM directories in 10% of the runs */
 //                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
-                .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
-                .put(defaultSettings)
-                .put("cluster.name", clusterName).build();
+                .put("cluster.name", clusterName)
+                // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
+                .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
+                // default to non gateway
+                .put("gateway.type", "none")
+                .build();
+        this.perNodeSettingsMap = perNodeSettings;
+    }
+    
+    private Settings getSettings(int nodeOrdinal, Settings others) {
+        Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings);
+        Settings settings = perNodeSettingsMap.get(nodeOrdinal);
+        if (settings != null) {
+            builder.put(settings);
+        }
+        if (others != null) {
+            builder.put(others);
+        }
+        return builder.build();
     }
     
     public static String clusterName(String prefix, String childVMId, long clusterSeed) {
@@ -183,17 +193,23 @@ public class TestCluster {
             next.close();
         }
     }
+    private NodeAndClient buildNode(Settings settings) {
+        int ord = nextNodeId.getAndIncrement();
+        return buildNode(ord, random.nextLong(), settings);
+    }
     
     private NodeAndClient buildNode() {
-        return buildNode(nextNodeId.getAndIncrement(), random.nextLong());
+        int ord = nextNodeId.getAndIncrement();
+        return buildNode(ord, random.nextLong(), null);
     }
 
-    private NodeAndClient buildNode(int nodeId, long seed) {
+    private NodeAndClient buildNode(int nodeId, long seed, Settings settings) {
         ensureOpen();
+        settings = getSettings(nodeId, settings);
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
-                .put(defaultSettings)
+                .put(settings)
                 .put("name", name)
                 .put("discovery.id.seed", seed)
                 .build();
@@ -209,6 +225,17 @@ public class TestCluster {
         ensureOpen();
         /* Randomly return a client to one of the nodes in the cluster */
         return getOrBuildRandomNode().client();
+    }
+    
+    private synchronized Client masterClient() { // should we expose this?
+        Collection<NodeAndClient> values = nodes.values();
+        for (NodeAndClient nodeAndClient : values) {
+            ClusterService instance = getInstance(ClusterService.class, (InternalNode)nodeAndClient.node());
+            if (instance.state().getNodes().getMasterNode().id().equals(instance.localNode().id())) {
+                return nodeAndClient.client(random);
+            }
+        }
+        return null;
     }
 
     public void close() {
@@ -336,9 +363,7 @@ public class TestCluster {
         }
         logger.debug("Cluster is NOT consistent - restarting shared nodes - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
 
-        if (nodes.size() > 0) {
-            client().admin().cluster().prepareHealth().setWaitForNodes(""+nodes.size()).get();
-        }
+       
         Set<NodeAndClient> sharedNodes = new HashSet<NodeAndClient>();
         boolean changed = false;
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
@@ -346,7 +371,7 @@ public class TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                nodeAndClient = buildNode(i, sharedNodesSeeds[i]);
+                nodeAndClient = buildNode(i, sharedNodesSeeds[i], defaultSettings);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
             }
@@ -354,6 +379,9 @@ public class TestCluster {
         }
         if (!changed && sharedNodes.size() == nodes.size()) {
             logger.debug("Cluster is consistent - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
+            if (numNodes() > 0) {
+                client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
+            }
             return; // we are consistent - return
         }
         for (NodeAndClient nodeAndClient : sharedNodes) {
@@ -372,7 +400,9 @@ public class TestCluster {
         }
         nextNodeId.set(sharedNodesSeeds.length);
         assert numNodes() == sharedNodesSeeds.length;
-        client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
+        if (numNodes()  > 0) {
+            client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
+        }
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
     }
     
@@ -384,7 +414,14 @@ public class TestCluster {
     }
 
     public synchronized ClusterService clusterService() {
-        return ((InternalNode) getOrBuildRandomNode()).injector().getInstance(ClusterService.class);
+        return getInstance(ClusterService.class);
+    }
+    public synchronized <T> T getInstance(Class<T> clazz) {
+        return getInstance(clazz, ((InternalNode) getOrBuildRandomNode()));
+    }
+    
+    private synchronized <T> T getInstance(Class<T> clazz, InternalNode node) {
+        return node.injector().getInstance(clazz);
     }
 
     public synchronized int numNodes() {
@@ -486,5 +523,27 @@ public class TestCluster {
                 return nodeAndClient.name;
             }
         }));
+    }
+    
+    public String startNode() {
+        return startNode(ImmutableSettings.EMPTY);
+    }
+
+    public String startNode(Settings settings) {
+        NodeAndClient buildNode = buildNode(settings);
+        nodes.put(buildNode.name, buildNode);
+        buildNode.node().start();
+        return buildNode.name;
+    }
+    
+    public void resetAllGateways() throws Exception {
+        Collection<NodeAndClient> values = this.nodes.values();
+        for (NodeAndClient nodeAndClient : values) {
+           getInstance(Gateway.class, ((InternalNode) nodeAndClient.node)).reset();
+        }
+    }
+
+    public void closeAllNodesAndReset() {
+        beforeTest(random);
     }
 }

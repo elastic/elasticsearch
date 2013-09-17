@@ -19,17 +19,17 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-public class IgnoreIndicesTests extends AbstractSharedClusterTest {
+public class IgnoreIndicesTests extends AbstractIntegrationTest {
 
 
     @Test

@@ -22,7 +22,7 @@ package org.elasticsearch.recovery;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.AbstractNodesTests;
+import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
 import org.junit.Test;
 

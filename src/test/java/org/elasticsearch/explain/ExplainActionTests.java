@@ -19,11 +19,11 @@
 
 package org.elasticsearch.explain;
 
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ExplainActionTests extends AbstractSharedClusterTest {
+public class ExplainActionTests extends AbstractIntegrationTest {
 
 
     @Test

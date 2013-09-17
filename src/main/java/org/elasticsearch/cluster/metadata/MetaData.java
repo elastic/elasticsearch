@@ -581,7 +581,15 @@ public class MetaData implements Iterable<IndexMetaData> {
         return lst.values[0];
     }
 
+    /**
+     * Converts a list of indices or aliases wildcards, and special +/- signs, into their respective full matches. It
+     * won't convert only to indices, but also to aliases. For example, alias_* will expand to alias_1 and alias_2, not
+     * to the respective indices those aliases point to.
+     */
     public String[] convertFromWildcards(String[] aliasesOrIndices, boolean wildcardOnlyOpen, IgnoreIndices ignoreIndices) {
+        if (aliasesOrIndices == null) {
+            return null;
+        }
         Set<String> result = null;
         for (int i = 0; i < aliasesOrIndices.length; i++) {
             String aliasOrIndex = aliasesOrIndices[i];
@@ -714,6 +722,9 @@ public class MetaData implements Iterable<IndexMetaData> {
      * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.</p>
      */
     public String[] filteringAliases(String index, String... indicesOrAliases) {
+        // expand the aliases wildcard
+        indicesOrAliases = convertFromWildcards(indicesOrAliases, true, IgnoreIndices.MISSING);
+
         if (isAllIndices(indicesOrAliases)) {
             return null;
         }

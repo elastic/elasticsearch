@@ -90,7 +90,7 @@ public class GeoDistanceSortParser implements SortParser {
                 } else if ("normalize".equals(currentName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
-                } else if ("mode".equals(currentName)) {
+                } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     nestedPath = parser.text();

@@ -75,7 +75,7 @@ if [ "x$ES_INCLUDE" = "x" ]; then
                    /usr/local/share/elasticsearch/elasticsearch.in.sh \
                    /opt/elasticsearch/elasticsearch.in.sh \
                    ~/.elasticsearch.in.sh \
-                   `dirname "$0"`/elasticsearch.in.sh; do
+                   "`dirname "$0"`"/elasticsearch.in.sh; do
         if [ -r "$include" ]; then
             . "$include"
             break

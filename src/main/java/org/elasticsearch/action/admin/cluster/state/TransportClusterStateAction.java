@@ -79,9 +79,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     @Override
     protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) throws ElasticSearchException {
         ClusterState currentState = clusterService.state();
-
-        logger.debug("Serving cluster state request using version {}", currentState.version());
-
+        logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = newClusterStateBuilder();
         builder.version(currentState.version());
         if (!request.filterNodes()) {

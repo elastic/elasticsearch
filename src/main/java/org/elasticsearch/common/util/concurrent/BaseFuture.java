@@ -182,9 +182,12 @@ public abstract class BaseFuture<V> implements Future<V> {
 
         // If it's an Error, we want to make sure it reaches the top of the
         // call stack, so we rethrow it.
-        if (throwable instanceof Error) {
-            throw (Error) throwable;
-        }
+
+        // we want to notify the listeners we have with errors as well, as it breaks
+        // how we work in ES in terms of using assertions
+//        if (throwable instanceof Error) {
+//            throw (Error) throwable;
+//        }
         return result;
     }
 

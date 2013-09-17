@@ -3,13 +3,15 @@ package org.elasticsearch.junit.listeners;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.ElasticsearchTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
+
+import java.util.Arrays;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -62,6 +64,12 @@ public class ReproduceInfoPrinter extends RunListener {
             super(b);
         }
 
+        @Override
+        public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
+            super.appendAllOpts(description);
+            return appendESProperties();
+        }
+
         /**
          * Append a single VM option.
          */
@@ -71,5 +79,15 @@ public class ReproduceInfoPrinter extends RunListener {
             }
             return super.appendOpt(sysPropName, value);
         }
+        
+        public ReproduceErrorMessageBuilder appendESProperties() {
+            for (String sysPropName : Arrays.asList(
+                "es.logger.level", "es.node.mode", "es.node.local")) {
+              if (System.getProperty(sysPropName) != null && !System.getProperty(sysPropName).isEmpty()) {
+                appendOpt(sysPropName, System.getProperty(sysPropName));
+              }
+            }
+            return this;
+          }
     }
 }

@@ -142,9 +142,9 @@ The following are options allowed on the filter:
 |=======================================================================
 |Option |Description
 |`distance` |The distance to include hits in the filter. The distance
-can be a numeric value, and then the `unit` (either `mi`/@miles@ or `km`
-can be set) controlling the unit. Or a single string with the unit as
-well.
+can be a numeric value, and then the `unit` (either `mi`, `miles`, `in`, `inch`, `yd`, `yards`, `km`, `kilometers`,
+`mm`, `millimeters`, `cm`, `centimeters`, `m` or `meters` can be set) controlling the unit.
+Or a single string with the unit as well.
 
 |`distance_type` |How to compute the distance. Can either be `arc`
 (better precision) or `plane` (faster). Defaults to `arc`.

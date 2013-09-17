@@ -19,6 +19,7 @@
 
 package org.elasticsearch.aliases;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -42,7 +43,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Set;
@@ -189,6 +189,10 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1");
 
+        logger.info("--> checking single filtering alias wildcard search");
+        searchResponse = client().prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertHits(searchResponse.getHits(), "1");
+
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
@@ -227,6 +231,10 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
 
         logger.info("--> checking index and filtering alias search");
         searchResponse = client().prepareSearch("test", "foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertHits(searchResponse.getHits(), "1", "2", "3", "4");
+
+        logger.info("--> checking index and alias wildcard search");
+        searchResponse = client().prepareSearch("te*", "fo*").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
     }
 
@@ -816,7 +824,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
             client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
-        } catch(ActionRequestValidationException e) {
+        } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
@@ -826,9 +834,9 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
     public void testAddAliasEmptyAliasEmptyIndex() {
         try {
             client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", ""))
-                .execute().actionGet();
+                    .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
-        } catch(ActionRequestValidationException e) {
+        } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
@@ -864,7 +872,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
             client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
-        } catch(ActionRequestValidationException e) {
+        } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
@@ -876,7 +884,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
             client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", ""))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
-        } catch(ActionRequestValidationException e) {
+        } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }

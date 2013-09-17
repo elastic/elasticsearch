@@ -146,7 +146,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
             src.endObject();
             builders[i] = client().prepareIndex("test", "type", docId).setSource(src);
         }
-        indexRandom("test", true, builders);
+        indexRandom(true, builders);
         {
             int size = between(1, denseBytes.size());
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(size)

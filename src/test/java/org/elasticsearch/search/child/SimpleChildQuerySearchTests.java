@@ -463,7 +463,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
             }
             assertThat(parentToChildren.get(previousParentId).add(childId), is(true));
         }
-        indexRandom("test", true, builders.toArray(new IndexRequestBuilder[0]));
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[0]));
 
         assertThat(parentToChildren.isEmpty(), equalTo(false));
         for (Map.Entry<String, Set<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
@@ -1031,7 +1031,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        indexRandom("test", false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
+        indexRandom(false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
         refresh();
 
         SearchResponse response = client()
@@ -1178,7 +1178,7 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        indexRandom("test", false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
+        indexRandom(false, createDocBuilders().toArray(new IndexRequestBuilder[0]));
         refresh();
         SearchResponse response = client()
                 .prepareSearch("test")

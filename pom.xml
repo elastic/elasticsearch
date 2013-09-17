@@ -31,7 +31,7 @@
 
     <properties>
         <lucene.version>4.4.0</lucene.version>
-        <tests.jvms>auto</tests.jvms>
+        <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <es.logger.level>INFO</es.logger.level>

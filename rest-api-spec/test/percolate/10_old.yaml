@@ -1,7 +1,7 @@
 ---
 "Basic percolation tests":
   - skip:
-      version:  "0.90.3 - 999"
+      version:  "0.90.9 - 999"
       reason:   "Percolator redesign"
 
   - do:

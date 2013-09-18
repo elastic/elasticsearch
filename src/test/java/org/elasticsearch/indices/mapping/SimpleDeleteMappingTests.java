@@ -19,17 +19,14 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -45,8 +42,7 @@ public class SimpleDeleteMappingTests extends AbstractSharedClusterTest {
                     .endObject()).execute().actionGet();
         }
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        ensureGreen();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {

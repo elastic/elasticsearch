@@ -327,9 +327,12 @@ public class TestCluster {
     public synchronized void beforeTest(Random random) {
         this.random = new Random(random.nextLong());
         resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
-        if (nextNodeId.get() == sharedNodesSeeds.length) {
+        if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
+            logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
             return;
         }
+        logger.debug("Cluster is NOT consistent - restarting shared nodes - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
+
         if (nodes.size() > 0) {
             client().admin().cluster().prepareHealth().setWaitForNodes(""+nodes.size()).get();
         }
@@ -342,10 +345,12 @@ public class TestCluster {
                 changed = true;
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i]);
                 nodeAndClient.node.start();
+                logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
             }
             sharedNodes.add(nodeAndClient);
         }
         if (!changed && sharedNodes.size() == nodes.size()) {
+            logger.debug("Cluster is consistent - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
             return; // we are consistent - return
         }
         for (NodeAndClient nodeAndClient : sharedNodes) {
@@ -355,6 +360,7 @@ public class TestCluster {
         // trash the remaining nodes
         final Collection<NodeAndClient> toShutDown = nodes.values();
         for (NodeAndClient nodeAndClient : toShutDown) {
+            logger.debug("Close Node [{}] not shared", nodeAndClient.name);
             nodeAndClient.close();
         }
         nodes.clear();
@@ -364,6 +370,7 @@ public class TestCluster {
         nextNodeId.set(sharedNodesSeeds.length);
         assert numNodes() == sharedNodesSeeds.length;
         client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
+        logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
     }
     
     private void resetClients() {

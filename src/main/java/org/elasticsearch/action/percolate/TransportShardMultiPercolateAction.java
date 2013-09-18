@@ -103,12 +103,12 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             int slot = item.slot;
             try {
                 responseItem = new Response.Item(slot, percolatorService.percolate(item.request));
-            } catch (Throwable e) {
-                logger.debug("[{}][{}] failed to multi percolate", e, request.index(), request.shardId());
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    throw new ElasticSearchException("", e);
+            } catch (Throwable t) {
+                if (TransportActions.isShardNotAvailableException(t)) {
+                    throw (ElasticSearchException) t;
                 } else {
-                    responseItem = new Response.Item(slot, new StringText(ExceptionsHelper.detailedMessage(e)));
+                    logger.debug("[{}][{}] failed to multi percolate", t, request.index(), request.shardId());
+                    responseItem = new Response.Item(slot, new StringText(ExceptionsHelper.detailedMessage(t)));
                 }
             }
             response.items.add(responseItem);

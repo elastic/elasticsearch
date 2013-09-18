@@ -1,9 +1,40 @@
 Test Suite:
 ===========
 
-The tests in each YAML file should be run in order as a single set of dependent tests.
-Before each file, the test cluster should be "reset" (eg deleting indices etc),
-the `response` var and the `stash` should be cleared (see below).
+A YAML test file consists of:
+* an optional `setup` section, followed by
+* one or more test sections
+
+For instance:
+
+    setup:
+      - do: ....
+      - do: ....
+
+    ---
+    "First test":
+      - do: ...
+      - match: ...
+
+    ---
+    "Second test":
+      - do: ...
+      - match: ...
+
+
+A `setup` section contains a list of commands to run before each test
+section in order to setup the same environment for each test section.
+
+A test section represents an independent test, containing multiple `do`
+statements and assertions. The contents of a test section must be run in
+order, but individual test sections may be run in any order, as follows:
+
+1. run `setup` (if any)
+2. reset the `response` var and the `stash` (see below)
+2. run test contents
+3. run teardown
+
+The `teardown` should delete all indices and all templates.
 
 Dot notation:
 -------------
@@ -26,8 +57,9 @@ in the `indices.get_settings` API.
 
 Skipping tests:
 ---------------
-If any tests should be skipped on particular versions of Elasticsearch, there
-should be an entry called `skip` containing the range of versions to be
+If a test section should only be run on certain versions of Elasticsearch,
+then the first entry in the section (after the title) should be called
+`skip`, and should contain the range of versions to be
 skipped, and the reason why the tests are skipped.  For instance:
 
 ....

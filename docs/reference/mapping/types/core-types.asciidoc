@@ -3,7 +3,7 @@
 
 Each JSON field can be mapped to a specific core type. JSON itself
 already provides us with some typing, with its support for `string`,
-`integer`/@long@, `float`/@double@, `boolean`, and `null`.
+`integer`/`long`, `float`/`double`, `boolean`, and `null`.
 
 The following sample tweet JSON document will be used to explain the
 core types:

@@ -21,8 +21,6 @@ package org.elasticsearch.aliases;
 
 import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
@@ -69,12 +67,8 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-//        
+        ensureGreen();
+//
 //        try {
 //            logger.info("--> indexing against [alias1], should fail");
 //            client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
@@ -94,11 +88,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test_x")).actionGet();
 
-        logger.info("--> running cluster_health");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
         client().admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
@@ -117,11 +107,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         try {
             logger.info("--> aliasing index [test] with [alias1] and filter [t]");
@@ -140,11 +126,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
         FilterBuilder filter = termFilter("user", "kimchy");
@@ -166,11 +148,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test]");
         client().admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
@@ -249,11 +227,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test2]");
         client().admin().indices().create(createIndexRequest("test2")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
         client().admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
@@ -319,11 +293,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         client().admin().indices().create(createIndexRequest("test2")).actionGet();
         client().admin().indices().create(createIndexRequest("test3")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> adding aliases to indices");
         client().admin().indices().prepareAliases().addAlias("test1", "alias12").execute().actionGet();
@@ -389,11 +359,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test2]");
         client().admin().indices().create(createIndexRequest("test2")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
         client().admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
@@ -455,11 +421,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
@@ -476,11 +438,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
@@ -497,11 +455,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         ExecutorService executor = Executors.newFixedThreadPool(aliasCount);
         for (int i = 0; i < aliasCount; i++) {
@@ -530,11 +484,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> creating alias1 ");
         assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet().isAcknowledged(), equalTo(true));
@@ -598,11 +548,7 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
                 .setSettings(indexSettings)
                 .execute().actionGet();
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
         client().admin().indices().prepareAliases()

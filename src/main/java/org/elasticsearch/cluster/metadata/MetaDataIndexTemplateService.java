@@ -78,6 +78,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     }
                 }
                 if (templateNames.isEmpty()) {
+                    // if its a match all pattern, and no templates are found (we have none), don't
+                    // fail with index missing...
+                    if (Regex.isMatchAllPattern(request.name)) {
+                        return currentState;
+                    }
                     throw new IndexTemplateMissingException(request.name);
                 }
                 MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData());

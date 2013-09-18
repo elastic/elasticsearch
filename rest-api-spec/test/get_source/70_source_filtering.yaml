@@ -9,7 +9,7 @@
         index:  test_1
         type:   test
         id:     1
-        body:   { "include": { "field1" : "v1", "field2": "v2" }, "count": 1 }
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
 
   - do:
       get_source: { index:  test_1, type: test, id: 1, include: include.field1 }

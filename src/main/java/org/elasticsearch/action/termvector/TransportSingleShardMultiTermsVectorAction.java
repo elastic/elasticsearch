@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -101,9 +102,13 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
                 TermVectorResponse termVectorResponse = indexShard.termVectorService().getTermVector(termVectorRequest);
                 response.add(request.locations.get(i), termVectorResponse);
             } catch (Throwable t) {
-                logger.debug("[{}][{}] failed to execute multi term vectors for [{}]/[{}]", t, request.index(), shardId, termVectorRequest.type(), termVectorRequest.id());
-                response.add(request.locations.get(i),
-                        new MultiTermVectorsResponse.Failure(request.index(), termVectorRequest.type(), termVectorRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                if (TransportActions.isShardNotAvailableException(t)) {
+                    throw (ElasticSearchException) t;
+                } else {
+                    logger.debug("[{}][{}] failed to execute multi term vectors for [{}]/[{}]", t, request.index(), shardId, termVectorRequest.type(), termVectorRequest.id());
+                    response.add(request.locations.get(i),
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorRequest.type(), termVectorRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                }
             }
         }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -56,6 +57,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -78,6 +80,52 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
 
     protected int numberOfRuns() {
         return 5;
+    }
+
+    @Test
+    public void testSimpleFacetEmptyFacetFilter() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("tag", "green")
+                .endObject()).execute().actionGet();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setSearchType(SearchType.COUNT)
+                .setFacets(new BytesArray(
+                        "{\"facet1\":{\"filter\":{ }}}").array())
+                .get();
+
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().hits().length, equalTo(0));
+        FilterFacet facet = searchResponse.getFacets().facet("facet1");
+        assertThat(facet.getName(), equalTo("facet1"));
+        assertThat(facet.getCount(), equalTo(0l));
+    }
+
+    @Test
+    public void testSimpleFacetEmptyFilterFacet() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("tag", "green")
+                .endObject()).execute().actionGet();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setSearchType(SearchType.COUNT)
+                .setFacets(new BytesArray(
+                        "{\"facet1\":{\"terms\":{\"field\":\"tag\"},\"facet_filter\":{ }}}").array())
+                .get();
+
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().hits().length, equalTo(0));
+        TermsFacet facet = searchResponse.getFacets().facet("facet1");
+        assertThat(facet.getName(), equalTo("facet1"));
+        assertThat(facet.getEntries().size(), equalTo(1));
+        assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("green"));
+        assertThat(facet.getEntries().get(0).getCount(), equalTo(1));
     }
 
     @Test

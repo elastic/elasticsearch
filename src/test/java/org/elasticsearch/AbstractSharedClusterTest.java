@@ -253,7 +253,10 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     public ClusterHealthStatus ensureGreen() {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
-        assertThat(actionGet.isTimedOut(), equalTo(false));
+        if (actionGet.isTimedOut()) {
+            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat(actionGet.isTimedOut(), equalTo(false));
+        }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         return actionGet.getStatus();
     }
@@ -269,7 +272,10 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         }
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(request).actionGet();
-        assertThat(actionGet.isTimedOut(), equalTo(false));
+        if (actionGet.isTimedOut()) {
+            logger.info("waitForRelocation timed out (status={}), cluster state:\n{}\n{}", status, client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat(actionGet.isTimedOut(), equalTo(false));
+        }
         if (status != null) {
             assertThat(actionGet.getStatus(), equalTo(status));
         }
@@ -279,7 +285,10 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     public ClusterHealthStatus ensureYellow() {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
-        assertThat(actionGet.isTimedOut(), equalTo(false));
+        if (actionGet.isTimedOut()) {
+            logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat(actionGet.isTimedOut(), equalTo(false));
+        }
         return actionGet.getStatus();
     }
 

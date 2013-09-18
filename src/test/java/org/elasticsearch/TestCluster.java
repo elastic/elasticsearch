@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
-import org.elasticsearch.index.store.mock.MockRamIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
@@ -113,7 +112,8 @@ public class TestCluster {
         }
         this.defaultSettings = ImmutableSettings.settingsBuilder()
                 /* use RAM directories in 10% of the runs */
-                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
+//                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
+                .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
                 .put(defaultSettings)
                 .put("cluster.name", clusterName).build();
     }
@@ -363,6 +363,7 @@ public class TestCluster {
         }
         nextNodeId.set(sharedNodesSeeds.length);
         assert numNodes() == sharedNodesSeeds.length;
+        client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
     }
     
     private void resetClients() {

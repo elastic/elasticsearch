@@ -214,11 +214,6 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -234,6 +229,7 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .setSize(35)
                 .setScroll(TimeValue.timeValueMinutes(2))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 
@@ -241,6 +237,7 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .setSize(35)
                 .setScroll(TimeValue.timeValueMinutes(2))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 
@@ -302,11 +299,6 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleScrollQueryThenFetch_clearAllScrollIds() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -322,6 +314,7 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .setSize(35)
                 .setScroll(TimeValue.timeValueMinutes(2))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 
@@ -329,6 +322,7 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .setSize(35)
                 .setScroll(TimeValue.timeValueMinutes(2))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 

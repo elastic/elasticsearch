@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.child;
 
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -1107,54 +1107,54 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
     List<IndexRequestBuilder> createDocBuilders() {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
         // Parent 1 and its children
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("parent").setId("1").setIndex("test").setSource("p_field", "p_value1"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("1").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("1").setIndex("test").setSource("p_field", "p_value1"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("1").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 0).setParent("1"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("2").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("2").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 0).setParent("1"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("3").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("3").setIndex("test")
                 .setSource("c_field1", 2, "c_field2", 0).setParent("1"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("4").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("4").setIndex("test")
                 .setSource("c_field1", 2, "c_field2", 0).setParent("1"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("5").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("5").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("1"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("6").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("6").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2).setParent("1"));
 
         // Parent 2 and its children
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("parent").setId("2").setIndex("test").setSource("p_field", "p_value2"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("7").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("2").setIndex("test").setSource("p_field", "p_value2"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("7").setIndex("test")
                 .setSource("c_field1", 3, "c_field2", 0).setParent("2"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("8").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("8").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("9").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("9").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("p")); // why
                                                                           // "p"????
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("10").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("10").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("11").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("11").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1).setParent("2"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("12").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("12").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2).setParent("2"));
 
         // Parent 3 and its children
 
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("parent").setId("3").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("3").setIndex("test")
                 .setSource("p_field1", "p_value3", "p_field2", 5));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("13").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("13").setIndex("test")
                 .setSource("c_field1", 4, "c_field2", 0, "c_field3", 0).setParent("3"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("14").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("14").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 1, "c_field3", 1).setParent("3"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("15").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("15").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 2).setParent("3")); // why
                                                                                          // "p"????
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("16").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("16").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 3).setParent("3"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("17").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("17").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 4).setParent("3"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child").setId("18").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child").setId("18").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 5).setParent("3"));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("child1").setId("1").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("child1").setId("1").setIndex("test")
                 .setSource("c_field1", 1, "c_field2", 2, "c_field3", 6).setParent("3"));
 
         return indexBuilders;

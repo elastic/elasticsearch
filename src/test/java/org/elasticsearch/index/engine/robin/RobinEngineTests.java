@@ -26,6 +26,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
@@ -56,11 +58,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.fs.FsTranslog;
-import org.elasticsearch.ElasticsearchTestCase;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
-import org.elasticsearch.index.engine.EngineSearcherTotalHitsMatcher;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -318,11 +317,12 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.source().source.toBytesArray(), equalTo(B_1.toBytesArray()));
         assertThat(getResult.docIdAndVersion(), nullValue());
-
+        getResult.release();
+        
         // but, not there non realtime
         getResult = engine.get(new Engine.Get(false, newUid("1")));
         assertThat(getResult.exists(), equalTo(false));
-
+        getResult.release();
         // refresh and it should be there
         engine.refresh(new Engine.Refresh().force(false));
 
@@ -336,7 +336,8 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         getResult = engine.get(new Engine.Get(false, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.docIdAndVersion(), notNullValue());
-
+        getResult.release();
+        
         // now do an update
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
@@ -356,7 +357,8 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.source().source.toBytesArray(), equalTo(B_2.toBytesArray()));
         assertThat(getResult.docIdAndVersion(), nullValue());
-
+        getResult.release();
+        
         // refresh and it should be updated
         engine.refresh(new Engine.Refresh().force(false));
 
@@ -379,7 +381,8 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         // but, get should not see it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(false));
-
+        getResult.release();
+        
         // refresh and it should be deleted
         engine.refresh(new Engine.Refresh().force(false));
 
@@ -420,7 +423,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         assertThat(getResult.exists(), equalTo(true));
         assertThat(getResult.source(), nullValue());
         assertThat(getResult.docIdAndVersion(), notNullValue());
-
+        getResult.release();
 
         // make sure we can still work with the engine
         // now do an update

@@ -116,6 +116,7 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDeleteIndexTemplate() throws Exception {
+        final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size();
         logger.info("--> put template_1 and template_2");
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -136,8 +137,10 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
 
         logger.info("--> explicitly delete template_1");
         admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(1));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(1+existingTemplates));
         assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_2"), equalTo(true));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_1"), equalTo(false));
+
 
         logger.info("--> put template_1 back");
         client().admin().indices().preparePutTemplate("template_1")
@@ -151,7 +154,7 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
 
         logger.info("--> delete template*");
         admin().indices().prepareDeleteTemplate("template*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(existingTemplates));
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
         admin().indices().prepareDeleteTemplate("*").execute().actionGet();
@@ -224,7 +227,7 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
 
         logger.info("--> get all templates");
-        getTemplate1Response = client().admin().indices().prepareGetTemplates().execute().actionGet();
+        getTemplate1Response = client().admin().indices().prepareGetTemplates("template*").execute().actionGet();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(3));
 
         templateNames = Lists.newArrayList();

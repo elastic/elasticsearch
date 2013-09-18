@@ -22,8 +22,8 @@ package org.elasticsearch.index.store.mock;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.store.*;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ElasticsearchTestCase;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +44,6 @@ import java.util.Set;
 public class MockDirectoryHelper {
     public static final String RANDOM_IO_EXCEPTION_RATE = "index.store.mock.random.io_exception_rate";
     public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "index.store.mock.random.io_exception_rate_on_open";
-    public static final String RANDOM_SEED = "index.store.mock.random.seed";
     public static final String RANDOM_THROTTLE = "index.store.mock.random.throttle";
     public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
     public static final Set<MockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
@@ -59,9 +58,7 @@ public class MockDirectoryHelper {
     public MockDirectoryHelper(ShardId shardId, Settings indexSettings, ESLogger logger) {
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
         randomIOExceptionRateOnOpen = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0.0d);
-        final Long currentSeed = AbstractRandomizedTest.getCurrentSeed();
-        assert currentSeed != null;
-        final long seed = indexSettings.getAsLong(RANDOM_SEED, currentSeed);
+        final long seed = indexSettings.getAsLong(ElasticsearchTestCase.INDEX_SEED_SETTING, 0l);
         random = new Random(seed);
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = Throttling.valueOf(indexSettings.get(RANDOM_THROTTLE, random.nextDouble() < 0.1 ? "SOMETIMES" : "NEVER"));

@@ -61,14 +61,14 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
-        indexBuilders.add(new IndexRequestBuilder(client())
+        indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 10).field("lon", 20).endObject()
                                 .endObject()));
-        indexBuilders.add(new IndexRequestBuilder(client())
+        indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("2")
                 .setIndex("test")
@@ -78,7 +78,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         int numDummyDocs = 20;
         for (int i = 1; i <= numDummyDocs; i++) {
-            indexBuilders.add(new IndexRequestBuilder(client())
+            indexBuilders.add(client().prepareIndex()
                     .setType("type1")
                     .setId(Integer.toString(i + 3))
                     .setIndex("test")
@@ -163,15 +163,15 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
 
         // add tw docs within offset
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId("1").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("type1").setId("1").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject()));
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId("2").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("type1").setId("2").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.7).endObject()));
 
         // add docs outside offset
         int numDummyDocs = 20;
         for (int i = 0; i < numDummyDocs; i++) {
-            indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId(Integer.toString(i + 3)).setIndex("test")
+            indexBuilders.add(client().prepareIndex().setType("type1").setId(Integer.toString(i + 3)).setIndex("test")
                     .setSource(jsonBuilder().startObject().field("test", "value").field("num", 3.0 + i).endObject()));
         }
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
@@ -242,14 +242,14 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
-        indexBuilders.add(new IndexRequestBuilder(client())
+        indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21).endObject()
                                 .endObject()));
-        indexBuilders.add(new IndexRequestBuilder(client())
+        indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("2")
                 .setIndex("test")
@@ -300,7 +300,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
-        indexBuilders.add(new IndexRequestBuilder(client())
+        indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("1")
                 .setIndex("test")
@@ -346,7 +346,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
-        indexBuilders.add(new IndexRequestBuilder(client()).setType("type1").setId("1").setIndex("test")
+        indexBuilders.add(client().prepareIndex().setType("type1").setId("1").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()));
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
 
@@ -579,7 +579,7 @@ public class DecayFunctionScoreTests extends AbstractSharedClusterTest {
             String dayString = day < 10 ? "0" + Integer.toString(day) : Integer.toString(day);
             String date = "2013-05-" + dayString;
 
-            indexBuilders.add(new IndexRequestBuilder(client())
+            indexBuilders.add(client().prepareIndex()
                     .setType("type")
                     .setId(Integer.toString(i))
                     .setIndex("test")

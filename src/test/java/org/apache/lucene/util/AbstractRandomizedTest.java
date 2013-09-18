@@ -19,7 +19,10 @@
 
 package org.apache.lucene.util;
 
-import com.carrotsearch.randomizedtesting.*;
+import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
+import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
@@ -59,7 +62,6 @@ import java.util.logging.Logger;
 // NOTE: this class is in o.a.lucene.util since it uses some classes that are related
 // to the test framework that didn't make sense to copy but are package private access
 public abstract class AbstractRandomizedTest extends RandomizedTest {
-
     /**
      * Annotation for integration tests
      */
@@ -305,7 +307,6 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @Before
     public void setUp() throws Exception {
         parentChainCallRule.setupCalled = true;
-        currentSeed = SeedUtils.parseSeed(getContext().getRunnerSeedAsString());
     }
 
     /**
@@ -314,7 +315,6 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @After
     public void tearDown() throws Exception {
         parentChainCallRule.teardownCalled = true;
-        currentSeed = null;
     }
 
 
@@ -354,11 +354,5 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
-    }
-
-    private static volatile Long currentSeed;
-
-    public static Long getCurrentSeed() {
-        return currentSeed;
     }
 }

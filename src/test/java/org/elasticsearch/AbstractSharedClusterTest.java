@@ -102,11 +102,12 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         cluster.beforeTest(getRandom());
         wipeIndices();
         wipeTemplates();
+        logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
     }
 
     @After
     public void after() throws IOException {
-        logger.info("Cleaning up after test.");
+        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
                 .persistentSettings().getAsMap().size(), equalTo(0));
@@ -115,6 +116,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         wipeIndices(); // wipe after to make sure we fail in the test that didn't ack the delete
         wipeTemplates();
         ensureAllFilesClosed();
+        logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
     }
 
     public static TestCluster cluster() {
@@ -416,7 +418,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                     }
                 }
             }
-            
+
         } else {
             logger.info("Index [{}] docs async: [{}]", list.size(), false);
             for (IndexRequestBuilder indexRequestBuilder : list) {
@@ -440,17 +442,17 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIgnoreIndices(IgnoreIndices.MISSING).execute().get());
         }
     }
-    
+
     private static final CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);
         return l;
     }
-    
+
     private static class LatchedActionListener<Response> implements ActionListener<Response> {
         private final CountDownLatch latch;
         private final CopyOnWriteArrayList<Throwable> errors;
-        
+
         public LatchedActionListener(CountDownLatch latch, CopyOnWriteArrayList<Throwable> errors) {
             this.latch = latch;
             this.errors = errors;
@@ -464,12 +466,12 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         @Override
         public void onFailure(Throwable e) {
             try {
-            errors.add(e);
+                errors.add(e);
             } finally {
-            latch.countDown();
+                latch.countDown();
             }
         }
-        
+
     }
 
     public void clearScroll(String... scrollIds) {

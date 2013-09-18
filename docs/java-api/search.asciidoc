@@ -87,7 +87,7 @@ a single different thread for all local shards. The `THREAD_PER_SHARD`
 mode means that the search operation will be executed on a different
 thread for each local shard.
 
-The default mode is `SINGLE_THREAD`.
+The default mode is `THREAD_PER_SHARD`.
 
 
 === MultiSearch API

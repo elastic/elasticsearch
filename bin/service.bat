@@ -7,7 +7,7 @@ set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 rem Detect JVM version to figure out appropriate executable to use
-%JAVA_HOME%\bin\java -version 2>&1 | find "64-Bit" >nul:
+"%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
 
 if errorlevel 1 (
     set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe

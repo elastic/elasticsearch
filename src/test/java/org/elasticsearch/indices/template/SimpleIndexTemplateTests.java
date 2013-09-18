@@ -20,13 +20,13 @@
 package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -151,6 +151,10 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
 
         logger.info("--> delete template*");
         admin().indices().prepareDeleteTemplate("template*").execute().actionGet();
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
+
+        logger.info("--> delete * with no templates, make sure we don't get a failure");
+        admin().indices().prepareDeleteTemplate("*").execute().actionGet();
         assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
     }
 

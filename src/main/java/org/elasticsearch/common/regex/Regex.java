@@ -29,11 +29,10 @@ import java.util.regex.Pattern;
  *
  */
 public class Regex {
-    
+
     /**
      * This Regex / {@link Pattern} flag is supported from Java 7 on.
      * If set on a Java6 JVM the flag will be ignored.
-     * 
      */
     public static final int UNICODE_CHARACTER_CLASS = 0x100; // supported in JAVA7
 
@@ -42,6 +41,10 @@ public class Regex {
      */
     public static boolean isSimpleMatchPattern(String str) {
         return str.indexOf('*') != -1;
+    }
+
+    public static boolean isMatchAllPattern(String str) {
+        return str.equals("*");
     }
 
     /**
@@ -166,7 +169,7 @@ public class Regex {
         }
         if ((flags & Pattern.COMMENTS) != 0) {
             sb.append("COMMENTS|");
-        } 
+        }
         if ((flags & UNICODE_CHARACTER_CLASS) != 0) {
             sb.append("UNICODE_CHAR_CLASS|");
         }

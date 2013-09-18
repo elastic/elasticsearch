@@ -66,10 +66,7 @@ public class SearchWhileRelocatingTests extends AbstractSharedClusterTest {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            indexBuilders.add(new IndexRequestBuilder(client())
-                    .setType("type")
-                    .setId(Integer.toString(i))
-                    .setIndex("test")
+            indexBuilders.add(client().prepareIndex("test", "type", Integer.toString(i))
                     .setSource(
                             jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21)
                                     .endObject().endObject()));

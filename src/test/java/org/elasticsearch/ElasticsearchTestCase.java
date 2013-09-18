@@ -29,12 +29,14 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.store.mock.MockDirectoryHelper;
 import org.elasticsearch.junit.listeners.LoggingListener;
+import org.elasticsearch.test.engine.MockRobinEngine;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -49,6 +51,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
     
     public static final long SHARED_CLUSTER_SEED = clusterSeed();
+    public static final String INDEX_SEED_SETTING = "index.tests.seed";
     
     private static long clusterSeed() {
         String property = System.getProperty("tests.cluster_seed");
@@ -111,6 +114,24 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
     }
     
+    public static void ensureAllSearchersClosed() {
+        if (MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            return;
+        }
+        try {
+            RuntimeException ex = null;
+            StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
+            for (Entry<MockRobinEngine.AssertingSearcher, RuntimeException> entry : MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                ex = entry.getValue();
+                builder.append(entry.getKey().shardId()).append(",");
+            }
+            builder.append("]");
+            throw new RuntimeException(builder.toString(), ex);
+        } finally {
+            MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+        }
+    }
+    
     public static void forceClearMockWrappers() {
         MockDirectoryHelper.wrappers.clear();
     }
@@ -131,6 +152,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             @Override
             public void close() throws IOException {
                 ensureAllFilesClosed();
+            }
+        });
+        
+        closeAfterSuite(new Closeable() {
+            @Override
+            public void close() throws IOException {
+                ensureAllSearchersClosed();
             }
         });
     }

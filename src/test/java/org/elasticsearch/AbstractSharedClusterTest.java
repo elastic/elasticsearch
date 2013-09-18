@@ -103,6 +103,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         cluster.beforeTest(getRandom());
         wipeIndices();
         wipeTemplates();
+        randomIndexTemplate();
         logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
     }
 
@@ -116,6 +117,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .persistentSettings().getAsMap().size(), equalTo(0));
         wipeIndices(); // wipe after to make sure we fail in the test that didn't ack the delete
         wipeTemplates();
+        ensureAllSearchersClosed();
         ensureAllFilesClosed();
         logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
     }
@@ -134,6 +136,15 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public static Client client() {
         return cluster().client();
+    }
+    
+    private static void randomIndexTemplate() {
+        client().admin().indices().preparePutTemplate("random_index_template")
+        .setTemplate("*")
+        .setOrder(0)
+        .setSettings(ImmutableSettings.builder()
+                .put(INDEX_SEED_SETTING, getRandom().nextLong()))
+                .execute().actionGet();
     }
 
     public static Iterable<Client> clients() {

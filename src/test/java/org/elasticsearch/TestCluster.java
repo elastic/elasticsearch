@@ -40,9 +40,11 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -114,6 +116,7 @@ public class TestCluster {
                 /* use RAM directories in 10% of the runs */
 //                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
+                .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
                 .put(defaultSettings)
                 .put("cluster.name", clusterName).build();
     }

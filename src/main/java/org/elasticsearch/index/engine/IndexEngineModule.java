@@ -36,6 +36,7 @@ public class IndexEngineModule extends AbstractModule implements SpawnModules {
 
     public static final class EngineSettings {
         public static final String ENGINE_TYPE = "index.engine.type";
+        public static final String INDEX_ENGINE_TYPE = "index.index_engine.type";
         public static final Class<? extends Module> DEFAULT_INDEX_ENGINE = RobinIndexEngineModule.class;
         public static final Class<? extends Module> DEFAULT_ENGINE = RobinEngineModule.class;
     }
@@ -48,7 +49,7 @@ public class IndexEngineModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(createModule(settings.getAsClass(EngineSettings.ENGINE_TYPE, EngineSettings.DEFAULT_INDEX_ENGINE, "org.elasticsearch.index.engine.", "IndexEngineModule"), settings));
+        return ImmutableList.of(createModule(settings.getAsClass(EngineSettings.INDEX_ENGINE_TYPE, EngineSettings.DEFAULT_INDEX_ENGINE, "org.elasticsearch.index.engine.", "IndexEngineModule"), settings));
     }
 
     @Override

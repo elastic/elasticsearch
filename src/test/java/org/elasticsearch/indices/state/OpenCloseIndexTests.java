@@ -182,8 +182,6 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         //we now set the timeout to 0, which means not wait for acknowledgement from other nodes
         closeIndexResponse = client().admin().indices().prepareClose("test1").setTimeout(TimeValue.timeValueMillis(0)).execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
-        //the cluster state is up-to-date for sure only on the master
-        assertIndexIsClosed("test1");
     }
 
     private void assertIndexIsOpened(String... indices) {

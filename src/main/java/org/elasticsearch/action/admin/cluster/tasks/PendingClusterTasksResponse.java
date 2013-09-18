@@ -23,6 +23,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +35,7 @@ import java.util.List;
 
 /**
  */
-public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask> {
+public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContent {
 
     private List<PendingClusterTask> pendingTasks;
 
@@ -56,6 +60,55 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
     @Override
     public Iterator<PendingClusterTask> iterator() {
         return pendingTasks.iterator();
+    }
+
+    public String prettyPrint() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("tasks: (").append(pendingTasks.size()).append("):\n");
+        for (PendingClusterTask pendingClusterTask : this) {
+            sb.append(pendingClusterTask.getInsertOrder()).append("/").append(pendingClusterTask.getPriority()).append("/").append(pendingClusterTask.getSource()).append("/").append(pendingClusterTask.getTimeInQueue()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray(Fields.TASKS);
+        for (PendingClusterTask pendingClusterTask : this) {
+            builder.startObject();
+            builder.field(Fields.INSERT_ORDER, pendingClusterTask.insertOrder());
+            builder.field(Fields.PRIORITY, pendingClusterTask.priority());
+            builder.field(Fields.SOURCE, pendingClusterTask.source());
+            builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.timeInQueueInMillis());
+            builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
+            builder.endObject();
+        }
+        builder.endArray();
+        return builder;
+    }
+
+    static final class Fields {
+
+        static final XContentBuilderString TASKS = new XContentBuilderString("tasks");
+        static final XContentBuilderString INSERT_ORDER = new XContentBuilderString("insert_order");
+        static final XContentBuilderString PRIORITY = new XContentBuilderString("proirity");
+        static final XContentBuilderString SOURCE = new XContentBuilderString("source");
+        static final XContentBuilderString TIME_IN_QUEUE_MILLIS = new XContentBuilderString("time_in_queue_millis");
+        static final XContentBuilderString TIME_IN_QUEUE = new XContentBuilderString("time_in_queue");
+
     }
 
     @Override

@@ -212,6 +212,14 @@ public class ClusterState implements ToXContent {
         return this;
     }
 
+    public String prettyPrint() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(nodes().prettyPrint());
+        sb.append(routingTable().prettyPrint());
+        sb.append(readOnlyRoutingNodes().prettyPrint());
+        return sb.toString();
+    }
+
     @Override
     public String toString() {
         try {

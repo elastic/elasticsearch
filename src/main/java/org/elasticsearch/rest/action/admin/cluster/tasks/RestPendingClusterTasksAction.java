@@ -23,11 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -53,17 +51,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.startArray(Fields.TASKS);
-                    for (PendingClusterTask pendingClusterTask : response) {
-                        builder.startObject();
-                        builder.field(Fields.INSERT_ORDER, pendingClusterTask.insertOrder());
-                        builder.field(Fields.PRIORITY, pendingClusterTask.priority());
-                        builder.field(Fields.SOURCE, pendingClusterTask.source());
-                        builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.timeInQueueInMillis());
-                        builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
-                        builder.endObject();
-                    }
-                    builder.endArray();
+                    response.toXContent(builder, request);
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
@@ -82,16 +70,5 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
                 }
             }
         });
-    }
-
-    static final class Fields {
-
-        static final XContentBuilderString TASKS = new XContentBuilderString("tasks");
-        static final XContentBuilderString INSERT_ORDER = new XContentBuilderString("insert_order");
-        static final XContentBuilderString PRIORITY = new XContentBuilderString("proirity");
-        static final XContentBuilderString SOURCE = new XContentBuilderString("source");
-        static final XContentBuilderString TIME_IN_QUEUE_MILLIS = new XContentBuilderString("time_in_queue_millis");
-        static final XContentBuilderString TIME_IN_QUEUE = new XContentBuilderString("time_in_queue");
-
     }
 }

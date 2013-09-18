@@ -13,6 +13,8 @@ public class ParsedFilter {
     private final ImmutableMap<String, Filter> namedFilters;
 
     public ParsedFilter(Filter filter, ImmutableMap<String, Filter> namedFilters) {
+        assert filter != null;
+        assert namedFilters != null;
         this.filter = filter;
         this.namedFilters = namedFilters;
     }

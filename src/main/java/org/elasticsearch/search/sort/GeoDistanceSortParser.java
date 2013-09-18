@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -73,7 +74,8 @@ public class GeoDistanceSortParser implements SortParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    nestedFilter = context.queryParserService().parseInnerFilter(parser).filter();
+                    ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
+                    nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
                 } else {
                     fieldName = currentName;
                     GeoPoint.parse(parser, point);

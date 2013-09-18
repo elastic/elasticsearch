@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
@@ -177,6 +178,12 @@ public class OpenCloseIndexTests extends AbstractSharedClusterTest {
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test1").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsOpenedOnAllNodes("test1");
+
+        //we now set the timeout to 0, which means not wait for acknowledgement from other nodes
+        closeIndexResponse = client().admin().indices().prepareClose("test1").setTimeout(TimeValue.timeValueMillis(0)).execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
+        //the cluster state is up-to-date for sure only on the master
+        assertIndexIsClosed("test1");
     }
 
     private void assertIndexIsOpened(String... indices) {

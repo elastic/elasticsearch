@@ -19,8 +19,7 @@
 
 package org.elasticsearch.get;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.AbstractSharedClusterTest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -31,10 +30,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.AbstractSharedClusterTest;
 import org.junit.Test;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 
@@ -45,9 +42,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
@@ -138,9 +133,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
         }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         MultiGetResponse response = client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));
@@ -189,9 +182,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject())
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 10000; i++) {
@@ -225,9 +216,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
                         .endObject().endObject())
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(
                 jsonBuilder().startObject()
@@ -318,9 +307,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));

@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -124,9 +125,13 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
             try {
                 GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), version, versionType, fetchSourceContext);
                 response.add(request.locations.get(i), new GetResponse(getResult));
-            } catch (Exception e) {
-                logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", e, request.index(), shardId, type, id);
-                response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(e)));
+            } catch (Throwable t) {
+                if (TransportActions.isShardNotAvailableException(t)) {
+                    throw (ElasticSearchException) t;
+                } else {
+                    logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", t, request.index(), shardId, type, id);
+                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(t)));
+                }
             }
         }
 

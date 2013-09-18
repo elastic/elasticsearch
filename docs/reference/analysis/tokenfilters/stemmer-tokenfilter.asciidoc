@@ -2,7 +2,7 @@
 === Stemmer Token Filter
 
 A filter that stems words (similar to `snowball`, but with more
-options). The `language`/@name@ parameter controls the stemmer with the
+options). The `language`/`name` parameter controls the stemmer with the
 following available values:
 
 http://lucene.apache.org/core/4_3_0/analyzers-common/index.html?org%2Fapache%2Flucene%2Fanalysis%2Far%2FArabicStemmer.html[arabic],

@@ -64,7 +64,7 @@ of these classes. |`[]` (Keep all characters)
 [float]
 ==== `side` deprecated
 
-There used to be a @side@ parameter up to `0.90.1` but it is now deprecated. In 
+There used to be a `side` parameter up to `0.90.1` but it is now deprecated. In
 order to emulate the behavior of `"side" : "BACK"` a 
 <<analysis-reverse-tokenfilter,`reverse` token filter>>  should be used together 
 with the <<analysis-edgengram-tokenfilter,`edgeNGram` token filter>>. The 

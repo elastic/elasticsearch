@@ -38,7 +38,7 @@ specifies the desired precision and Elasticsearch will calculate the
 best tree_levels value to honor this precision. The value should be a
 number followed by an optional distance unit. Valid distance units
 include: `in`, `inch`, `yd`, `yard`, `mi`, `miles`, `km`, `kilometers`,
-`m`,@meters@ (default), `cm`,@centimeters@, `mm`, `millimeters`.
+`m`,`meters` (default), `cm`,`centimeters`, `mm`, `millimeters`.
 
 |`tree_levels` |Maximum number of layers to be used by the PrefixTree.
 This can be used to control the precision of shape representations and

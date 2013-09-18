@@ -255,7 +255,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            assertThat(actionGet.isTimedOut(), equalTo(false));
+            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         return actionGet.getStatus();
@@ -274,7 +274,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .health(request).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("waitForRelocation timed out (status={}), cluster state:\n{}\n{}", status, client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            assertThat(actionGet.isTimedOut(), equalTo(false));
+            assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
         }
         if (status != null) {
             assertThat(actionGet.getStatus(), equalTo(status));
@@ -287,7 +287,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .health(Requests.clusterHealthRequest().waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            assertThat(actionGet.isTimedOut(), equalTo(false));
+            assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
         }
         return actionGet.getStatus();
     }

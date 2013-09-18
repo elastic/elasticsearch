@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -134,7 +135,8 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             byte[] filterSource = filter.uncompressed();
             XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource);
             try {
-                return indexQueryParser.parseInnerFilter(parser).filter();
+                ParsedFilter parsedFilter = indexQueryParser.parseInnerFilter(parser);
+                return parsedFilter == null ? null : parsedFilter.filter();
             } finally {
                 parser.close();
             }

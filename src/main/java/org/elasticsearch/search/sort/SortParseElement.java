@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
@@ -161,7 +162,8 @@ public class SortParseElement implements SearchParseElement {
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
-                                    nestedFilter = context.queryParserService().parseInnerFilter(parser).filter();
+                                    ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
+                                    nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
                                 } else {
                                     throw new ElasticSearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }

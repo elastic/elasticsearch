@@ -141,6 +141,18 @@ public class IndexAliasesTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testEmptyFilter() throws Exception {
+        logger.info("--> creating index [test]");
+        createIndex("test");
+        ensureGreen();
+
+        logger.info("--> aliasing index [test] with [alias1] and empty filter");
+        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias1", "{}").get();
+        //just checking that the empty doesn't lead to issues
+        assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
+    }
+
+    @Test
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         // delete all indices
         client().admin().indices().prepareDelete().execute().actionGet();

@@ -593,7 +593,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public Engine.Searcher acquireSearcher() {
         readAllowed();
-        return engine.searcher();
+        return engine.acquireSearcher();
     }
 
     public void close(String reason) {

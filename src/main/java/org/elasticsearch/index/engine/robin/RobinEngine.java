@@ -329,7 +329,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            Searcher searcher = searcher();
+            Searcher searcher = acquireSearcher();
             try {
                 List<AtomicReaderContext> readers = searcher.reader().leaves();
                 for (int i = 0; i < readers.size(); i++) {
@@ -732,7 +732,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
-    public final Searcher searcher() throws EngineException {
+    public final Searcher acquireSearcher() throws EngineException {
         SearcherManager manager = this.searcherManager;
         try {
             IndexSearcher searcher = manager.acquire();
@@ -1184,7 +1184,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Map<String, Segment> segments = new HashMap<String, Segment>();
 
             // first, go over and compute the search ones...
-            Searcher searcher = searcher();
+            Searcher searcher = acquireSearcher();
             try {
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
@@ -1335,7 +1335,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private long loadCurrentVersionFromIndex(Term uid) {
-        Searcher searcher = searcher();
+        final Searcher searcher = acquireSearcher();
         try {
             List<AtomicReaderContext> readers = searcher.reader().leaves();
             for (int i = 0; i < readers.size(); i++) {
@@ -1539,7 +1539,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // fresh index writer, just do on all of it
                         newSearcher = searcher;
                     } else {
-                        currentSearcher = searcher();
+                        currentSearcher = acquireSearcher();
                         // figure out the newSearcher, with only the new readers that are relevant for us
                         List<IndexReader> readers = Lists.newArrayList();
                         for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {

@@ -268,7 +268,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 return;
             }
             documentMapper.refreshSource();
-            logger.debug("Sending mapping updated to master: index [{}] type [{}]", request.index(), request.type());
+            logger.trace("Sending mapping updated to master: index [{}] type [{}]", request.index(), request.type());
             mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override
                 public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {

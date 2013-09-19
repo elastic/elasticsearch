@@ -533,9 +533,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
-    void handleNewClusterStateFromMaster(final ClusterState newState) {
+    void handleNewClusterStateFromMaster(final ClusterState newState, final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
         if (master) {
-            clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (newState.version() > currentState.version()) {
@@ -554,14 +554,21 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    newStateProcessed.onNewClusterStateProcessed();
+                }
+
+                @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    newStateProcessed.onNewClusterStateFailed(t);
                 }
 
             });
         } else {
             if (newState.nodes().localNode() == null) {
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newState.nodes().masterNode());
+                newStateProcessed.onNewClusterStateFailed(new ElasticSearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
                 if (currentJoinThread != null) {
                     logger.debug("got a new state from master node, though we are already trying to rejoin the cluster");
@@ -612,11 +619,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     @Override
                     public void onFailure(String source, Throwable t) {
                         logger.error("unexpected failure during [{}]", t, source);
+                        newStateProcessed.onNewClusterStateFailed(t);
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
+                        newStateProcessed.onNewClusterStateProcessed();
                     }
                 });
             }
@@ -775,9 +784,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private class NewClusterStateListener implements PublishClusterStateAction.NewClusterStateListener {
+
         @Override
-        public void onNewClusterState(ClusterState clusterState) {
-            handleNewClusterStateFromMaster(clusterState);
+        public void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed) {
+            handleNewClusterStateFromMaster(clusterState, newStateProcessed);
         }
     }
 

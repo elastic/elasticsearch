@@ -25,12 +25,10 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.FilterAtomicReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -205,7 +203,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
-    private class CompletionFieldsProducer extends FieldsProducer {
+    private static class CompletionFieldsProducer extends FieldsProducer {
 
         private FieldsProducer delegateProducer;
         private LookupFactory lookupFactory;
@@ -266,6 +264,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
         @Override
         public int size() {
             return delegateProducer.size();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.sizeOf(lookupFactory) + delegateProducer.ramBytesUsed();
         }
     }
 

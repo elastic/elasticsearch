@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -65,7 +66,7 @@ public class UidField extends Field {
             if (termsEnum == null) {
                 return null;
             }
-            if (!termsEnum.seekExact(term.bytes(), true)) {
+            if (!termsEnum.seekExact(term.bytes())) {
                 return null;
             }
             DocsAndPositionsEnum uid = termsEnum.docsAndPositions(context.reader().getLiveDocs(), null, DocsAndPositionsEnum.FLAG_PAYLOADS);
@@ -107,7 +108,7 @@ public class UidField extends Field {
             if (termsEnum == null) {
                 return -1;
             }
-            if (!termsEnum.seekExact(term.bytes(), true)) {
+            if (!termsEnum.seekExact(term.bytes())) {
                 return -1;
             }
             DocsAndPositionsEnum uid = termsEnum.docsAndPositions(context.reader().getLiveDocs(), null, DocsAndPositionsEnum.FLAG_PAYLOADS);
@@ -184,6 +185,8 @@ public class UidField extends Field {
 
         private final PayloadAttribute payloadAttribute = addAttribute(PayloadAttribute.class);
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+        private final PositionIncrementAttribute positionIncrementAttr = addAttribute(PositionIncrementAttribute.class);
+        
 
         private final UidField field;
 
@@ -197,12 +200,14 @@ public class UidField extends Field {
         public void reset() throws IOException {
             added = false;
         }
+        
 
         @Override
         public final boolean incrementToken() throws IOException {
             if (added) {
                 return false;
             }
+            positionIncrementAttr.setPositionIncrement(1); // always set it to 1 since TokenStream#end() will set it to 0 for holes
             termAtt.setLength(0);
             termAtt.append(field.uid);
             payloadAttribute.setPayload(new BytesRef(Numbers.longToBytes(field.version())));

@@ -22,9 +22,9 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
+import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.XAppendingPackedLongBuffer;
-import org.apache.lucene.util.packed.XMonotonicAppendingLongBuffer;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 
 /**
@@ -55,14 +55,14 @@ public class MultiOrdinals implements Ordinals {
 
     private final boolean multiValued;
     private final long numOrds;
-    private final XMonotonicAppendingLongBuffer endOffsets;
-    private final XAppendingPackedLongBuffer ords;
+    private final MonotonicAppendingLongBuffer endOffsets;
+    private final AppendingPackedLongBuffer ords;
 
     public MultiOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         multiValued = builder.getNumMultiValuesDocs() > 0;
         numOrds = builder.getNumOrds();
-        endOffsets = new XMonotonicAppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
-        ords = new XAppendingPackedLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        endOffsets = new MonotonicAppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        ords = new AppendingPackedLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
         long lastEndOffset = 0;
         for (int i = 0; i < builder.maxDoc(); ++i) {
             final LongsRef docOrds = builder.docOrds(i);
@@ -120,8 +120,8 @@ public class MultiOrdinals implements Ordinals {
     static class MultiDocs implements Ordinals.Docs {
 
         private final MultiOrdinals ordinals;
-        private final XMonotonicAppendingLongBuffer endOffsets;
-        private final XAppendingPackedLongBuffer ords;
+        private final MonotonicAppendingLongBuffer endOffsets;
+        private final AppendingPackedLongBuffer ords;
         private final LongsRef longsScratch;
         private final MultiIter iter;
 
@@ -198,10 +198,10 @@ public class MultiOrdinals implements Ordinals {
 
     static class MultiIter implements Iter {
 
-        final XAppendingPackedLongBuffer ordinals;
+        final AppendingPackedLongBuffer ordinals;
         long offset, endOffset;
 
-        MultiIter(XAppendingPackedLongBuffer ordinals) {
+        MultiIter(AppendingPackedLongBuffer ordinals) {
             this.ordinals = ordinals;
         }
 

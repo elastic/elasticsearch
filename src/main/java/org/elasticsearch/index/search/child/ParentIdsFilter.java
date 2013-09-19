@@ -75,7 +75,7 @@ final class ParentIdsFilter extends Filter {
             idSpare.bytes = ((HashedBytesArray) keys[i]).toBytes();
             idSpare.length = idSpare.bytes.length;
             Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
-            if (termsEnum.seekExact(uidSpare, false)) {
+            if (termsEnum.seekExact(uidSpare)) {
                 int docId;
                 docsEnum = termsEnum.docs(acceptDocs, docsEnum, DocsEnum.FLAG_NONE);
                 if (result == null) {

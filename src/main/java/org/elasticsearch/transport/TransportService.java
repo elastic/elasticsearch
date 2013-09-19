@@ -174,7 +174,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
         if (node == null) {
             throw new ElasticSearchIllegalStateException("can't send request to a null node");
         }
@@ -190,24 +190,29 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
-            clientHandlers.remove(requestId);
+            final RequestHolder holderToNotify = clientHandlers.remove(requestId);
             if (timeoutHandler != null) {
                 timeoutHandler.future.cancel(false);
             }
+
+            // If holderToNotify == null then handler has already been taken care of.
+            if (holderToNotify != null) {
+                // callback that an exception happened, but on a different thread since we don't
+                // want handlers to worry about stack overflows
+                final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        holderToNotify.handler().handleException(sendRequestException);
+                    }
+                });
+            }
+
             if (throwConnectException) {
                 if (e instanceof ConnectTransportException) {
                     throw (ConnectTransportException) e;
                 }
             }
-            // callback that an exception happened, but on a different thread since we don't
-            // want handlers to worry about stack overflows
-            final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    handler.handleException(sendRequestException);
-                }
-            });
         }
     }
 

@@ -7,6 +7,10 @@ set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 rem Detect JVM version to figure out appropriate executable to use
+if not exist "%JAVA_HOME%\bin\java.exe" (
+echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Existing...
+goto finally
+)
 "%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
 
 if errorlevel 1 (
@@ -92,11 +96,24 @@ echo The service '%SERVICE_ID%' has been removed
 goto finally
 
 :doInstall
-echo Installing service      :  '%SERVICE_ID%'
-echo Using JAVA_HOME (%ARCH%):  %JAVA_HOME%
+echo Installing service      :  "%SERVICE_ID%"
+echo Using JAVA_HOME (%ARCH%):  "%JAVA_HOME%"
 
+rem Check JVM server dll first
 set JVM_DLL=%JAVA_HOME%\jre\bin\server\jvm.dll
 
+if exist %JVM_DLL% goto foundJVM
+
+set JVM_DLL=%JAVA_HOME%\bin\client\jvm.dll
+
+if exist %JVM_DLL% (
+echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
+) else (
+echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Existing...
+goto finally
+)
+
+:foundJVM
 if "%ES_MIN_MEM%" == "" (
 set ES_MIN_MEM=256m
 )

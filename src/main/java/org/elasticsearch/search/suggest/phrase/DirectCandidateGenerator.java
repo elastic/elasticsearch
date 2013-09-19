@@ -97,7 +97,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
 
     public long internalFrequency(BytesRef term) throws IOException {
-        if (termsEnum.seekExact(term, true)) {
+        if (termsEnum.seekExact(term)) {
             return useTotalTermFrequency ? termsEnum.totalTermFreq() : termsEnum.docFreq(); 
         }
         return 0;

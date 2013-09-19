@@ -79,7 +79,7 @@ public class DfsPhase implements SearchPhase {
             IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();
             for (int i = 0; i < terms.length; i++) {
                 // LUCENE 4 UPGRADE: cache TermContext?
-                TermContext termContext = TermContext.build(indexReaderContext, terms[i], false);
+                TermContext termContext = TermContext.build(indexReaderContext, terms[i]);
                 termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
             }
 

@@ -21,13 +21,17 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.*;
+import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.OrFilter;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;

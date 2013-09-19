@@ -27,6 +27,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 
 import java.io.IOException;
@@ -180,6 +181,11 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return delegateFieldsProducer.getUniqueTermCount();
         }
 
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.sizeOf(this);
+        }
+
       
     }
     
@@ -303,7 +309,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public final boolean seekExact(BytesRef text, boolean useCache)
+        public final boolean seekExact(BytesRef text)
                 throws IOException {
             // The magical fail-fast speed up that is the entire point of all of
             // this code - save a disk seek if there is a match on an in-memory
@@ -313,13 +319,13 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             if (!filter.mightContain(text)) {
                 return false;
             }
-            return getDelegate().seekExact(text, useCache);
+            return getDelegate().seekExact(text);
         }
 
         @Override
-        public final SeekStatus seekCeil(BytesRef text, boolean useCache)
+        public final SeekStatus seekCeil(BytesRef text)
                 throws IOException {
-            return getDelegate().seekCeil(text, useCache);
+            return getDelegate().seekCeil(text);
         }
 
         @Override

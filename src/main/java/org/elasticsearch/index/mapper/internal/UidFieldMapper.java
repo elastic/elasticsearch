@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -169,8 +170,10 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
                 assert uidField != null;
                 // we need to go over the docs and add it...
                 for (int i = 1; i < context.docs().size(); i++) {
-                    // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Defaults.NESTED_FIELD_TYPE));
+                    final Document doc = context.docs().get(i);
+                    doc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Defaults.NESTED_FIELD_TYPE));
+                    // If we don't set a value on all documents, Lucene will write a BitSet to know which documents have a value
+                    doc.add(new NumericDocValuesField(UidFieldMapper.VERSION, 0L));
                 }
             }
         }

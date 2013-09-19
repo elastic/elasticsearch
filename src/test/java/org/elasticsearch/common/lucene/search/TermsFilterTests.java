@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.store.Directory;
@@ -56,7 +57,7 @@ public class TermsFilterTests {
                 w.commit();
             }
         }
-        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(w, true));
+        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(w, true));
         w.close();
 
         TermFilter tf = new TermFilter(new Term(fieldName, "19"));
@@ -92,7 +93,7 @@ public class TermsFilterTests {
                 w.commit();
             }
         }
-        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(w, true));
+        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(w, true));
         w.close();
 
         TermsFilter tf = new TermsFilter(new Term[]{new Term(fieldName, "19")});

@@ -42,7 +42,7 @@ public class XBooleanFilterLuceneTests {
         addDoc(writer, "admin", "020", "20050101", "Maybe");
         addDoc(writer, "admin guest", "030", "20050101", "N");
         writer.close();
-        reader = new SlowCompositeReaderWrapper(DirectoryReader.open(directory));
+        reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(directory));
         writer.close();
     }
 

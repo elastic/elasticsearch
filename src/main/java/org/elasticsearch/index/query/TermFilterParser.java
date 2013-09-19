@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;

@@ -22,10 +22,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BoostingQuery;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.*;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
@@ -2227,8 +2224,8 @@ public class SimpleIndexQueryParserTests extends ElasticSearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
-        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), nullValue());
-        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("2"));
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
     }
 
     @Test
@@ -2238,8 +2235,8 @@ public class SimpleIndexQueryParserTests extends ElasticSearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
-        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), equalTo("50%"));
-        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("5<20%"));
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo("50%"));
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("5<20%"));
     }
 
     @Test
@@ -2249,8 +2246,8 @@ public class SimpleIndexQueryParserTests extends ElasticSearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
-        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), nullValue());
-        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("2"));
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
     }
 
     @Test(expected = QueryParsingException.class)

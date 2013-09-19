@@ -53,7 +53,7 @@ public abstract class AbstractFieldDataTests extends ElasticSearchTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(writer, true));
+        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(writer, true));
         readerContext = reader.getContext();
         return readerContext;
     }

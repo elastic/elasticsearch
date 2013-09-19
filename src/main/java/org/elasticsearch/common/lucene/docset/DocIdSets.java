@@ -25,21 +25,13 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.OpenBitSetIterator;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
 /**
  */
 public class DocIdSets {
-
-    static {
-        // TODO when upgrading to Lucene 4.5. Lucene's CachingWrapperFilter now doesn't use FixedBitSet all the time in favor of
-        // more memory-efficient implementations. Maybe we should do the same in toCacheable?
-        assert Version.LUCENE_44.onOrAfter(Lucene.VERSION);
-    }
 
     public static long sizeInBytes(DocIdSet docIdSet) {
         if (docIdSet instanceof FixedBitSet) {
@@ -95,6 +87,7 @@ public class DocIdSets {
         if (set instanceof FixedBitSet) {
             return set;
         }
+        // TODO: should we use WAH8DocIdSet like Lucene?
         FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
         do {
             fixedBitSet.set(doc);

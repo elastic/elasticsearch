@@ -87,6 +87,7 @@ public final class CompletionTokenStream extends TokenStream {
 
     @Override
     public void end() throws IOException {
+        super.end();
         if (posInc == -1) {
             input.end();
         }

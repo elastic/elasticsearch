@@ -24,6 +24,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
@@ -131,6 +132,10 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
                     return versionValues;
                 }
                 return super.getNumericDocValues(field);
+            }
+            @Override
+            public Bits getDocsWithField(String field) throws IOException {
+                return new Bits.MatchAllBits(in.maxDoc());
             }
         };
     }

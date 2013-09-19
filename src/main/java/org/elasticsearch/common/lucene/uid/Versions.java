@@ -19,9 +19,8 @@
 
 package org.elasticsearch.common.lucene.uid;
 
-import org.apache.lucene.util.Bits;
-
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -91,8 +90,7 @@ public class Versions {
         final Terms terms = reader.terms(UidFieldMapper.NAME);
         assert terms != null : "All segments must have a _uid field, but " + reader + " doesn't";
         final TermsEnum termsEnum = terms.iterator(null);
-        final boolean useCache = false; // avoid high cache churn
-        if (!termsEnum.seekExact(term.bytes(), useCache)) {
+        if (!termsEnum.seekExact(term.bytes())) {
             return null;
         }
 

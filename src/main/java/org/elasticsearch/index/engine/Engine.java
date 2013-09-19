@@ -81,7 +81,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     GetResult get(Get get) throws EngineException;
 
-    Searcher searcher() throws EngineException;
+    /**
+     * Retruns a new searcher instance. The consumer of this
+     * API is responsible for releasing the returned seacher in a
+     * safe manner, preferrablly in a try/finally block.
+     * 
+     * @see Searcher#release()
+     */
+    Searcher acquireSearcher() throws EngineException;
 
     List<Segment> segments();
 

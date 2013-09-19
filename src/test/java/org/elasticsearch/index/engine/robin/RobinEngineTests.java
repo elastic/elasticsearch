@@ -299,7 +299,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleOperations() throws Exception {
-        Engine.Searcher searchResult = engine.searcher();
+        Engine.Searcher searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.release();
 
@@ -310,7 +310,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.release();
@@ -330,7 +330,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.refresh(new Engine.Refresh().force(false));
 
         // now its there...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.release();
@@ -349,7 +349,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
@@ -365,7 +365,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         // refresh and it should be updated
         engine.refresh(new Engine.Refresh().force(false));
 
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
@@ -375,7 +375,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
 
         // its not deleted yet
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
@@ -389,7 +389,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         // refresh and it should be deleted
         engine.refresh(new Engine.Refresh().force(false));
 
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
@@ -402,7 +402,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
@@ -412,7 +412,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.refresh(new Engine.Refresh().force(false));
 
         // now its there...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
@@ -436,7 +436,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
@@ -445,7 +445,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         // refresh and it should be updated
         engine.refresh(new Engine.Refresh().force(false));
 
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
@@ -456,7 +456,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSearchResultRelease() throws Exception {
-        Engine.Searcher searchResult = engine.searcher();
+        Engine.Searcher searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.release();
 
@@ -465,7 +465,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.release();
@@ -474,7 +474,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         engine.refresh(new Engine.Refresh().force(false));
 
         // now its there...
-        searchResult = engine.searcher();
+        searchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         // don't release the search result yet...
@@ -482,7 +482,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         // delete, refresh and do a new search, it should not be there
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
         engine.refresh(new Engine.Refresh().force(false));
-        Engine.Searcher updateSearchResult = engine.searcher();
+        Engine.Searcher updateSearchResult = engine.acquireSearcher();
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         updateSearchResult.release();
 

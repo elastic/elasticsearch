@@ -29,12 +29,15 @@ import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -42,12 +45,22 @@ import java.util.Map;
 public class PublishClusterStateAction extends AbstractComponent {
 
     public static interface NewClusterStateListener {
-        void onNewClusterState(ClusterState clusterState);
+
+        static interface NewStateProcessed {
+
+            void onNewClusterStateProcessed();
+
+            void onNewClusterStateFailed(Throwable t);
+        }
+
+        void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed);
     }
 
     private final TransportService transportService;
     private final DiscoveryNodesProvider nodesProvider;
     private final NewClusterStateListener listener;
+
+    private final TimeValue publishTimeout;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
                                      NewClusterStateListener listener) {
@@ -55,6 +68,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
+
+        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(5));
 
         transportService.registerHandler(PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequestHandler());
     }
@@ -67,9 +82,12 @@ public class PublishClusterStateAction extends AbstractComponent {
         DiscoveryNode localNode = nodesProvider.nodes().localNode();
 
         Map<Version, BytesReference> serializedStates = Maps.newHashMap();
+
+        final CountDownLatch latch = new CountDownLatch(clusterState.nodes().size());
         for (final DiscoveryNode node : clusterState.nodes()) {
             if (node.equals(localNode)) {
                 // no need to send to our self
+                latch.countDown();
                 continue;
             }
             // try and serialize the cluster state once (or per version), so we don't serialize it
@@ -84,21 +102,49 @@ public class PublishClusterStateAction extends AbstractComponent {
                     stream.close();
                     bytes = bStream.bytes();
                     serializedStates.put(node.version(), bytes);
-                } catch (Exception e) {
-                    logger.warn("failed to serialize cluster_state before publishing it to nodes", e);
-                    return;
+                } catch (Throwable e) {
+                    logger.warn("failed to serialize cluster_state before publishing it to node {}", e, node);
+                    latch.countDown();
+                    continue;
                 }
             }
-            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
-                    new PublishClusterStateRequest(bytes, node.version()),
-                    TransportRequestOptions.options().withHighType().withCompress(false), // no need to compress, we already compressed the bytes
+            try {
+                TransportRequestOptions options = TransportRequestOptions.options().withHighType().withCompress(false);
+                // no need to put a timeout on the options here, because we want the response to eventually be received
+                // and not log an error if it arrives after the timeout
+                transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
+                        new PublishClusterStateRequest(bytes, node.version()),
+                        options, // no need to compress, we already compressed the bytes
 
-                    new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                        @Override
-                        public void handleException(TransportException exp) {
-                            logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
-                        }
-                    });
+                        new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+
+                            @Override
+                            public void handleResponse(TransportResponse.Empty response) {
+                                latch.countDown();
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                logger.debug("failed to send cluster state to [{}]", exp, node);
+                                latch.countDown();
+                            }
+                        });
+            } catch (Throwable t) {
+                latch.countDown();
+            }
+        }
+
+        if (publishTimeout.millis() > 0) {
+            // only wait if the publish timeout is configured...
+            try {
+                boolean awaited = latch.await(publishTimeout.millis(), TimeUnit.MILLISECONDS);
+                if (!awaited) {
+                    logger.debug("awaiting all nodes to process published state {} timed out, timeout {}", clusterState.version(), publishTimeout);
+                }
+            } catch (InterruptedException e) {
+                // ignore & restore interrupt
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -139,7 +185,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(PublishClusterStateRequest request, final TransportChannel channel) throws Exception {
             Compressor compressor = CompressorFactory.compressor(request.clusterStateInBytes);
             StreamInput in;
             if (compressor != null) {
@@ -149,9 +195,26 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
             in.setVersion(request.version);
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
-            logger.debug("Received clusterstate version {}", clusterState.version());
-            listener.onNewClusterState(clusterState);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            logger.debug("received cluster state version {}", clusterState.version());
+            listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {
+                @Override
+                public void onNewClusterStateProcessed() {
+                    try {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    } catch (Throwable e) {
+                        logger.debug("failed to send response on cluster state processed", e);
+                    }
+                }
+
+                @Override
+                public void onNewClusterStateFailed(Throwable t) {
+                    try {
+                        channel.sendResponse(t);
+                    } catch (Throwable e) {
+                        logger.debug("failed to send response on cluster state processed", e);
+                    }
+                }
+            });
         }
 
         @Override

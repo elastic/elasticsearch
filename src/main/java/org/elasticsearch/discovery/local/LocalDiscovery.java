@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
@@ -43,6 +44,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -61,6 +64,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private AllocationService allocationService;
     private final ClusterName clusterName;
     private final Version version;
+
+    private final TimeValue publishTimeout;
 
     private DiscoveryNode localNode;
 
@@ -83,6 +88,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
+
+        this.publishTimeout = settings.getAsTime("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(5));
     }
 
     @Override
@@ -283,8 +290,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         try {
             // we do the marshaling intentionally, to check it works well...
             final byte[] clusterStateBytes = Builder.toBytes(clusterState);
-            for (LocalDiscovery discovery : clusterGroup.members()) {
+            LocalDiscovery[] members = clusterGroup.members().toArray(new LocalDiscovery[0]);
+            final CountDownLatch latch = new CountDownLatch(members.length);
+            for (LocalDiscovery discovery : members) {
                 if (discovery.master) {
+                    latch.countDown();
                     continue;
                 }
                 final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
@@ -308,15 +318,33 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         @Override
                         public void onFailure(String source, Throwable t) {
                             logger.error("unexpected failure during [{}]", t, source);
+                            latch.countDown();
                         }
 
                         @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             sendInitialStateEventIfNeeded();
+                            latch.countDown();
                         }
                     });
+                } else {
+                    latch.countDown();
                 }
             }
+
+            if (publishTimeout.millis() > 0) {
+                try {
+                    boolean awaited = latch.await(publishTimeout.millis(), TimeUnit.MILLISECONDS);
+                    if (!awaited) {
+                        logger.debug("awaiting all nodes to process published state {} timed out, timeout {}", clusterState.version(), publishTimeout);
+                    }
+                } catch (InterruptedException e) {
+                    // ignore & restore interrupt
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+
         } catch (Exception e) {
             // failure to marshal or un-marshal
             throw new ElasticSearchIllegalStateException("Cluster state failed to serialize", e);

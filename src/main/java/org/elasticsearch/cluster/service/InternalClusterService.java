@@ -380,13 +380,13 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we publish here before we send a notification to all the listeners, since if it fails
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
-                    logger.debug("Publishing cluster state version {}", newClusterState.version());
+                    logger.debug("publishing cluster state version {}", newClusterState.version());
                     discoveryService.publish(newClusterState);
                 }
 
                 // update the current cluster state
                 clusterState = newClusterState;
-                logger.debug("Set cluster state to version {}. Broadcasting to listeners.", newClusterState.version());
+                logger.debug("set local cluster state to version {}", newClusterState.version());
 
                 for (ClusterStateListener listener : priorityClusterStateListeners) {
                     listener.clusterChanged(clusterChangedEvent);

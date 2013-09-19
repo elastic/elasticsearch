@@ -90,6 +90,15 @@ public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
                 assertHitCount(searchResponse, 1);
                 // now, let it go to primary or replica, though in a randomized re-creatable manner
                 searchResponse = client().prepareSearch("test").setPreference(randomAsciiOfLength(5)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+                if (searchResponse.getHits().getTotalHits() != 1) {
+                    refresh();
+                    SearchResponse searchResponseAfterRefresh = client().prepareSearch("test").setPreference(randomAsciiOfLength(5)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+                    logger.info("hits count mismatch on any shard search failed, post explicit refresh hits are {}", searchResponseAfterRefresh.getHits().getTotalHits());
+                    ensureGreen();
+                    SearchResponse searchResponseAfterGreen = client().prepareSearch("test").setPreference(randomAsciiOfLength(5)).setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+                    logger.info("hits count mismatch on any shard search failed, post explicit wait for green hits are {}", searchResponseAfterGreen.getHits().getTotalHits());
+                    assertHitCount(searchResponse, 1);
+                }
                 assertHitCount(searchResponse, 1);
                 status = client().admin().cluster().prepareHealth("test").get().getStatus();
                 cluster().ensureAtLeastNumNodes(numberOfReplicas + 1);

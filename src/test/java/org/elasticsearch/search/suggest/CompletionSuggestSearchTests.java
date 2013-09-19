@@ -58,9 +58,9 @@ import static org.hamcrest.Matchers.*;
 
 public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
 
-    private static final String INDEX = "test";
-    private static final String TYPE = "testType";
-    private static final String FIELD = "testField";
+    private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
 
     @Test
     public void testSimple() throws Exception {
@@ -551,8 +551,8 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(singleFieldSizeInBytes + otherFieldSizeInBytes, is(totalSizeInBytes));
 
         // regexes
-        IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("test*").get();
-        long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("test*");
+        IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
+        long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("*");
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
 
@@ -580,7 +580,14 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
 
     private void assertSuggestions(SuggestResponse suggestResponse, boolean suggestionOrderStrict, String name, String... suggestions) {
         assertNoFailures(suggestResponse);
-        assertThat(suggestResponse.getSuggest().getSuggestion(name), is(notNullValue()));
+
+        List<String> suggestionNames = Lists.newArrayList();
+        for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion : Lists.newArrayList(suggestResponse.getSuggest().iterator())) {
+            suggestionNames.add(suggestion.getName());
+        }
+        String expectFieldInResponseMsg = String.format(Locale.ROOT, "Expected suggestion named %s in response, got %s", name, suggestionNames);
+        assertThat(expectFieldInResponseMsg, suggestResponse.getSuggest().getSuggestion(name), is(notNullValue()));
+
         Suggest.Suggestion<Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option>> suggestion = suggestResponse.getSuggest().getSuggestion(name);
 
         List<String> suggestionList = getNames(suggestion.getEntries().get(0));
@@ -614,7 +621,6 @@ public class CompletionSuggestSearchTests extends AbstractSharedClusterTest {
     }
 
     private void createIndexAndMappingAndSettings(Settings.Builder settingsBuilder, String indexAnalyzer, String searchAnalyzer, boolean payloads, boolean preserveSeparators, boolean preservePositionIncrements) throws IOException {
-        client().admin().indices().prepareDelete().get();
         client().admin().indices().prepareCreate(INDEX)
                 .setSettings(settingsBuilder)
                 .get();

@@ -284,7 +284,7 @@ public final class TermVectorFields extends Fields {
                     }
 
                     @Override
-                    public SeekStatus seekCeil(BytesRef text, boolean useCache) throws IOException {
+                    public SeekStatus seekCeil(BytesRef text) throws IOException {
                         throw new UnsupportedOperationException();
                     }
 

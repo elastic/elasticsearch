@@ -156,7 +156,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                         break uid;
                                     }
 
-                                    TermsEnum.SeekStatus status = termsEnum.seekCeil(nextParent.toBytesRef(), false);
+                                    TermsEnum.SeekStatus status = termsEnum.seekCeil(nextParent.toBytesRef());
                                     if (status == TermsEnum.SeekStatus.END) {
                                         break uid;
                                     } else if (status == TermsEnum.SeekStatus.NOT_FOUND) {

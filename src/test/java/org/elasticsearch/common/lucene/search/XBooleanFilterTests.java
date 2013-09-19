@@ -6,6 +6,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.FilterClause;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldCacheTermsFilter;
@@ -52,7 +53,7 @@ public class XBooleanFilterTests {
         IndexWriter w = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer()));
         w.addDocuments(documents);
         w.close();
-        reader = new SlowCompositeReaderWrapper(DirectoryReader.open(directory));
+        reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(directory));
     }
 
     @After

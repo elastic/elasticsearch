@@ -21,8 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CustomAnalyzerWrapper;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
@@ -47,15 +45,9 @@ public class NamedAnalyzer extends CustomAnalyzerWrapper {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }
 
-
-    static {
-        // LUCENE MONITOR: this should be in Lucene 4.5.
-        assert Lucene.VERSION == Version.LUCENE_44 : "when upgrading to 4.5, we should use call analyzer#getReuseStrategy(), see https://issues.apache.org/jira/browse/LUCENE-5170";
-    }
-
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
         // our named analyzer always wrap a non per field analyzer, so no need to have per field analyzer
-        super(new GlobalReuseStrategy());
+        super(analyzer.getReuseStrategy());
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;

@@ -45,11 +45,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
 public class ClusterRerouteTests extends AbstractIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
-    
+
 
     @Test
     public void rerouteWithCommands() throws Exception {
@@ -156,8 +156,7 @@ public class ClusterRerouteTests extends AbstractIntegrationTest {
 
         logger.info("--> closing all nodes");
         File shardLocation = cluster().getInstance(NodeEnvironment.class).shardLocations(new ShardId("test", 0))[0];
-        
-        cluster().resetAllGateways();
+
         cluster().closeAllNodesAndReset();
 
         logger.info("--> deleting the shard data [{}] ", shardLocation);

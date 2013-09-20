@@ -26,10 +26,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -40,12 +40,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-public class NoMasterNodeTests extends AbstractNodesTests {
-
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        closeAllNodes();
-    }
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class NoMasterNodeTests extends AbstractIntegrationTest {
 
     @Test
     public void testNoMasterActions() throws Exception {
@@ -60,32 +56,30 @@ public class NoMasterNodeTests extends AbstractNodesTests {
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
 
-        final Node node = startNode("node1", settings);
+        cluster().startNode(settings);
         // start a second node, create an index, and then shut it down so we have no master block
-        Node node2 = startNode("node2", settings);
-        node.client().admin().indices().prepareCreate("test").execute().actionGet();
-        node.client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        node2.close();
-        awaitBusy(new Predicate<Object>() {
+        cluster().startNode(settings);
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        cluster().stopRandomNode();
+        assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
-                ClusterState state = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
             }
-        });
+        }), equalTo(true));
 
-        ClusterState state = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         try {
-            node.client().prepareGet("test", "type1", "1").execute().actionGet();
-            assert false;
+            client().prepareGet("test", "type1", "1").execute().actionGet();
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         try {
-            node.client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
-            assert false;
+            client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
@@ -93,41 +87,41 @@ public class NoMasterNodeTests extends AbstractNodesTests {
         try {
             PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
             percolateSource.percolateDocument().setDoc(new HashMap());
-            node.client().preparePercolate()
+            client().preparePercolate()
                     .setIndices("test").setDocumentType("type1")
                     .setSource(percolateSource).execute().actionGet();
-            assert false;
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         long now = System.currentTimeMillis();
         try {
-            node.client().prepareUpdate("test", "type1", "1").setScript("test script").setTimeout(timeout).execute().actionGet();
-            assert false;
+            client().prepareUpdate("test", "type1", "1").setScript("test script").setTimeout(timeout).execute().actionGet();
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         try {
-            node.client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
-            assert false;
+            client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         try {
-            node.client().prepareCount("test").execute().actionGet();
-            assert false;
+            client().prepareCount("test").execute().actionGet();
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         now = System.currentTimeMillis();
         try {
-            node.client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).execute().actionGet();
-            assert false;
+            client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).execute().actionGet();
+            fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

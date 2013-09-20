@@ -24,26 +24,26 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleTTLTests extends AbstractNodesTests {
+public class SimpleTTLTests extends AbstractIntegrationTest {
 
     static private final long purgeInterval = 200;
+    private final Settings settings = settingsBuilder()
+            .put("indices.ttl.interval", purgeInterval)
+            .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
+            .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
+            .put("cluster.routing.operation.hash.type", "djb")
+            .build();
 
-    @Override
-    protected void beforeClass() {
-        Settings settings = settingsBuilder()
-                .put("indices.ttl.interval", purgeInterval)
-                .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
-                .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
-                .put("cluster.routing.operation.hash.type", "djb")
-                .build();
-        startNode("node1", settings);
-        startNode("node2", settings);
+    @Before
+    public void setup() {
+        updateClusterSettings(settings);
     }
 
     @Test

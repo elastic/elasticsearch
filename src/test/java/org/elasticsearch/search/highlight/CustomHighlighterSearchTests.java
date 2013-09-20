@@ -20,43 +20,45 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class CustomHighlighterSearchTests extends AbstractNodesTests {
+@ClusterScope(scope = Scope.SUITE, numNodes = 1)
+public class CustomHighlighterSearchTests extends AbstractIntegrationTest {
 
     @Override
-    protected void beforeClass() throws Exception{
-        ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomHighlighterPlugin.class.getName());
-        startNode("server1", settings);
-        Client client = client();
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder()
+                .put("plugin.types", CustomHighlighterPlugin.class.getName())
+                .put(super.nodeSettings(nodeOrdinal))
+                .build();
+    }
 
-        client.prepareIndex("test", "test", "1").setSource(XContentFactory.jsonBuilder()
+    @Before
+    protected void setup() throws Exception{
+        client().prepareIndex("test", "test", "1").setSource(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("name", "arbitrary content")
                 .endObject())
                 .setRefresh(true).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-    }
-
-    @Override
-    public Client client() {
-        return client("server1");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
     }
 
     @Test

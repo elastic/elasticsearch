@@ -154,18 +154,20 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
     public void after() throws IOException {
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
-            MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-            assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
-                    .persistentSettings().getAsMap().size(), equalTo(0));
-            assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                    .persistentSettings().getAsMap().size(), equalTo(0));
+            Scope currentClusterScope = getCurrentClusterScope();
+            if (currentClusterScope == Scope.TEST) {
+                clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
+            } else {
+                MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
+                assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
+                        .persistentSettings().getAsMap().size(), equalTo(0));
+                assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
+                        .persistentSettings().getAsMap().size(), equalTo(0));
+            
+            }
             wipeIndices(); // wipe after to make sure we fail in the test that
                            // didn't ack the delete
             wipeTemplates();
-            Scope currentClusterScope = getCurrentClusterScope();
-            if (currentClusterScope == Scope.TEST) {
-                clearClusters();
-            }
             ensureAllSearchersClosed();
             ensureAllFilesClosed();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());

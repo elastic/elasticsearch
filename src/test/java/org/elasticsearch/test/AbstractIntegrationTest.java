@@ -170,6 +170,7 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
             ensureAllFilesClosed();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
         } finally {
+            currentCluster.afterTest();
             currentCluster = null;
         }
     }
@@ -198,7 +199,7 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
     }
 
     public static Iterable<Client> clients() {
-        return cluster().clients();
+        return cluster();
     }
 
     public ImmutableSettings.Builder randomSettingsBuilder() {
@@ -559,14 +560,25 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
         GLOBAL, SUITE, TEST;
     }
     
+    private ClusterScope getAnnotation(Class<?> clazz) {
+        if (clazz == Object.class || clazz == AbstractIntegrationTest.class) {
+            return null;
+        }
+        ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
+        if (annotation != null) {
+            return annotation;
+        }
+        return getAnnotation(clazz.getSuperclass());
+    }
+    
     private Scope getCurrentClusterScope() {
-        ClusterScope annotation = this.getClass().getAnnotation(ClusterScope.class);
+        ClusterScope annotation = getAnnotation(this.getClass());
         // if we are not annotated assume global!
         return annotation == null ? Scope.GLOBAL : annotation.scope();
     }
     
     private int getNumNodes() {
-        ClusterScope annotation = this.getClass().getAnnotation(ClusterScope.class);
+        ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? -1 : annotation.numNodes();
     }
     

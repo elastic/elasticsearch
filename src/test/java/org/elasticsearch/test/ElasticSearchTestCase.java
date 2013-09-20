@@ -62,8 +62,8 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
         
     }
     
-    public void awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
-        awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
+    public boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
+        return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
     
     public boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {

@@ -19,83 +19,80 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class SpecificMasterNodesTests extends AbstractZenNodesTests {
+@ClusterScope(scope = Scope.TEST, numNodes=0)
+public class SpecificMasterNodesTests extends AbstractIntegrationTest {
 
-    @After
-    public void closeNodes() {
-        closeAllNodes();
+    protected final ImmutableSettings.Builder settingsBuilder() {
+        return ImmutableSettings.builder().put("discovery.type", "zen");
     }
-
     @Test
     public void simpleOnlyMasterNodeElection() {
         logger.info("--> start data node / non master node");
-        startNode("data1", settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
+        cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
-            assertThat(client("data1").admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
+            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
             assert false : "should not be able to find master";
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
         logger.info("--> start master node");
-        startNode("master1", settingsBuilder().put("node.data", false).put("node.master", true));
-        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
-        assertThat(client("master1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
+        final String masterNodeName = cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
+        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
 
         logger.info("--> stop master node");
-        closeNode("master1");
+        cluster().stopCurrentMasterNode();
 
         try {
-            assertThat(client("data1").admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
+            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
             assert false : "should not be able to find master";
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
 
         logger.info("--> start master node");
-        startNode("master1", settingsBuilder().put("node.data", false).put("node.master", true));
-        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
-        assertThat(client("master1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
-
-        logger.info("--> stop all nodes");
-        closeNode("data1");
-        closeNode("master1");
+        final String nextMasterEligableNodeName = cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
+        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
     }
 
     @Test
     public void electOnlyBetweenMasterNodes() {
         logger.info("--> start data node / non master node");
-        startNode("data1", settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
+        cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
-            assertThat(client("data1").admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
+            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
             assert false : "should not be able to find master";
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
         logger.info("--> start master node (1)");
-        startNode("master1", settingsBuilder().put("node.data", false).put("node.master", true));
-        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
-        assertThat(client("master1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
+        final String masterNodeName = cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
+        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
 
         logger.info("--> start master node (2)");
-        startNode("master2", settingsBuilder().put("node.data", false).put("node.master", true));
-        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
-        assertThat(client("master1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
-        assertThat(client("master2").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master1"));
+        final String nextMasterEligableNodeName = cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
+        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(masterNodeName));
 
         logger.info("--> closing master node (1)");
-        closeNode("master1");
-        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master2"));
-        assertThat(client("master2").admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo("master2"));
+        cluster().stopCurrentMasterNode();
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
+        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
     }
 }

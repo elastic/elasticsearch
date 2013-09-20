@@ -25,20 +25,16 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ShardsAllocatorModuleTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class ShardsAllocatorModuleTests extends AbstractIntegrationTest {
 
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        closeAllNodes();
-    }
 
     public void testLoadDefaultShardsAllocator() {
         assertAllocatorInstance(ImmutableSettings.Builder.EMPTY_SETTINGS, BalancedShardsAllocator.class);
@@ -62,11 +58,11 @@ public class ShardsAllocatorModuleTests extends AbstractNodesTests {
     }
 
     private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) {
-        closeNode("node");
-        Node _node = startNode("node", settings);
-        InternalNode node = (InternalNode) _node;
-        ShardsAllocator instance = node.injector().getInstance(ShardsAllocator.class);
-        node.close();
+        while (cluster().numNodes() != 0) {
+            cluster().stopRandomNode();     
+        }
+        cluster().startNode(settings);
+        ShardsAllocator instance = cluster().getInstance(ShardsAllocator.class);
         assertThat(instance, instanceOf(clazz));
     }
 }

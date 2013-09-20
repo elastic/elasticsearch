@@ -93,3 +93,14 @@ threadpool:
         size: 30
         queue_size: 1000
 --------------------------------------------------
+
+[processors]] 
+[float] 
+=== Processors setting
+The number of processors is automatically detected, and the thread pool
+settings are automatically set based on it. Sometimes, the number of processors
+are wrongly detected, in such cases, the number of processors can be
+explicitly set using the `processors` setting.
+
+In order to check the number of processors detected, use the nodes info
+API with the `os` flag.

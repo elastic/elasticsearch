@@ -22,6 +22,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -38,14 +39,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.DocumentTypeListener;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -1448,6 +1453,73 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(matches[3].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
         assertThat(matches[4].getScore(), equalTo(5.5f));
         assertThat(matches[4].getHighlightFields().get("field1").fragments()[0].string(), equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
+    }
+
+    @Test
+    public void testDeletePercolatorType() throws Exception {
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete().execute().actionGet();
+        assertThat("Delete Index failed - not acked", deleteIndexResponse.isAcknowledged(), equalTo(true));
+        ensureGreen();
+
+        client().admin().indices().prepareCreate("test1").execute().actionGet();
+        client().admin().indices().prepareCreate("test2").execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("test1", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test2", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .execute().actionGet();
+
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
+                .execute().actionGet();
+        assertThat(response.getCount(), equalTo(2l));
+
+        CountDownLatch test1Latch = createCountDownLatch("test1");
+        CountDownLatch test2Latch =createCountDownLatch("test2");
+
+        client().admin().indices().prepareDeleteMapping("test1").setType("_percolator").execute().actionGet();
+        test1Latch.await();
+
+        response = client().preparePercolate()
+                .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(1l));
+
+        client().admin().indices().prepareDeleteMapping("test2").setType("_percolator").execute().actionGet();
+        test2Latch.await();
+
+        // Percolate api should return 0 matches, because all _percolate types have been removed.
+        response = client().preparePercolate()
+                .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(0l));
+    }
+
+    private CountDownLatch createCountDownLatch(String index) {
+        final CountDownLatch latch = new CountDownLatch(cluster().numNodes());
+        Iterable<IndicesService> mapperServices = cluster().getInstances(IndicesService.class);
+        for (IndicesService indicesService : mapperServices) {
+            MapperService mapperService = indicesService.indexService(index).mapperService();
+            mapperService.addTypeListener(new DocumentTypeListener() {
+                @Override
+                public void created(String type) {
+                }
+
+                @Override
+                public void removed(String type) {
+                    latch.countDown();
+                }
+            });
+        }
+        return latch;
     }
 
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {

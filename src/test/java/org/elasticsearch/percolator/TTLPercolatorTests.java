@@ -1,17 +1,14 @@
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -22,21 +19,23 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class TTLPercolatorTests extends AbstractNodesTests {
+public class TTLPercolatorTests extends AbstractIntegrationTest {
+
+    private long purgeInterval = 200;
+    private Settings ttlSettings = ImmutableSettings.settingsBuilder()
+            .put("indices.ttl.interval", purgeInterval)
+            .build();
+
+    @Before
+    public void setup() {
+        updateClusterSettings(ttlSettings);
+    }
 
     @Test
     public void testPercolatingWithTimeToLive() throws Exception {
-        long purgeInterval = 200;
-        Settings settings = settingsBuilder()
-                .put("gateway.type", "none")
-                .put("indices.ttl.interval", purgeInterval).build(); // <-- For testing ttl.
-        logger.info("--> starting 2 nodes");
-        startNode("node1", settings);
-        startNode("node2", settings);
-
-        Client client = client("node1");
+        Client client = client();
         client.admin().indices().prepareDelete().execute().actionGet();
-        ensureGreen(client);
+        ensureGreen();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("_percolator")
                 .startObject("_ttl").field("enabled", true).endObject()
@@ -48,7 +47,7 @@ public class TTLPercolatorTests extends AbstractNodesTests {
                 .addMapping("_percolator", mapping)
                 .addMapping("type1", mapping)
                 .execute().actionGet();
-        ensureGreen(client);
+        ensureGreen();
 
         long ttl = 1500;
         long now = System.currentTimeMillis();
@@ -119,18 +118,6 @@ public class TTLPercolatorTests extends AbstractNodesTests {
         ).execute().actionGet();
         assertNoFailures(percolateResponse);
         assertThat(percolateResponse.getMatches(), emptyArray());
-    }
-
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        closeAllNodes();
-    }
-
-    public static void ensureGreen(Client client) {
-        ClusterHealthResponse actionGet = client.admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
-        assertThat(actionGet.isTimedOut(), equalTo(false));
-        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
 }

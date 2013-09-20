@@ -35,8 +35,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.InitialStateDiscoveryListener;
+import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,8 +43,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -57,6 +54,8 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
  *
  */
 public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
+
+    private static final LocalDiscovery[] NO_MEMBERS = new LocalDiscovery[0];
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -277,24 +276,33 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return clusterName.value() + "/" + localNode.id();
     }
 
-    @Override
-    public void publish(ClusterState clusterState) {
+    public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
             throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
         }
+        LocalDiscovery[] members = members();
+        if (members.length > 0) {
+            publish(members, clusterState, new AckClusterStatePublishResponseHandler(members.length - 1, ackListener));
+        }
+    }
+
+    private LocalDiscovery[] members() {
         ClusterGroup clusterGroup = clusterGroups.get(clusterName);
         if (clusterGroup == null) {
-            // nothing to publish to
-            return;
+            return NO_MEMBERS;
         }
+        Queue<LocalDiscovery> members = clusterGroup.members();
+        return members.toArray(new LocalDiscovery[members.size()]);
+    }
+
+    private void publish(LocalDiscovery[] members, ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
+
         try {
             // we do the marshaling intentionally, to check it works well...
             final byte[] clusterStateBytes = Builder.toBytes(clusterState);
-            LocalDiscovery[] members = clusterGroup.members().toArray(new LocalDiscovery[0]);
-            final CountDownLatch latch = new CountDownLatch(members.length);
-            for (LocalDiscovery discovery : members) {
+
+            for (final LocalDiscovery discovery : members) {
                 if (discovery.master) {
-                    latch.countDown();
                     continue;
                 }
                 final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
@@ -318,23 +326,23 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         @Override
                         public void onFailure(String source, Throwable t) {
                             logger.error("unexpected failure during [{}]", t, source);
-                            latch.countDown();
+                            publishResponseHandler.onFailure(discovery.localNode, t);
                         }
 
                         @Override
                         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                             sendInitialStateEventIfNeeded();
-                            latch.countDown();
+                            publishResponseHandler.onResponse(discovery.localNode);
                         }
                     });
                 } else {
-                    latch.countDown();
+                    publishResponseHandler.onResponse(discovery.localNode);
                 }
             }
 
             if (publishTimeout.millis() > 0) {
                 try {
-                    boolean awaited = latch.await(publishTimeout.millis(), TimeUnit.MILLISECONDS);
+                    boolean awaited = publishResponseHandler.awaitAllNodes(publishTimeout);
                     if (!awaited) {
                         logger.debug("awaiting all nodes to process published state {} timed out, timeout {}", clusterState.version(), publishTimeout);
                     }

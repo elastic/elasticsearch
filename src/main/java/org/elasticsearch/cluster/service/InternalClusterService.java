@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -49,6 +50,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -317,6 +320,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
 
             try {
+                Discovery.AckListener ackListener = new NoOpAckListener();
                 if (newClusterState.nodes().localNodeMaster()) {
                     // only the master controls the version numbers
                     Builder builder = ClusterState.builder().state(newClusterState).version(newClusterState.version() + 1);
@@ -327,6 +331,19 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         builder.metaData(MetaData.builder().metaData(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
                     }
                     newClusterState = builder.build();
+
+                    if (updateTask instanceof AckedClusterStateUpdateTask) {
+                        final AckedClusterStateUpdateTask ackedUpdateTask = (AckedClusterStateUpdateTask) updateTask;
+                        try {
+                            ackListener = new AckCountDownListener(ackedUpdateTask, newClusterState.version(), newClusterState.nodes(), threadPool);
+                        } catch(EsRejectedExecutionException ex) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("Couldn't schedule timeout thread - node might be shutting down", ex);
+                            }
+                            //timeout straightaway, otherwise we could wait forever as the timeout thread has not started
+                            ackedUpdateTask.onAckTimeout();
+                        }
+                    }
                 } else {
                     if (previousClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK) && !newClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
                         // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
@@ -381,7 +398,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
                     logger.debug("publishing cluster state version {}", newClusterState.version());
-                    discoveryService.publish(newClusterState);
+                    discoveryService.publish(newClusterState, ackListener);
                 }
 
                 // update the current cluster state
@@ -409,18 +426,26 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     });
                 }
 
+                //manual ack only from the master at the end of the publish
+                if (newClusterState.nodes().localNodeMaster()) {
+                    try {
+                        ackListener.onNodeAck(localNode(), null);
+                    } catch(Throwable t) {
+                        logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().localNode());
+                    }
+                }
 
                 if (updateTask instanceof ProcessedClusterStateUpdateTask) {
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
 
                 logger.debug("processing [{}]: done applying updated cluster_state (version: {})", source, newClusterState.version());
-            } catch (Exception e) {
+            } catch (Throwable t) {
                 StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());
                 sb.append(newClusterState.routingTable().prettyPrint());
                 sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
-                logger.warn(sb.toString(), e);
+                logger.warn(sb.toString(), t);
                 // TODO: do we want to call updateTask.onFailure here?
             }
         }
@@ -584,4 +609,73 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             listener.offMaster();
         }
     }
+
+    private static class NoOpAckListener implements Discovery.AckListener {
+        @Override
+        public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
+        }
+
+        @Override
+        public void onTimeout() {
+        }
+    }
+
+    private class AckCountDownListener implements Discovery.AckListener {
+        private final AckedClusterStateUpdateTask ackedUpdateTask;
+        private final long version;
+        private final AtomicInteger countDown;
+        private final AtomicBoolean notified = new AtomicBoolean(false);
+        private final Future<?> ackTimeoutCallback;
+        private Throwable lastFailure;
+
+        AckCountDownListener(AckedClusterStateUpdateTask ackedUpdateTask, long clusterStateVersion, DiscoveryNodes nodes, ThreadPool threadPool) {
+            this.ackedUpdateTask = ackedUpdateTask;
+            this.version = clusterStateVersion;
+            int countDown = 0;
+            for (DiscoveryNode node : nodes) {
+                if (ackedUpdateTask.mustAck(node)) {
+                    countDown++;
+                }
+            }
+            logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, version);
+            this.countDown = new AtomicInteger(countDown);
+            this.ackTimeoutCallback = threadPool.schedule(ackedUpdateTask.ackTimeout(), ThreadPool.Names.GENERIC, new Runnable() {
+                @Override
+                public void run() {
+                    onTimeout();
+                }
+            });
+        }
+
+        @Override
+        public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
+            if (!ackedUpdateTask.mustAck(node)) {
+                return;
+            }
+            if (t == null) {
+                logger.trace("ack received from node [{}], cluster_state update (version: {})", node, version);
+            } else {
+                this.lastFailure = t;
+                logger.debug("ack received from node [{}], cluster_state update (version: {})", t, node, version);
+            }
+
+            assert countDown.get() > 0;
+            if (countDown.decrementAndGet() == 0) {
+                if (notified.compareAndSet(false, true) ) {
+                    logger.trace("all expected nodes acknowledged cluster_state update (version: {})", version);
+                    ackTimeoutCallback.cancel(true);
+                    ackedUpdateTask.onAllNodesAcked(lastFailure);
+                }
+            }
+        }
+
+        @Override
+        public void onTimeout() {
+            if (notified.compareAndSet(false, true)) {
+                logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", version);
+                ackedUpdateTask.onAckTimeout();
+            }
+        }
+    }
+
 }

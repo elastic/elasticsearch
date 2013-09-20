@@ -43,17 +43,9 @@
           "type" : "boolean",
           "description" : "Reset the default level of detail"
         },
-        "completion_fields": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields for `completion` metric (supports wildcards)"
-        },
-        "fielddata_fields": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
-        },
         "fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields for `fielddata` and `completion` metric (supports wildcards)"
+          "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
         },
         "fs": {
           "type" : "boolean",

@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.junit.annotations.TestLogging;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.AbstractNodesTests;
 import org.junit.After;
@@ -70,8 +69,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         }
         closeAllNodes();
     }
-    
-    
+
 
     @Override
     protected Settings getClassDefaultSettings() {
@@ -141,7 +139,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
         Client client = client("node1");
         client.admin().indices().prepareCreate("test")
-        .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         logger.info("--> register a query");
         client.prepareIndex("test", "_percolator", "kuku")
@@ -272,14 +270,11 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
     @Test
     @Slow
-    @TestLogging("action.support.broadcast:TRACE")
     public void testSinglePercolator_recovery() throws Exception {
         percolatorRecovery(false);
     }
 
     @Test
-    // Need to omit org.elast
-    @TestLogging("action.percolate:TRACE")
     @Slow
     public void testMultiPercolator_recovery() throws Exception {
         percolatorRecovery(true);

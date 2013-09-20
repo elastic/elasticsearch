@@ -262,13 +262,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    public void publish(ClusterState clusterState) {
+    public void publish(ClusterState clusterState, AckListener ackListener) {
         if (!master) {
             throw new ElasticSearchIllegalStateException("Shouldn't publish state when not master");
         }
         latestDiscoNodes = clusterState.nodes();
         nodesFD.updateNodes(clusterState.nodes());
-        publishClusterState.publish(clusterState);
+        publishClusterState.publish(clusterState, ackListener);
     }
 
     private void asyncJoinCluster() {

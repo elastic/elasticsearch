@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.RestStatus;
 
@@ -60,6 +60,14 @@ public interface Discovery extends LifecycleComponent<Discovery> {
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
      * process should not publish this state to the master as well! (the master is sending it...).
+     *
+     * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
+     * they updated their own cluster state or not.
      */
-    void publish(ClusterState clusterState);
+    void publish(ClusterState clusterState, AckListener ackListener);
+
+    public static interface AckListener {
+        void onNodeAck(DiscoveryNode node, @Nullable Throwable t);
+        void onTimeout();
+    }
 }

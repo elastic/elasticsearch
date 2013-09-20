@@ -203,7 +203,7 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
 
 
         
-        for (Client client :  cluster().clients()) {
+        for (Client client : cluster()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery("foo".getBytes(Charsets.UTF_8))
                     .setExplain(true)
@@ -215,7 +215,7 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
 
         }
         
-        for (Client client :  cluster().clients()) {
+        for (Client client : cluster()) {
                 ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryString("foo"))
                     .setExplain(true)

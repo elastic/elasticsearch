@@ -4,11 +4,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -19,16 +19,17 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@ClusterScope(scope=Scope.TEST)
 public class TTLPercolatorTests extends AbstractIntegrationTest {
 
-    private long purgeInterval = 200;
-    private Settings ttlSettings = ImmutableSettings.settingsBuilder()
-            .put("indices.ttl.interval", purgeInterval)
-            .build();
+    private static final long PURGE_INTERVAL = 200;
 
-    @Before
-    public void setup() {
-        updateClusterSettings(ttlSettings);
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("indices.ttl.interval", PURGE_INTERVAL)
+                .build();
     }
 
     @Test
@@ -90,7 +91,7 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
 
         assertThat(convertFromTextArray(percolateResponse.getMatches(), "test"), arrayContaining("kuku"));
         long timeSpent = System.currentTimeMillis() - now;
-        long waitTime = ttl + purgeInterval - timeSpent;
+        long waitTime = ttl + PURGE_INTERVAL - timeSpent;
         if (waitTime >= 0) {
             Thread.sleep(waitTime); // Doesn't make sense to check the deleteCount before ttl has expired
         }

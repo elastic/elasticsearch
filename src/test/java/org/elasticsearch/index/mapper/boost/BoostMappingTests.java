@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.junit.Test;
 
@@ -70,5 +71,25 @@ public class BoostMappingTests {
                 .field("custom_boost", 2.0f)
                 .endObject().bytes());
         assertThat(doc.rootDoc().getField("field").boost(), equalTo(2.0f));
+    }
+
+    @Test
+    public void testDefaultValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(BoostFieldMapper.Defaults.FIELD_TYPE.stored()));
+        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(BoostFieldMapper.Defaults.FIELD_TYPE.indexed()));
+    }
+
+    @Test
+    public void testSetValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_boost")
+                .field("store", "yes").field("index", "not_analyzed")
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
     }
 }

@@ -314,10 +314,6 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
         return client().admin().indices().prepareCreate(index).setSettings(getSettings());
     }
 
-    public void updateClusterSettings(Settings settings) {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
-    }
-
     public ClusterHealthStatus ensureGreen() {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();

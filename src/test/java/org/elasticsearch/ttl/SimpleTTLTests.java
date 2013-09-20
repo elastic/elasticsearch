@@ -25,25 +25,27 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
+@ClusterScope(scope=Scope.TEST)
 public class SimpleTTLTests extends AbstractIntegrationTest {
 
-    static private final long purgeInterval = 200;
-    private final Settings settings = settingsBuilder()
-            .put("indices.ttl.interval", purgeInterval)
-            .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
-            .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
-            .put("cluster.routing.operation.hash.type", "djb")
-            .build();
-
-    @Before
-    public void setup() {
-        updateClusterSettings(settings);
+    static private final long PURGE_INTERVAL = 200;
+    
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("indices.ttl.interval", PURGE_INTERVAL)
+                .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
+                .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
+                .put("cluster.routing.operation.hash.type", "djb")
+                .build();
     }
 
     @Test
@@ -83,40 +85,40 @@ public class SimpleTTLTests extends AbstractIntegrationTest {
         long ttl0;
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
             assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
         } else {
-            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
         }
         // verify the ttl is still decreasing when going to the replica
         currentTime = System.currentTimeMillis();
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
             assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
         } else {
-            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
         }
         // non realtime get (stored)
         currentTime = System.currentTimeMillis();
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
             assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
         } else {
-            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
         }
         // non realtime get going the replica
         currentTime = System.currentTimeMillis();
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-purgeInterval));
+            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
             assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
         } else {
-            assertTrue((providedTTLValue - (currentTime - now)) < 0);
+            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
         }
 
         // no TTL provided so no TTL fetched
@@ -128,7 +130,7 @@ public class SimpleTTLTests extends AbstractIntegrationTest {
         assertThat(ttl0, greaterThan(0L));
 
         // make sure the purger has done its job for all indexed docs that are expired
-        long shouldBeExpiredDate = now + providedTTLValue + purgeInterval + 2000;
+        long shouldBeExpiredDate = now + providedTTLValue + PURGE_INTERVAL + 2000;
         currentTime = System.currentTimeMillis();
         if (shouldBeExpiredDate - currentTime > 0) {
             Thread.sleep(shouldBeExpiredDate - currentTime);

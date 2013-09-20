@@ -1,0 +1,18 @@
+{
+  "scroll": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/search/scroll/",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/_search/scroll/{scroll_id}",
+      "paths": ["/_search/scroll/{scroll_id}"],
+      "parts": {
+        "scroll_id": {
+          "type" : "list",
+          "description" : "A comma-separated list of scroll IDs to clear"
+        }
+      },
+      "params": {},
+    },
+    "body": null
+  }
+}

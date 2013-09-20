@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -31,10 +30,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Test;
 
 import java.util.*;
@@ -48,23 +48,19 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class ClusterServiceTests extends AbstractZenNodesTests {
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
-    }
+@ClusterScope(scope = Scope.TEST, numNodes=0)
+public class ClusterServiceTests extends AbstractIntegrationTest {
 
     @Test
     public void testTimeoutUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
-
-        InternalNode node1 = (InternalNode) startNode("node1", settings);
-        ClusterService clusterService1 = node1.injector().getInstance(ClusterService.class);
+        cluster().startNode(settings);
+        ClusterService clusterService1 = cluster().getInstance(ClusterService.class);
         final CountDownLatch block = new CountDownLatch(1);
         clusterService1.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
@@ -115,10 +111,13 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
 
     @Test
     public void testPendingUpdateTask() throws Exception {
-        InternalNode node1 = (InternalNode) startNode("node1");
-        Client client = startNode("client-node", settingsBuilder().put("node.client", true).build()).client();
+        Settings zenSettings = settingsBuilder()
+                .put("discovery.type", "zen").build();
+        String node_0 = cluster().startNode(zenSettings);
+        cluster().startNodeClient(zenSettings);
+        
 
-        ClusterService clusterService = node1.injector().getInstance(ClusterService.class);
+        ClusterService clusterService = cluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
         final CountDownLatch invoked1 = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
@@ -166,7 +165,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<String>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        PendingClusterTasksResponse response = client.admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        PendingClusterTasksResponse response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks().size(), equalTo(9));
         for (PendingClusterTask task : response) {
             assertTrue(controlSources.remove(task.source().string()));
@@ -177,7 +176,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
 
         pendingClusterTasks = clusterService.pendingTasks();
         assertThat(pendingClusterTasks, empty());
-        response = client.admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks(), empty());
 
         final CountDownLatch block2 = new CountDownLatch(1);
@@ -225,7 +224,7 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         }
         assertTrue(controlSources.isEmpty());
 
-        response = client.admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks().size(), equalTo(4));
         controlSources = new HashSet<String>(Arrays.asList("2", "3", "4", "5"));
         for (PendingClusterTask task : response) {
@@ -239,34 +238,35 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
     @Test
     public void testListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("plugin.types", TestPlugin.class.getName())
                 .build();
 
-        InternalNode node1 = (InternalNode) startNode("node1", settings);
-        ClusterService clusterService1 = node1.injector().getInstance(ClusterService.class);
-        MasterAwareService testService1 = node1.injector().getInstance(MasterAwareService.class);
+        cluster().startNode(settings);
+        ClusterService clusterService1 = cluster().getInstance(ClusterService.class);
+        MasterAwareService testService1 = cluster().getInstance(MasterAwareService.class);
 
         // the first node should be a master as the minimum required is 1
         assertThat(clusterService1.state().nodes().masterNode(), notNullValue());
         assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
         assertThat(testService1.master(), is(true));
 
-        InternalNode node2 = (InternalNode) startNode("node2", settings);
-        ClusterService clusterService2 = node2.injector().getInstance(ClusterService.class);
-        MasterAwareService testService2 = node2.injector().getInstance(MasterAwareService.class);
+        String node_1 = cluster().startNode(settings);
+        ClusterService clusterService2 =  cluster().getInstance(ClusterService.class, node_1);
+        MasterAwareService testService2 =  cluster().getInstance(MasterAwareService.class, node_1);
 
-        ClusterHealthResponse clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the second node should not be the master as node1 is already the master.
         assertThat(clusterService2.state().nodes().localNodeMaster(), is(false));
         assertThat(testService2.master(), is(false));
 
-        closeNode("node1");
-        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").execute().actionGet();
+        cluster().stopCurrentMasterNode();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // now that node1 is closed, node2 should be elected as master
@@ -275,8 +275,9 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
 
         Settings newSettings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
+                .put("discovery.type", "zen")
                 .build();
-        node2.client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
         Thread.sleep(200);
 
         // there should not be any master as the minimum number of required eligible masters is not met
@@ -284,17 +285,17 @@ public class ClusterServiceTests extends AbstractZenNodesTests {
         assertThat(testService2.master(), is(false));
 
 
-        node1 = (InternalNode) startNode("node1", settings);
-        clusterService1 = node1.injector().getInstance(ClusterService.class);
-        testService1 = node1.injector().getInstance(MasterAwareService.class);
+        String node_2 = cluster().startNode(settings);
+        clusterService1 =cluster().getInstance(ClusterService.class, node_2);
+        testService1 = cluster().getInstance(MasterAwareService.class, node_2);
 
         // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...
-        assertThat(node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
-        assertThat(node1.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
         assertThat(clusterService1.state().nodes().masterNode(), is(notNullValue()));
-        if ("node1".equals(clusterService1.state().nodes().masterNode().name())) {
+        if (node_2.equals(clusterService1.state().nodes().masterNode().name())) {
             assertThat(testService1.master(), is(true));
             assertThat(testService2.master(), is(false));
         } else {

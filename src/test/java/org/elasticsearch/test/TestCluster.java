@@ -21,6 +21,8 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
@@ -28,11 +30,13 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -41,6 +45,7 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
@@ -48,6 +53,7 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
+import java.io.File;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,12 +62,14 @@ import static com.google.common.collect.Maps.newTreeMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
-public class TestCluster implements Closeable {
+public class TestCluster implements Closeable, Iterable<Client> {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     /* sorted map to make traverse order reproducible */
     private final TreeMap<String, NodeAndClient> nodes = newTreeMap(); 
+    
+    private final Set<File> dataDirToClean = new HashSet<File>();
 
     private final String clusterName;
 
@@ -69,8 +77,6 @@ public class TestCluster implements Closeable {
 
     private final Settings defaultSettings;
 
-    private NodeAndClient clientNode; // currently unused
-    
     private Random random;
     
     private AtomicInteger nextNodeId = new AtomicInteger(0);
@@ -154,29 +160,38 @@ public class TestCluster implements Closeable {
             return randomNodeAndClient.node();
         }
         NodeAndClient buildNode = buildNode();
-        nodes.put(buildNode.name, buildNode);
-        return buildNode.node().start();
+        buildNode.node().start();
+        publishNode(buildNode);
+        return buildNode.node();
     }
     
     private synchronized NodeAndClient getRandomNodeAndClient() {
+        Predicate<NodeAndClient> all = Predicates.alwaysTrue();
+        return getRandomNodeAndClient(all);
+    }
+
+    
+    private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        Collection<NodeAndClient> values = nodes.values();
-        int whichOne = random.nextInt(values.size());
-        for (NodeAndClient nodeAndClient : values) {
-            if (whichOne-- == 0) {
-                return nodeAndClient;
+        Collection<NodeAndClient> values = Collections2.filter(nodes.values(), predicate) ;
+        if (!values.isEmpty()) {
+            int whichOne = random.nextInt(values.size());
+            for (NodeAndClient nodeAndClient : values) {
+                if (whichOne-- == 0) {
+                    return nodeAndClient;
+                }
             }
         }
         return null;
     }
-
+    
     public synchronized void ensureAtLeastNumNodes(int num) {
         int size = nodes.size();
         for (int i = size; i < num; i++) {
             logger.info("increasing cluster size from {} to {}", size, num);
             NodeAndClient buildNode = buildNode();
             buildNode.node().start(); 
-            nodes.put(buildNode.name, buildNode);
+            publishNode(buildNode);
         }
     }
 
@@ -227,13 +242,43 @@ public class TestCluster implements Closeable {
         return getOrBuildRandomNode().client();
     }
     
-    private synchronized Client masterClient() { // should we expose this?
-        Collection<NodeAndClient> values = nodes.values();
-        for (NodeAndClient nodeAndClient : values) {
-            ClusterService instance = getInstance(ClusterService.class, (InternalNode)nodeAndClient.node());
-            if (instance.state().getNodes().getMasterNode().id().equals(instance.localNode().id())) {
-                return nodeAndClient.client(random);
+    public synchronized Client masterClient() { 
+        ensureOpen();
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()));
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.client(random);
+        }
+        return null;
+    }
+    
+    public synchronized Client nonMasterClient() { 
+        ensureOpen();
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.client(random);
+        }
+        return null;
+    }
+    
+    public synchronized Client clientNodeClient() {
+        ensureOpen();
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new ClientNodePredicate());
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.client(random);
+        }
+        return null;
+    }
+    
+    public synchronized Client client(final Predicate<Settings> filterPredicate) {
+        ensureOpen();
+        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new Predicate<NodeAndClient>() { 
+            @Override
+            public boolean apply(NodeAndClient nodeAndClient) {
+                return filterPredicate.apply(nodeAndClient.node.settings());
             }
+        });
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.client(random);
         }
         return null;
     }
@@ -243,9 +288,6 @@ public class TestCluster implements Closeable {
         if (this.open.compareAndSet(true, false)) {
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
-            if (clientNode != null) {
-                IOUtils.closeWhileHandlingException(clientNode);
-            }
         }
     }
 
@@ -261,14 +303,14 @@ public class TestCluster implements Closeable {
     }
 
     private final class NodeAndClient implements Closeable {
-        private final Node node;
+        private final InternalNode node;
         private Client client;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final ClientFactory clientFactory;
         private final String name;
 
         NodeAndClient(String name, Node node, ClientFactory factory) {
-            this.node = node;
+            this.node = (InternalNode)node;
             this.name = name;
             this.clientFactory = factory;
         }
@@ -357,6 +399,7 @@ public class TestCluster implements Closeable {
     public synchronized void beforeTest(Random random) {
         this.random = new Random(random.nextLong());
         resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
+        wipeDataDirectories();
         if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
             return;
@@ -396,7 +439,7 @@ public class TestCluster implements Closeable {
         }
         nodes.clear();
         for (NodeAndClient nodeAndClient : sharedNodes) {
-            nodes.put(nodeAndClient.name, nodeAndClient);
+            publishNode(nodeAndClient);
         }
         nextNodeId.set(sharedNodesSeeds.length);
         assert numNodes() == sharedNodesSeeds.length;
@@ -406,21 +449,53 @@ public class TestCluster implements Closeable {
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
     }
     
+    public synchronized void afterTest() {
+        wipeDataDirectories();
+    }
+    
     private void resetClients() {
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
             nodeAndClient.resetClient();
         }
     }
+    
+    private void wipeDataDirectories() {
+        if (!dataDirToClean.isEmpty()) {
+            logger.info("Wipe data directory for all nodes locations: {}", this.dataDirToClean);
+            try {
+                FileSystemUtils.deleteRecursively(dataDirToClean.toArray(new File[0]));
+            } finally {
+                this.dataDirToClean.clear();
+            }
+        }
+    }
 
     public synchronized ClusterService clusterService() {
         return getInstance(ClusterService.class);
     }
-    public synchronized <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, ((InternalNode) getOrBuildRandomNode()));
+    
+    public synchronized <T> T getInstance(Class<T> clazz, final String node) {
+        final Predicate<TestCluster.NodeAndClient> predicate;
+        if (node != null) {
+            predicate = new Predicate<TestCluster.NodeAndClient>() {
+                public boolean apply(NodeAndClient nodeAndClient) {
+                    return node.equals(nodeAndClient.name);
+                }
+            };
+        } else {
+            predicate = Predicates.alwaysTrue();
+        }
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
+        assert randomNodeAndClient != null;
+        return getInstanceFromNode(clazz, randomNodeAndClient.node);
     }
     
-    private synchronized <T> T getInstance(Class<T> clazz, InternalNode node) {
+    public synchronized <T> T getInstance(Class<T> clazz) {
+        return getInstance(clazz, null);
+    }
+    
+    private synchronized <T> T getInstanceFromNode(Class<T> clazz, InternalNode node) {
         return node.injector().getInstance(clazz);
     }
 
@@ -432,40 +507,54 @@ public class TestCluster implements Closeable {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient();
         if (nodeAndClient != null) {
+            logger.info("Closing random node [{}] ", nodeAndClient.name);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
     }
-
-    public synchronized Iterable<Client> clients() {
-        final Map<String, NodeAndClient> nodes = this.nodes;
-        return new Iterable<Client>() {
-
+    
+    public synchronized void stopRandomNode(final Predicate<Settings> filter) {
+        ensureOpen();
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new Predicate<TestCluster.NodeAndClient>() {
             @Override
-            public Iterator<Client> iterator() {
-                final Iterator<NodeAndClient> iterator = nodes.values().iterator();
-                return new Iterator<Client>() {
-
-                    @Override
-                    public boolean hasNext() {
-
-                        return iterator.hasNext();
-                    }
-
-                    @Override
-                    public Client next() {
-                        return iterator.next().client(random);
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException("");
-                    }
-
-                };
+            public boolean apply(NodeAndClient nodeAndClient) {
+                return filter.apply(nodeAndClient.node.settings());
             }
-        };
-
+        });
+        if (nodeAndClient != null) {
+            logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
+            nodes.remove(nodeAndClient.name);
+            nodeAndClient.close();
+        }
+    }
+    
+    public synchronized void stopCurrentMasterNode() {
+        ensureOpen();
+        assert numNodes() > 0;
+        String masterNodeName = getMasterName();
+        assert nodes.containsKey(masterNodeName);
+        logger.info("Closing master node [{}] ", masterNodeName);
+        NodeAndClient remove = nodes.remove(masterNodeName);
+        remove.close();
+    }
+    
+    public void stopRandomNonMasterNode() {
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        if (nodeAndClient != null) {
+            logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
+            nodes.remove(nodeAndClient.name);
+            nodeAndClient.close();
+        }
+    }
+    
+    private String getMasterName() {
+        try {
+            ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+            return state.nodes().masterNode().name();
+        } catch (Throwable e) {
+            logger.warn("Can't fetch cluster state" , e);
+            throw new RuntimeException("Can't get master node " + e.getMessage(), e);
+        }
     }
 
     public synchronized Set<String> allButN(int numNodes) {
@@ -477,19 +566,9 @@ public class TestCluster implements Closeable {
         return Sets.newHashSet(Iterators.limit(this.nodes.keySet().iterator(), numNodes));
     }
 
-    private synchronized Client nodeClient() {
+    public synchronized void startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        if (clientNode == null) {
-            String name = "client_node";
-            Settings finalSettings = settingsBuilder().put(defaultSettings).put("name", name)
-                    .build();
-            Node node = nodeBuilder().settings(finalSettings).client(true).build();
-            node.start();
-            this.clientNode = new NodeAndClient(name, node, new ClientFactory());
-
-        }
-        return clientNode.client(random);
-        
+        startNode(settingsBuilder().put(settings).put("node.client", true));
     }
 
     public synchronized Set<String> nodesInclude(String index) {
@@ -528,22 +607,83 @@ public class TestCluster implements Closeable {
     public String startNode() {
         return startNode(ImmutableSettings.EMPTY);
     }
+    
+    public String startNode(Settings.Builder settings) {
+        return startNode(settings.build());
+    }
 
     public String startNode(Settings settings) {
         NodeAndClient buildNode = buildNode(settings);
-        nodes.put(buildNode.name, buildNode);
         buildNode.node().start();
+        publishNode(buildNode);
         return buildNode.name;
+    }
+    
+    private void publishNode(NodeAndClient nodeAndClient) {
+        assert !nodeAndClient.node().isClosed();
+        NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, nodeAndClient.node);
+        if (nodeEnv.hasNodeFile()) {
+            dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
+        }
+        nodes.put(nodeAndClient.name, nodeAndClient);
+
     }
     
     public void resetAllGateways() throws Exception {
         Collection<NodeAndClient> values = this.nodes.values();
         for (NodeAndClient nodeAndClient : values) {
-           getInstance(Gateway.class, ((InternalNode) nodeAndClient.node)).reset();
+           getInstanceFromNode(Gateway.class, ((InternalNode) nodeAndClient.node)).reset();
         }
     }
 
     public void closeAllNodesAndReset() {
         beforeTest(random);
     }
+
+    
+    private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
+        private final String masterNodeName;
+
+        public MasterNodePredicate(String masterNodeName) {
+            this.masterNodeName = masterNodeName;
+        }
+
+        @Override
+        public boolean apply(NodeAndClient nodeAndClient) {
+            return masterNodeName.equals(nodeAndClient.name);
+        }
+    }
+    
+    private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
+
+        @Override
+        public boolean apply(NodeAndClient nodeAndClient) {
+            return nodeAndClient.node.settings().getAsBoolean("node.client", false);
+        }
+    }
+
+    @Override
+    public synchronized Iterator<Client> iterator() {
+        ensureOpen();
+        final Iterator<NodeAndClient> iterator = nodes.values().iterator();
+        return new Iterator<Client>() {
+
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public Client next() {
+                return iterator.next().client(random);
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("");
+            }
+
+        };
+    }
+    
 }

@@ -55,7 +55,7 @@ public class RestXContentBuilder {
         }
         XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), new BytesStreamOutput());
         if (request.paramAsBoolean("pretty", false)) {
-            builder.prettyPrint();
+            builder.prettyPrint().lfAtEnd();
         }
 
         builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));

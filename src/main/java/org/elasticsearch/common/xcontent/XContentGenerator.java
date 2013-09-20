@@ -34,6 +34,8 @@ public interface XContentGenerator {
 
     void usePrettyPrint();
 
+    void usePrintLineFeedAtEnd();
+
     void writeStartArray() throws IOException;
 
     void writeEndArray() throws IOException;

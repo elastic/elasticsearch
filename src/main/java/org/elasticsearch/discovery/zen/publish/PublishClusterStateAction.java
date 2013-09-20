@@ -30,14 +30,15 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.ClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -78,16 +79,18 @@ public class PublishClusterStateAction extends AbstractComponent {
         transportService.removeHandler(PublishClusterStateRequestHandler.ACTION);
     }
 
-    public void publish(ClusterState clusterState) {
+    public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
+        publish(clusterState, new AckClusterStatePublishResponseHandler(clusterState.nodes().size()-1, ackListener));
+    }
+
+    private void publish(ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
+
         DiscoveryNode localNode = nodesProvider.nodes().localNode();
 
         Map<Version, BytesReference> serializedStates = Maps.newHashMap();
 
-        final CountDownLatch latch = new CountDownLatch(clusterState.nodes().size());
         for (final DiscoveryNode node : clusterState.nodes()) {
             if (node.equals(localNode)) {
-                // no need to send to our self
-                latch.countDown();
                 continue;
             }
             // try and serialize the cluster state once (or per version), so we don't serialize it
@@ -104,7 +107,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                     serializedStates.put(node.version(), bytes);
                 } catch (Throwable e) {
                     logger.warn("failed to serialize cluster_state before publishing it to node {}", e, node);
-                    latch.countDown();
+                    publishResponseHandler.onFailure(node, e);
                     continue;
                 }
             }
@@ -120,24 +123,25 @@ public class PublishClusterStateAction extends AbstractComponent {
 
                             @Override
                             public void handleResponse(TransportResponse.Empty response) {
-                                latch.countDown();
+                                publishResponseHandler.onResponse(node);
                             }
 
                             @Override
                             public void handleException(TransportException exp) {
                                 logger.debug("failed to send cluster state to [{}]", exp, node);
-                                latch.countDown();
+                                publishResponseHandler.onFailure(node, exp);
                             }
                         });
             } catch (Throwable t) {
-                latch.countDown();
+                logger.debug("error sending cluster state to [{}]", t, node);
+                publishResponseHandler.onFailure(node, t);
             }
         }
 
         if (publishTimeout.millis() > 0) {
             // only wait if the publish timeout is configured...
             try {
-                boolean awaited = latch.await(publishTimeout.millis(), TimeUnit.MILLISECONDS);
+                boolean awaited = publishResponseHandler.awaitAllNodes(publishTimeout);
                 if (!awaited) {
                     logger.debug("awaiting all nodes to process published state {} timed out, timeout {}", clusterState.version(), publishTimeout);
                 }

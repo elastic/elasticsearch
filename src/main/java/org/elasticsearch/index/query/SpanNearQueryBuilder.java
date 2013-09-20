@@ -31,7 +31,7 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
 
     private ArrayList<SpanQueryBuilder> clauses = new ArrayList<SpanQueryBuilder>();
 
-    private int slop = -1;
+    private Integer slop = null;
 
     private Boolean inOrder;
 
@@ -79,7 +79,7 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         if (clauses.isEmpty()) {
             throw new QueryBuilderException("Must have at least one clause when building a spanNear query");
         }
-        if (slop == -1) {
+        if (slop == null) {
             throw new QueryBuilderException("Must set the slop when building a spanNear query");
         }
         builder.startObject(SpanNearQueryParser.NAME);
@@ -88,7 +88,7 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field("slop", slop);
+        builder.field("slop", slop.intValue());
         if (inOrder != null) {
             builder.field("in_order", inOrder);
         }

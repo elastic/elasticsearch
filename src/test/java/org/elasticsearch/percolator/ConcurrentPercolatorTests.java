@@ -19,23 +19,15 @@
 
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.Random;
@@ -46,10 +38,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
+import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -57,27 +49,8 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class ConcurrentPercolatorTests extends AbstractNodesTests {
-
-
-    @Override
-    public void beforeClass() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("cluster.name", "percolator-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "_" + System.currentTimeMillis())
-                .put("gateway.type", "none").build();
-        logger.info("--> starting 3 nodes");
-        startNode("node1", settings);
-        startNode("node2", settings);
-        startNode("node3", settingsBuilder().put(settings).put("node.client", true));
-    }
-
-
-    @Before
-    public void beforeTest() throws Exception {
-        setUp();
-        client().admin().indices().prepareDelete().execute().actionGet();
-        ensureGreen();
-    }
+@ClusterScope(numNodes = 2)
+public class ConcurrentPercolatorTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleConcurrentPercolator() throws Exception {
@@ -417,18 +390,6 @@ public class ConcurrentPercolatorTests extends AbstractNodesTests {
             thread.join();
         }
         assertThat("exceptionHolder should have been empty, but holds: " + exceptionHolder.toString(), exceptionHolder.get(), nullValue());
-    }
-
-    @Override
-    public Client client() {
-        return client("node3");
-    }
-
-    private void ensureGreen() {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
-        assertThat(actionGet.isTimedOut(), equalTo(false));
-        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
@@ -155,7 +156,8 @@ public class SimpleBlocksTests extends AbstractIntegrationTest {
     }
 
     private void setClusterReadOnly(String value) {
-        updateClusterSettings(settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build());
+        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
     }
 
     private void setIndexReadOnly(String index, Object value) {

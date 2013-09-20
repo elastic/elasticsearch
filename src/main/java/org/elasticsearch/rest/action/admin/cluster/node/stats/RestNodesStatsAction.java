@@ -60,8 +60,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
             controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/" + flag.getRestName(), indicesHandler);
             controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/" + flag.getRestName() + "/stats", indicesHandler);
             controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/" + flag.getRestName() + "/stats", indicesHandler);
-            if (flag == Flag.FieldData) {
-                // add field specific endpoint
+            if (flag == Flag.FieldData || flag == Flag.Completion) {
+                // add field specific endpoints
                 controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/" + flag.getRestName() + "/{fields}", indicesHandler);
                 controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/" + flag.getRestName() + "/{fields}", indicesHandler);
                 controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/" + flag.getRestName() + "/{fields}/stats", indicesHandler);
@@ -183,8 +183,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(Strings.splitStringByCommaToArray(request.param("nodeId")));
             CommonStatsFlags flags = this.flags;
-            if (flags.isSet(Flag.FieldData) && request.hasParam("fields")) {
-                flags = flags.clone().fieldDataFields(request.paramAsStringArray("fields", null));
+            if (flags.isSet(Flag.FieldData) && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
+                flags = flags.clone().fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null)));
+            } else if (flags.isSet(Flag.Completion) && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
+                flags = flags.clone().completionDataFields(request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null)));
             }
             nodesStatsRequest.clear().indices(flags);
             executeNodeStats(request, channel, nodesStatsRequest);

@@ -474,7 +474,15 @@ public class TestCluster implements Closeable, Iterable<Client> {
     public synchronized ClusterService clusterService() {
         return getInstance(ClusterService.class);
     }
-    
+
+    public synchronized <T> Iterable<T> getInstances(Class<T> clazz) {
+        List<T> instances = new ArrayList<T>(nodes.size());
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
+        }
+        return instances;
+    }
+
     public synchronized <T> T getInstance(Class<T> clazz, final String node) {
         final Predicate<TestCluster.NodeAndClient> predicate;
         if (node != null) {

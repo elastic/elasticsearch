@@ -24,18 +24,16 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
-import org.junit.After;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.indexRequest;
@@ -45,27 +43,27 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class FunctionScorePluginTests extends AbstractNodesTests {
+@ClusterScope(scope = Scope.SUITE, numNodes = 1)
+public class FunctionScorePluginTests extends AbstractIntegrationTest {
 
-    private Client client;
-
-    @After
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder()
+                .put("plugin.types", CustomDistanceScorePlugin.class.getName())
+                .put(super.nodeSettings(nodeOrdinal))
+                .build();
     }
 
     @Test
     public void testPlugin() throws Exception {
-        ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomDistanceScorePlugin.class.getName());
-        startNode("server1", settings);
-        client = client("server1");
-        client.admin()
+        client().admin()
                 .indices()
                 .prepareCreate("test")
                 .addMapping(
@@ -73,19 +71,19 @@ public class FunctionScorePluginTests extends AbstractNodesTests {
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test")
                                 .field("type", "string").endObject().startObject("num1").field("type", "date").endObject().endObject()
                                 .endObject().endObject()).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.index(
+        client().index(
                 indexRequest("test").type("type1").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())).actionGet();
-        client.index(
+        client().index(
                 indexRequest("test").type("type1").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         DecayFunctionBuilder gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
-        ActionFuture<SearchResponse> response = client.search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+        ActionFuture<SearchResponse> response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                 searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value")).add(gfb))));
 
         SearchResponse sr = response.actionGet();

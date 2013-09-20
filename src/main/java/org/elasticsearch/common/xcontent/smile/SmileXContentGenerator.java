@@ -44,6 +44,11 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
+    public void usePrintLineFeedAtEnd() {
+        // nothing here
+    }
+
+    @Override
     public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         SmileParser parser = SmileXContent.smileFactory.createParser(content);

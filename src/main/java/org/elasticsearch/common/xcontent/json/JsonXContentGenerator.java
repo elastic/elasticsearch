@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.io.SerializedString;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.*;
@@ -34,6 +35,7 @@ import java.io.OutputStream;
 public class JsonXContentGenerator implements XContentGenerator {
 
     protected final JsonGenerator generator;
+    private boolean writeLineFeedAtEnd;
 
     public JsonXContentGenerator(JsonGenerator generator) {
         this.generator = generator;
@@ -47,6 +49,11 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void usePrettyPrint() {
         generator.useDefaultPrettyPrinter();
+    }
+
+    @Override
+    public void usePrintLineFeedAtEnd() {
+        writeLineFeedAtEnd = true;
     }
 
     @Override
@@ -320,6 +327,12 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void close() throws IOException {
+        if (writeLineFeedAtEnd) {
+            flush();
+            generator.writeRaw(LF);
+        }
         generator.close();
     }
+
+    private static final SerializedString LF = new SerializedString("\n");
 }

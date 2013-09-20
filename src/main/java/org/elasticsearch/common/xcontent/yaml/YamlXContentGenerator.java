@@ -44,6 +44,11 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
+    public void usePrintLineFeedAtEnd() {
+        // nothing here
+    }
+
+    @Override
     public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
         YAMLParser parser = YamlXContent.yamlFactory.createParser(content);

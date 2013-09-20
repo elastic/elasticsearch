@@ -109,6 +109,11 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder lfAtEnd() {
+        generator.usePrintLineFeedAtEnd();
+        return this;
+    }
+
     public XContentBuilder humanReadable(boolean humanReadable) {
         this.humanReadable = humanReadable;
         return this;

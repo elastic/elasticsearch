@@ -26,7 +26,7 @@
         },
         "metric" : {
           "type" : "enum",
-          "options" : ["docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
+          "options" : ["completion","docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
           "description" : "Limit the information returned for `indices` family to a specific metric"
         },
         "node_id": {
@@ -43,9 +43,17 @@
           "type" : "boolean",
           "description" : "Reset the default level of detail"
         },
-        "fields": {
+        "completion_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `completion` metric (supports wildcards)"
+        },
+        "fielddata_fields": {
           "type" : "list",
           "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
+        },
+        "fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` and `completion` metric (supports wildcards)"
         },
         "fs": {
           "type" : "boolean",

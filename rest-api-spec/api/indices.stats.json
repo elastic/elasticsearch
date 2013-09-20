@@ -32,7 +32,7 @@
         },
         "metric_family" : {
           "type" : "enum",
-          "options" : ["docs", "fielddata", "filter_cache", "flush", "get", "groups", "id_cache", "ignore_indices", "indexing", "merge", "refresh", "search", "store", "warmer"],
+          "options" : ["completion","docs", "fielddata", "filter_cache", "flush", "get", "groups", "id_cache", "ignore_indices", "indexing", "merge", "refresh", "search", "store", "warmer"],
           "description" : "Limit the information returned to a specific metric"
         },
         "search_groups" : {
@@ -49,6 +49,14 @@
           "type" : "boolean",
           "description" : "Reset the default level of detail"
         },
+        "completion": {
+          "type" : "boolean",
+          "description" : "Return information about completion suggester stats"
+        },
+        "completion_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `completion` metric (supports wildcards)"
+        },
         "docs": {
           "type" : "boolean",
           "description" : "Return information about indexed and deleted documents"
@@ -57,9 +65,13 @@
           "type" : "boolean",
           "description" : "Return information about field data"
         },
-        "fields": {
-          "type" : "boolean",
+        "fielddata_fields": {
+          "type" : "list",
           "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
+        },
+        "fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` and `completion` metric (supports wildcards)"
         },
         "filter_cache": {
           "type" : "boolean",

@@ -51,8 +51,8 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (names == null) {
-            validationException = addValidationError("names is null", validationException);
+        if (names == null || names.length == 0) {
+            validationException = addValidationError("names is null or empty", validationException);
         } else {
             for (String name : names) {
                 if (name == null || !Strings.hasText(name)) {

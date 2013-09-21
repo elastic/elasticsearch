@@ -419,7 +419,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 return;
             }
 
-            HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
+            HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>(listedNodes);
             for (ClusterStateResponse clusterStateResponse : clusterStateResponses) {
                 if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.getClusterName())) {
                     logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.getState().nodes().localNode(), clusterName);

@@ -30,6 +30,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,10 +49,11 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
     private final SearchServiceTransportAction searchServiceTransportAction;
 
     @Inject
-    public TransportClearScrollAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction) {
+    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
         this.searchServiceTransportAction = searchServiceTransportAction;
+        transportService.registerHandler(ClearScrollAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -148,6 +152,44 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
             }
         }
 
+    }
+    
+    class TransportHandler extends BaseTransportRequestHandler<ClearScrollRequest> {
+
+        @Override
+        public ClearScrollRequest newInstance() {
+            return new ClearScrollRequest();
+        }
+
+        @Override
+        public void messageReceived(final ClearScrollRequest request, final TransportChannel channel) throws Exception {
+            // no need to use threaded listener, since we just send a response
+            request.listenerThreaded(false);
+            execute(request, new ActionListener<ClearScrollResponse>() {
+                @Override
+                public void onResponse(ClearScrollResponse response) {
+                    try {
+                        channel.sendResponse(response);
+                    } catch (Throwable e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception e1) {
+                        logger.warn("Failed to send error response for action [clear_sc] and request [" + request + "]", e1);
+                    }
+                }
+            });
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
     }
 
 }

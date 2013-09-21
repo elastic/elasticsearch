@@ -60,6 +60,11 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
     }
 
     public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
         transportService.sendRequest(node, action.name(), request, transportOptions, new BaseTransportResponseHandler<Response>() {
             @Override
             public Response newInstance() {

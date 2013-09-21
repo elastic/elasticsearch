@@ -272,6 +272,7 @@ public class TransportClient extends AbstractClient {
             injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             // ignore
+            Thread.currentThread().interrupt();
         }
         try {
             injector.getInstance(ThreadPool.class).shutdownNow();

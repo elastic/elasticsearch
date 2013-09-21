@@ -56,13 +56,14 @@ public class RestIndicesAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true).filteredIndices(indices);
+        clusterStateRequest.filteredIndices(indices);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndicesIgnoreMissing(indices);
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 clusterHealthRequest.indices(indices);
@@ -75,7 +76,8 @@ public class RestIndicesAction extends BaseRestHandler {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 try {
-                                    channel.sendResponse(RestTable.buildResponse(buildTable(clusterStateResponse, clusterHealthResponse, indicesStatsResponse), request, channel));
+                                    Table tab = buildTable(concreteIndices, clusterHealthResponse, indicesStatsResponse);
+                                    channel.sendResponse(RestTable.buildResponse(tab, request, channel));
                                 } catch (Throwable e) {
                                     onFailure(e);
                                 }
@@ -115,7 +117,7 @@ public class RestIndicesAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(ClusterStateResponse state, ClusterHealthResponse health, IndicesStatsResponse stats) {
+    private Table buildTable(String[] indices, ClusterHealthResponse health, IndicesStatsResponse stats) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("health");
@@ -128,8 +130,7 @@ public class RestIndicesAction extends BaseRestHandler {
         table.addCell("size/total", "text-align:right;");
         table.endHeaders();
 
-        for (Map.Entry entry : state.getState().routingTable().indicesRouting().entrySet()) {
-            String index = (String) entry.getKey();
+        for (String index : indices) {
             ClusterIndexHealth indexHealth = health.getIndices().get(index);
             IndexStats indexStats = stats.getIndices().get(index);
 

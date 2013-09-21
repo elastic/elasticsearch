@@ -204,7 +204,7 @@ public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void realtimeGetWithCompress() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject())
@@ -227,7 +227,7 @@ public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void getFieldsWithDifferentTypes() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type").startObject("_source").field("enabled", true).endObject().endObject().endObject())
@@ -399,7 +399,7 @@ public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithExclude() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
         String index = "test";
         String type = "type1";
 
@@ -435,7 +435,7 @@ public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithInclude() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
         String index = "test";
         String type = "type1";
 
@@ -472,7 +472,7 @@ public class GetActionTests extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFields() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
         String index = "test";
         String type = "type1";
 

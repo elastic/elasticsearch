@@ -61,11 +61,10 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testAliases() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
-
+        wipeIndices();
+        
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 //
@@ -79,19 +78,19 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         // TODO this is bogus and should have a dedicated test
 
         logger.info("--> aliasing index [test] with [alias1]");
-        client().admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
 
         logger.info("--> indexing against [alias1], should work now");
         IndexResponse indexResponse = client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test_x")).actionGet();
+        admin().indices().create(createIndexRequest("test_x")).actionGet();
 
         ensureGreen();
 
         logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
-        client().admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
+        admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
         Thread.sleep(300);
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
@@ -101,17 +100,16 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testFailedFilter() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 
         try {
             logger.info("--> aliasing index [test] with [alias1] and filter [t]");
-            client().admin().indices().prepareAliases().addAlias("test", "alias1", "{ t }").execute().actionGet();
+            admin().indices().prepareAliases().addAlias("test", "alias1", "{ t }").execute().actionGet();
             assert false;
         } catch (Exception e) {
             // all is well
@@ -120,21 +118,20 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testFilteringAliases() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
         FilterBuilder filter = termFilter("user", "kimchy");
-        client().admin().indices().prepareAliases().addAlias("test", "alias1", filter).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "alias1", filter).execute().actionGet();
 
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = admin().cluster().prepareState().execute().actionGet().getState();
         IndexMetaData indexMd = clusterState.metaData().index("test");
         assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
 
@@ -147,27 +144,26 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and empty filter");
-        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias1", "{}").get();
+        IndicesAliasesResponse indicesAliasesResponse = admin().indices().prepareAliases().addAlias("test", "alias1", "{}").get();
         //just checking that the empty doesn't lead to issues
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
     }
 
     @Test
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test]");
-        client().admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test", "alias2").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test", "foos", termFilter("name", "foo")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test", "bars", termFilter("name", "bar")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test", "tests", termFilter("name", "test")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "alias2").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "bars", termFilter("name", "bar")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test", "tests", termFilter("name", "test")).execute().actionGet();
 
         logger.info("--> indexing against [test]");
         client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
@@ -230,27 +226,26 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test1]");
-        client().admin().indices().create(createIndexRequest("test1")).actionGet();
+        admin().indices().create(createIndexRequest("test1")).actionGet();
 
         logger.info("--> creating index [test2]");
-        client().admin().indices().create(createIndexRequest("test2")).actionGet();
+        admin().indices().create(createIndexRequest("test2")).actionGet();
 
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        client().admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "aliasToTests").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "foos", termFilter("name", "foo")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "bars", termFilter("name", "bar")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "aliasToTests").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "bars", termFilter("name", "bar")).execute().actionGet();
 
         logger.info("--> adding filtering aliases to index [test2]");
-        client().admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
 
         logger.info("--> indexing against [test1]");
         client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
@@ -297,28 +292,27 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating indices");
-        client().admin().indices().create(createIndexRequest("test1")).actionGet();
-        client().admin().indices().create(createIndexRequest("test2")).actionGet();
-        client().admin().indices().create(createIndexRequest("test3")).actionGet();
+        admin().indices().create(createIndexRequest("test1")).actionGet();
+        admin().indices().create(createIndexRequest("test2")).actionGet();
+        admin().indices().create(createIndexRequest("test3")).actionGet();
 
         ensureGreen();
 
         logger.info("--> adding aliases to indices");
-        client().admin().indices().prepareAliases().addAlias("test1", "alias12").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test2", "alias12").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "alias12").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "alias12").execute().actionGet();
 
         logger.info("--> adding filtering aliases to indices");
-        client().admin().indices().prepareAliases().addAlias("test1", "filter1", termFilter("name", "test1")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "filter1", termFilter("name", "test1")).execute().actionGet();
 
-        client().admin().indices().prepareAliases().addAlias("test2", "filter23", termFilter("name", "foo")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test3", "filter23", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "filter23", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test3", "filter23", termFilter("name", "foo")).execute().actionGet();
 
-        client().admin().indices().prepareAliases().addAlias("test1", "filter13", termFilter("name", "baz")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test3", "filter13", termFilter("name", "baz")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "filter13", termFilter("name", "baz")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test3", "filter13", termFilter("name", "baz")).execute().actionGet();
 
         logger.info("--> indexing against [test1]");
         client().index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1")).refresh(true)).actionGet();
@@ -362,29 +356,28 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testDeletingByQueryFilteringAliases() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test1]");
-        client().admin().indices().create(createIndexRequest("test1")).actionGet();
+        admin().indices().create(createIndexRequest("test1")).actionGet();
 
         logger.info("--> creating index [test2]");
-        client().admin().indices().create(createIndexRequest("test2")).actionGet();
+        admin().indices().create(createIndexRequest("test2")).actionGet();
 
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        client().admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "aliasToTests").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "foos", termFilter("name", "foo")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "bars", termFilter("name", "bar")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test1", "tests", termFilter("name", "test")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "aliasToTest1").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "aliasToTests").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "bars", termFilter("name", "bar")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test1", "tests", termFilter("name", "test")).execute().actionGet();
 
         logger.info("--> adding filtering aliases to index [test2]");
-        client().admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test2", "tests", termFilter("name", "test")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "aliasToTest2").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "aliasToTests").execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
+        admin().indices().prepareAliases().addAlias("test2", "tests", termFilter("name", "test")).execute().actionGet();
 
         logger.info("--> indexing against [test1]");
         client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
@@ -403,14 +396,14 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
         logger.info("--> delete by query from a single alias");
         client().prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> verify that only one record was deleted");
         assertThat(client().prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(3L));
 
         logger.info("--> delete by query from an aliases pointing to two indices");
         client().prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> verify that proper records were deleted");
         SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -418,7 +411,7 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
         logger.info("--> delete by query from an aliases and an index");
         client().prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> verify that proper records were deleted");
         searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -427,16 +420,15 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
+            assertThat(admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
             client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
         }
 
@@ -444,16 +436,15 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testWaitForAliasCreationSingleShard() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
+        admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
 
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
+            assertThat(admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
             client().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
         }
     }
@@ -461,11 +452,11 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
     @Test
     public void testWaitForAliasSimultaneousUpdate() throws Exception {
         final int aliasCount = 10;
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
+
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 
@@ -475,7 +466,7 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
             executor.submit(new Runnable() {
                 @Override
                 public void run() {
-                    assertThat(client().admin().indices().prepareAliases().addAlias("test", aliasName).execute().actionGet().isAcknowledged(), equalTo(true));
+                    assertThat(admin().indices().prepareAliases().addAlias("test", aliasName).execute().actionGet().isAcknowledged(), equalTo(true));
                     client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
                 }
             });
@@ -491,35 +482,35 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSameAlias() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         logger.info("--> creating index [test]");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+        createIndex("test");
 
         ensureGreen();
 
         logger.info("--> creating alias1 ");
-        assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet().isAcknowledged(), equalTo(true));
         TimeValue timeout = TimeValue.timeValueSeconds(2);
         logger.info("--> recreating alias1 ");
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> modifying alias1 to have a filter");
         stopWatch.start();
-        assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> recreating alias1 with the same filter");
         stopWatch.start();
-        assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> recreating alias1 with a different filter");
         stopWatch.start();
-        assertThat(client().admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "bar")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "bar")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
@@ -528,12 +519,12 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
         logger.info("--> deleting alias1");
         stopWatch.start();
-        assertThat(client().admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> deleting alias1 one more time");
         stopWatch.start();
-        assertThat(client().admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
+        assertThat(admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
     }
 
@@ -544,36 +535,36 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
                 .put("index.number_of_replicas", 0)
                 .build();
         logger.info("--> creating indices [foobar, test, test123, foobarbaz, bazbar]");
-        client().admin().indices().prepareCreate("foobar")
+        admin().indices().prepareCreate("foobar")
                 .setSettings(indexSettings)
                 .execute().actionGet();
-        client().admin().indices().prepareCreate("test")
+        admin().indices().prepareCreate("test")
                 .setSettings(indexSettings)
                 .execute().actionGet();
-        client().admin().indices().prepareCreate("test123")
+        admin().indices().prepareCreate("test123")
                 .setSettings(indexSettings)
                 .execute().actionGet();
-        client().admin().indices().prepareCreate("foobarbaz")
+        admin().indices().prepareCreate("foobarbaz")
                 .setSettings(indexSettings)
                 .execute().actionGet();
-        client().admin().indices().prepareCreate("bazbar")
+        admin().indices().prepareCreate("bazbar")
                 .setSettings(indexSettings)
                 .execute().actionGet();
 
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
-        client().admin().indices().prepareAliases()
+        admin().indices().prepareAliases()
                 .addAlias("foobar", "alias1")
                 .execute().actionGet();
 
-        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases()
+        IndicesAliasesResponse indicesAliasesResponse = admin().indices().prepareAliases()
                 .addAlias("foobar", "alias2")
                 .execute().actionGet();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> getting alias1");
-        GetAliasesResponse getResponse = client().admin().indices().prepareGetAliases("alias1").execute().actionGet();
+        GetAliasesResponse getResponse = admin().indices().prepareGetAliases("alias1").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
@@ -582,11 +573,11 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        AliasesExistResponse existsResponse = client().admin().indices().prepareAliasesExist("alias1").execute().actionGet();
+        AliasesExistResponse existsResponse = admin().indices().prepareAliasesExist("alias1").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting all aliases that start with alias*");
-        getResponse = client().admin().indices().prepareGetAliases("alias*").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("alias*").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(2));
@@ -600,24 +591,24 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareAliasesExist("alias*").execute().actionGet();
+        existsResponse = admin().indices().prepareAliasesExist("alias*").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
 
         logger.info("--> creating aliases [bar, baz, foo]");
-        client().admin().indices().prepareAliases()
+        admin().indices().prepareAliases()
                 .addAlias("bazbar", "bar")
                 .addAlias("bazbar", "bac", termFilter("field", "value"))
                 .addAlias("foobar", "foo")
                 .execute().actionGet();
 
-        indicesAliasesResponse = client().admin().indices().prepareAliases()
+        indicesAliasesResponse = admin().indices().prepareAliases()
                 .addAliasAction(new AliasAction(AliasAction.Type.ADD, "foobar", "bac").routing("bla"))
                 .execute().actionGet();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> getting bar and baz for index bazbar");
-        getResponse = client().admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
@@ -633,12 +624,12 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareAliasesExist("bar", "bac")
+        existsResponse = admin().indices().prepareAliasesExist("bar", "bac")
                 .addIndices("bazbar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting *b* for index baz*");
-        getResponse = client().admin().indices().prepareGetAliases("*b*").addIndices("baz*").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("*b*").addIndices("baz*").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
@@ -654,12 +645,12 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareAliasesExist("*b*")
+        existsResponse = admin().indices().prepareAliasesExist("*b*")
                 .addIndices("baz*").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting *b* for index *bar");
-        getResponse = client().admin().indices().prepareGetAliases("b*").addIndices("*bar").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("b*").addIndices("*bar").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
@@ -680,12 +671,12 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
-        existsResponse = client().admin().indices().prepareAliasesExist("b*")
+        existsResponse = admin().indices().prepareAliasesExist("b*")
                 .addIndices("*bar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting f* for index *bar");
-        getResponse = client().admin().indices().prepareGetAliases("f*").addIndices("*bar").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("f*").addIndices("*bar").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
@@ -693,13 +684,13 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareAliasesExist("f*")
+        existsResponse = admin().indices().prepareAliasesExist("f*")
                 .addIndices("*bar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         // alias at work
         logger.info("--> getting f* for index *bac");
-        getResponse = client().admin().indices().prepareGetAliases("foo").addIndices("*bac").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("foo").addIndices("*bac").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
@@ -708,12 +699,12 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareAliasesExist("foo")
+        existsResponse = admin().indices().prepareAliasesExist("foo")
                 .addIndices("*bac").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting foo for index foobar");
-        getResponse = client().admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
@@ -721,29 +712,29 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        existsResponse = client().admin().indices().prepareAliasesExist("foo")
+        existsResponse = admin().indices().prepareAliasesExist("foo")
                 .addIndices("foobar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
         // alias at work again
         logger.info("--> getting * for index *bac");
-        getResponse = client().admin().indices().prepareGetAliases("*").addIndices("*bac").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("*").addIndices("*bac").execute().actionGet();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(4));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
-        existsResponse = client().admin().indices().prepareAliasesExist("*")
+        existsResponse = admin().indices().prepareAliasesExist("*")
                 .addIndices("*bac").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(true));
 
-        indicesAliasesResponse = client().admin().indices().prepareAliases()
+        indicesAliasesResponse = admin().indices().prepareAliases()
                 .removeAlias("foobar", "foo")
                 .execute().actionGet();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
-        getResponse = client().admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
+        getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
         assertThat(getResponse.getAliases().isEmpty(), equalTo(true));
-        existsResponse = client().admin().indices().prepareAliasesExist("foo")
+        existsResponse = admin().indices().prepareAliasesExist("foo")
                 .addIndices("foobar").execute().actionGet();
         assertThat(existsResponse.exists(), equalTo(false));
     }
@@ -751,35 +742,35 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
     @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasNullIndex() {
 
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1"))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1"))
                 .execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasEmptyIndex() {
 
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1"))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1"))
                 .execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasNullAlias() {
 
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null))
                 .execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasEmptyAlias() {
 
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", ""))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", ""))
                 .execute().actionGet();
     }
 
     @Test
     public void testAddAliasNullAliasNullIndex() {
         try {
-            client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {
@@ -791,7 +782,7 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
     @Test
     public void testAddAliasEmptyAliasEmptyIndex() {
         try {
-            client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", ""))
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", ""))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {
@@ -802,32 +793,32 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasNullIndex() {
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1"))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1"))
                 .execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasEmptyIndex() {
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1"))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1"))
                 .execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasNullAlias() {
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null))
                 .execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
     public void tesRemoveAliasEmptyAlias() {
-        client().admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", ""))
+        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", ""))
                 .execute().actionGet();
     }
 
     @Test
     public void testRemoveAliasNullAliasNullIndex() {
         try {
-            client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {
@@ -839,7 +830,7 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
     @Test
     public void testRemoveAliasEmptyAliasEmptyIndex() {
         try {
-            client().admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", ""))
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", ""))
                     .execute().actionGet();
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {

@@ -88,7 +88,7 @@ public class AnalyzeActionTests extends AbstractIntegrationTest {
 
     @Test
     public void analyzeWithNoIndex() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").execute().actionGet();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
@@ -100,7 +100,7 @@ public class AnalyzeActionTests extends AbstractIntegrationTest {
 
     @Test
     public void analyzerWithFieldOrTypeTests() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();

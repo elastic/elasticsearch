@@ -158,7 +158,7 @@ public class BulkTests extends AbstractIntegrationTest {
 
     @Test
     public void testBulkUpdate_malformedScripts() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(

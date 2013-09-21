@@ -33,7 +33,7 @@ public class SimpleTimestampTests  extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleTimestamp() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        wipeIndices();
 
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true).field("store", "yes").endObject().endObject().endObject())

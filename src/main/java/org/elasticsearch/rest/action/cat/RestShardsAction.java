@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +37,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -44,25 +47,27 @@ public class RestShardsAction extends BaseRestHandler {
     public RestShardsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_cat/shards", this);
+        controller.registerHandler(GET, "/_cat/shards/{index}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.filterMetaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndicesIgnoreMissing(indices);
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.clear().docs(true).store(true);
                 client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         try {
-                            channel.sendResponse(RestTable.buildResponse(buildTable(clusterStateResponse, indicesStatsResponse), request, channel));
+                            channel.sendResponse(RestTable.buildResponse(buildTable(concreteIndices, clusterStateResponse, indicesStatsResponse), request, channel));
                         } catch (Throwable e) {
                             onFailure(e);
                         }
@@ -90,7 +95,8 @@ public class RestShardsAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(ClusterStateResponse state, IndicesStatsResponse stats) {
+    private Table buildTable(String[] concreteIndices, ClusterStateResponse state, IndicesStatsResponse stats) {
+        Set<String> indices = Sets.newHashSet(concreteIndices);
         Table table = new Table();
         table.startHeaders()
                 .addCell("index", "default:true;")
@@ -104,6 +110,10 @@ public class RestShardsAction extends BaseRestHandler {
                 .endHeaders();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
+            if (!indices.contains(shard.index())) {
+                continue;
+            }
+
             CommonStats shardStats = stats.asMap().get(shard);
 
             table.startRow();

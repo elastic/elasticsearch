@@ -131,7 +131,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
         iterateAssertCount(5, indexCounter.get(), 10);
     }
 
-    @Test
+    @Test @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
@@ -205,7 +205,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
         iterateAssertCount(5, indexCounter.get(), 10);
     }
 
-    @Test
+    @Test @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadWithNodeShutdown() throws Exception {
         logger.info("--> creating test index ...");
@@ -297,7 +297,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
 
     }
 
-    private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, int iterations) throws Exception {
+    private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, final int iterations) throws Exception {
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
@@ -314,19 +314,24 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
-                logger.info("Shard [{}] - count {}, primary {}", shardStats.getShardId(), docsStats.getCount(), shardStats.getShardRouting().primary());
+                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardId(), docsStats.getCount(), shardStats.getShardRouting().primary());
             }
 
             //if there was an error we try to wait and see if at some point it'll get fixed
-            //otherwise it means we are losing documents
             logger.info("--> trying to wait");
             assertThat(awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object o) {
-                    SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).get();
-                    return searchResponse.getHits().totalHits() == numberOfDocs;
+                    boolean error = false;
+                    for (int i = 0; i < iterations; i++) {
+                        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setQuery(matchAllQuery()).get();
+                        if (searchResponse.getHits().totalHits() != numberOfDocs) {
+                            error = true;
+                        }
+                    }
+                    return !error;
                 }
-            }, 30, TimeUnit.SECONDS), equalTo(true));
+            }, 5, TimeUnit.MINUTES), equalTo(true));
         }
 
         //lets now make the test fail if it was supposed to fail

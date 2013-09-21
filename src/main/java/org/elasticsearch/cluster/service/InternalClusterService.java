@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.service;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -49,7 +50,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
 
-import static org.elasticsearch.cluster.ClusterState.Builder;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
@@ -370,7 +370,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     }
                     try {
                         transportService.connectToNode(node);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         // the fault detection will detect it as failed as well
                         logger.warn("failed to connect to node [" + node + "]", e);
                     }

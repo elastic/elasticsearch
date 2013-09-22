@@ -144,8 +144,10 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (response != null) {
+                out.writeBoolean(true);
                 response.writeTo(out);
             } else {
+                out.writeBoolean(false);
                 out.writeString(errorMessage);
             }
         }

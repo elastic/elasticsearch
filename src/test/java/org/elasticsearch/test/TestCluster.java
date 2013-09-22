@@ -318,7 +318,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
     }
 
     private final class NodeAndClient implements Closeable {
-        private final InternalNode node;
+        private InternalNode node;
         private Client client;
         private Client nodeClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -326,7 +326,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
         private final String name;
 
         NodeAndClient(String name, Node node, ClientFactory factory) {
-            this.node = (InternalNode)node;
+            this.node = (InternalNode) node;
             this.name = name;
             this.clientFactory = factory;
         }
@@ -370,6 +370,12 @@ public class TestCluster implements Closeable, Iterable<Client> {
                 nodeClient.close();
                 nodeClient = null;
             }
+        }
+
+        void restart() {
+            node.close();
+            node = (InternalNode) nodeBuilder().settings(node.settings()).node();
+            resetClient();
         }
 
         @Override
@@ -605,7 +611,25 @@ public class TestCluster implements Closeable, Iterable<Client> {
             nodeAndClient.close();
         }
     }
-    
+
+    public void restartRandomNode() {
+        ensureOpen();
+        NodeAndClient nodeAndClient = getRandomNodeAndClient();
+        if (nodeAndClient != null) {
+            logger.info("Restarting random node [{}] ", nodeAndClient.name);
+            nodeAndClient.restart();
+        }
+    }
+
+    public void restartAllNodes() {
+        ensureOpen();
+        logger.info("Restarting all nodes");
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            logger.info("Restarting node [{}] ", nodeAndClient.name);
+            nodeAndClient.restart();
+        }
+    }
+
     private String getMasterName() {
         try {
             ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();

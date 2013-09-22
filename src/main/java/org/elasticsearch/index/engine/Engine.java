@@ -732,6 +732,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Filter aliasFilter;
         private final String[] types;
         private final Filter parentFilter;
+        private Operation.Origin origin = Operation.Origin.PRIMARY;
 
         private long startTime;
         private long endTime;
@@ -771,6 +772,15 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Filter parentFilter() {
             return parentFilter;
+        }
+
+        public DeleteByQuery origin(Operation.Origin origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        public Operation.Origin origin() {
+            return this.origin;
         }
 
         public DeleteByQuery startTime(long startTime) {

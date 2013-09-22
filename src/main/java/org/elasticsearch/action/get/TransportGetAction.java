@@ -97,7 +97,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         IndexShard indexShard = indexService.shardSafe(shardId);
 
         if (request.refresh() && !request.realtime()) {
-            indexShard.refresh(new Engine.Refresh().force(REFRESH_FORCE));
+            indexShard.refresh(new Engine.Refresh().force(REFRESH_FORCE).source("refresh_flag_get"));
         }
 
         GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),

@@ -256,7 +256,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         // make sure we refresh on state change due to cluster state changes
         if (newRouting.state() == ShardRoutingState.STARTED && (currentRouting == null || currentRouting.state() != ShardRoutingState.STARTED)) {
             try {
-                engine.refresh(new Engine.Refresh().force(true));
+                engine.refresh(new Engine.Refresh().force(true).source("cluster_state_started"));
             } catch (Throwable t) {
                 logger.debug("failed to refresh due to move to cluster wide started", t);
             }
@@ -655,7 +655,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         // clear unreferenced files
         translog.clearUnreferenced();
-        engine.refresh(new Engine.Refresh().force(true));
+        engine.refresh(new Engine.Refresh().force(true).source("recovery_finalization"));
         synchronized (mutex) {
             logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
@@ -825,7 +825,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 public void run() {
                     try {
                         if (engine.refreshNeeded()) {
-                            refresh(new Engine.Refresh().force(false));
+                            refresh(new Engine.Refresh().force(false).source("scheduled"));
                         }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore

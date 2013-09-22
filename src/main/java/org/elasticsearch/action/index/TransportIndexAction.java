@@ -218,7 +218,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh().force(false));
+                indexShard.refresh(new Engine.Refresh().force(false).source("refresh_flag_index"));
             } catch (Throwable e) {
                 // ignore
             }
@@ -252,7 +252,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh().force(false));
+                indexShard.refresh(new Engine.Refresh().force(false).source("refresh_flag_index"));
             } catch (Exception e) {
                 // ignore
             }

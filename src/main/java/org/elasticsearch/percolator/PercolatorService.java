@@ -112,7 +112,7 @@ public class PercolatorService extends AbstractComponent {
                 return new ExtendedMemoryIndex(true, maxReuseBytes);
             }
         };
-        
+
         percolatorTypes = new TByteObjectHashMap<PercolatorType>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);
         percolatorTypes.put(queryCountPercolator.id(), queryCountPercolator);
@@ -416,7 +416,7 @@ public class PercolatorService extends AbstractComponent {
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             long count = 0;
-            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher();
+            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
                 Count countCollector = count(logger, context);
                 queryBasedPercolating(percolatorSearcher, context, countCollector);
@@ -450,7 +450,8 @@ public class PercolatorService extends AbstractComponent {
 
             // Use a custom impl of AbstractBigArray for Object[]?
             List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize == 0 ? numMatches : requestedSize);
-            outer: for (PercolateShardResponse response : shardResults) {
+            outer:
+            for (PercolateShardResponse response : shardResults) {
                 Text index = new StringText(response.getIndex());
                 for (int i = 0; i < response.matches().length; i++) {
                     float score = response.scores().length == 0 ? NO_SCORE : response.scores()[i];
@@ -515,7 +516,7 @@ public class PercolatorService extends AbstractComponent {
 
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
-            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher();
+            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
                 Match match = match(logger, context, highlightPhase);
                 queryBasedPercolating(percolatorSearcher, context, match);
@@ -548,7 +549,7 @@ public class PercolatorService extends AbstractComponent {
 
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
-            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher();
+            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
                 MatchAndScore matchAndScore = matchAndScore(logger, context, highlightPhase);
                 queryBasedPercolating(percolatorSearcher, context, matchAndScore);
@@ -658,7 +659,7 @@ public class PercolatorService extends AbstractComponent {
 
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
-            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher();
+            Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
                 MatchAndSort matchAndSort = QueryCollector.matchAndSort(logger, context);
                 queryBasedPercolating(percolatorSearcher, context, matchAndSort);

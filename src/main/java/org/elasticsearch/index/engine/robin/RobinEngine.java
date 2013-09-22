@@ -329,7 +329,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            Searcher searcher = acquireSearcher();
+            Searcher searcher = acquireSearcher("get");
             try {
                 List<AtomicReaderContext> readers = searcher.reader().leaves();
                 for (int i = 0; i < readers.size(); i++) {
@@ -732,19 +732,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
-    public final Searcher acquireSearcher() throws EngineException {
+    public final Searcher acquireSearcher(String source) throws EngineException {
         SearcherManager manager = this.searcherManager;
         try {
             IndexSearcher searcher = manager.acquire();
-            return newSearcher(searcher, manager);
+            return newSearcher(source, searcher, manager);
         } catch (IOException ex) {
-            logger.error("failed to accquire searcher for shard [{}]", ex, shardId);
+            logger.error("failed to acquire searcher, source {}", ex, source);
             throw new EngineException(shardId, ex.getMessage());
         }
     }
 
-    protected Searcher newSearcher(IndexSearcher searcher, SearcherManager manager) {
-        return new RobinSearcher(searcher, manager);
+    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+        return new RobinSearcher(source, searcher, manager);
     }
 
     @Override
@@ -1184,7 +1184,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Map<String, Segment> segments = new HashMap<String, Segment>();
 
             // first, go over and compute the search ones...
-            Searcher searcher = acquireSearcher();
+            Searcher searcher = acquireSearcher("segments");
             try {
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
@@ -1335,7 +1335,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     private long loadCurrentVersionFromIndex(Term uid) {
-        final Searcher searcher = acquireSearcher();
+        final Searcher searcher = acquireSearcher("load_version");
         try {
             List<AtomicReaderContext> readers = searcher.reader().leaves();
             for (int i = 0; i < readers.size(); i++) {
@@ -1463,12 +1463,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     static class RobinSearcher implements Searcher {
 
+        private final String source;
         private final IndexSearcher searcher;
         private final SearcherManager manager;
 
-        private RobinSearcher(IndexSearcher searcher, SearcherManager manager) {
+        private RobinSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+            this.source = source;
             this.searcher = searcher;
             this.manager = manager;
+        }
+
+        @Override
+        public String source() {
+            return this.source;
         }
 
         @Override
@@ -1539,7 +1546,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // fresh index writer, just do on all of it
                         newSearcher = searcher;
                     } else {
-                        currentSearcher = acquireSearcher();
+                        currentSearcher = acquireSearcher("search_factory");
                         // figure out the newSearcher, with only the new readers that are relevant for us
                         List<IndexReader> readers = Lists.newArrayList();
                         for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
@@ -1563,8 +1570,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                     if (newSearcher != null) {
                         IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
-                                new SimpleSearcher(searcher),
-                                new SimpleSearcher(newSearcher));
+                                new SimpleSearcher("warmer", searcher),
+                                new SimpleSearcher("warmer", newSearcher));
                         warmer.warm(context);
                     }
                 } catch (Throwable e) {

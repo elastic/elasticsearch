@@ -71,11 +71,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -169,19 +167,19 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     private final IndexFieldDataService fieldDataService;
 
     private final Map<String, Query> queries = ConcurrentCollections.newConcurrentMap();
-    
+
     /**
      * Realtime index setting to control the number of MemoryIndex instances used to handle
      * Percolate requests. The default is <tt>10</tt>
      */
     public static final String PERCOLATE_POOL_SIZE = "index.percolate.pool.size";
-    
+
     /**
      * Realtime index setting to control the upper memory reuse limit across all {@link MemoryIndex} instances
      * pooled to handle Percolate requests. This is NOT a peak upper bound, percolate requests can use more memory than this upper
-     * bound. Yet, if all pooled {@link MemoryIndex} instances are returned to the pool this marks the upper memory bound use 
-     * buy this idle instances. If more memory was allocated by a {@link MemoryIndex} the additinal memory is freed before it 
-     * returns to the pool. The default is <tt>1 MB</tt> 
+     * bound. Yet, if all pooled {@link MemoryIndex} instances are returned to the pool this marks the upper memory bound use
+     * buy this idle instances. If more memory was allocated by a {@link MemoryIndex} the additinal memory is freed before it
+     * returns to the pool. The default is <tt>1 MB</tt>
      */
     public static final String PERCOLATE_POOL_MAX_MEMORY = "index.percolate.pool.reuse_memory_size";
 
@@ -190,20 +188,21 @@ public class PercolatorExecutor extends AbstractIndexComponent {
      * for an pooled memory index until an extra memory index is created. The default is <tt>100 ms</tt>
      */
     public static final String PERCOLATE_TIMEOUT = "index.percolate.pool.timeout";
-    
+
     /**
-     * Simple {@link MemoryIndex} Pool that reuses MemoryIndex instance across threads and allows each of the 
+     * Simple {@link MemoryIndex} Pool that reuses MemoryIndex instance across threads and allows each of the
      * MemoryIndex instance to reuse its internal memory based on a user configured realtime value.
      */
     static final class MemoryIndexPool {
         private volatile BlockingQueue<ReusableMemoryIndex> memoryIndexQueue;
-        
+
         // used to track the in-flight memoryIdx instances so we don't overallocate
         private int poolMaxSize;
         private int poolCurrentSize;
         private volatile long bytesPerMemoryIndex;
         private ByteSizeValue maxMemorySize; // only accessed in sync block
         private volatile TimeValue timeout;
+
         public MemoryIndexPool(Settings settings) {
             poolMaxSize = settings.getAsInt(PERCOLATE_POOL_SIZE, 10);
             if (poolMaxSize <= 0) {
@@ -220,9 +219,9 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             }
             bytesPerMemoryIndex = maxMemorySize.bytes() / poolMaxSize;
         }
-        
+
         public synchronized void updateSettings(Settings settings) {
-            
+
             final int newPoolSize = settings.getAsInt(PERCOLATE_POOL_SIZE, poolMaxSize);
             if (newPoolSize <= 0) {
                 throw new ElasticSearchIllegalArgumentException(PERCOLATE_POOL_SIZE + " size must be > 0 but was [" + newPoolSize + "]");
@@ -250,43 +249,43 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             memoryIndexQueue = new ArrayBlockingQueue<ReusableMemoryIndex>(newPoolSize);
             poolCurrentSize = 0; // lets refill the queue
         }
-        
+
         public ReusableMemoryIndex acquire() {
             final BlockingQueue<ReusableMemoryIndex> queue = memoryIndexQueue;
             final ReusableMemoryIndex poll = queue.poll();
             return poll == null ? waitOrCreate(queue) : poll;
         }
-        
+
         private ReusableMemoryIndex waitOrCreate(BlockingQueue<ReusableMemoryIndex> queue) {
             synchronized (this) {
                 if (poolCurrentSize < poolMaxSize) {
                     poolCurrentSize++;
                     return new ReusableMemoryIndex(false, bytesPerMemoryIndex);
-                    
-                } 
+
+                }
             }
             ReusableMemoryIndex poll = null;
             try {
-               final TimeValue timeout = this.timeout; // only read the volatile var once
-               poll = queue.poll(timeout.getMillis(), TimeUnit.MILLISECONDS); // delay this by 100ms by default
+                final TimeValue timeout = this.timeout; // only read the volatile var once
+                poll = queue.poll(timeout.getMillis(), TimeUnit.MILLISECONDS); // delay this by 100ms by default
             } catch (InterruptedException ie) {
                 // don't swallow the interrupt
                 Thread.currentThread().interrupt();
             }
             return poll == null ? new ReusableMemoryIndex(false, bytesPerMemoryIndex) : poll;
         }
-        
+
         public void release(ReusableMemoryIndex index) {
             assert index != null : "can't release null reference";
             if (bytesPerMemoryIndex == index.getMaxReuseBytes()) {
                 index.reset();
                 // only put is back into the queue if the size fits - prune old settings on the fly
                 memoryIndexQueue.offer(index);
-            } 
+            }
         }
-        
+
     }
-    
+
 
     private IndicesService indicesService;
     private final MemoryIndexPool memIndexPool;
@@ -304,11 +303,11 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         ApplySettings applySettings = new ApplySettings();
         indexSettingsService.addListener(applySettings);
     }
-    
+
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-           memIndexPool.updateSettings(settings);
+            memIndexPool.updateSettings(settings);
         }
     }
 
@@ -453,10 +452,10 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                     throw new ElasticSearchException("Failed to create token stream", e);
                 }
             }
-    
+
             final IndexSearcher searcher = memoryIndex.createSearcher();
             List<String> matches = new ArrayList<String>();
-    
+
             try {
                 if (request.query() == null) {
                     Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
@@ -467,7 +466,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                         } catch (IOException e) {
                             logger.warn("[" + entry.getKey() + "] failed to execute query", e);
                         }
-    
+
                         if (collector.exists()) {
                             matches.add(entry.getKey());
                         }
@@ -478,7 +477,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                         throw new PercolateIndexUnavailable(new Index(PercolatorService.INDEX_NAME));
                     }
                     IndexShard percolatorShard = percolatorIndex.shard(0);
-                    Engine.Searcher percolatorSearcher = percolatorShard.acquireSearcher();
+                    Engine.Searcher percolatorSearcher = percolatorShard.acquireSearcher("percolate");
                     try {
                         percolatorSearcher.searcher().search(request.query(), new QueryCollector(logger, queries, searcher, percolatorIndex, matches));
                     } catch (IOException e) {

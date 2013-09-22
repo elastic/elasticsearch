@@ -455,7 +455,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
-        Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher() : searcher;
+        Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
         SearchContext context = new SearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler);
         SearchContext.setCurrent(context);
         try {
@@ -565,7 +565,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
         }
     }
-    
+
     private static final int[] EMPTY_DOC_IDS = new int[0];
 
     /**

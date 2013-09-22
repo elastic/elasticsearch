@@ -118,7 +118,7 @@ public class PercolatorService extends AbstractIndexComponent {
     private void loadQueries(String indexName) {
         IndexService indexService = percolatorIndexService();
         IndexShard shard = indexService.shard(0);
-        shard.refresh(new Engine.Refresh().force(true));
+        shard.refresh(new Engine.Refresh("load_queries").force(true));
         Engine.Searcher searcher = shard.acquireSearcher("load_queries");
         try {
             // create a query to fetch all queries that are registered under the index name (which is the type

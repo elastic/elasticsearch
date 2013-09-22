@@ -57,7 +57,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     @Override
     protected void doMasterOperation(final GetMappingsRequest request, final ClusterState state, final ActionListener<GetMappingsResponse> listener) throws ElasticSearchException {
-        logger.debug("Serving getMapping request based on version {}", state.version());
+        logger.trace("serving getMapping request based on version {}", state.version());
         ImmutableMap<String, ImmutableMap<String, MappingMetaData>> result = state.metaData().findMappings(
                 request.indices(), request.types()
         );

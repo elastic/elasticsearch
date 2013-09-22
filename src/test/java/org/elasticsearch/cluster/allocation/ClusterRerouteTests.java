@@ -39,6 +39,7 @@ import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -155,12 +156,13 @@ public class ClusterRerouteTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         logger.info("--> closing all nodes");
-        File shardLocation = cluster().getInstance(NodeEnvironment.class).shardLocations(new ShardId("test", 0))[0];
+        File[] shardLocation = cluster().getInstance(NodeEnvironment.class, node_1).shardLocations(new ShardId("test", 0));
+        assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
+        cluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
-        cluster().closeAllNodesAndReset();
-
-        logger.info("--> deleting the shard data [{}] ", shardLocation);
-        FileSystemUtils.deleteRecursively(shardLocation);
+        logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
+        assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
+        assertThat(FileSystemUtils.deleteRecursively(shardLocation), equalTo(true));
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
         node_1 = cluster().startNode(commonSettings);

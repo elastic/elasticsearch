@@ -320,7 +320,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(indices);
+        out.writeStringArrayNullable(indices);
         out.writeOptionalString(documentType);
         out.writeByte(ignoreIndices.id());
         out.writeVInt(requests.size());

@@ -85,7 +85,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      * Retruns a new searcher instance. The consumer of this
      * API is responsible for releasing the returned seacher in a
      * safe manner, preferrablly in a try/finally block.
-     * 
+     *
      * @see Searcher#release()
      */
     Searcher acquireSearcher() throws EngineException;
@@ -193,6 +193,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     static class Refresh {
 
         private boolean force = false;
+        private String source = "";
 
         /**
          * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
@@ -207,9 +208,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.force;
         }
 
+        public Refresh source(String source) {
+            this.source = source;
+            return this;
+        }
+
+        public String source() {
+            return this.source;
+        }
+
         @Override
         public String toString() {
-            return "force[" + force + "]";
+            return "force[" + force + "], source [" + source + "]";
         }
     }
 

@@ -187,7 +187,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh().force(false));
+                indexShard.refresh(new Engine.Refresh().force(false).source("refresh_flag_delete"));
             } catch (Exception e) {
                 // ignore
             }
@@ -208,7 +208,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
         if (request.refresh()) {
             try {
-                indexShard.refresh(new Engine.Refresh().force(false));
+                indexShard.refresh(new Engine.Refresh().force(false).source("refresh_flag_delete"));
             } catch (Exception e) {
                 // ignore
             }

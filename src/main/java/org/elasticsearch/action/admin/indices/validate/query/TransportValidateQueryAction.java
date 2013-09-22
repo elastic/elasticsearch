@@ -179,7 +179,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         } else {
             SearchContext.setCurrent(new DefaultSearchContext(0,
                     new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()),
-                    null, indexShard.acquireSearcher(), indexService, indexShard,
+                    null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
                     scriptService, cacheRecycler));
             try {
                 ParsedQuery parsedQuery = queryParserService.parse(request.querySource());

@@ -118,6 +118,11 @@ public class PercolateContext extends SearchContext {
         AtomicReaderContext readerContext = topLevelReader.leaves().get(0);
         docEngineSearcher = new Engine.Searcher() {
             @Override
+            public String source() {
+                return "percolate";
+            }
+
+            @Override
             public IndexReader reader() {
                 return topLevelReader;
             }

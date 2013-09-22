@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
@@ -100,9 +101,17 @@ import static org.hamcrest.Matchers.equalTo;
 @Ignore
 @IntegrationTests
 public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
+    
+    public static final String INDEX_SEED_SETTING = "index.tests.seed";
+    
+    public static final long SHARED_CLUSTER_SEED = clusterSeed();
+    
+    private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
     private static final TestCluster globalCluster = new TestCluster(SHARED_CLUSTER_SEED, TestCluster.clusterName("shared", ElasticSearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+    
     private static TestCluster currentCluster;
+    
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<Class<?>, TestCluster>();
     
     @Before
@@ -121,9 +130,8 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
             break;
         default:
            assert false : "Unknonw Scope: [" + currentClusterScope + "]";
-        
         }
-        currentCluster.beforeTest(getRandom());
+        currentCluster.beforeTest(getRandom(), Double.isNaN(TRANSPORT_CLIENT_RATIO) ? randomDouble() : TRANSPORT_CLIENT_RATIO);
         wipeIndices();
         wipeTemplates();
         randomIndexTemplate();
@@ -600,6 +608,22 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
     public @interface ClusterScope {
         Scope scope() default Scope.GLOBAL; 
         int numNodes() default -1;
+    }
+    
+    private static long clusterSeed() {
+        String property = System.getProperty("tests.cluster_seed");
+        if (property == null || property.isEmpty()) {
+            return System.nanoTime();
+        }
+        return SeedUtils.parseSeed(property);
+    }
+    
+    private static double transportClientRatio() {
+        String property = System.getProperty("tests.client.ratio");
+        if (property == null || property.isEmpty()) {
+            return Double.NaN;
+        }
+        return Double.parseDouble(property);
     }
 
 }

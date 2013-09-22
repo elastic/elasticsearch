@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
@@ -49,18 +48,6 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
-    
-    public static final long SHARED_CLUSTER_SEED = clusterSeed();
-    public static final String INDEX_SEED_SETTING = "index.tests.seed";
-    
-    private static long clusterSeed() {
-        String property = System.getProperty("tests.cluster_seed");
-        if (property == null || property.isEmpty()) {
-            return System.nanoTime();
-        }
-        return SeedUtils.parseSeed(property);
-        
-    }
     
     public boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);

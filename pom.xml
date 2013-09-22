@@ -34,6 +34,7 @@
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
+        <tests.client.ratio>0.0</tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -389,6 +390,7 @@
                                 <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <tests.integration>${tests.integration}</tests.integration>
                                 <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
+                                <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>

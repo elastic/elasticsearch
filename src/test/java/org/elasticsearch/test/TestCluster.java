@@ -51,6 +51,7 @@ import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.File;
@@ -248,7 +249,8 @@ public class TestCluster implements Closeable, Iterable<Client> {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client master is requested
         }
-        return null;
+        Assert.fail("No master client found");
+        return null; // can't happen
     }
     
     public synchronized Client nonMasterClient() { 
@@ -257,7 +259,8 @@ public class TestCluster implements Closeable, Iterable<Client> {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
-        return null;
+        Assert.fail("No non-master client found");
+        return null; // can't happen
     }
     
     public synchronized Client clientNodeClient() {
@@ -266,7 +269,17 @@ public class TestCluster implements Closeable, Iterable<Client> {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client(random);
         }
-        return null;
+        startNodeClient(ImmutableSettings.EMPTY);
+        return getRandomNodeAndClient(new ClientNodePredicate()).client(random);
+    }
+    
+    public synchronized Client smartClient() {
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.nodeClient();
+        }
+        Assert.fail("No smart client found");
+        return null; // can't happen
     }
     
     public synchronized Client client(final Predicate<Settings> filterPredicate) {
@@ -351,12 +364,15 @@ public class TestCluster implements Closeable, Iterable<Client> {
                 client.close();
                 client = null;
             }
+            if (nodeClient != null) {
+                nodeClient.close();
+                nodeClient = null;
+            }
         }
 
         @Override
         public void close() {
             closed.set(true);
-            
             if (client != null) {
                 client.close();
                 client = null;
@@ -391,31 +407,47 @@ public class TestCluster implements Closeable, Iterable<Client> {
         public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+                    .put("name", "transport_client_" + node.settings().get("name"))
                     .put("cluster.name", clusterName).put("client.transport.sniff", sniff).build());
             client.addTransportAddress(addr);
             return client;
         }
     }
 
-    public static class RandomClientFactory extends ClientFactory {
+    public class RandomClientFactory extends ClientFactory {
 
         @Override
         public Client client(Node node, String clusterName,  Random random) {
             switch (random.nextInt(10)) {
                 case 5: // disabled for now - will re-enable once tests stabelize
+//                    if (logger.isDebugEnabled()) {
+//                        logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+//                    }
 //                    return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
                 case 3:
+//                    if (logger.isDebugEnabled()) {
+//                        logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), true);
+//                    }
 //                    return TransportClientFactory.SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
                 default:
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Using node client for node [{}]", node.settings().get("name"));
+                    }
                     return node.client();
             }
         }
     }
-
+    
     public synchronized void beforeTest(Random random) {
+        reset(random, true);
+    }
+
+    private synchronized void reset(Random random, boolean wipeData) {
         this.random = new Random(random.nextLong());
         resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
-        wipeDataDirectories();
+        if (wipeData) {
+            wipeDataDirectories();
+        }
         if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
             return;
@@ -467,6 +499,8 @@ public class TestCluster implements Closeable, Iterable<Client> {
     
     public synchronized void afterTest() {
         wipeDataDirectories();
+        resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
+
     }
     
     private void resetClients() {
@@ -660,8 +694,8 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
-    public void closeAllNodesAndReset() {
-        beforeTest(random);
+    public void closeNonSharedNodes(boolean wipeData) {
+        reset(random, wipeData);
     }
 
     

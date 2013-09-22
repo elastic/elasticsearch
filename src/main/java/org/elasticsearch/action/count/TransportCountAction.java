@@ -162,7 +162,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 new ShardSearchRequest().types(request.types())
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
-                shardTarget, indexShard.acquireSearcher(), indexService, indexShard,
+                shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
                 scriptService, cacheRecycler);
         SearchContext.setCurrent(context);
 

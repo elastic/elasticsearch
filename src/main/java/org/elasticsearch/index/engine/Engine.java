@@ -82,13 +82,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     GetResult get(Get get) throws EngineException;
 
     /**
-     * Retruns a new searcher instance. The consumer of this
+     * Returns a new searcher instance. The consumer of this
      * API is responsible for releasing the returned seacher in a
-     * safe manner, preferrablly in a try/finally block.
+     * safe manner, preferably in a try/finally block.
      *
      * @see Searcher#release()
      */
-    Searcher acquireSearcher() throws EngineException;
+    Searcher acquireSearcher(String source) throws EngineException;
 
     List<Segment> segments();
 
@@ -160,6 +160,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static interface Searcher extends Releasable {
 
+        /**
+         * The source that caused this searcher to be acquired.
+         */
+        String source();
+
         IndexReader reader();
 
         IndexSearcher searcher();
@@ -167,10 +172,17 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class SimpleSearcher implements Searcher {
 
+        private final String source;
         private final IndexSearcher searcher;
 
-        public SimpleSearcher(IndexSearcher searcher) {
+        public SimpleSearcher(String source, IndexSearcher searcher) {
+            this.source = source;
             this.searcher = searcher;
+        }
+
+        @Override
+        public String source() {
+            return this.source();
         }
 
         @Override

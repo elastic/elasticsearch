@@ -95,7 +95,7 @@ public interface IndexShard extends IndexShardComponent {
 
     FieldDataStats fieldDataStats(String... fields);
 
-    CompletionStats completionStats(String ... fields);
+    CompletionStats completionStats(String... fields);
 
     IndexShardState state();
 
@@ -127,7 +127,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
-    Engine.Searcher acquireSearcher();
+    Engine.Searcher acquireSearcher(String source);
 
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)

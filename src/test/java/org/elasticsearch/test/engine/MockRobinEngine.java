@@ -54,16 +54,17 @@ import java.util.concurrent.ConcurrentMap;
 public final class MockRobinEngine extends RobinEngine implements Engine {
     public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<AssertingSearcher, RuntimeException>();
     private final Random random;
+
     @Inject
     public MockRobinEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
-            IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer, Store store,
-            SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider,
-            MergeSchedulerProvider mergeScheduler, AnalysisService analysisService, SimilarityService similarityService,
-            CodecService codecService) throws EngineException {
-       super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
+                           IndexSettingsService indexSettingsService, ShardIndexingService indexingService, @Nullable IndicesWarmer warmer, Store store,
+                           SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider,
+                           MergeSchedulerProvider mergeScheduler, AnalysisService analysisService, SimilarityService similarityService,
+                           CodecService codecService) throws EngineException {
+        super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
                 deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
         final long seed = indexSettings.getAsLong(ElasticSearchTestCase.INDEX_SEED_SETTING, 0l);
-        if (logger.isTraceEnabled()){
+        if (logger.isTraceEnabled()) {
             logger.trace("Using [{}] for shard [{}] seed: [{}]", this.getClass().getName(), shardId, seed);
         }
         random = new Random(seed);
@@ -82,30 +83,35 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
             }
         }
     }
-    
+
     @Override
-    protected Searcher newSearcher(IndexSearcher searcher, SearcherManager manager) throws EngineException {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
         // this executes basic query checks and asserts that weights are normalized only once etc.
         final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(random, searcher.getTopReaderContext());
         assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
-        return new AssertingSearcher(super.newSearcher(assertingIndexSearcher, manager), shardId);
+        return new AssertingSearcher(super.newSearcher(source, assertingIndexSearcher, manager), shardId);
     }
 
     public static final class AssertingSearcher implements Searcher {
         private final Searcher searcher;
         private final ShardId shardId;
-        
+
         public AssertingSearcher(Searcher searcher, ShardId shardId) {
             this.searcher = searcher;
             this.shardId = shardId;
-            INFLIGHT_ENGINE_SEARCHERS.put(this, new RuntimeException("Unreleased Searcher"));
+            INFLIGHT_ENGINE_SEARCHERS.put(this, new RuntimeException("Unreleased Searcher, source [" + searcher.source() + "]"));
+        }
+
+        @Override
+        public String source() {
+            return searcher.source();
         }
 
         @Override
         public boolean release() throws ElasticSearchException {
             RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
-            assert remove != null : "Released Searcher more than once";
-            return searcher.release();  
+            assert remove != null : "Released Searcher more than once, source [" + searcher.source() + "]";
+            return searcher.release();
         }
 
         @Override
@@ -117,7 +123,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         public IndexSearcher searcher() {
             return searcher.searcher();
         }
-        
+
         public ShardId shardId() {
             return shardId;
         }

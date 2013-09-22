@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -43,24 +44,28 @@ public class SearchWhileCreatingIndexTests extends AbstractIntegrationTest {
 
     @Test
     @Slow
+    @AwaitsFix(bugUrl = "fix is coming")
     public void testIndexCausesIndexCreation() throws Exception {
         searchWhileCreatingIndex(-1, 1); // 1 replica in our default...
     }
 
     @Test
     @Slow
+    @AwaitsFix(bugUrl = "fix is coming")
     public void testNoReplicas() throws Exception {
         searchWhileCreatingIndex(10, 0);
     }
 
     @Test
     @Slow
+    @AwaitsFix(bugUrl = "fix is coming")
     public void testOneReplica() throws Exception {
         searchWhileCreatingIndex(10, 1);
     }
 
     @Test
     @Slow
+    @AwaitsFix(bugUrl = "fix is coming")
     public void testTwoReplicas() throws Exception {
         searchWhileCreatingIndex(10, 2);
     }

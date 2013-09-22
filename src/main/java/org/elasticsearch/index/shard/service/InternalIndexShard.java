@@ -691,7 +691,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types()));
+                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types())
+                            .origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 default:
                     throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");

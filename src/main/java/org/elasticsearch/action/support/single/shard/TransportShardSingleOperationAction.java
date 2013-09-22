@@ -174,28 +174,32 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 }
             } else {
                 DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
-                transportService.sendRequest(node, transportShardAction, new ShardSingleOperationRequest(request, shardRouting.id()), new BaseTransportResponseHandler<Response>() {
+                if (node == null) {
+                    onFailure(shardRouting, new NoShardAvailableActionException(shardIt.shardId()));
+                } else {
+                    transportService.sendRequest(node, transportShardAction, new ShardSingleOperationRequest(request, shardRouting.id()), new BaseTransportResponseHandler<Response>() {
 
-                    @Override
-                    public Response newInstance() {
-                        return newResponse();
-                    }
+                        @Override
+                        public Response newInstance() {
+                            return newResponse();
+                        }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
 
-                    @Override
-                    public void handleResponse(final Response response) {
-                        listener.onResponse(response);
-                    }
+                        @Override
+                        public void handleResponse(final Response response) {
+                            listener.onResponse(response);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onFailure(shardRouting, exp);
-                    }
-                });
+                        @Override
+                        public void handleException(TransportException exp) {
+                            onFailure(shardRouting, exp);
+                        }
+                    });
+                }
             }
         }
     }

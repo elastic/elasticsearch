@@ -89,6 +89,8 @@ public class TestCluster implements Closeable, Iterable<Client> {
      * this is important if a node is randomly shut down in a test since the next test relies on a
      * fully shared cluster to be more reproducible */
     private final long[] sharedNodesSeeds;
+    
+    private double transportClientRatio = 0.0;
 
     private final Map<Integer, Settings> perNodeSettingsMap;
     private static final Map<Integer, Settings> EMPTY = Collections.emptyMap();
@@ -418,31 +420,29 @@ public class TestCluster implements Closeable, Iterable<Client> {
 
         @Override
         public Client client(Node node, String clusterName,  Random random) {
-            switch (random.nextInt(10)) {
-                case 5: // disabled for now - will re-enable once tests stabelize
-//                    if (logger.isDebugEnabled()) {
-//                        logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
-//                    }
-//                    return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
-                case 3:
-//                    if (logger.isDebugEnabled()) {
-//                        logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), true);
-//                    }
-//                    return TransportClientFactory.SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
-                default:
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Using node client for node [{}]", node.settings().get("name"));
-                    }
-                    return node.client();
+            double nextDouble = random.nextDouble();
+            if (nextDouble < transportClientRatio) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+                } 
+                /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
+                 * we first need support of transportClientRatio as annotations or so
+                 */
+                return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
+            } else {
+                return node.client();
             }
         }
     }
     
-    public synchronized void beforeTest(Random random) {
-        reset(random, true);
+    public synchronized void beforeTest(Random random, double transportClientRatio) {
+        reset(random, true, transportClientRatio);
     }
 
-    private synchronized void reset(Random random, boolean wipeData) {
+    private synchronized void reset(Random random, boolean wipeData, double transportClientRatio) {
+        assert transportClientRatio >= 0.0 && transportClientRatio <= 1.0;
+        logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
+        this.transportClientRatio = transportClientRatio;
         this.random = new Random(random.nextLong());
         resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
         if (wipeData) {
@@ -586,6 +586,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
     
+    
     public synchronized void stopCurrentMasterNode() {
         ensureOpen();
         assert numNodes() > 0;
@@ -695,7 +696,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
     }
 
     public void closeNonSharedNodes(boolean wipeData) {
-        reset(random, wipeData);
+        reset(random, wipeData, transportClientRatio);
     }
 
     

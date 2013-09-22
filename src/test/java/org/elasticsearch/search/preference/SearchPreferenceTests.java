@@ -64,7 +64,7 @@ public class SearchPreferenceTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        final Client client = client();
+        final Client client = cluster().smartClient();
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
         String firstNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
         searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();

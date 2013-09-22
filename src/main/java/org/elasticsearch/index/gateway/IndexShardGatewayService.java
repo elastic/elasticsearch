@@ -183,7 +183,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         indexShard.start("post recovery from gateway");
                     }
                     // refresh the shard
-                    indexShard.refresh(new Engine.Refresh().force(true).source("post_gateway"));
+                    indexShard.refresh(new Engine.Refresh("post_gateway").force(true));
 
                     recoveryStatus.time(System.currentTimeMillis() - recoveryStatus.startTime());
                     recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);

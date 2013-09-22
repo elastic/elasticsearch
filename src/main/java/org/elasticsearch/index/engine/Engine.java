@@ -204,8 +204,12 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Refresh {
 
+        private final String source;
         private boolean force = false;
-        private String source = "";
+
+        public Refresh(String source) {
+            this.source = source;
+        }
 
         /**
          * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
@@ -218,11 +222,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public boolean force() {
             return this.force;
-        }
-
-        public Refresh source(String source) {
-            this.source = source;
-            return this;
         }
 
         public String source() {

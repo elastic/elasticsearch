@@ -99,7 +99,7 @@ public class SimpleRoutingTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleSearchRouting() {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");

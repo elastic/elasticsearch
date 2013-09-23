@@ -59,8 +59,8 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build());
         cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build());
 
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
-        client().admin().indices().prepareCreate("test2").execute().actionGet();
+        createIndex("test1");
+        createIndex("test2");
 
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));

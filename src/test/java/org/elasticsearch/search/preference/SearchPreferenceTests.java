@@ -75,7 +75,7 @@ public class SearchPreferenceTests extends AbstractIntegrationTest {
 
     @Test
     public void simplePreferenceTests() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();

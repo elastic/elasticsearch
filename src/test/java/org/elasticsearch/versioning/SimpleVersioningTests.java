@@ -43,7 +43,7 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
     @Test
     public void testExternalVersioningInitialDelete() throws Exception {
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -65,7 +65,7 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
         } catch (IndexMissingException e) {
             // its ok
         }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -107,7 +107,7 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
         } catch (IndexMissingException e) {
             // its ok
         }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
@@ -191,7 +191,7 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
         } catch (IndexMissingException e) {
             // its ok
         }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
@@ -258,7 +258,7 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
         } catch (IndexMissingException e) {
             // its ok
         }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();

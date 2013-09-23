@@ -40,7 +40,7 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
     @Slow
     public void testFullRollingRestart() throws Exception {
         cluster().startNode();
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
     
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test", "type1", Long.toString(i))

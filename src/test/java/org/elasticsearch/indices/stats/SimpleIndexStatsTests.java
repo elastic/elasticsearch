@@ -47,8 +47,8 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     @Test
     public void simpleStats() throws Exception {
         // rely on 1 replica for this tests
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
-        client().admin().indices().prepareCreate("test2").execute().actionGet();
+        createIndex("test1");
+        createIndex("test2");
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
@@ -151,7 +151,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     @Test
     public void testMergeStats() {
         // rely on 1 replica for this tests
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
+        createIndex("test1");
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
@@ -190,8 +190,8 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     @Test
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
-        client().admin().indices().prepareCreate("test2").execute().actionGet();
+        createIndex("test1");
+        createIndex("test2");
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));

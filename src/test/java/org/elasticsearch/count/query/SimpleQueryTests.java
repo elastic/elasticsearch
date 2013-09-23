@@ -805,7 +805,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testBasicFilterById() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -838,7 +838,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testBasicQueryById() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()

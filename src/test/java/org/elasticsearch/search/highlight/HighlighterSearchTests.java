@@ -585,8 +585,8 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testGlobalHighlightingSettingsOverriddenAtFieldLevel() {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "this is another test")
@@ -610,7 +610,7 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testHighlightingOnWildcardFields() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex("test", "type1")
@@ -633,7 +633,7 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testPlainHighlighter() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex("test", "type1")

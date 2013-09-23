@@ -45,7 +45,7 @@ public class AnalyzeActionTests extends AbstractIntegrationTest {
             // ignore
         }
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
@@ -65,7 +65,7 @@ public class AnalyzeActionTests extends AbstractIntegrationTest {
         } catch (Exception e) {
             // ignore
         }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "test", "1")
@@ -100,7 +100,7 @@ public class AnalyzeActionTests extends AbstractIntegrationTest {
     @Test
     public void analyzerWithFieldOrTypeTests() throws Exception {
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().indices().preparePutMapping("test")

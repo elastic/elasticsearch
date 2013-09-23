@@ -75,7 +75,7 @@ public class MinimumMasterNodesTests extends AbstractIntegrationTest {
         assertThat(state.nodes().size(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(false));
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();

@@ -118,7 +118,7 @@ public class SimpleIndicesWarmerTests extends AbstractIntegrationTest {
 
     @Test
     public void deleteNonExistentIndexWarmerTest() {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
 
         try {
             client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("foo").execute().actionGet(1000);

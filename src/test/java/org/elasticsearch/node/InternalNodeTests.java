@@ -28,28 +28,29 @@ import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
-public class InternalNodeTests extends AbstractNodesTests {
+public class InternalNodeTests extends ElasticSearchTestCase {
 
     @Test
     public void testDefaultPluginConfiguration() throws Exception {
 
         Settings settings = settingsBuilder()
                 .put("plugin.types", TestPlugin.class.getName())
+                .put("name", "test")
                 .build();
 
-        InternalNode node = (InternalNode) buildNode("test", settings);
+        InternalNode node = (InternalNode) nodeBuilder()
+                .settings(settings)
+                .build();
 
         TestService service = node.injector().getInstance(TestService.class);
         assertThat(service.state.initialized(), is(true));

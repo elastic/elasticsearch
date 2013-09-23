@@ -31,11 +31,11 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.nodesinfo.plugin.dummy1.TestPlugin;
 import org.elasticsearch.nodesinfo.plugin.dummy2.TestNoVersionPlugin;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -54,7 +54,8 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleNodesInfoTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class SimpleNodesInfoTests extends AbstractIntegrationTest {
 
     static final class Fields {
         static final String SITE_PLUGIN = "dummy";
@@ -62,46 +63,42 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         static final String SITE_PLUGIN_NO_DESCRIPTION = "No description found for dummy.";
     }
 
-    @After
-    public void closeNodes() {
-        closeAllNodes();
-    }
 
     @Test
     public void testNodesInfos() {
-        startNode("server1");
-        startNode("server2");
+        final String node_1 = cluster().startNode();
+        final String node_2 = cluster().startNode();
 
-        ClusterHealthResponse clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
-        String server2NodeId = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
+        String server1NodeId = cluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();
+        String server2NodeId = cluster().getInstance(ClusterService.class, node_2).state().nodes().localNodeId();
         logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
 
-        NodesInfoResponse response = client("server1").admin().cluster().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         assertThat(response.getNodes().length, is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
+        response = client().admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
         assertThat(response.getNodes().length, is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
-        response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
-        response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
@@ -121,18 +118,18 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
     public void testNodeInfoPlugin() throws URISyntaxException {
         // We start four nodes
         // The first has no plugin
-        String server1NodeId = startNodeWithPlugins("node1");
+        String server1NodeId = startNodeWithPlugins(1);
         // The second has one site plugin with a es-plugin.properties file (description and version)
-        String server2NodeId = startNodeWithPlugins("node2");
+        String server2NodeId = startNodeWithPlugins(2);
         // The third has one java plugin
-        String server3NodeId = startNodeWithPlugins("node3", TestPlugin.class.getName());
+        String server3NodeId = startNodeWithPlugins(3,TestPlugin.class.getName());
         // The fourth has one java plugin and one site plugin
-        String server4NodeId = startNodeWithPlugins("node4", TestNoVersionPlugin.class.getName());
+        String server4NodeId = startNodeWithPlugins(4,TestNoVersionPlugin.class.getName());
 
-        ClusterHealthResponse clusterHealth = client("node4").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        NodesInfoResponse response = client("node1").admin().cluster().prepareNodesInfo().setPlugin(true).execute().actionGet();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setPlugin(true).execute().actionGet();
         logger.info("--> full json answer, status " + response.toString());
 
         assertNodeContainsPlugins(response, server1NodeId, Collections.EMPTY_LIST, Collections.EMPTY_LIST,
@@ -194,8 +191,8 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         assertThat(sitePluginUrls, not(contains(nullValue())));
     }
 
-    private String startNodeWithPlugins(String name, String ... pluginClassNames) throws URISyntaxException {
-        URL resource = SimpleNodesInfoTests.class.getResource("/org/elasticsearch/nodesinfo/" + name + "/");
+    private String startNodeWithPlugins(int nodeId, String ... pluginClassNames) throws URISyntaxException {
+        URL resource = SimpleNodesInfoTests.class.getResource("/org/elasticsearch/nodesinfo/node" + Integer.toString(nodeId) + "/");
         ImmutableSettings.Builder settings = settingsBuilder();
         if (resource != null) {
             settings.put("path.plugins", new File(resource.toURI()).getAbsolutePath());
@@ -205,13 +202,12 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
             settings.putArray("plugin.types", pluginClassNames);
         }
 
-        startNode(name, settings);
+        String nodeName = cluster().startNode(settings);
 
         // We wait for a Green status
-        client(name).admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
 
-        String serverNodeId = ((InternalNode) node(name)).injector()
-                .getInstance(ClusterService.class).state().nodes().localNodeId();
+        String serverNodeId = cluster().getInstance(ClusterService.class, nodeName).state().nodes().localNodeId();
         logger.debug("--> server {} started" + serverNodeId);
         return serverNodeId;
     }

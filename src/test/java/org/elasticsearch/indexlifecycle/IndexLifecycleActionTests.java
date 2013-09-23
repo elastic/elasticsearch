@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indexlifecycle;
 
+import com.carrotsearch.randomizedtesting.annotations.Nightly;
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -27,13 +29,11 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.Map;
@@ -50,16 +50,21 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IndexLifecycleActionTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class IndexLifecycleActionTests extends AbstractIntegrationTest {
 
-    private final ESLogger logger = Loggers.getLogger(IndexLifecycleActionTests.class);
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
+    @Slow
+    @Test
+    public void testIndexLifecycleActions() throws Exception {
+        if (randomBoolean()) { // both run with @Nightly
+            testIndexLifecycleActionsWith11Shards0Backup();
+        } else {
+            testIndexLifecycleActionsWith11Shards1Backup();
+        }
     }
 
     @Slow
+    @Nightly
     @Test
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
         Settings settings = settingsBuilder()
@@ -70,18 +75,15 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         // start one server
         logger.info("Starting sever1");
-        startNode("server1", settings);
-
-        final String node1 = getLocalNodeId("server1");
-
-        wipeIndices(client());
+        final String server_1 = cluster().startNode(settings);
+        final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test")).actionGet();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -92,22 +94,22 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Starting server2");
         // start another server
-        startNode("server2", settings);
+        String server_2 = cluster().startNode(settings);
 
         // first wait for 2 nodes in the cluster
         logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        final String node2 = getLocalNodeId("server2");
+        final String node2 = getLocalNodeId(server_2);
 
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+        client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForRelocatingShards(0)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(2));
@@ -129,21 +131,21 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Starting server3");
         // start another server
-        startNode("server3", settings);
+        String server_3 = cluster().startNode(settings);
 
         // first wait for 3 nodes in the cluster
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
 
-        final String node3 = getLocalNodeId("server3");
+        final String node3 = getLocalNodeId(server_3);
 
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+        client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
@@ -175,17 +177,22 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Closing server1");
         // kill the first server
-        closeNode("server1");
+        cluster().stopRandomNode(new Predicate<Settings>() {
+            public boolean apply(Settings settings) {
+                return server_1.equals(settings.get("name"));
+                        
+            }
+        });
         // verify health
         logger.info("Running Cluster Health");
-        clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         client().admin().cluster().prepareReroute().get();
 
-        clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
@@ -208,7 +215,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Deleting index [test]");
         // last, lets delete the index
-        DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().prepareDelete("test").execute().actionGet();
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete("test").execute().actionGet();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
@@ -221,13 +228,14 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
     }
 
     private String getLocalNodeId(String name) {
-        assert node(name) != null : "no node for name: " + name;
-        Discovery discovery = ((InternalNode) node(name)).injector().getInstance(Discovery.class);
+        Discovery discovery = cluster().getInstance(Discovery.class, name);
         String nodeId = discovery.localNode().getId();
         assertThat(nodeId, not(nullValue()));
         return nodeId;
     }
+    
     @Slow
+    @Nightly
     @Test
     public void testIndexLifecycleActionsWith11Shards0Backup() throws Exception {
 
@@ -239,17 +247,16 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         // start one server
         logger.info("Starting server1");
-        startNode("server1", settings);
+        final String server_1 = cluster().startNode(settings);
 
-        final String node1 = getLocalNodeId("server1");
-        wipeIndices(client());
+        final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test")).actionGet();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -264,19 +271,19 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         // start another server
         logger.info("Starting server2");
-        startNode("server2", settings);
+        final String server_2 = cluster().startNode(settings);
 
         // first wait for 2 nodes in the cluster
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        final String node2 = getLocalNodeId("server2");
+        final String node2 = getLocalNodeId(server_2);
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+        client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(2));
@@ -298,18 +305,18 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         // start another server
         logger.info("Starting server3");
-        startNode("server3");
+        final String server_3 = cluster().startNode();
 
         // first wait for 3 nodes in the cluster
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        final String node3 = getLocalNodeId("server3");
+        final String node3 = getLocalNodeId(server_3);
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        client("server1").admin().cluster().prepareReroute().execute().actionGet();
+        client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
@@ -340,10 +347,15 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Closing server1");
         // kill the first server
-        closeNode("server1");
+        cluster().stopRandomNode(new Predicate<Settings>() {
+            public boolean apply(Settings settings) {
+                return server_1.equals(settings.get("name"));
+                        
+            }
+        });
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server3").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -351,7 +363,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         client().admin().cluster().prepareReroute().get();
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server3").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForRelocatingShards(0)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -377,7 +389,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Deleting index [test]");
         // last, lets delete the index
-        DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().delete(deleteIndexRequest("test")).actionGet();
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().delete(deleteIndexRequest("test")).actionGet();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = client().admin().cluster().prepareState().get().getState();

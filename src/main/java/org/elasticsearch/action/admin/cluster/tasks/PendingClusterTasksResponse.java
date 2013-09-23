@@ -104,7 +104,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
 
         static final XContentBuilderString TASKS = new XContentBuilderString("tasks");
         static final XContentBuilderString INSERT_ORDER = new XContentBuilderString("insert_order");
-        static final XContentBuilderString PRIORITY = new XContentBuilderString("proirity");
+        static final XContentBuilderString PRIORITY = new XContentBuilderString("priority");
         static final XContentBuilderString SOURCE = new XContentBuilderString("source");
         static final XContentBuilderString TIME_IN_QUEUE_MILLIS = new XContentBuilderString("time_in_queue_millis");
         static final XContentBuilderString TIME_IN_QUEUE = new XContentBuilderString("time_in_queue");

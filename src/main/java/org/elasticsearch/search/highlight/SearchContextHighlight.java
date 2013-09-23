@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -72,6 +73,8 @@ public class SearchContextHighlight {
         private Query highlightQuery;
 
         private int noMatchSize = -1;
+
+        private Set<String> matchedFields;
 
         private Map<String, Object> options;
 
@@ -201,6 +204,14 @@ public class SearchContextHighlight {
 
         public void noMatchSize(int noMatchSize) {
             this.noMatchSize = noMatchSize;
+        }
+
+        public Set<String> matchedFields() {
+            return matchedFields;
+        }
+
+        public void matchedFields(Set<String> matchedFields) {
+            this.matchedFields = matchedFields;
         }
 
         public Map<String, Object> options() {

@@ -315,6 +315,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.noMatchSize != null) {
                     builder.field("no_match_size", field.noMatchSize);
                 }
+                if (field.matchedFields != null) {
+                    builder.field("matched_fields", field.matchedFields);
+                }
                 if (field.options != null && field.options.size() > 0) {
                     builder.field("options", field.options);
                 }
@@ -344,6 +347,7 @@ public class HighlightBuilder implements ToXContent {
         String fragmenter;
         QueryBuilder highlightQuery;
         Integer noMatchSize;
+        String[] matchedFields;
         Map<String, Object> options;
 
         public Field(String name) {
@@ -463,6 +467,16 @@ public class HighlightBuilder implements ToXContent {
          */
         public Field options(Map<String, Object> options) {
             this.options = options;
+            return this;
+        }
+
+        /**
+         * Set the matched fields to highlight against this field data.  Default to null, meaning just
+         * the named field.  If you provide a list of fields here then don't forget to include name as
+         * it is not automatically included.
+         */
+        public Field matchedFields(String... matchedFields) {
+            this.matchedFields = matchedFields;
             return this;
         }
     }

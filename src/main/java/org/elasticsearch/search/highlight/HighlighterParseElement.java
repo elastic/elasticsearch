@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -162,6 +164,12 @@ public class HighlighterParseElement implements SearchParseElement {
                                             postTagsList.add(parser.text());
                                         }
                                         field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                                    } else if ("matched_fields".equals(fieldName) || "matchedFields".equals(fieldName)) {
+                                        Set<String> matchedFields = Sets.newHashSet();
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                            matchedFields.add(parser.text());
+                                        }
+                                        field.matchedFields(matchedFields);
                                     }
                                 } else if (token.isValue()) {
                                     if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {

@@ -53,5 +53,7 @@ include::setup/configuration.asciidoc[]
 
 include::setup/as-a-service.asciidoc[]
 
+include::setup/as-a-service-win.asciidoc[]
+
 include::setup/dir-layout.asciidoc[]
 

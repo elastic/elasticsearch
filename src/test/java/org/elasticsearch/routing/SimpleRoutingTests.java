@@ -265,7 +265,6 @@ public class SimpleRoutingTests extends AbstractIntegrationTest {
 
     @Test
     public void testRequiredRoutingWithPathNumericType() throws Exception {
-        wipeIndices();
 
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")

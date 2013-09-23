@@ -150,8 +150,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
 
     @Test
     public void testMergeStats() {
-        wipeIndices();
-        // rely on 1 replica for this tests
+                // rely on 1 replica for this tests
         client().admin().indices().prepareCreate("test1").execute().actionGet();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -190,8 +189,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
 
     @Test
     public void testAllFlags() throws Exception {
-        wipeIndices();
-        // rely on 1 replica for this tests
+                // rely on 1 replica for this tests
         client().admin().indices().prepareCreate("test1").execute().actionGet();
         client().admin().indices().prepareCreate("test2").execute().actionGet();
 

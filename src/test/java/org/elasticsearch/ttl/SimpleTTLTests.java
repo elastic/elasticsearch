@@ -50,7 +50,6 @@ public class SimpleTTLTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleTTL() throws Exception {
-        wipeIndices();
 
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()

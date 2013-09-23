@@ -37,8 +37,7 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testDeleteAllNoIndices() {
-        wipeIndices();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+                client().admin().indices().prepareRefresh().execute().actionGet();
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
@@ -47,8 +46,7 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
     
     @Test
     public void testDeleteAllOneIndex() {
-        wipeIndices();
-        
+
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
 
         client().prepareIndex("twitter", "tweet").setSource(json).setRefresh(true).execute().actionGet();
@@ -70,7 +68,6 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testMissing() {
-        wipeIndices();
 
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
 
@@ -101,8 +98,7 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testFailure() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("twitter").execute().actionGet();
+                client().admin().indices().prepareCreate("twitter").execute().actionGet();
 
         DeleteByQueryResponse response = client().prepareDeleteByQuery("twitter")
                 .setQuery(QueryBuilders.hasChildQuery("type", QueryBuilders.matchAllQuery()))

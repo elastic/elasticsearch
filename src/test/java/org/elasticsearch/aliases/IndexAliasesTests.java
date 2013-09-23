@@ -61,8 +61,7 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testAliases() throws Exception {
-        wipeIndices();
-        
+
         logger.info("--> creating index [test]");
         createIndex("test");
 
@@ -100,7 +99,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testFailedFilter() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -118,7 +116,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testFilteringAliases() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -151,7 +148,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -226,7 +222,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test1]");
         admin().indices().create(createIndexRequest("test1")).actionGet();
@@ -292,7 +287,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating indices");
         admin().indices().create(createIndexRequest("test1")).actionGet();
@@ -356,7 +350,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testDeletingByQueryFilteringAliases() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test1]");
         admin().indices().create(createIndexRequest("test1")).actionGet();
@@ -420,7 +413,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -436,7 +428,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testWaitForAliasCreationSingleShard() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
@@ -453,7 +444,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
     public void testWaitForAliasSimultaneousUpdate() throws Exception {
         final int aliasCount = 10;
 
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -482,7 +472,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSameAlias() throws Exception {
-        wipeIndices();
 
         logger.info("--> creating index [test]");
         createIndex("test");

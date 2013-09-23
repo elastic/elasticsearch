@@ -52,8 +52,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testScoreExplainBug_2283() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().execute()
                 .actionGet();
@@ -127,8 +126,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testScoreExplainBug_2283_withFunctionScore() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().execute()
                 .actionGet();
@@ -200,7 +198,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testMultiValueCustomScriptBoost() throws ElasticSearchException, IOException {
-        wipeIndices();
 
         client().admin()
                 .indices()
@@ -305,7 +302,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testMultiValueCustomScriptBoost_withFunctionScore() throws ElasticSearchException, IOException {
-        wipeIndices();
 
         client().admin()
                 .indices()
@@ -420,8 +416,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomScriptBoost() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
         client().index(
@@ -529,8 +524,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomScriptBoost_withFunctionScore() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
         client().index(
@@ -638,8 +632,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testTriggerBooleanScorer() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
@@ -657,8 +650,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testTriggerBooleanScorer_withFunctionScore() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
@@ -678,8 +670,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomFiltersScore() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
@@ -860,8 +851,7 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomFiltersScore_withFunctionScore() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
+                client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();

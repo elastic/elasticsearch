@@ -34,8 +34,7 @@ public class IgnoreIndicesTests extends AbstractIntegrationTest {
 
     @Test
     public void testMissing() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
+                client().admin().indices().prepareCreate("test1").execute().actionGet();
         ensureYellow();
 
         try {
@@ -149,8 +148,7 @@ public class IgnoreIndicesTests extends AbstractIntegrationTest {
 
     @Test
     public void testAllMissing() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
+                client().admin().indices().prepareCreate("test1").execute().actionGet();
         ensureYellow();
         try {
             client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();

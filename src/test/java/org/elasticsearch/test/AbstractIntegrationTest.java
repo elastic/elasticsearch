@@ -133,7 +133,8 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
            assert false : "Unknonw Scope: [" + currentClusterScope + "]";
         }
         currentCluster.beforeTest(getRandom(), Double.isNaN(TRANSPORT_CLIENT_RATIO) ? randomDouble() : TRANSPORT_CLIENT_RATIO);
-                wipeTemplates();
+        wipeIndices();
+        wipeTemplates();
         randomIndexTemplate();
         logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
     }

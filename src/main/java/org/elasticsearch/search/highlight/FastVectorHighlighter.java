@@ -145,8 +145,14 @@ public class FastVectorHighlighter implements Highlighter {
             int numberOfFragments = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.numberOfFragments();
             int fragmentCharSize = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fragmentCharSize();
             // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
-            fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), fragmentCharSize, numberOfFragments,
-                    entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
+            // Only send matched fields if they were requested to save time.
+            if (field.matchedFields() != null && !field.matchedFields().isEmpty()) {
+                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.matchedFields(), fragmentCharSize,
+                        numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
+            } else {
+                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), fragmentCharSize,
+                        numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
+            }
 
             if (fragments != null && fragments.length > 0) {
                 return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));

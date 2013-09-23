@@ -75,6 +75,8 @@ will be used instead of the plain highlighter.  The fast vector highlighter:
  `fragment_offset` (see <<boundary-characters,below>>)
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
+* Can combine matches from multiple fields into one result.  See
+  `matched_fields`
 
 Here is an example of setting the `content` field to allow for
 highlighting using the fast vector highlighter on it (this will cause
@@ -102,7 +104,7 @@ The following is an example that forces the use of the plain highlighter:
     "query" : {...},
     "highlight" : {
         "fields" : {
-            "content" : { "type" : "plain"}
+            "content" : {"type" : "plain"}
         }
     }
 }
@@ -385,3 +387,124 @@ defined in it. It defaults to `.,!? \t\n`.
 
 The `boundary_max_scan` allows to control how far to look for boundary
 characters, and defaults to `20`.
+
+
+added[0.90.8]
+[[matched-fields]]
+==== Matched Fields
+The Fast Vector Highlighter can combine matches on multiple fields to
+highlight a single field using `matched_fields`.  This is most
+intuitive for multifields that analyze the same string in different
+ways.  All `matched_fields` must have `term_vector` set to
+`with_positions_offsets` but only the field to which the matches are
+combined is loaded so only that field would benefit from having
+`store` set to `yes`.
+
+In the following examples `content` is analyzed by the `english`
+analyzer and `content.plain` is analyzed by the `standard` analyzer.
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "query_string": {
+            "query": "content.plain:running scissors",
+            "fields": ["content"]
+        }
+    },
+    "highlight": {
+        "order": "score",
+        "fields": {
+            "content": {
+                "matched_fields": ["content", "content.plain"],
+                "type" : "fvh"
+            }
+        }
+    }
+}
+--------------------------------------------------
+The above matches both "run with scissors" and "running with scissors"
+and would highlight "running" and "scissors" but not "run". If both
+phrases appear in a large document then "running with scissors" is
+sorted above "run with scissors" in the fragments list because there
+are more matches in that fragment.
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "query_string": {
+            "query": "running scissors",
+            "fields": ["content", "content.plain^10"]
+        }
+    },
+    "highlight": {
+        "order": "score",
+        "fields": {
+            "content": {
+                "matched_fields": ["content", "content.plain"],
+                "type" : "fvh"
+            }
+        }
+    }
+}
+--------------------------------------------------
+The above highlights "run" as well as "running" and "scissors" but
+still sorts "running with scissors" above "run with scissors" because
+the plain match ("running") is boosted.
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "query_string": {
+            "query": "running scissors",
+            "fields": ["content", "content.plain^10"]
+        }
+    },
+    "highlight": {
+        "order": "score",
+        "fields": {
+            "content": {
+                "matched_fields": ["content.plain"],
+                "type" : "fvh"
+            }
+        }
+    }
+}
+--------------------------------------------------
+The above query wouldn't highlight "run" or "scissor" but shows that
+it is just fine not to list the field to which the matches are combined
+(`content`) in the matched fields.
+
+[NOTE]
+Technically it is also fine to add fields to `matched_fields` that
+don't share the same underlying string as the field to which the matches
+are combined.  The results might not make much sense and if one of the
+matches is off the end of the text then the whole the query will fail.
+
+[NOTE]
+===================================================================
+There is a small amount of overhead involved with setting
+`matched_fields` to a non-empty array so always prefer
+[source,js]
+--------------------------------------------------
+    "highlight": {
+        "fields": {
+            "content": {}
+        }
+    }
+--------------------------------------------------
+to
+[source,js]
+--------------------------------------------------
+    "highlight": {
+        "fields": {
+            "content": {
+                "matched_fields": ["content"],
+                "type" : "fvh"
+            }
+        }
+    }
+--------------------------------------------------
+===================================================================

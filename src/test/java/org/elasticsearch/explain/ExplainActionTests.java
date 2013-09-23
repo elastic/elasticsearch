@@ -103,7 +103,7 @@ public class ExplainActionTests extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testExplainWithFields() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex("test", "test", "1")

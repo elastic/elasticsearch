@@ -43,7 +43,8 @@ public class IndexActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreatedFlag() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
         assertTrue(indexResponse.isCreated());
@@ -60,7 +61,8 @@ public class IndexActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreatedFlagWithFlush() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
         assertTrue(indexResponse.isCreated());
@@ -75,7 +77,8 @@ public class IndexActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreatedFlagParallelExecution() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         int threadCount = 20;
         final int docCount = 300;
@@ -106,7 +109,8 @@ public class IndexActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreatedFlagWithExternalVersioning() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(123)
                                               .setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -115,7 +119,8 @@ public class IndexActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreateFlagWithBulk() {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));

@@ -59,7 +59,7 @@ public class NoMasterNodeTests extends AbstractIntegrationTest {
         cluster().startNode(settings);
         // start a second node, create an index, and then shut it down so we have no master block
         cluster().startNode(settings);
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         cluster().stopRandomNode();
         assertThat(awaitBusy(new Predicate<Object>() {

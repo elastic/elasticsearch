@@ -43,9 +43,11 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testExternalVersioningInitialDelete() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         // Note - external version doesn't throw version conflicts on deletes of non existent records. This is different from internal versioning
+
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(deleteResponse.isNotFound(), equalTo(true));
 
@@ -62,7 +64,8 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testExternalVersioning() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(12l));
@@ -123,7 +126,8 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testInternalVersioningInitialDelete() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         assertThrows(client().prepareDelete("test", "type", "1").setVersion(17).execute(),
                 VersionConflictEngineException.class);
@@ -136,7 +140,8 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testInternalVersioning() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(1l));
@@ -203,7 +208,8 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleVersioningWithFlush() throws Exception {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(1l));
@@ -242,7 +248,8 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testVersioningWithBulk() {
-        createIndex("test"); ensureGreen();
+        createIndex("test");
+        ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));

@@ -21,12 +21,12 @@ package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -39,28 +39,14 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class IndicesStoreTests extends AbstractNodesTests {
-
-
-    @Override
-    protected Settings getClassDefaultSettings() {
-        // The default (none) gateway cleans the shards on closing
-        return settingsBuilder().put("gateway.type", "local").build();
-    }
-
-    @Override
-    protected void beforeClass() {
-        startNode("server1");
-        startNode("server2");
-    }
-
-    @Override
-    public Client client() {
-        return client("server1");
-    }
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class IndicesStoreTests extends AbstractIntegrationTest {
+    private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
     public void shardsCleanup() throws Exception {
+        final String node_1 = cluster().startNode(SETTINGS);
+        final String node_2 = cluster().startNode(SETTINGS);
         logger.info("--> creating index [test] with one shard and on replica");
         client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
@@ -71,19 +57,24 @@ public class IndicesStoreTests extends AbstractNodesTests {
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
 
-        logger.info("--> making sure that shard and it's replica are allocated on server1 and server2");
-        assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));
-        assertThat(shardDirectory("server2", "test", 0).exists(), equalTo(true));
+        logger.info("--> making sure that shard and it's replica are allocated on node_1 and node_2");
+        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
+        assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
 
         logger.info("--> starting node server3");
-        startNode("server3");
+        String node_3 = cluster().startNode(SETTINGS);
 
         logger.info("--> making sure that shard is not allocated on server3");
-        assertThat(waitForShardDeletion("server3", "test", 0), equalTo(false));
+        assertThat(waitForShardDeletion(node_3, "test", 0), equalTo(false));
 
-        File server2Shard = shardDirectory("server2", "test", 0);
-        logger.info("--> stopping node server2");
-        closeNode("server2");
+        File server2Shard = shardDirectory(node_2, "test", 0);
+        logger.info("--> stopping node node_2");
+        cluster().stopRandomNode(new Predicate<Settings>() {
+            
+            public boolean apply(Settings settings) {
+                return settings.get("name").equals(node_2);
+            }
+        });
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");
@@ -92,27 +83,26 @@ public class IndicesStoreTests extends AbstractNodesTests {
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica exist on server1, server2 and server3");
-        assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));
+        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(server2Shard.exists(), equalTo(true));
-        assertThat(shardDirectory("server3", "test", 0).exists(), equalTo(true));
+        assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
 
-        logger.info("--> starting node server2");
-        startNode("server2");
+        logger.info("--> starting node node_4");
+        final String node_4 = cluster().startNode(SETTINGS);
 
         logger.info("--> running cluster_health");
-        clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");
-        assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));
-        assertThat(shardDirectory("server3", "test", 0).exists(), equalTo(true));
-        assertThat(waitForShardDeletion("server2", "test", 0), equalTo(false));
+        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
+        assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
+        assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
     }
 
     private File shardDirectory(String server, String index, int shard) {
-        InternalNode node = ((InternalNode) node(server));
-        NodeEnvironment env = node.injector().getInstance(NodeEnvironment.class);
+        NodeEnvironment env = cluster().getInstance(NodeEnvironment.class, server);
         return env.shardLocations(new ShardId(index, shard))[0];
     }
 

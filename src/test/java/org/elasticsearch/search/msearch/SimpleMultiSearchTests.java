@@ -31,7 +31,6 @@ public class SimpleMultiSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleMultiSearch() {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "xxx").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "yyy").execute().actionGet();
 

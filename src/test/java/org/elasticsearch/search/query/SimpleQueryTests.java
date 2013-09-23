@@ -1101,7 +1101,6 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testBasicFilterById() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
@@ -1154,7 +1153,6 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testBasicQueryById() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
@@ -1199,7 +1197,6 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testNumericTermsAndRanges() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("num_byte").field("type", "byte").endObject()
@@ -1329,7 +1326,6 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testNumericRangeFilter_2826() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
@@ -1407,7 +1403,6 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test // see #2926
     public void testMustNot() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 2)

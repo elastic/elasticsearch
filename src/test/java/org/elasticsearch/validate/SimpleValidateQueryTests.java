@@ -50,7 +50,6 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void simpleValidateQuery() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -77,7 +76,6 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void explainValidateQuery() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -189,7 +187,6 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void explainValidateQueryTwoNodes() throws IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1)

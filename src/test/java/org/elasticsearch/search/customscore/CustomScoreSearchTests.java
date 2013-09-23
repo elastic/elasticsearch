@@ -52,7 +52,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testScoreExplainBug_2283() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().execute()
@@ -127,7 +126,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testScoreExplainBug_2283_withFunctionScore() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().execute()
@@ -200,7 +198,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testMultiValueCustomScriptBoost() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin()
                 .indices()
@@ -305,7 +302,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testMultiValueCustomScriptBoost_withFunctionScore() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin()
                 .indices()
@@ -420,7 +416,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomScriptBoost() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
@@ -529,7 +524,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomScriptBoost_withFunctionScore() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
@@ -638,7 +632,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testTriggerBooleanScorer() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
@@ -657,7 +650,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testTriggerBooleanScorer_withFunctionScore() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
@@ -678,7 +670,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomFiltersScore() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 
@@ -860,7 +851,6 @@ public class CustomScoreSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCustomFiltersScore_withFunctionScore() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute()
                 .actionGet();
 

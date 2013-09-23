@@ -61,8 +61,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testAliases() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
@@ -101,8 +99,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testFailedFilter() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
@@ -120,8 +116,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testFilteringAliases() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
@@ -154,8 +148,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
@@ -230,8 +222,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test1]");
         client().admin().indices().create(createIndexRequest("test1")).actionGet();
@@ -297,8 +287,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating indices");
         client().admin().indices().create(createIndexRequest("test1")).actionGet();
@@ -362,8 +350,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testDeletingByQueryFilteringAliases() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test1]");
         client().admin().indices().create(createIndexRequest("test1")).actionGet();
@@ -427,8 +413,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
@@ -444,8 +428,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testWaitForAliasCreationSingleShard() throws Exception {
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
@@ -461,8 +443,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
     @Test
     public void testWaitForAliasSimultaneousUpdate() throws Exception {
         final int aliasCount = 10;
-        // delete all indices
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();
@@ -491,7 +471,6 @@ public class IndexAliasesTests extends AbstractIntegrationTest {
 
     @Test
     public void testSameAlias() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
         client().admin().indices().create(createIndexRequest("test")).actionGet();

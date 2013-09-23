@@ -150,7 +150,6 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     
     @Test
     public void testMergeStats() {
-        client().admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
         client().admin().indices().prepareCreate("test1").execute().actionGet();
 
@@ -190,7 +189,6 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     
     @Test
     public void testAllFlags() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
         client().admin().indices().prepareCreate("test1").execute().actionGet();
         client().admin().indices().prepareCreate("test2").execute().actionGet();

@@ -91,7 +91,6 @@ public class IndicesLeaksTests extends AbstractIntegrationTest {
         shard = null;
         shardInjector = null;
 
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
             System.gc();

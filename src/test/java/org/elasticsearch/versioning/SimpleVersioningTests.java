@@ -42,7 +42,6 @@ public class SimpleVersioningTests extends AbstractIntegrationTest {
 
     @Test
     public void testExternalVersioningInitialDelete() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();

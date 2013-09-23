@@ -252,7 +252,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
     }
 
     private void noChildrenNestedDeleteByQuery(long total, int docToDelete) throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
@@ -373,7 +372,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
     }
 
     private void testFacets(int numberOfShards) throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", numberOfShards))
@@ -496,7 +494,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
     // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in IncludeNestedDocsQuery#advance()
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
@@ -560,7 +557,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
 
     @Test
     public void testExplain() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -605,7 +601,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleNestedSorting() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put("index.number_of_shards", 1)
@@ -780,7 +775,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
 
     @Test
     public void testSimpleNestedSorting_withNestedFilterMissing() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put("index.number_of_shards", 1)
@@ -870,7 +864,6 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
 
     @Test
     public void testSortNestedWithNestedFilter() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject()

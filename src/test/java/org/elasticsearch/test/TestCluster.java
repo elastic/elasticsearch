@@ -47,9 +47,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Assert;
 
@@ -119,6 +121,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
                 /* use RAM directories in 10% of the runs */
 //                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
+                .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
                 .put("cluster.name", clusterName)
                 // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")

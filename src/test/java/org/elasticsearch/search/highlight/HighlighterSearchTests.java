@@ -27,15 +27,13 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.MatchQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matcher;
 import org.junit.Test;
@@ -628,6 +626,165 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+    }
+
+    @Test
+    public void testMatchedFieldsFvhRequireFieldMatch() throws Exception {
+        checkMatchedFieldsCase(true);
+    }
+
+    @Test
+    public void testMatchedFieldsFvhNoRequireFieldMatch() throws Exception {
+        checkMatchedFieldsCase(false);
+    }
+
+    private void checkMatchedFieldsCase(boolean requireFieldMatch) throws Exception {
+        client().admin().indices().prepareCreate("test")
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", "multi_field")
+                        .startObject("fields")
+                            .startObject("foo")
+                                .field("type", "string")
+                                .field("termVector", "with_positions_offsets")
+                                .field("store", "yes")
+                                .field("analyzer", "english")
+                            .endObject()
+                            .startObject("plain")
+                                .field("type", "string")
+                                .field("termVector", "with_positions_offsets")
+                                .field("analyzer", "standard")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("bar")
+                        .field("type", "multi_field")
+                        .startObject("fields")
+                            .startObject("bar")
+                                .field("type", "string")
+                                .field("termVector", "with_positions_offsets")
+                                .field("store", "yes")
+                                .field("analyzer", "english")
+                            .endObject()
+                            .startObject("plain")
+                                .field("type", "string")
+                                .field("termVector", "with_positions_offsets")
+                                .field("analyzer", "standard")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()).execute().actionGet();
+        ensureGreen();
+
+        index("test", "type1", "1",
+                "foo", "running with scissors");
+        index("test", "type1", "2",
+                "foo", "cat cat junk junk junk junk junk junk junk cats junk junk",
+                "bar", "cat cat junk junk junk junk junk junk junk cats junk junk");
+        index("test", "type1", "3",
+                "foo", "weird",
+                "bar", "result");
+        refresh();
+
+        Field fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25)
+                .highlighterType("fvh").requireFieldMatch(requireFieldMatch);
+        Field barField = new Field("bar").numOfFragments(1).order("score").fragmentSize(25)
+                .highlighterType("fvh").requireFieldMatch(requireFieldMatch);
+        SearchRequestBuilder req = client().prepareSearch("test").addHighlightedField(fooField);
+
+        // First check highlighting without any matched fields set
+        SearchResponse resp = req.setQuery(queryString("running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // And that matching a subfield doesn't automatically highlight it
+        resp = req.setQuery(queryString("foo.plain:running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("running with <em>scissors</em>"));
+
+        // Add the subfield to the list of matched fields but don't match it.  Everything should still work
+        // like before we added it.
+        fooField.matchedFields("foo", "foo.plain");
+        resp = req.setQuery(queryString("running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // Now make half the matches come from the stored field and half from just a matched field.
+        resp = req.setQuery(queryString("foo.plain:running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // Now remove the stored field from the matched field list.  That should work too.
+        fooField.matchedFields("foo.plain");
+        resp = req.setQuery(queryString("foo.plain:running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with scissors"));
+
+        // Now make sure boosted fields don't blow up when matched fields is both the subfield and stored field.
+        fooField.matchedFields("foo", "foo.plain");
+        resp = req.setQuery(queryString("foo.plain:running^5 scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // Now just all matches are against the matched field.  This still returns highlighting.
+        resp = req.setQuery(queryString("foo.plain:running foo.plain:scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // And all matched field via the queryString's field parameter, just in case
+        resp = req.setQuery(queryString("running scissors").field("foo.plain")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // Finding the same string two ways is ok too
+        resp = req.setQuery(queryString("run foo.plain:running^5 scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // But we use the best found score when sorting fragments
+        resp = req.setQuery(queryString("cats foo.plain:cats^5").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
+
+        // which can also be written by searching on the subfield
+        resp = req.setQuery(queryString("cats").field("foo").field("foo.plain^5")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
+
+        // Speaking of two fields, you can have two fields, only one of which has matchedFields enabled
+        QueryBuilder twoFieldsQuery = queryString("cats").field("foo").field("foo.plain^5")
+                .field("bar").field("bar.plain^5");
+        resp = req.setQuery(twoFieldsQuery).addHighlightedField(barField).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
+        assertHighlight(resp, 0, "bar", 0, equalTo("<em>cat</em> <em>cat</em> junk junk junk junk"));
+
+        // And you can enable matchedField highlighting on both
+        barField.matchedFields("bar", "bar.plain");
+        resp = req.get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
+        assertHighlight(resp, 0, "bar", 0, equalTo("junk junk <em>cats</em> junk junk"));
+
+        // Setting a matchedField that isn't searched/doesn't exist is simply ignored.
+        barField.matchedFields("bar", "candy");
+        resp = req.get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
+        assertHighlight(resp, 0, "bar", 0, equalTo("<em>cat</em> <em>cat</em> junk junk junk junk"));
+
+        // If the stored field doesn't have a value it doesn't matter what you match, you get nothing.
+        barField.matchedFields("bar", "foo.plain");
+        resp = req.setQuery(queryString("running scissors").field("foo.plain").field("bar")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+        assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("bar")));
+
+        // If the stored field is found but the matched field isn't then you don't get a result either.
+        fooField.matchedFields("bar.plain");
+        resp = req.setQuery(queryString("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("foo")));
+
+        // But if you add the stored field to the list of matched fields then you'll get a result again
+        fooField.matchedFields("foo", "bar.plain");
+        resp = req.setQuery(queryString("running scissors").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+        assertThat(resp.getHits().getAt(0).getHighlightFields(), not(hasKey("bar")));
+
+        // You _can_ highlight fields that aren't subfields of one another.
+        resp = req.setQuery(queryString("weird").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>weird</em>"));
+        assertHighlight(resp, 0, "bar", 0, equalTo("<em>resul</em>t"));
+
+        //But be careful.  It'll blow up if there is a result paste the end of the field.
+        resp = req.setQuery(queryString("result").field("foo").field("foo.plain").field("bar").field("bar.plain")).get();
+        assertThat("Expected ShardFailures", resp.getShardFailures().length, greaterThan(0));
     }
 
     @Test

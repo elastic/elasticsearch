@@ -22,12 +22,10 @@ package org.elasticsearch.indices.store;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -39,86 +37,73 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleDistributorTests extends AbstractNodesTests {
-    protected Environment environment;
-
-    @Before
-    public void getTestEnvironment() {
-        environment = ((InternalNode) startNode("node0")).injector().getInstance(Environment.class);
-        closeNode("node0");
-    }
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
-    }
+@ClusterScope(scope=Scope.TEST, numNodes = 1)
+public class SimpleDistributorTests extends AbstractIntegrationTest {
 
     public final static String[] STORE_TYPES = {"fs", "simplefs", "niofs", "mmapfs"};
 
     @Test
     public void testAvailableSpaceDetection() {
-        File dataRoot = environment.dataFiles()[0];
-        startNode("node1", settingsBuilder().putArray("path.data", new File(dataRoot, "data1").getAbsolutePath(), new File(dataRoot, "data2").getAbsolutePath()));
+        File dataRoot = cluster().getInstance(Environment.class).dataFiles()[0];
+        cluster().stopRandomNode();
+        cluster().startNode(settingsBuilder().putArray("path.data", new File(dataRoot, "data1").getAbsolutePath(), new File(dataRoot, "data2").getAbsolutePath()));
         for (String store : STORE_TYPES) {
-            createIndexWithStoreType("node1", "test", store, StrictDistributor.class.getCanonicalName());
+            createIndexWithStoreType("test", store, StrictDistributor.class.getCanonicalName());
         }
     }
 
     @Test
     public void testDirectoryToString() throws IOException {
-        File dataRoot = environment.dataFiles()[0];
+        File dataRoot = cluster().getInstance(Environment.class).dataFiles()[0];
         String dataPath1 = new File(dataRoot, "data1").getCanonicalPath();
         String dataPath2 = new File(dataRoot, "data2").getCanonicalPath();
-        startNode("node1", settingsBuilder().putArray("path.data", dataPath1, dataPath2));
+        cluster().stopRandomNode();
+        cluster().startNode(settingsBuilder().putArray("path.data", dataPath1, dataPath2));
 
-        createIndexWithStoreType("node1", "test", "niofs", "least_used");
-        String storeString = getStoreDirectory("node1", "test", 0).toString();
+        createIndexWithStoreType("test", "niofs", "least_used");
+        String storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, startsWith("store(least_used[rate_limited(niofs(" + dataPath1));
         assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
-        createIndexWithStoreType("node1", "test", "niofs", "random");
-        storeString = getStoreDirectory("node1", "test", 0).toString();
+        createIndexWithStoreType("test", "niofs", "random");
+        storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, startsWith("store(random[rate_limited(niofs(" + dataPath1));
         assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
-        createIndexWithStoreType("node1", "test", "mmapfs", "least_used");
-        storeString = getStoreDirectory("node1", "test", 0).toString();
+        createIndexWithStoreType("test", "mmapfs", "least_used");
+        storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, startsWith("store(least_used[rate_limited(mmapfs(" + dataPath1));
         assertThat(storeString, containsString("), rate_limited(mmapfs(" + dataPath2));
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
-        createIndexWithStoreType("node1", "test", "simplefs", "least_used");
-        storeString = getStoreDirectory("node1", "test", 0).toString();
+        createIndexWithStoreType("test", "simplefs", "least_used");
+        storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, startsWith("store(least_used[rate_limited(simplefs(" + dataPath1));
         assertThat(storeString, containsString("), rate_limited(simplefs(" + dataPath2));
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
-        createIndexWithStoreType("node1", "test", "memory", "least_used");
-        storeString = getStoreDirectory("node1", "test", 0).toString();
+        createIndexWithStoreType("test", "memory", "least_used");
+        storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, equalTo("store(least_used[byte_buffer])"));
 
-        createIndexWithoutRateLimitingStoreType("node1", "test", "niofs", "least_used");
-        storeString = getStoreDirectory("node1", "test", 0).toString();
+        createIndexWithoutRateLimitingStoreType("test", "niofs", "least_used");
+        storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, startsWith("store(least_used[niofs(" + dataPath1));
         assertThat(storeString, containsString("), niofs(" + dataPath2));
         assertThat(storeString, endsWith(")])"));
     }
 
-    private void createIndexWithStoreType(String nodeId, String index, String storeType, String distributor) {
-        try {
-            client(nodeId).admin().indices().prepareDelete(index).execute().actionGet();
-        } catch (IndexMissingException ex) {
-            // Ignore
-        }
-        client(nodeId).admin().indices().prepareCreate(index)
+    private void createIndexWithStoreType(String index, String storeType, String distributor) {
+        wipeIndex(index);
+        client().admin().indices().prepareCreate(index)
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)
                         .put("index.store.type", storeType)
@@ -126,16 +111,12 @@ public class SimpleDistributorTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                 )
                 .execute().actionGet();
-        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
     }
 
-    private void createIndexWithoutRateLimitingStoreType(String nodeId, String index, String storeType, String distributor) {
-        try {
-            client(nodeId).admin().indices().prepareDelete(index).execute().actionGet();
-        } catch (IndexMissingException ex) {
-            // Ignore
-        }
-        client(nodeId).admin().indices().prepareCreate(index)
+    private void createIndexWithoutRateLimitingStoreType(String index, String storeType, String distributor) {
+        wipeIndex(index);
+        client().admin().indices().prepareCreate(index)
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)
                         .put("index.store.type", storeType)
@@ -144,11 +125,11 @@ public class SimpleDistributorTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                 )
                 .execute().actionGet();
-        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
     }
 
-    private Directory getStoreDirectory(String nodeId, String index, int shardId) {
-        IndicesService indicesService = ((InternalNode) node(nodeId)).injector().getInstance(IndicesService.class);
+    private Directory getStoreDirectory(String index, int shardId) {
+        IndicesService indicesService = cluster().getInstance(IndicesService.class);
         InternalIndexShard indexShard = (InternalIndexShard) (indicesService.indexService(index).shard(shardId));
         return indexShard.store().directory();
     }

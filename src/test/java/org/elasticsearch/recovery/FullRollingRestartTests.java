@@ -22,8 +22,9 @@ package org.elasticsearch.recovery;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -32,73 +33,69 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class FullRollingRestartTests extends AbstractNodesTests {
-
-    @After
-    public void shutdownNodes() {
-        closeAllNodes();
-    }
+@ClusterScope(scope=Scope.TEST, numNodes = 0)
+public class FullRollingRestartTests extends AbstractIntegrationTest {
 
     @Test
     @Slow
     public void testFullRollingRestart() throws Exception {
-        startNode("node1");
-        client("node1").admin().indices().prepareCreate("test").execute().actionGet();
-
+        cluster().startNode();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+    
         for (int i = 0; i < 1000; i++) {
-            client("node1").prepareIndex("test", "type1", Long.toString(i))
+            client().prepareIndex("test", "type1", Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
-        client("node1").admin().indices().prepareFlush().execute().actionGet();
+        client().admin().indices().prepareFlush().execute().actionGet();
         for (int i = 1000; i < 2000; i++) {
-            client("node1").prepareIndex("test", "type1", Long.toString(i))
+            client().prepareIndex("test", "type1", Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
 
         // now start adding nodes
-        startNode("node2");
-        startNode("node3");
+        cluster().startNode();
+        cluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
 
         // now start adding nodes
-        startNode("node4");
-        startNode("node5");
+        cluster().startNode();
+        cluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5").execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5").execute().actionGet().isTimedOut(), equalTo(false));
 
-        client("node1").admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
+            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
         }
 
         // now start shutting nodes down
-        closeNode("node1");
+        cluster().stopRandomNode();
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4").execute().actionGet().isTimedOut(), equalTo(false));
-        closeNode("node2");
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4").execute().actionGet().isTimedOut(), equalTo(false));
+        cluster().stopRandomNode();
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
 
 
-        client("node5").admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node5").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
+            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
         }
 
-        closeNode("node3");
+        cluster().stopRandomNode();
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2").execute().actionGet().isTimedOut(), equalTo(false));
-        closeNode("node4");
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2").execute().actionGet().isTimedOut(), equalTo(false));
+        cluster().stopRandomNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1").execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1").execute().actionGet().isTimedOut(), equalTo(false));
 
-        client("node5").admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node5").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
+            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
         }
     }
 }

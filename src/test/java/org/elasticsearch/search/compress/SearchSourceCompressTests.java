@@ -53,7 +53,7 @@ public class SearchSourceCompressTests  extends AbstractIntegrationTest {
         } catch (Exception e) {
             // ignore
         }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

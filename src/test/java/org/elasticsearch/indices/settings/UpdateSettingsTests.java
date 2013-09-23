@@ -37,7 +37,7 @@ public class UpdateSettingsTests extends AbstractIntegrationTest {
     @Test
     public void testOpenCloseUpdateSettings() throws Exception {
 
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        createIndex("test");
 
         try {
             client().admin().indices().prepareUpdateSettings("test")

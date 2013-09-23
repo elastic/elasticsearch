@@ -28,4 +28,4 @@
           doc:
             foo: bar
 
-  - match: {'matches': ['test_percolator']}
+  - match: {'matches': [{_index: test_index, _id: test_percolator}]}

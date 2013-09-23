@@ -25,14 +25,14 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.helper.HttpClient;
 import org.elasticsearch.rest.helper.HttpClientResponse;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,22 +43,25 @@ import java.net.URL;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class PluginManagerTests extends AbstractNodesTests {
-
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class PluginManagerTests extends AbstractIntegrationTest {
+    private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
+    .put("discovery.zen.ping.multicast.enabled", false).build();
     private static final String PLUGIN_DIR = "plugins";
-    private static final String NODE_NAME = "plugin-test-node";
 
+    
+    
     @Test
     public void testLocalPluginInstallSingleFolder() throws Exception {
         //When we have only a folder in top-level (no files either) we remove that folder while extracting
         String pluginName = "plugin-test";
         URL url = PluginManagerTests.class.getResource("plugin_single_folder.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
-
-        Node node = startNode();
+        
+        String nodeName = cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(node, pluginName);
+        assertPluginAvailable(nodeName, pluginName);
     }
 
     @Test
@@ -69,10 +72,10 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_folder_site.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        Node node = startNode();
+        String nodeName = cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(node, pluginName);
+        assertPluginAvailable(nodeName, pluginName);
     }
 
     @Test
@@ -82,10 +85,10 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_without_folders.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        Node node = startNode();
+        String nodeName = cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(node, pluginName);
+        assertPluginAvailable(nodeName, pluginName);
     }
 
     @Test
@@ -95,10 +98,10 @@ public class PluginManagerTests extends AbstractNodesTests {
         URL url = PluginManagerTests.class.getResource("plugin_folder_file.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        Node node = startNode();
+        String nodeName = cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
-        assertPluginAvailable(node, pluginName);
+        assertPluginAvailable(nodeName, pluginName);
     }
 
     private static PluginManager pluginManager(String pluginUrl) {
@@ -114,11 +117,6 @@ public class PluginManagerTests extends AbstractNodesTests {
         pluginManager(pluginUrl).downloadAndExtract(pluginName);
     }
 
-    private Node startNode() {
-        return startNode(NODE_NAME, ImmutableSettings.settingsBuilder()
-                .put("discovery.zen.ping.multicast.enabled", false));
-    }
-
     private void assertPluginLoaded(String pluginName) {
         NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().clear().setPlugin(true).get();
         assertThat(nodesInfoResponse.getNodes().length, equalTo(1));
@@ -128,27 +126,26 @@ public class PluginManagerTests extends AbstractNodesTests {
         assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().get(0).isSite(), equalTo(true));
     }
 
-    private void assertPluginAvailable(Node node, String pluginName) {
-        HttpServerTransport httpServerTransport = ((InternalNode) node).injector().getInstance(HttpServerTransport.class);
+    private void assertPluginAvailable(String nodeName, String pluginName) {
+        HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
         HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
         //checking that the http connector is working properly
         HttpClientResponse response = httpClient.request("");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
-        assertThat(response.response(), containsString(NODE_NAME));
+        assertThat(response.response(), containsString(nodeName));
         //checking now that the plugin is available
         response = httpClient.request("_plugin/" + pluginName + "/");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     @Before
-    public void before() {
+    public void beforeTest() {
         deletePluginsFolder();
     }
 
     @After
-    public void after() {
+    public void afterTest() {
         deletePluginsFolder();
-        closeAllNodes();
     }
 
     private void deletePluginsFolder() {

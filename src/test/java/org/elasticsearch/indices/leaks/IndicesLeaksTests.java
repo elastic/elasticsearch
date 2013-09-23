@@ -27,10 +27,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.lang.ref.WeakReference;
@@ -41,33 +40,28 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class IndicesLeaksTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=1)
+public class IndicesLeaksTests extends AbstractIntegrationTest {
 
-
-    @After
-    public void closeNodes() {
-        closeAllNodes();
-    }
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     @Test
     @BadApple
     public void testIndexShardLifecycleLeak() throws Exception {
-        Node node = startNode("node1");
 
-        node.client().admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
-        node.client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        IndicesService indicesService = ((InternalNode) node).injector().getInstance(IndicesService.class);
+        IndicesService indicesService = cluster().getInstance(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         Injector indexInjector = indexService.injector();
         IndexShard shard = indexService.shardSafe(0);
         Injector shardInjector = indexService.shardInjector(0);
 
-        performCommonOperations(node);
+        performCommonOperations();
 
         List<WeakReference> indexReferences = new ArrayList<WeakReference>();
         List<WeakReference> shardReferences = new ArrayList<WeakReference>();
@@ -97,7 +91,7 @@ public class IndicesLeaksTests extends AbstractNodesTests {
         shard = null;
         shardInjector = null;
 
-        node.client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
             System.gc();
@@ -130,10 +124,10 @@ public class IndicesLeaksTests extends AbstractNodesTests {
         }
     }
 
-    private void performCommonOperations(Node node) {
-        node.client().prepareIndex("test", "type", "1").setSource("field1", "value", "field2", 2, "field3", 3.0f).execute().actionGet();
-        node.client().admin().indices().prepareRefresh().execute().actionGet();
-        node.client().prepareSearch("test").setQuery(QueryBuilders.queryString("field1:value")).execute().actionGet();
-        node.client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field1", "value")).execute().actionGet();
+    private void performCommonOperations() {
+        client().prepareIndex("test", "type", "1").setSource("field1", "value", "field2", 2, "field3", 3.0f).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareSearch("test").setQuery(QueryBuilders.queryString("field1:value")).execute().actionGet();
+        client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field1", "value")).execute().actionGet();
     }
 }

@@ -1101,8 +1101,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testBasicFilterById() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+                client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -1154,8 +1153,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testBasicQueryById() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+                client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -1199,8 +1197,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testNumericTermsAndRanges() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("num_byte").field("type", "byte").endObject()
                         .startObject("num_short").field("type", "short").endObject()
@@ -1329,8 +1326,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testNumericRangeFilter_2826() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(
+                client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
@@ -1407,8 +1403,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test // see #2926
     public void testMustNot() throws ElasticSearchException, IOException {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(
+                client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 0)

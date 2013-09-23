@@ -49,8 +49,7 @@ public class CacheTests extends AbstractIntegrationTest {
 
     @Test
     public void testClearCacheFilterKeys() {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+                client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -75,8 +74,7 @@ public class CacheTests extends AbstractIntegrationTest {
 
     @Test
     public void testFieldDataStats() {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+                client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -120,8 +118,7 @@ public class CacheTests extends AbstractIntegrationTest {
 
     @Test
     public void testClearAllCaches() throws Exception {
-        wipeIndices();
-        client().admin().indices().prepareCreate("test")
+                client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put("index.number_of_replicas", 0)
                         .put("index.number_of_shards", 1))

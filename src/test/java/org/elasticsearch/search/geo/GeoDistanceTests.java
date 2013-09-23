@@ -430,8 +430,7 @@ public class GeoDistanceTests extends AbstractIntegrationTest {
 
     @Test
     public void testDistanceSortingNestedFields() throws Exception {
-        wipeIndices();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("company")
+                String mapping = XContentFactory.jsonBuilder().startObject().startObject("company")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
                 .startObject("branches")

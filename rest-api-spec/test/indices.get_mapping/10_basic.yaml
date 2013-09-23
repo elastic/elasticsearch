@@ -24,23 +24,8 @@ setup:
 "Get type mapping - pre 0.90.2":
 
   - skip:
-      version:     "0.90.2 - 999"
+      version:     "0.90.3 - 999"
       reason:      "for newer versions the index name is always returned"
-
-  - do:
-      indices.get_mapping:
-        index: test_index
-        type: test_type
-
-  - match: {test_index.test_type.properties.text.type:     string}
-  - match: {test_index.test_type.properties.text.analyzer: whitespace}
-
----
-"Get type mapping - post 0.90.2":
-
-  - skip:
-      version:     "0 - 0.90.1"
-      reason:      "for older versions, just the type name is returned"
 
   - do:
       indices.get_mapping:
@@ -49,3 +34,18 @@ setup:
 
   - match: {test_type.properties.text.type:     string}
   - match: {test_type.properties.text.analyzer: whitespace}
+
+---
+"Get type mapping - post 0.90.2":
+
+  - skip:
+      version:     "0 - 0.90.2"
+      reason:      "for older versions, just the type name is returned"
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+        type: test_type
+
+  - match: {test_index.test_type.properties.text.type:     string}
+  - match: {test_index.test_type.properties.text.analyzer: whitespace}

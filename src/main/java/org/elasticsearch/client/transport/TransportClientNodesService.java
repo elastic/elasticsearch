@@ -324,7 +324,7 @@ public class TransportClientNodesService extends AbstractComponent {
                         newNodes.add(node);
                     }
                 } catch (Exception e) {
-                    logger.info("failed to get node info for {}, disconnecting...", e, node);
+                    logger.warn("failed to get node info for {}, disconnecting...",node);
                     transportService.disconnectFromNode(node);
                 }
             }

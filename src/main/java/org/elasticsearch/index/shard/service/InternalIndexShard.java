@@ -243,6 +243,14 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             } catch (Throwable t) {
                 logger.debug("failed to refresh due to move to cluster wide started", t);
             }
+            synchronized (mutex) {
+                if (state != IndexShardState.POST_RECOVERY) {
+                    logger.debug("suspected wrong state when acting on cluster state started state, current state {}", state);
+                }
+                logger.debug("state: [{}]->[{}], reason [global state moved to started]", state, IndexShardState.STARTED);
+                state = IndexShardState.STARTED;
+            }
+            indicesLifecycle.afterIndexShardStarted(this);
         }
         this.shardRouting = newRouting;
         indicesLifecycle.shardRoutingChanged(this, currentRouting, newRouting);
@@ -268,6 +276,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RECOVERING) {
                 throw new IndexShardRecoveringException(shardId);
             }
+            if (state == IndexShardState.POST_RECOVERY) {
+                throw new IndexShardRecoveringException(shardId);
+            }
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.RECOVERING, reason);
             state = IndexShardState.RECOVERING;
             return returnValue;
@@ -282,29 +293,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.RELOCATED, reason);
             state = IndexShardState.RELOCATED;
         }
-        return this;
-    }
-
-    public InternalIndexShard start(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
-        synchronized (mutex) {
-            if (state == IndexShardState.CLOSED) {
-                throw new IndexShardClosedException(shardId);
-            }
-            if (state == IndexShardState.STARTED) {
-                throw new IndexShardStartedException(shardId);
-            }
-            if (state == IndexShardState.RELOCATED) {
-                throw new IndexShardRelocatedException(shardId);
-            }
-            if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-                checkIndex(true);
-            }
-            engine.start();
-            startScheduledTasksIfNeeded();
-            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.STARTED, reason);
-            state = IndexShardState.STARTED;
-        }
-        indicesLifecycle.afterIndexShardStarted(this);
         return this;
     }
 
@@ -323,7 +311,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
-        writeAllowed();
+        writeAllowed(create.origin());
         create = indexingService.preCreate(create);
         if (logger.isTraceEnabled()) {
             logger.trace("index {}", create.docs());
@@ -344,7 +332,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
-        writeAllowed();
+        writeAllowed(index.origin());
         index = indexingService.preIndex(index);
         try {
             if (logger.isTraceEnabled()) {
@@ -369,7 +357,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void delete(Engine.Delete delete) throws ElasticSearchException {
-        writeAllowed();
+        writeAllowed(delete.origin());
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -400,7 +388,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException {
-        writeAllowed();
+        writeAllowed(deleteByQuery.origin());
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", deleteByQuery.query());
         }
@@ -551,7 +539,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
-        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.CLOSED) {
+        if (state != IndexShardState.POST_RECOVERY && state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.CLOSED) {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
         return engine.snapshot(snapshotHandler);
@@ -593,6 +581,29 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return this.checkIndexTook;
     }
 
+
+    public InternalIndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+        synchronized (mutex) {
+            if (state == IndexShardState.CLOSED) {
+                throw new IndexShardClosedException(shardId);
+            }
+            if (state == IndexShardState.STARTED) {
+                throw new IndexShardStartedException(shardId);
+            }
+            if (state == IndexShardState.RELOCATED) {
+                throw new IndexShardRelocatedException(shardId);
+            }
+            if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
+                checkIndex(true);
+            }
+            engine.start();
+            startScheduledTasksIfNeeded();
+            logger.debug("state: [{}]->[{}], reason [{}]", state, IndexShardState.POST_RECOVERY, reason);
+            state = IndexShardState.POST_RECOVERY;
+        }
+        return this;
+    }
+
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
@@ -630,11 +641,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         translog.clearUnreferenced();
         engine.refresh(new Engine.Refresh("recovery_finalization").force(true));
         synchronized (mutex) {
-            logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.STARTED);
-            state = IndexShardState.STARTED;
+            logger.debug("state: [{}]->[{}], reason [post recovery]", state, IndexShardState.POST_RECOVERY);
+            state = IndexShardState.POST_RECOVERY;
         }
         startScheduledTasksIfNeeded();
-        indicesLifecycle.afterIndexShardStarted(this);
         engine.enableGcDeletes(true);
     }
 
@@ -664,8 +674,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types())
-                            .origin(Engine.Operation.Origin.RECOVERY));
+                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types()).origin(Engine.Operation.Origin.RECOVERY));
                     break;
                 default:
                     throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
@@ -695,7 +704,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
      */
     public boolean ignoreRecoveryAttempt() {
         IndexShardState state = state(); // one time volatile read
-        return state == IndexShardState.RECOVERING || state == IndexShardState.STARTED ||
+        return state == IndexShardState.POST_RECOVERY || state == IndexShardState.RECOVERING || state == IndexShardState.STARTED ||
                 state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED;
     }
 
@@ -706,13 +715,27 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    private void writeAllowed() throws IllegalIndexShardStateException {
-        verifyStartedOrRecovering();
+    private void writeAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
+        IndexShardState state = this.state; // one time volatile read
+
+        if (origin == Engine.Operation.Origin.PRIMARY) {
+            // for primaries, we only allow to write when actually started (so the cluster has decided we started)
+            // otherwise, we need to retry, we also want to still allow to index if we are relocated in case it fails
+            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
+            }
+        } else {
+            // for replicas, we allow to write also while recovering, since we index also during recovery to replicas
+            // and rely on version checks to make sure its consistent
+            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
+            }
+        }
     }
 
     private void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING) {
+        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
             throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
         }
     }

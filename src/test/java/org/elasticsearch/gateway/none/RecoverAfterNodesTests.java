@@ -19,11 +19,16 @@
 
 package org.elasticsearch.gateway.none;
 
+import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -33,114 +38,124 @@ import static org.hamcrest.Matchers.hasItem;
 /**
  *
  */
-public class RecoverAfterNodesTests extends AbstractNodesTests {
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
+public class RecoverAfterNodesTests extends AbstractIntegrationTest {
 
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(1);
 
-    @After
-    public void closeNodes() throws Exception {
-        tearDown();
-        closeAllNodes();
+    public ImmutableSet<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) throws InterruptedException {
+        long start = System.currentTimeMillis();
+        ImmutableSet<ClusterBlock> blocks;
+        do {
+            blocks = nodeClient.admin().cluster().prepareState().setLocal(true).execute().actionGet()
+                    .getState().blocks().global(ClusterBlockLevel.METADATA);
+        }
+        while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
+        return blocks;
+    }
+
+    public Client startNode(Settings.Builder settings) {
+        String name = cluster().startNode(settings);
+        return cluster().clientNodeClient(name);
     }
 
     @Test
     public void testRecoverAfterNodes() throws Exception {
         logger.info("--> start node (1)");
-        startNode("node1", settingsBuilder().put("gateway.recover_after_nodes", 3));
-        assertThat(client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client clientNode1 = startNode(settingsBuilder().put("gateway.recover_after_nodes", 3));
+        assertThat(clientNode1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start node (2)");
-        startNode("node2", settingsBuilder().put("gateway.recover_after_nodes", 3));
-        // Sleeping here for the same time that we wait to check for empty blocks
+        Client clientNode2 = startNode(settingsBuilder().put("gateway.recover_after_nodes", 3));
         Thread.sleep(BLOCK_WAIT_TIMEOUT.millis());
-        assertThat(client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(clientNode1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(clientNode2.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start node (3)");
-        startNode("node3", settingsBuilder().put("gateway.recover_after_nodes", 3));
+        Client clientNode3 = startNode(settingsBuilder().put("gateway.recover_after_nodes", 3));
 
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "node1").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "node2").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "node3").isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode1).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode2).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode3).isEmpty(), equalTo(true));
     }
 
     @Test
     public void testRecoverAfterMasterNodes() throws Exception {
         logger.info("--> start master_node (1)");
-        startNode("master1", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
-        assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client master1 = startNode(settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
+        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (1)");
-        startNode("data1", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", true).put("node.master", false));
-        assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client data1 = startNode(settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", true).put("node.master", false));
+        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(data1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (2)");
-        startNode("data2", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", true).put("node.master", false));
-        assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client data2 = startNode(settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", true).put("node.master", false));
+        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(data1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("data2").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(data2.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start master_node (2)");
-        startNode("master2", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "master1").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "master2").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "data1").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "data2").isEmpty(), equalTo(true));
+        Client master2 = startNode(settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master1).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master2).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data1).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data2).isEmpty(), equalTo(true));
     }
 
     @Test
     public void testRecoverAfterDataNodes() throws Exception {
         logger.info("--> start master_node (1)");
-        startNode("master1", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
-        assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client master1 = startNode(settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
+        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (1)");
-        startNode("data1", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", true).put("node.master", false));
-        assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client data1 = startNode(settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", true).put("node.master", false));
+        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(data1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start master_node (2)");
-        startNode("master2", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
-        assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        Client master2 = startNode(settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
+        assertThat(master2.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(data1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(client("master2").admin().cluster().prepareState().setLocal(true).execute().actionGet()
+        assertThat(master2.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (2)");
-        startNode("data2", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", true).put("node.master", false));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "master1").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "master2").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "data1").isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocks(BLOCK_WAIT_TIMEOUT, "data2").isEmpty(), equalTo(true));
+        Client data2 = startNode(settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", true).put("node.master", false));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master1).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master2).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data1).isEmpty(), equalTo(true));
+        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data2).isEmpty(), equalTo(true));
     }
 }

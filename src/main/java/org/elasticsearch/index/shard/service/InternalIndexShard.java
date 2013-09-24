@@ -722,13 +722,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             // for primaries, we only allow to write when actually started (so the cluster has decided we started)
             // otherwise, we need to retry, we also want to still allow to index if we are relocated in case it fails
             if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
             }
         } else {
             // for replicas, we allow to write also while recovering, since we index also during recovery to replicas
             // and rely on version checks to make sure its consistent
             if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
+                throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering, origin [" + origin + "]");
             }
         }
     }

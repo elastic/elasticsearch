@@ -22,9 +22,7 @@ package org.elasticsearch.search.basic;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
@@ -35,34 +33,29 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchWhileRelocatingTests extends AbstractIntegrationTest {
 
     @Test
-    public void testSearchAndRelocateConcurrently() throws Exception {
+    public void testSearchAndRelocateConcurrently0Replicas() throws Exception {
+        testSearchAndRelocateConcurrently(0);
+    }
+
+    @Test
+    public void testSearchAndRelocateConcurrently1Replicas() throws Exception {
+        testSearchAndRelocateConcurrently(1);
+    }
+
+    private void testSearchAndRelocateConcurrently(int numberOfReplicas) throws Exception {
         final int numShards = between(10, 20);
-        String mapping = XContentFactory.jsonBuilder().
-                startObject().
-                    startObject("type").
-                        startObject("properties").
-                            startObject("loc").field("type", "geo_point").endObject().
-                            startObject("test").field("type", "string").endObject().
-                        endObject().
-                    endObject()
-                .endObject().string();
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0))
-                .addMapping("type1", mapping).execute().actionGet();
-        ensureYellow();
+                .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+                .addMapping("type1", "loc", "type=geo_point", "test", "type=string").execute().actionGet();
+        ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
@@ -72,25 +65,18 @@ public class SearchWhileRelocatingTests extends AbstractIntegrationTest {
                                     .endObject().endObject()));
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
+        assertHitCount(client().prepareSearch().get(), (long) (numDocs));
         final int numIters = atLeast(3);
         for (int i = 0; i < numIters; i++) {
-            allowNodes("test", between(1,3));
+            allowNodes("test", between(1, 3));
             client().admin().cluster().prepareReroute().get();
             final AtomicBoolean stop = new AtomicBoolean(false);
             final List<Throwable> thrownExceptions = new CopyOnWriteArrayList<Throwable>();
             final Thread t = new Thread() {
                 public void run() {
-                    final List<Float> lonlat = new ArrayList<Float>();
-                    lonlat.add(new Float(20));
-                    lonlat.add(new Float(11));
                     try {
                         while (!stop.get()) {
-                            SearchResponse sr = client().search(
-                                    searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                                            searchSource().size(numDocs).query(
-                                                    functionScoreQuery(termQuery("test", "value"),
-                                                            gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
-                                                            CombineFunction.MULT.getName())))).get();
+                            SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
                             assertHitCount(sr, (long) (numDocs));
                             final SearchHits sh = sr.getHits();
                             assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
@@ -106,7 +92,19 @@ public class SearchWhileRelocatingTests extends AbstractIntegrationTest {
             stop.set(true);
             t.join();
             assertThat(resp.isTimedOut(), equalTo(false));
-            assertThat("failed in iteration "+i, thrownExceptions, Matchers.emptyIterable());
+
+            if (!thrownExceptions.isEmpty()) {
+                Client client = client();
+                String verified = "POST SEARCH OK";
+                for (int j = 0; j < 10; j++) {
+                    if (client.prepareSearch().get().getHits().getTotalHits() != numDocs) {
+                        verified = "POST SEARCH FAIL";
+                        break;
+                    }
+                }
+
+                assertThat("failed in iteration " + i + ", verification: " + verified, thrownExceptions, Matchers.emptyIterable());
+            }
         }
     }
 }

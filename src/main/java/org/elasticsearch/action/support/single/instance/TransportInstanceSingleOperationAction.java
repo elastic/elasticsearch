@@ -192,7 +192,10 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                                 shardOperation(request, listener);
                             } catch (Throwable e) {
                                 if (retryOnFailure(e)) {
-                                    retry(fromClusterEvent, null);
+                                    operationStarted.set(false);
+                                    // we already marked it as started when we executed it (removed the listener) so pass false
+                                    // to re-add to the cluster listener
+                                    retry(false, null);
                                 } else {
                                     listener.onFailure(e);
                                 }

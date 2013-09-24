@@ -179,8 +179,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     lastTotalTranslogOperations = recoveryStatus.translog().currentTranslogOperations();
 
                     // start the shard if the gateway has not started it already
-                    if (indexShard.state() != IndexShardState.STARTED) {
-                        indexShard.start("post recovery from gateway");
+                    if (indexShard.state() != IndexShardState.POST_RECOVERY) {
+                        indexShard.postRecovery("post recovery from gateway");
                     }
                     // refresh the shard
                     indexShard.refresh(new Engine.Refresh("post_gateway").force(true));

@@ -27,9 +27,10 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 public enum IndexShardState {
     CREATED((byte) 0),
     RECOVERING((byte) 1),
-    STARTED((byte) 2),
-    RELOCATED((byte) 3),
-    CLOSED((byte) 4);
+    POST_RECOVERY((byte) 2),
+    STARTED((byte) 3),
+    RELOCATED((byte) 4),
+    CLOSED((byte) 5);
 
     private final byte id;
 

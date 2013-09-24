@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -40,6 +41,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchWhileRelocatingTests extends AbstractIntegrationTest {
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "problem with search searching on 1 shard (no replica), " +
+            "and between getting the cluster state to do the search, and executing it, " +
+            "the shard has fully relocated (moved from started on one node, to fully started on another node")
     @Test
     public void testSearchAndRelocateConcurrently0Replicas() throws Exception {
         testSearchAndRelocateConcurrently(0);

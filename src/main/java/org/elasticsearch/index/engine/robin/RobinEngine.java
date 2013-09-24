@@ -276,9 +276,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
                 translog.newTranslog(translogIdGenerator.get());
                 this.searcherManager = buildSearchManager(indexWriter);
-                SegmentInfos infos = new SegmentInfos();
-                infos.read(store.directory());
-                lastCommittedSegmentInfos = infos;
+                readLastCommittedSegmentsInfo();
             } catch (IOException e) {
                 try {
                     indexWriter.rollback();
@@ -292,6 +290,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         } finally {
             rwl.writeLock().unlock();
         }
+    }
+
+    private void readLastCommittedSegmentsInfo() throws IOException {
+        SegmentInfos infos = new SegmentInfos();
+        infos.read(store.directory());
+        lastCommittedSegmentInfos = infos;
     }
 
     @Override
@@ -806,9 +810,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     @Override
     public void flush(Flush flush) throws EngineException {
-        if (indexWriter == null) {
-            throw new EngineClosedException(shardId, failedEngine);
-        }
+        ensureOpen();
         if (flush.type() == Flush.Type.NEW_WRITER || flush.type() == Flush.Type.COMMIT_TRANSLOG) {
             // check outside the lock as well so we can check without blocking on the write lock
             if (onGoingRecoveries.get() > 0) {
@@ -826,9 +828,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             if (flush.type() == Flush.Type.NEW_WRITER) {
                 rwl.writeLock().lock();
                 try {
-                    if (indexWriter == null) {
-                        throw new EngineClosedException(shardId, failedEngine);
-                    }
+                    ensureOpen();
                     if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
                     }
@@ -876,9 +876,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             } else if (flush.type() == Flush.Type.COMMIT_TRANSLOG) {
                 rwl.readLock().lock();
                 try {
-                    if (indexWriter == null) {
-                        throw new EngineClosedException(shardId, failedEngine);
-                    }
+                    ensureOpen();
                     if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
                     }
@@ -918,9 +916,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 // of that translog
                 rwl.readLock().lock();
                 try {
-                    if (indexWriter == null) {
-                        throw new EngineClosedException(shardId, failedEngine);
-                    }
+                    ensureOpen();
                     // we allow to *just* commit if there is an ongoing recovery happening...
                     // its ok to use this, only a flush will cause a new translogId, and we are locked here from
                     // other flushes use flushLock
@@ -948,18 +944,27 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
 
             // reread the last committed segment infos
+            rwl.readLock().lock();
             try {
-                SegmentInfos infos = new SegmentInfos();
-                infos.read(store.directory());
-                lastCommittedSegmentInfos = infos;
+                ensureOpen();
+                readLastCommittedSegmentsInfo();
             } catch (Throwable e) {
                 if (!closed) {
                     logger.warn("failed to read latest segment infos on flush", e);
                 }
+            } finally {
+                rwl.readLock().unlock();
             }
+            
         } finally {
             flushLock.unlock();
             flushing.decrementAndGet();
+        }
+    }
+
+    private void ensureOpen() {
+        if (indexWriter == null) {
+            throw new EngineClosedException(shardId, failedEngine);
         }
     }
 
@@ -995,9 +1000,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         possibleMergeNeeded = false;
         rwl.readLock().lock();
         try {
-            if (indexWriter == null) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
+            ensureOpen();
             indexWriter.maybeMerge();
         } catch (OutOfMemoryError e) {
             failEngine(e);
@@ -1022,9 +1025,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         if (optimizeMutex.compareAndSet(false, true)) {
             rwl.readLock().lock();
             try {
-                if (indexWriter == null) {
-                    throw new EngineClosedException(shardId, failedEngine);
-                }
+                ensureOpen();
                 if (optimize.onlyExpungeDeletes()) {
                     indexWriter.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -1087,9 +1088,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         rwl.readLock().lock();
         try {
             flush(new Flush().type(Flush.Type.COMMIT).waitIfOngoing(true));
-            if (indexWriter == null) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
+            ensureOpen();
             return deletionPolicy.snapshot();
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
@@ -1177,10 +1176,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     public List<Segment> segments() {
         rwl.readLock().lock();
         try {
-            IndexWriter indexWriter = this.indexWriter;
-            if (indexWriter == null) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
+            ensureOpen();
             Map<String, Segment> segments = new HashMap<String, Segment>();
 
             // first, go over and compute the search ones...

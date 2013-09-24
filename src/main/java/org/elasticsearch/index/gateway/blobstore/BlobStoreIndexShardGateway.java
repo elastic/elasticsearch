@@ -429,7 +429,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             // no translog files, bail
             recoveryStatus.start().startTime(System.currentTimeMillis());
             recoveryStatus.updateStage(RecoveryStatus.Stage.START);
-            indexShard.start("post recovery from gateway, no translog");
+            indexShard.postRecovery("post recovery from gateway, no translog");
             recoveryStatus.start().time(System.currentTimeMillis() - recoveryStatus.start().startTime());
             recoveryStatus.start().checkIndexTime(indexShard.checkIndexTook());
             return;

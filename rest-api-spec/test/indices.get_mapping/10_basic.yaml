@@ -21,10 +21,10 @@ setup:
   - match: {test_index.test_type.properties.text.analyzer: whitespace}
 
 ---
-"Get type mapping - pre 0.90.2":
+"Get type mapping - pre 1.0":
 
   - skip:
-      version:     "0.90.3 - 999"
+      version:     "0.90.9 - 999"
       reason:      "for newer versions the index name is always returned"
 
   - do:
@@ -36,10 +36,10 @@ setup:
   - match: {test_type.properties.text.analyzer: whitespace}
 
 ---
-"Get type mapping - post 0.90.2":
+"Get type mapping - post 1.0":
 
   - skip:
-      version:     "0 - 0.90.2"
+      version:     "0 - 0.90.9"
       reason:      "for older versions, just the type name is returned"
 
   - do:

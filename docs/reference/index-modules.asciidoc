@@ -9,6 +9,7 @@ all the relevant modules settings can be provided when creating an index
 (and it is actually the recommended way to configure an index).
 
 [float]
+[[settings]]
 == Index Settings
 
 There are specific index level settings that are not associated with any

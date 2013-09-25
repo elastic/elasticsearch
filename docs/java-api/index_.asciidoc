@@ -5,6 +5,7 @@ The index API allows one to index a typed JSON document into a specific
 index and make it searchable.
 
 
+[[generate]]
 === Generate JSON document
 
 There are different way of generating JSON document:
@@ -41,6 +42,7 @@ String json = "{" +
 --------------------------------------------------
 
 
+[[using-map]]
 ==== Using Map
 
 Map is a key:values pair collection. It represents very well a JSON
@@ -55,6 +57,7 @@ json.put("message","trying out Elastic Search");
 --------------------------------------------------
 
 
+[[beans]]
 ==== Serialize your beans
 
 Elasticsearch already use Jackson but shade it under
@@ -88,6 +91,7 @@ String json = mapper.writeValueAsString(yourbeaninstance);
 --------------------------------------------------
 
 
+[[helpers]]
 ==== Use Elasticsearch helpers
 
 Elasticsearch provides built-in helpers to generate JSON content.
@@ -118,6 +122,7 @@ String json = builder.string();
 --------------------------------------------------
 
 
+[[index-doc]]
 === Index document
 
 The following example indexes a JSON document into an index called

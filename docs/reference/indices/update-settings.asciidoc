@@ -149,6 +149,7 @@ settings API:
     See <<indices-warmers>>. Defaults to `true`.
 
 [float]
+[[bulk]]
 === Bulk Indexing Usage
 
 For example, the update settings API can be used to dynamically change
@@ -186,6 +187,7 @@ curl -XPOST 'http://localhost:9200/test/_optimize?max_num_segments=5'
 --------------------------------------------------
 
 [float]
+[[analysis]]
 === Updating Index Analysis
 
 It is also possible to define new <<analysis,analyzers>> for the index.

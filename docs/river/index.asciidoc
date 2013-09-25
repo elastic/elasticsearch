@@ -14,6 +14,7 @@ cluster. For example, one can run a river called `my_river` with type
 `dummy`, and another river called `my_other_river` with type `dummy`.
 
 
+[[how-it-works]]
 == How it Works
 
 A river instance (and its name) is a type within the `_river` index. All
@@ -44,6 +45,7 @@ curl -XDELETE 'localhost:9200/_river/my_river/'
 --------------------------------------------------
 
 
+[[allocation]]
 == Cluster Allocation
 
 Rivers are singletons within the cluster. They get allocated
@@ -57,6 +59,7 @@ river names or types controlling the rivers allowed to run on it. For
 example: `my_river1,my_river2`, or `dummy,twitter`.
 
 
+[[status]]
 == Status
 
 Each river (regardless of the implementation) exposes a high level

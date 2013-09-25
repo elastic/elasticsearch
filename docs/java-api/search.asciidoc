@@ -42,6 +42,7 @@ For more information on the search operation, check out the REST
 {ref}/search.html[search] docs.
 
 
+[[scrolling]]
 === Using scrolls in Java
 
 Read the {ref}/search-request-scroll.html[scroll documentation]
@@ -90,6 +91,7 @@ thread for each local shard.
 The default mode is `THREAD_PER_SHARD`.
 
 
+[[msearch]]
 === MultiSearch API
 
 See {ref}/search-multi-search.html[MultiSearch API Query]
@@ -116,6 +118,7 @@ for (MultiSearchResponse.Item item : sr.responses()) {
 --------------------------------------------------
 
 
+[[facets]]
 === Using Facets
 
 The following code shows how to add two facets within your search:

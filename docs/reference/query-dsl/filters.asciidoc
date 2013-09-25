@@ -7,6 +7,7 @@ As a general rule, filters should be used instead of queries:
 * for queries on exact values
 
 [float]
+[[caching]]
 === Filters and Caching
 
 Filters can be a great candidate for caching. Caching the result of a

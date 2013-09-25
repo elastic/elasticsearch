@@ -41,6 +41,7 @@ The format of the search `Closure` follows the same JSON syntax as the
 {ref}/search-search.html[Search API] request.
 
 
+[[more-examples]]
 === More examples
 
 Term query where multiple values are provided (see

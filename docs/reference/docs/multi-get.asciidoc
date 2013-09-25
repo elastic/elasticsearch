@@ -71,6 +71,7 @@ curl 'localhost:9200/test/type/_mget' -d '{
 --------------------------------------------------
 
 [float]
+[[fields]]
 === Fields
 
 Specific fields can be specified to be retrieved per document to get.

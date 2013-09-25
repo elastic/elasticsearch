@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -622,8 +623,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             replicaCounter++;
             AtomicInteger counter = new AtomicInteger(replicaCounter);
 
+
+            IndexMetaData indexMetaData = clusterState.metaData().index(request.index());
+
             if (newPrimaryShard != null) {
-                performOnReplica(response, counter, newPrimaryShard, newPrimaryShard.currentNodeId());
+                performOnReplica(response, counter, newPrimaryShard, newPrimaryShard.currentNodeId(), indexMetaData);
             }
 
             shardIt.reset(); // reset the iterator
@@ -647,10 +651,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // yet that it was started. We will get an exception IllegalShardState exception if its not started
                 // and that's fine, we will ignore it
                 if (!doOnlyOnRelocating) {
-                    performOnReplica(response, counter, shard, shard.currentNodeId());
+                    performOnReplica(response, counter, shard, shard.currentNodeId(), indexMetaData);
                 }
                 if (shard.relocating()) {
-                    performOnReplica(response, counter, shard, shard.relocatingNodeId());
+                    performOnReplica(response, counter, shard, shard.relocatingNodeId(), indexMetaData);
                 }
             }
 
@@ -662,7 +666,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        void performOnReplica(final PrimaryResponse<Response, ReplicaRequest> response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
+        void performOnReplica(final PrimaryResponse<Response, ReplicaRequest> response, final AtomicInteger counter, final ShardRouting shard, String nodeId, final IndexMetaData indexMetaData) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
             if (!clusterState.nodes().nodeExists(nodeId)) {
@@ -685,7 +689,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     public void handleException(TransportException exp) {
                         if (!ignoreReplicaException(exp.unwrapCause())) {
                             logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), exp);
-                            shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(exp) + "]");
+                            shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
+                                    "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(exp) + "]");
                         }
                         finishIfPossible();
                     }
@@ -708,7 +713,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 } catch (Throwable e) {
                                     if (!ignoreReplicaException(e)) {
                                         logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
-                                        shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
+                                        shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
+                                                "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
                                     }
                                 }
                                 if (counter.decrementAndGet() == 0) {
@@ -725,7 +731,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     } catch (Throwable e) {
                         if (!ignoreReplicaException(e)) {
                             logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
-                            shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
+                            shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
+                                    "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
                         }
                         // we want to decrement the counter here, in teh failure handling, cause we got rejected
                         // from executing on the thread pool
@@ -739,7 +746,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     } catch (Throwable e) {
                         if (!ignoreReplicaException(e)) {
                             logger.warn("Failed to perform " + transportAction + " on replica" + shardIt.shardId(), e);
-                            shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
+                            shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
+                                    "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

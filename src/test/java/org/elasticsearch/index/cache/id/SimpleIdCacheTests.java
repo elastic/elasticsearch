@@ -45,6 +45,7 @@ import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -385,6 +385,11 @@ public class SimpleIdCacheTests {
 
         @Override
         public Injector shardInjectorSafe(int shardId) throws IndexShardMissingException {
+            return null;
+        }
+
+        @Override
+        public String indexUUID() {
             return null;
         }
 

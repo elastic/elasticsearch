@@ -1,5 +1,5 @@
 {
-  "scroll": {
+  "clear_scroll": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/search/scroll/",
     "methods": ["DELETE"],
     "url": {
@@ -11,7 +11,7 @@
           "description" : "A comma-separated list of scroll IDs to clear"
         }
       },
-      "params": {},
+      "params": {}
     },
     "body": null
   }

@@ -1,9 +1,12 @@
 ---
-"Basic test for aliases":
+"Basic test for put alias":
+  - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Put alias not supported before 0.90.1"
   - do:
       indices.create:
         index: test_index
-  
+
   - do:
       indices.exists_alias:
         name: test_alias

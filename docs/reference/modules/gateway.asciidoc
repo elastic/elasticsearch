@@ -22,6 +22,7 @@ The default gateway used is the
 <<modules-gateway-local,local>> gateway.
 
 [float]
+[[recover-after]]
 === Recovery After Nodes / Time
 
 In many cases, the actual cluster meta data should only be recovered

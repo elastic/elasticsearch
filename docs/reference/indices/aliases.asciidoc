@@ -66,6 +66,7 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 It is an error to index to an alias which points to more than one index.
 
 [float]
+[[filtered]]
 === Filtered Aliases
 
 Aliases with filters provide an easy way to create different "views" of
@@ -90,6 +91,7 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 --------------------------------------------------
 
 [float]
+[[routing]]
 ==== Routing
 
 It is possible to associate routing values with aliases. This feature
@@ -150,6 +152,7 @@ curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
 --------------------------------------------------
 
 [float]
+[[adding]]
 === Add a single index alias
 
 There is also an api to add a single index alias, with options: 
@@ -187,6 +190,7 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
 --------------------------------------------------
 
 [float]
+[[deleting]]
 === Delete a single index alias
 
 Th API to delete a single index alias, has options: 
@@ -204,6 +208,7 @@ curl -XDELETE 'localhost:9200/users/_alias/user_12'
 --------------------------------------------------
 
 [float]
+[[retrieving]]
 === Retrieving existing aliases
 
 The get index alias api allows to filter by

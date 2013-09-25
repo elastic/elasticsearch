@@ -10,6 +10,7 @@ builtin similarities are most likely sufficient as is described in the
 <<mapping-core-types,mapping section>>
 
 [float]
+[[configuration]]
 === Configuring a similarity
 
 Most existing or custom Similarities have configuration options which
@@ -47,6 +48,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
+[[default]]
 ==== Default similarity
 
 The default similarity that is based on the TF/IDF model. This
@@ -60,6 +62,7 @@ similarity has the following option:
 Type name: `default`
 
 [float]
+[[bm25]]
 ==== BM25 similarity
 
 Another TF/IDF based similarity that has built-in tf normalization and
@@ -83,6 +86,7 @@ This similarity has the following options:
 Type name: `BM25`
 
 [float]
+[[drf]]
 ==== DRF similarity
 
 Similarity that implements the
@@ -104,6 +108,7 @@ All options but the first option need a normalization value.
 Type name: `DFR`
 
 [float]
+[[ib]]
 ==== IB similarity.
 
 http://lucene.apache.org/core/4_1_0/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
@@ -117,6 +122,7 @@ based model] . This similarity has the following options:
 Type name: `IB`
 
 [float]
+[[default]]
 ==== Default and Base Similarities
 
 By default, Elasticsearch will use whatever similarity is configured as

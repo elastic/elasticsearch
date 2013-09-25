@@ -2,12 +2,14 @@
 == Clients
 
 
+[[community-perl]]
 === Perl
 
 * http://github.com/clintongormley/ElasticSearch.pm[ElasticSearch.pm]:
   Perl client.
 
 
+[[community-python]]
 === Python
 
 * http://github.com/aparo/pyes[pyes]:
@@ -29,6 +31,7 @@
   Python Map-Reduce engine targeting Elasticsearch indices.
 
 
+[[community-ruby]]
 === Ruby
 
 * http://github.com/karmi/tire[Tire]:
@@ -44,6 +47,7 @@
   Ruby client + Rails integration.
 
 
+[[community-php]]
 === PHP
 
 * http://github.com/ruflin/Elastica[Elastica]:
@@ -55,12 +59,14 @@
   PHP client, one-to-one mapping with query DSL, fluid interface.
 
 
+[[community-java]]
 === Java
 
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
 
 
+[[community-javascript]]
 === Javascript
 
 * https://github.com/fullscale/elastic.js[Elastic.js]:
@@ -75,6 +81,7 @@
 * https://github.com/printercu/elastics[elastics]: Simple tiny client that just works
 
 
+[[community-dotnet]]
 === .Net
 
 * https://github.com/Yegoroff/PlainElastic.Net[PlainElastic.Net]:
@@ -87,6 +94,7 @@
   .NET client.
 
 
+[[community-scala]]
 === Scala
 
 * https://github.com/sksamuel/elastic4s[elastic4s]:
@@ -99,12 +107,14 @@
   Scala client.
 
 
+[[community-clojure]]
 === Clojure
 
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
 
+[[community-go]]
 === Go
 
 * https://github.com/mattbaird/elastigo[elastigo]:
@@ -114,6 +124,7 @@
   Go lib.
 
 
+[[community-erlang]]
 === Erlang
 
 * http://github.com/tsloughter/erlastic_search[erlastic_search]:
@@ -128,12 +139,14 @@
   environment.
 
 
+[[community-eventmachine]]
 === EventMachine
 
 * http://github.com/vangberg/em-elasticsearch[em-elasticsearch]:
   elasticsearch library for eventmachine.
 
 
+[[community-command-line]]
 === Command Line
 
 * https://github.com/elasticsearch/es2unix[es2unix]:
@@ -143,17 +156,20 @@
   command line shell for elasticsearch.
 
 
+[[community-ocaml]]
 === OCaml
 
 * https://github.com/tovbinm/ocaml-elasticsearch[ocaml-elasticsearch]:
   OCaml client for Elasticsearch
 
 
+[[community-smalltalk]]
 === Smalltalk
 
 * http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -
   Smalltalk client for Elasticsearch
 
+[[community-cold-fusion]]
 === Cold Fusion
 
 * https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-ElasticSearch-Client]

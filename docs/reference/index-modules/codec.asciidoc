@@ -11,6 +11,7 @@ using the builtin postings formats will suite your needs as is described
 in the <<mapping-core-types,mapping section>>
 
 [float]
+[[postings]]
 === Configuring a custom postings format
 
 Custom postings format can be defined in the index settings in the
@@ -54,6 +55,7 @@ Then we defining your mapping your can use the `my_format` name in the
 === Available postings formats
 
 [float]
+[[direct-postings]]
 ==== Direct postings format
 
 Wraps the default postings format for on-disk storage, but then at read
@@ -78,6 +80,7 @@ This postings format offers the following parameters:
 Type name: `direct`
 
 [float]
+[[memory-postings]]
 ==== Memory postings format
 
 A postings format that stores terms & postings (docs, positions,
@@ -102,6 +105,7 @@ following options:
 Type name: `memory`
 
 [float]
+[[bloom-postings]]
 ==== Bloom filter posting format
 
 The bloom filter postings format wraps a delegate postings format and on
@@ -127,6 +131,7 @@ following options:
 Type name: `bloom`
 
 [float]
+[[pulsing-postings]]
 ==== Pulsing postings format
 
 The pulsing implementation in-lines the posting lists for very low
@@ -151,6 +156,7 @@ following parameters:
 Type name: `pulsing`
 
 [float]
+[[default-postings]]
 ==== Default postings format
 
 The default postings format has the following options: 

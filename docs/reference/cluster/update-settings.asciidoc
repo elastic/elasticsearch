@@ -48,6 +48,7 @@ curl -XGET localhost:9200/_cluster/settings
 There is a specific list of settings that can be updated, those include:
 
 [float]
+[[settings]]
 === Cluster settings
 
 [float]
@@ -141,6 +142,7 @@ There is a specific list of settings that can be updated, those include:
      See <<modules-threadpool>>
 
 [float]
+[[index-settings]]
 === Index settings
 
 [float]
@@ -189,6 +191,7 @@ There is a specific list of settings that can be updated, those include:
       See <<index-modules-store>>
 
 [float]
+[[logger]]
 === Logger
 
 Logger values can also be updated by setting `logger.` prefix. More

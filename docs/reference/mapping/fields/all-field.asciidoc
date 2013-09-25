@@ -64,6 +64,7 @@ The `_all` fields allows for `store`, `term_vector` and `analyzer` (with
 specific `index_analyzer` and `search_analyzer`) to be set.
 
 [float]
+[[highlighting]]
 ==== Highlighting
 
 For any field to allow

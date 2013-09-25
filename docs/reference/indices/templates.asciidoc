@@ -28,6 +28,7 @@ The settings and mappings will be applied to any index name that matches
 the `te*` template.
 
 [float]
+[[delete]]
 === Deleting a Template
 
 Index templates are identified by a name (in the above case
@@ -39,6 +40,7 @@ curl -XDELETE localhost:9200/_template/template_1
 --------------------------------------------------
 
 [float]
+[[getting]]
 === GETting templates
 
 Index templates are identified by a name (in the above case
@@ -70,6 +72,7 @@ curl -XGET localhost:9200/_template/
 
 
 [float]
+[[multiple-templates]]
 === Multiple Template Matching
 
 Multiple index templates can potentially match an index, in this case,
@@ -118,6 +121,7 @@ object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
 
 [float]
+[[config]]
 === Config
 
 Index templates can also be placed within the config location

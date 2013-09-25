@@ -27,6 +27,7 @@ documents. The `completion` suggester circumvents this by storing the
 FST as part of your index during index time. This allows for really fast
 loads and executions.
 
+[[mapping]]
 ==== Mapping
 
 In order to use this feature, you have to specify a special mapping for
@@ -86,6 +87,7 @@ Mapping supports the following parameters:
     by the default value since prefix completions hardly grow beyond prefixes longer
     than a handful of characters.
 
+[[indexing]]
 ==== Indexing
 
 [source,js]
@@ -134,6 +136,7 @@ not be able to use several inputs, an output, payloads or weights.
 }
 --------------------------------------------------
 
+[[querying]]
 ==== Querying
 
 Suggesting works as usual, except that you have to specify the suggest
@@ -175,6 +178,7 @@ indexed suggestion, if configured, otherwise the matched part of the
 `input` field.
 
 
+[[fuzzy]]
 ==== Fuzzy queries
 
 The completion suggester also supports fuzzy queries - this means,

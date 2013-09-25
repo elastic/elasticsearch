@@ -10,6 +10,7 @@ analyzers (in a more built in fashion), native scripts, custom discovery
 and more.
 
 [float]
+[[installing]]
 ==== Installing plugins
 
 Installing plugins can either be done manually by placing them under the
@@ -44,6 +45,7 @@ bin/plugin --url file://path/to/plugin --install plugin-name
 You can run `bin/plugin -h`.
 
 [float]
+[[site-plugins]]
 ==== Site Plugins
 
 Plugins can have "sites" in them, any plugin that exists under the
@@ -123,9 +125,11 @@ plugin --remove head --silent
 
 
 [float]
+[[known-plugins]]
 === Known Plugins
 
 [float]
+[[analysis]]
 ==== Analysis Plugins
 
 .Supported by Elasticsearch
@@ -147,6 +151,7 @@ plugin --remove head --silent
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
 
 [float]
+[[river]]
 ==== River Plugins
 
 .Supported by Elasticsearch
@@ -178,6 +183,7 @@ plugin --remove head --silent
 * https://github.com/plombard/SubversionRiver[Subversion River Plugin] (by Pascal Lombard)
 
 [float]
+[[transport]]
 ==== Transport Plugins
 
 .Supported by Elasticsearch
@@ -190,6 +196,7 @@ plugin --remove head --silent
 * https://github.com/sonian/elasticsearch-jetty[Jetty HTTP transport plugin] (by Sonian Inc.)
 
 [float]
+[[scripting]]
 ==== Scripting Plugins
 
 .Supported by Elasticsearch
@@ -199,6 +206,7 @@ plugin --remove head --silent
 * https://github.com/elasticsearch/elasticsearch-lang-python[Python language Plugin]
 
 [float]
+[[site]]
 ==== Site Plugins
 
 .Supported by the community
@@ -211,6 +219,7 @@ plugin --remove head --silent
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
 
 [float]
+[[misc]]
 ==== Misc Plugins
 
 .Supported by Elasticsearch

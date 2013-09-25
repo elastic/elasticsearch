@@ -18,6 +18,7 @@ act as the one that converts back from milliseconds to a string
 representation.
 
 [float]
+[[date-math]]
 === Date Math
 
 The `date` type supports using date math expression when using it in a
@@ -37,6 +38,7 @@ inclusive, the rounding will properly be rounded to the ceiling instead
 of flooring it.
 
 [float]
+[[built-in]]
 === Built In Formats
 
 The following tables lists all the defaults ISO formats supported:
@@ -191,6 +193,7 @@ year, and two digit day of month.
 |=======================================================================
 
 [float]
+[[custom]]
 === Custom Format
 
 Allows for a completely customizable date format explained

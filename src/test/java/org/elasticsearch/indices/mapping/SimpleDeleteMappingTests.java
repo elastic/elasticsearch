@@ -52,6 +52,11 @@ public class SimpleDeleteMappingTests extends AbstractIntegrationTest {
         }
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        if (!clusterState.metaData().index("test").mappings().containsKey("type1")) {
+            logger.info("mapping of type [{}] is not in the clusterstate version: [{}] localNode: [{}] nodes: [{}]", "type1", 
+                    clusterState.version(), clusterState.nodes().localNode(), clusterState.nodes().dataNodes().values());
+            logger.info("Current mappings in clusterstate: [{}]", clusterState.metaData().index("test").mappings().keySet());
+        }
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
 
         client().admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();

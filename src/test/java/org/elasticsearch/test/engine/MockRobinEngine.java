@@ -95,6 +95,8 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
     public static final class AssertingSearcher implements Searcher {
         private final Searcher searcher;
         private final ShardId shardId;
+        private RuntimeException firstReleaseStack;
+        private final Object lock = new Object();
 
         public AssertingSearcher(Searcher searcher, ShardId shardId) {
             this.searcher = searcher;
@@ -110,7 +112,16 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         @Override
         public boolean release() throws ElasticSearchException {
             RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
-            assert remove != null : "Released Searcher more than once, source [" + searcher.source() + "]";
+            synchronized (lock) { 
+                // make sure we only get this once and store the stack of the first caller!
+                if (remove == null) {
+                    assert firstReleaseStack != null;
+                    throw new AssertionError("Released Searcher more than once, source [" + searcher.source() + "]", firstReleaseStack);
+                } else {
+                    assert firstReleaseStack == null;
+                    firstReleaseStack = new RuntimeException("Searcher Released first here, source [" + searcher.source() + "]");
+                }
+            }
             return searcher.release();
         }
 

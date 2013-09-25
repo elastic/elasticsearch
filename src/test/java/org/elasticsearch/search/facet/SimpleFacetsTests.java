@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
@@ -1805,31 +1807,35 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
     public void testDateHistoFacetsPostMode() throws Exception {
         testDateHistoFacets(FacetBuilder.Mode.POST);
     }
-
+    
     private void testDateHistoFacets(FacetBuilder.Mode mode) throws Exception {
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "integer").endObject()
                 .startObject("date").field("type", "date").endObject()
+                .startObject("date_in_seconds").field("type", "long").endObject()
                 .endObject().endObject().endObject().string();
         prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        DateTimeFormatter parser = Joda.forPattern("dateOptionalTime").parser();
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T01:01:01")
                 .field("num", 1)
+                .field("date_in_seconds", TimeUnit.SECONDS.convert(parser.parseMillis("2009-03-05T01:01:01"), TimeUnit.MILLISECONDS))
                 .endObject()).execute().actionGet();
         flushAndRefresh();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T04:01:01")
                 .field("num", 2)
+                .field("date_in_seconds", TimeUnit.SECONDS.convert(parser.parseMillis("2009-03-05T04:01:01"), TimeUnit.MILLISECONDS))
                 .endObject()).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-06T01:01:01")
                 .field("num", 3)
+                .field("date_in_seconds", TimeUnit.SECONDS.convert(parser.parseMillis("2009-03-06T01:01:01"), TimeUnit.MILLISECONDS))
                 .endObject()).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -1844,6 +1850,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
                     .addFacet(dateHistogramFacet("stats5").field("date").interval("24h").mode(mode))
                     .addFacet(dateHistogramFacet("stats6").field("date").valueField("num").interval("day").preZone("-02:00").postZone("-02:00").mode(mode))
                     .addFacet(dateHistogramFacet("stats7").field("date").interval("quarter").mode(mode))
+                    .addFacet(dateHistogramFacet("stats8").field("date_in_seconds").interval("day").factor(1000f).mode(mode))
                     .execute().actionGet();
 
             if (searchResponse.getFailedShards() > 0) {
@@ -1915,6 +1922,15 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             assertThat(facet.getName(), equalTo("stats7"));
             assertThat(facet.getEntries().size(), equalTo(1));
             assertThat(facet.getEntries().get(0).getTime(), equalTo(utcTimeInMillis("2009-01-01")));
+            
+            // check date_histogram on a long field containing date in seconds - we use a factor. 
+            facet = searchResponse.getFacets().facet("stats8");
+            assertThat(facet.getName(), equalTo("stats8"));
+            assertThat(facet.getEntries().size(), equalTo(2));
+            assertThat(facet.getEntries().get(0).getTime(), equalTo(utcTimeInMillis("2009-03-05")));
+            assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(1).getTime(), equalTo(utcTimeInMillis("2009-03-06")));
+            assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
         }
     }
 

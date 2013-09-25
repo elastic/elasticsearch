@@ -42,6 +42,7 @@ recommended to delete "large chunks of the data in an index", many
 times, it's better to simply reindex into a new index.
 
 [float]
+[[multiple-indices]]
 === Multiple Indices and Types
 
 The delete by query API can be applied to multiple types within an
@@ -76,6 +77,7 @@ $ curl -XDELETE 'http://localhost:9200/_all/_query?q=tag:wow'
 --------------------------------------------------
 
 [float]
+[[parameters]]
 === Request Parameters
 
 When executing a delete by query using the query parameter `q`, the
@@ -95,6 +97,7 @@ query.
 |=======================================================================
 
 [float]
+[[request-body]]
 === Request Body
 
 The delete by query can use the <<query-dsl,Query
@@ -103,12 +106,14 @@ executed and delete all documents. The body content can also be passed
 as a REST parameter named `source`.
 
 [float]
+[[distributed]]
 === Distributed
 
 The delete by query API is broadcast across all primary shards, and from
 there, replicated across all shards replicas.
 
 [float]
+[[routing]]
 === Routing
 
 The routing value (a comma separated list of the routing values) can be
@@ -116,6 +121,7 @@ specified to control which shards the delete by query request will be
 executed on.
 
 [float]
+[[replication-type]]
 === Replication Type
 
 The replication of the operation can be done in an asynchronous manner
@@ -124,6 +130,7 @@ the primary shard). The `replication` parameter can be set to `async`
 (defaults to `sync`) in order to enable it.
 
 [float]
+[[consistency]]
 === Write Consistency
 
 Control if the operation will be allowed to execute based on the number

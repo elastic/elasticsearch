@@ -8,6 +8,7 @@ index settings, aliases, mappings, index templates
 and warmers.
 
 [float]
+[[index-management]]
 == Index management:
 
 * <<indices-create-index>>
@@ -16,6 +17,7 @@ and warmers.
 * <<indices-open-close>>
 
 [float]
+[[mapping-management]]
 == Mapping management:
 
 * <<indices-put-mapping>>
@@ -23,10 +25,12 @@ and warmers.
 * <<indices-types-exists>>
 
 [float]
+[[alias-management]]
 == Alias management:
 * <<indices-aliases>>
 
 [float]
+[[index-settings]]
 == Index settings:
 * <<indices-update-settings>>
 * <<indices-get-settings>>
@@ -35,12 +39,14 @@ and warmers.
 * <<indices-warmers>>
 
 [float]
+[[monitoring]]
 == Monitoring:
 * <<indices-status>>
 * <<indices-stats>>
 * <<indices-segments>>
 
 [float]
+[[status-management]]
 == Status management:
 * <<indices-clearcache>>
 * <<indices-refresh>>

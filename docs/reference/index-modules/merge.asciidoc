@@ -16,6 +16,7 @@ environments, they can be throttled using store level throttling. Read
 the store module documentation on how to set it.
 
 [float]
+[[policy]]
 === Policy
 
 The index merge policy module allows one to control which segments of a
@@ -23,6 +24,7 @@ shard index are to be merged. There are several types of policies with
 the default set to `tiered`.
 
 [float]
+[[tiered]]
 ==== tiered
 
 Merges segments of approximately equal size, subject to an allowed
@@ -95,6 +97,7 @@ possibly either increase the `max_merged_segment` or issue an optimize
 call for the index (try and aim to issue it on a low traffic time).
 
 [float]
+[[log-byte-size]]
 ==== log_byte_size
 
 A merge policy that merges segments into levels of exponentially
@@ -136,6 +139,7 @@ Defaults to unbounded.
 |=======================================================================
 
 [float]
+[[log-doc]]
 ==== log_doc
 
 A merge policy that tries to merge segments into levels of exponentially
@@ -171,6 +175,7 @@ Defaults to unbounded.
 |=======================================================================
 
 [float]
+[[scheduling]]
 === Scheduling
 
 The merge schedule controls the execution of merge operations once they

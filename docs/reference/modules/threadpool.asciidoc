@@ -51,6 +51,7 @@ NOTE: you can update threadpool settings live using
 
 
 [float]
+[[types]]
 === Thread pool types
 
 The following are the types of thread pools that can be used and their
@@ -96,6 +97,7 @@ threadpool:
 
 [processors]] 
 [float] 
+[[processors]]
 === Processors setting
 The number of processors is automatically detected, and the thread pool
 settings are automatically set based on it. Sometimes, the number of processors

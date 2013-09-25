@@ -24,9 +24,11 @@ It is recommended to set the min and max memory to the same value, and
 enable <<setup-configuration-memory,`mlockall`>>.
 
 [float]
+[[system]]
 === System Configuration
 
 [float]
+[[file-descriptors]]
 ==== File Descriptors
 
 Make sure to increase the number of open files descriptors on the
@@ -38,6 +40,7 @@ In order to test how many open files the process can open, start it with
 files the process can open on startup.
 
 ["float",id="setup-configuration-memory"]
+[[memory]]
 ==== Memory Settings
 
 There is an option to use
@@ -57,6 +60,7 @@ session to exit if it fails to allocate the memory (because not enough
 memory is available on the machine).
 
 [float]
+[[settings]]
 === Elasticsearch Settings
 
 *elasticsearch* configuration files can be found under `ES_HOME/config`
@@ -82,6 +86,7 @@ for configuring the ElasticSearch logging.
 
 
 [float]
+[[paths]]
 ==== Paths
 
 In production use, you will almost certainly want to change paths for
@@ -95,6 +100,7 @@ path:
 --------------------------------------------------
 
 [float]
+[[cluster-name]]
 ==== Cluster name
 
 Also, don't forget to give your production cluster a name, which is used
@@ -107,6 +113,7 @@ cluster:
 --------------------------------------------------
 
 [float]
+[[node-name]]
 ==== Node name
 
 You may also want to change the default node name for each node to
@@ -128,6 +135,7 @@ simply rename the `elasticsearch.yml` file to `elasticsearch.json` and
 add:
 
 [float]
+[[styles]]
 ==== Configuration styles
 
 [source,js]
@@ -173,6 +181,7 @@ $ elasticsearch -f -Des.config=/path/to/config/file
 --------------------------------------------------
 
 [float]
+[[index-settings]]
 === Index Settings
 
 Indices created within the cluster can provide their own settings. For
@@ -215,6 +224,7 @@ All of the index level configuration can be found within each
 <<index-modules,index module>>.
 
 [float]
+[[logging]]
 === Logging
 
 ElasticSearch uses an internal logging abstraction and comes, out of the

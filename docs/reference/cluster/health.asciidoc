@@ -48,6 +48,7 @@ $ curl -XGET 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeo
 --------------------------------------------------
 
 [float]
+[[request-params]]
 === Request Parameters
 
 The cluster health API accepts the following request parameters:

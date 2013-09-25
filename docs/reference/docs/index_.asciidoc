@@ -28,6 +28,7 @@ The result of the above index operation is:
 --------------------------------------------------
 
 [float]
+[[index-creation]]
 === Automatic Index Creation
 
 The index operation automatically creates an index if it has not been
@@ -69,6 +70,7 @@ for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
 meaning allowed, and - meaning disallowed).
 
 [float]
+[[versioning]]
 === Versioning
 
 Each indexed document is given a version number. The associated
@@ -116,6 +118,7 @@ latest version will be used if the index operations are out of order for
 whatever reason.
 
 [float]
+[[operation-type]]
 === Operation Type
 
 The index operation also accepts an `op_type` that can be used to force
@@ -176,6 +179,7 @@ The result of the above index operation is:
 --------------------------------------------------
 
 [float]
+[[routing]]
 === Routing
 
 By default, shard placement — or `routing` — is controlled by using a
@@ -203,6 +207,7 @@ and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
 
 [float]
+[[parent-children]]
 === Parents & Children
 
 A child document can be indexed by specifying it's parent when indexing.
@@ -220,6 +225,7 @@ to be the same as it's parent, unless the routing value is explicitly
 specified using the `routing` parameter.
 
 [float]
+[[timestamp]]
 === Timestamp
 
 A document can be indexed with a `timestamp` associated with it. The
@@ -241,6 +247,7 @@ processed by the indexing chain. More information can be found on the
 page>>.
 
 [float]
+[[ttl]]
 === TTL
 
 A document can be indexed with a `ttl` (time to live) associated with
@@ -280,6 +287,7 @@ More information can be found on the
 <<mapping-ttl-field,_ttl mapping page>>.
 
 [float]
+[[percolate]]
 === Percolate
 
 <<search-percolate,Percolation>> can be performed
@@ -313,6 +321,7 @@ cuts down on parsing overhead, as the parse tree for the document is
 simply re-used for percolation.
 
 [float]
+[[distributed]]
 === Distributed
 
 The index operation is directed to the primary shard based on its route
@@ -321,6 +330,7 @@ containing this shard. After the primary shard completes the operation,
 if needed, the update is distributed to applicable replicas.
 
 [float]
+[[consistency]]
 === Write Consistency
 
 To prevent writes from taking place on the "wrong" side of a network
@@ -333,6 +343,7 @@ parameter can be used.
 Valid write consistency values are `one`, `quorum`, and `all`.
 
 [float]
+[[replication]]
 === Asynchronous Replication
 
 By default, the index operation only returns after all shards within the
@@ -343,6 +354,7 @@ When asynchronous replication is used, the index operation will return
 as soon as the operation succeeds on the primary shard.
 
 [float]
+[[refresh]]
 === Refresh
 
 To refresh the index immediately after the operation occurs, so that the
@@ -353,6 +365,7 @@ poor performance, both from an indexing and a search standpoint. Note,
 getting a document using the get API is completely realtime.
 
 [float]
+[[timeout]]
 === Timeout
 
 The primary shard assigned to perform the index operation might not be

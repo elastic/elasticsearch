@@ -25,6 +25,7 @@ example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
 
 [float]
+[[filtering]]
 === Filtering fielddata
 
 It is possible to control which field values are loaded into memory,
@@ -122,6 +123,7 @@ The `frequency` and `regex` filters can be combined:
 --------------------------------------------------
 
 [float]
+[[monitoring]]
 === Monitoring field data
 
 You can monitor memory usage for field data using

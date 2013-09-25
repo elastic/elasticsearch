@@ -20,6 +20,7 @@ Note that you can easily print (aka debug) JSON generated queries using
 `toString()` method on `FilterBuilder` object.
 
 
+[[and-filter]]
 === And Filter
 
 See {ref}/query-dsl-and-filter.html[And Filter]
@@ -37,6 +38,7 @@ Note that you can cache the result using
 `AndFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[bool-filter]]
 === Bool Filter
 
 See {ref}/query-dsl-bool-filter.html[Bool Filter]
@@ -55,6 +57,7 @@ Note that you can cache the result using
 `BoolFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[exists-filter]]
 === Exists Filter
 
 See {ref}/query-dsl-exists-filter.html[Exists Filter].
@@ -66,6 +69,7 @@ FilterBuilders.existsFilter("user");
 --------------------------------------------------
 
 
+[[ids-filter]]
 === Ids Filter
 
 See {ref}/query-dsl-ids-filter.html[IDs Filter]
@@ -80,6 +84,7 @@ FilterBuilders.idsFilter().addIds("1", "4", "100");
 --------------------------------------------------
 
 
+[[limit-filter]]
 === Limit Filter
 
 See {ref}/query-dsl-limit-filter.html[Limit Filter]
@@ -91,6 +96,7 @@ FilterBuilders.limitFilter(100);
 --------------------------------------------------
 
 
+[[type-filter]]
 === Type Filter
 
 See {ref}/query-dsl-type-filter.html[Type Filter]
@@ -102,6 +108,7 @@ FilterBuilders.typeFilter("my_type");
 --------------------------------------------------
 
 
+[[geo-bbox-filter]]
 === Geo Bounding Box Filter
 
 See {ref}/query-dsl-geo-bounding-box-filter.html[Geo
@@ -119,6 +126,7 @@ Note that you can cache the result using
 <<query-dsl-filters-caching>>.
 
 
+[[geo-distance-filter]]
 === GeoDistance Filter
 
 See {ref}/query-dsl-geo-distance-filter.html[Geo
@@ -138,6 +146,7 @@ Note that you can cache the result using
 <<query-dsl-filters-caching>>.
 
 
+[[geo-distance-range-filter]]
 === Geo Distance Range Filter
 
 See {ref}/query-dsl-geo-distance-range-filter.html[Geo
@@ -160,6 +169,7 @@ Note that you can cache the result using
 <<query-dsl-filters-caching>>.
 
 
+[[geo-poly-filter]]
 === Geo Polygon Filter
 
 See {ref}/query-dsl-geo-polygon-filter.html[Geo Polygon
@@ -178,6 +188,7 @@ Note that you can cache the result using
 <<query-dsl-filters-caching>>.
 
 
+[[geo-shape-filter]]
 === Geo Shape Filter
 
 See {ref}/query-dsl-geo-shape-filter.html[Geo Shape
@@ -237,6 +248,7 @@ filter = FilterBuilders.geoShapeFilter("location", "New Zealand", "countries")
 --------------------------------------------------
 
 
+[[has-child-parent-filter]]
 === Has Child / Has Parent Filters
 
 See: 
@@ -255,6 +267,7 @@ QFilterBuilders.hasParentFilter("blog",
 --------------------------------------------------
 
 
+[[match-all-filter]]
 === Match All Filter
 
 See {ref}/query-dsl-match-all-filter.html[Match All Filter]
@@ -265,6 +278,7 @@ FilterBuilders.matchAllFilter();
 --------------------------------------------------
 
 
+[[missing-filter]]
 === Missing Filter
 
 See {ref}/query-dsl-missing-filter.html[Missing Filter]
@@ -278,6 +292,7 @@ FilterBuilders.missingFilter("user")
 --------------------------------------------------
 
 
+[[not-filter]]
 === Not Filter
 
 See {ref}/query-dsl-not-filter.html[Not Filter]
@@ -290,6 +305,7 @@ FilterBuilders.notFilter(
 --------------------------------------------------
 
 
+[[numeric-range-filter]]
 === Numeric Range Filter
 
 See {ref}/query-dsl-numeric-range-filter.html[Numeric
@@ -309,6 +325,7 @@ Note that you can cache the result using
 <<query-dsl-filters-caching>>.
 
 
+[[or-filter]]
 === Or Filter
 
 See {ref}/query-dsl-or-filter.html[Or Filter]
@@ -326,6 +343,7 @@ Note that you can cache the result using
 `OrFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[prefix-filter]]
 === Prefix Filter
 
 See {ref}/query-dsl-prefix-filter.html[Prefix Filter]
@@ -340,6 +358,7 @@ Note that you can cache the result using
 `PrefixFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[query-filter]]
 === Query Filter
 
 See {ref}/query-dsl-query-filter.html[Query Filter]
@@ -356,6 +375,7 @@ Note that you can cache the result using
 `QueryFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[range-filter]]
 === Range Filter
 
 See {ref}/query-dsl-range-filter.html[Range Filter]
@@ -379,6 +399,7 @@ Note that you can ask not to cache the result using
 `RangeFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[script-filter]]
 === Script Filter
 
 See {ref}/query-dsl-script-filter.html[Script Filter]
@@ -395,6 +416,7 @@ Note that you can cache the result using
 `ScriptFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[term-filter]]
 === Term Filter
 
 See {ref}/query-dsl-term-filter.html[Term Filter]
@@ -409,6 +431,7 @@ Note that you can ask not to cache the result using
 `TermFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[terms-filter]]
 === Terms Filter
 
 See {ref}/query-dsl-terms-filter.html[Terms Filter]
@@ -425,6 +448,7 @@ Note that you can ask not to cache the result using
 `TermsFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 
+[[nested-filter]]
 === Nested Filter
 
 See {ref}/query-dsl-nested-filter.html[Nested Filter]
@@ -444,6 +468,7 @@ Note that you can ask not to cache the result using
 
 [[query-dsl-filters-caching]]
 
+[[caching]]
 === Caching
 
 By default, some filters are cached or not cached. You can have a fine

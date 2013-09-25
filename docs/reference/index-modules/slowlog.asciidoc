@@ -2,6 +2,7 @@
 == Index Slow Log
 
 [float]
+[[search-slow-log]]
 === Search Slow Log
 
 Shard level slow search log allows to log slow search (query and fetch
@@ -55,6 +56,7 @@ index_search_slow_log_file:
 --------------------------------------------------
 
 [float]
+[[index-slow-log]]
 === Index Slow log
 
 p.The indexing slow log, similar in functionality to the search slow

@@ -22,6 +22,7 @@ example:
 --------------------------------------------------
 
 [float]
+[[include-exclude]]
 ==== Includes / Excludes
 
 Allow to specify paths in the source that would be included / excluded

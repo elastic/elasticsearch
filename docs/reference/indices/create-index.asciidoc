@@ -50,6 +50,7 @@ _Note you do not have to explicitly specify `index` section inside
 `settings` section._
 
 [float]
+[[mappings]]
 === Mappings
 
 The create index API allows to provide a set of one or more mappings:
@@ -72,6 +73,7 @@ curl -XPOST localhost:9200/test -d '{
 --------------------------------------------------
 
 [float]
+[[settings]]
 === Index Settings
 
 For more information regarding all the different index level settings

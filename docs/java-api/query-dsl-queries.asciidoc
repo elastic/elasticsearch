@@ -22,6 +22,7 @@ The `QueryBuilder` can then be used with any API that accepts a query,
 such as `count` and `search`.
 
 
+[[match]]
 === Match Query
 
 See {ref}/query-dsl-match-query.html[Match Query]
@@ -33,6 +34,7 @@ QueryBuilder qb = QueryBuilders.matchQuery("name", "kimchy elasticsearch");
 --------------------------------------------------
 
 
+[[multimatch]]
 === MultiMatch Query
 
 See {ref}/query-dsl-multi-match-query.html[MultiMatch
@@ -47,6 +49,7 @@ QueryBuilder qb = QueryBuilders.multiMatchQuery(
 --------------------------------------------------
 
 
+[[bool]]
 === Boolean Query
 
 See {ref}/query-dsl-bool-query.html[Boolean Query]
@@ -63,6 +66,7 @@ QueryBuilder qb = QueryBuilders
 --------------------------------------------------
 
 
+[[boosting]]
 === Boosting Query
 
 See {ref}/query-dsl-boosting-query.html[Boosting Query]
@@ -77,6 +81,7 @@ QueryBuilders.boostingQuery()
 --------------------------------------------------
 
 
+[[ids]]
 === IDs Query
 
 See {ref}/query-dsl-ids-query.html[IDs Query]
@@ -88,6 +93,7 @@ QueryBuilders.idsQuery().ids("1", "2");
 --------------------------------------------------
 
 
+[[custom-score]]
 === Custom Score Query
 
 See {ref}/query-dsl-custom-score-query.html[Custom Score
@@ -106,6 +112,7 @@ QueryBuilders.customScoreQuery(QueryBuilders.matchAllQuery())
 --------------------------------------------------
 
 
+[[custom-boost-factor]]
 === Custom Boost Factor Query
 
 See
@@ -119,6 +126,7 @@ QueryBuilders.customBoostFactorQuery(QueryBuilders.matchAllQuery()) // Your quer
 --------------------------------------------------
 
 
+[[constant-score]]
 === Constant Score Query
 
 See {ref}/query-dsl-constant-score-query.html[Constant
@@ -136,6 +144,7 @@ QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("name","kimchy"))
 --------------------------------------------------
 
 
+[[dismax]]
 === Disjunction Max Query
 
 See {ref}/query-dsl-dis-max-query.html[Disjunction Max
@@ -151,6 +160,7 @@ QueryBuilders.disMaxQuery()
 --------------------------------------------------
 
 
+[[field]]
 === Field Query
 
 See {ref}/query-dsl-field-query.html[Field Query]
@@ -165,6 +175,7 @@ QueryBuilders.queryString("+kimchy -dadoonet").field("name");
 --------------------------------------------------
 
 
+[[flt]]
 === Fuzzy Like This (Field) Query (flt and flt_field)
 
 See: 
@@ -186,6 +197,7 @@ QueryBuilders.fuzzyLikeThisFieldQuery("name.first")             // Only on singl
 --------------------------------------------------
 
 
+[[fuzzy]]
 === FuzzyQuery
 
 See {ref}/query-dsl-fuzzy-query.html[Fuzzy Query]
@@ -197,6 +209,7 @@ QueryBuilder qb = QueryBuilders.fuzzyQuery("name", "kimzhy");
 --------------------------------------------------
 
 
+[[has-child-parent]]
 === Has Child / Has Parent
 
 See: 
@@ -215,6 +228,7 @@ QueryBuilders.hasParentQuery("blog",
 --------------------------------------------------
 
 
+[[match-all]]
 === MatchAll Query
 
 See {ref}/query-dsl-match-all-query.html[Match All
@@ -226,7 +240,8 @@ QueryBuilder qb = QueryBuilders.matchAllQuery();
 --------------------------------------------------
 
 
-=== Fuzzy Like This (Field) Query (flt and flt_field)
+[[mlt]]
+=== More Like This (Field) Query (mlt and mlt_field)
 
 See: 
  * {ref}/query-dsl-mlt-query.html[More Like This Query]
@@ -249,6 +264,7 @@ QueryBuilders.moreLikeThisFieldQuery("name.first")              // Only on singl
 --------------------------------------------------
 
 
+[[prefix]]
 === Prefix Query
 
 See {ref}/query-dsl-prefix-query.html[Prefix Query]
@@ -259,6 +275,7 @@ QueryBuilders.prefixQuery("brand", "heine");
 --------------------------------------------------
 
 
+[[query-string]]
 === QueryString Query
 
 See {ref}/query-dsl-query-string-query.html[QueryString Query] 
@@ -269,6 +286,7 @@ QueryBuilder qb = QueryBuilders.queryString("+kimchy -elasticsearch");
 --------------------------------------------------
 
 
+[[range]]
 === Range Query
 
 See {ref}/query-dsl-range-query.html[Range Query]
@@ -326,6 +344,7 @@ QueryBuilders.spanTermQuery("user","kimchy");
 --------------------------------------------------
 
 
+[[term]]
 === Term Query
 
 See {ref}/query-dsl-term-query.html[Term Query]
@@ -336,6 +355,7 @@ QueryBuilder qb = QueryBuilders.termQuery("name", "kimchy");
 --------------------------------------------------
 
 
+[[terms]]
 === Terms Query
 
 See {ref}/query-dsl-terms-query.html[Terms Query]
@@ -348,6 +368,7 @@ QueryBuilders.termsQuery("tags",    // field
 --------------------------------------------------
 
 
+[[top-children]]
 === Top Children Query
 
 See {ref}/query-dsl-top-children-query.html[Top Children Query] 
@@ -364,6 +385,7 @@ QueryBuilders.topChildrenQuery(
 --------------------------------------------------
 
 
+[[wildcard]]
 === Wildcard Query
 
 See {ref}/query-dsl-wildcard-query.html[Wildcard Query]
@@ -375,6 +397,7 @@ QueryBuilders.wildcardQuery("user", "k?mc*");
 --------------------------------------------------
 
 
+[[nested]]
 === Nested Query
 
 See {ref}/query-dsl-nested-query.html[Nested Query]
@@ -391,6 +414,7 @@ QueryBuilders.nestedQuery("obj1",               // Path
 --------------------------------------------------
 
 
+[[custom-filters-score]]
 === Custom Filters Score Query
 
 See
@@ -407,6 +431,7 @@ QueryBuilders.customFiltersScoreQuery(
 --------------------------------------------------
 
 
+[[indices]]
 === Indices Query
 
 See {ref}/query-dsl-indices-query.html[Indices Query]
@@ -430,6 +455,7 @@ QueryBuilders.indicesQuery(
 --------------------------------------------------
 
 
+[[geo-shape]]
 === GeoShape Query
 
 See {ref}/query-dsl-geo-shape-query.html[GeoShape Query]

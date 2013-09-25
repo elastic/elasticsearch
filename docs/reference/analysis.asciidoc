@@ -55,6 +55,7 @@ index :
 --------------------------------------------------
 
 [float]
+[[backwards-compatibility]]
 === Backwards compatibility
 
 All analyzers, tokenizers, and token filters can be configured with a

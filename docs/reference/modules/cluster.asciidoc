@@ -2,6 +2,7 @@
 == Cluster
 
 [float]
+[[shards-allocation]]
 === Shards Allocation
 
 Shards allocation is the process of allocating shards to nodes. This can
@@ -61,6 +62,7 @@ The following settings may be used:
        shard from a peer shard. Defaults to `3`. 
 
 [float]
+[[allocation-awareness]]
 === Shard Allocation Awareness
 
 Cluster allocation awareness allows to configure shard and replicas
@@ -106,6 +108,7 @@ cluster.routing.allocation.awareness.attributes: rack_id,zone
 nodes that don't have values set for those attributes.
 
 [float]
+[[forced-awareness]]
 === Forced Awareness
 
 Sometimes, we know in advance the number of values an awareness
@@ -143,6 +146,7 @@ have the same attribute values as the executing node.
 The settings can be updated using the <<cluster-update-settings,cluster update settings API>> on a live cluster.
 
 [float]
+[[allocation-filtering]]
 === Shard Allocation Filtering
 
 Allow to control allocation if indices on nodes based on include/exclude

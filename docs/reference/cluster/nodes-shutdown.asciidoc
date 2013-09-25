@@ -38,6 +38,7 @@ $ curl -XPOST 'http://localhost:9200/_cluster/nodes/_all/_shutdown'
 --------------------------------------------------
 
 [float]
+[[delay]]
 === Delay
 
 By default, the shutdown will be executed after a 1 second delay (`1s`).

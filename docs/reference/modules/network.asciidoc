@@ -62,6 +62,7 @@ as valid network host settings:
 |==================================================================
 
 [float]
+[[tcp-settings]]
 === TCP Settings
 
 Any component that uses TCP (like the HTTP, Transport and Memcached)

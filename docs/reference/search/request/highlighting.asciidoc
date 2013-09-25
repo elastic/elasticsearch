@@ -54,6 +54,7 @@ The field name supports wildcard notation, for example,
 using `comment_*` which will cause all fields that match the expression
 to be highlighted.
 
+[[tags]]
 ==== Highlighting Tags
 
 By default, the highlighting will wrap highlighted text in `<em>` and
@@ -167,6 +168,7 @@ is required. Note that `fragment_size` is ignored in this case.
 When using `fast-vector-highlighter` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
+[[settings]]
 ==== Global Settings
 
 Highlighting settings can be set on a global level and then overridden
@@ -190,6 +192,7 @@ at the field level.
 }
 --------------------------------------------------
 
+[[field-match]]
 ==== Require Field Match
 
 `require_field_match` can be set to `true` which will cause a field to
@@ -197,6 +200,7 @@ be highlighted only if a query matched that field. `false` means that
 terms are highlighted on all requested fields regardless if the query
 matches specifically on them.
 
+[[boundary-characters]]
 ==== Boundary Characters
 
 When highlighting a field that is mapped with term vectors,

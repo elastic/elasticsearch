@@ -25,6 +25,7 @@ The result of the above delete operation is:
 --------------------------------------------------
 
 [float]
+[[versioning]]
 === Versioning
 
 Each document indexed is versioned. When deleting a document, the
@@ -33,6 +34,7 @@ trying to delete is actually being deleted and it has not changed in the
 meantime.
 
 [float]
+[[routing]]
 === Routing
 
 When indexing using the ability to control the routing, in order to
@@ -54,6 +56,7 @@ no routing value is specified, the delete will be broadcasted
 automatically to all shards.
 
 [float]
+[[parent]]
 === Parent
 
 The `parent` parameter can be set, which will basically be the same as
@@ -66,6 +69,7 @@ index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
 
 [float]
+[[index-creation]]
 === Automatic index creation
 
 The delete operation automatically creates an index if it has not been
@@ -76,6 +80,7 @@ before (check out the <<indices-put-mapping,put mapping>>
 API for manually creating type mapping).
 
 [float]
+[[distributed]]
 === Distributed
 
 The delete operation gets hashed into a specific shard id. It then gets
@@ -83,6 +88,7 @@ redirected into the primary shard within that id group, and replicated
 (if needed) to shard replicas within that id group.
 
 [float]
+[[replication]]
 === Replication Type
 
 The replication of the operation can be done in an asynchronous manner
@@ -91,6 +97,7 @@ the primary shard). The `replication` parameter can be set to `async`
 (defaults to `sync`) in order to enable it.
 
 [float]
+[[consistency]]
 === Write Consistency
 
 Control if the operation will be allowed to execute based on the number
@@ -106,6 +113,7 @@ will need to be a single shard active (in this case, `one` and `quorum`
 is the same).
 
 [float]
+[[refresh]]
 === Refresh
 
 The `refresh` parameter can be set to `true` in order to refresh the

@@ -5,6 +5,7 @@ There are different caching inner modules associated with an index. They
 include `filter` and others.
 
 [float]
+[[filter]]
 === Filter Cache
 
 The filter cache is responsible for caching the results of filters (used
@@ -12,6 +13,7 @@ in the query). The default implementation of a filter cache (and the one
 recommended to use in almost all cases) is the `node` filter cache type.
 
 [float]
+[[node-filter]]
 ==== Node Filter Cache
 
 The `node` filter cache may be configured to use either a percentage of
@@ -30,6 +32,7 @@ configured in the node configuration).
 `30%`, or an exact value, like `512mb`.
 
 [float]
+[[index-filter]]
 ==== Index Filter Cache
 
 A filter cache that exists on the index level (on each node). Generally,

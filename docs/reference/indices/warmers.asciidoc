@@ -18,6 +18,7 @@ registered warmers to make indexing faster and less expensive and then
 enable it.
 
 [float]
+[[creation]]
 === Index Creation / Templates
 
 Warmers can be registered when an index gets created, for example:
@@ -65,6 +66,7 @@ curl -XPUT localhost:9200/_template/template_1 -d '
 --------------------------------------------------
 
 [float]
+[[adding]]
 === Put Warmer
 
 Allows to put a warmup search request on a specific index (or indices),
@@ -111,6 +113,7 @@ curl -XPUT localhost:9200/test/type1/_warmer/warmer_1 -d '{
 --------------------------------------------------
 
 [float]
+[[removing]]
 === Delete Warmer
 
 Removing a warmer can be done against an index (or alias / indices)
@@ -130,6 +133,7 @@ curl -XDELETE localhost:9200/test/_warmer/
 --------------------------------------------------
 
 [float]
+[[retrieving]]
 === GETting Warmer
 
 Getting a warmer for specific index (or alias, or several indices) based

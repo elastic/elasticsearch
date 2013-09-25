@@ -39,6 +39,7 @@ Explicit mapping for the above JSON tweet can be:
 --------------------------------------------------
 
 [float]
+[[string]]
 ==== String
 
 The text based string type is the most basic type, and contains one or
@@ -149,6 +150,7 @@ the real string content that should eventually be indexed. The `_boost`
 (or `boost`) key specifies the per field document boost (here 2.0).
 
 [float]
+[[number]]
 ==== Number
 
 A number based type supporting `float`, `double`, `byte`, `short`,
@@ -211,6 +213,7 @@ defaults to `true` or to the parent `object` type setting.
 |=======================================================================
 
 [float]
+[[date]]
 ==== Date
 
 The date type is a special type which maps to JSON string type. It
@@ -275,6 +278,7 @@ defaults to `true` or to the parent `object` type setting.
 |=======================================================================
 
 [float]
+[[boolean]]
 ==== Boolean
 
 The boolean type Maps to the JSON boolean type. It ends up storing
@@ -327,6 +331,7 @@ defaults to `true` or to the parent `object` type setting.
 |=======================================================================
 
 [float]
+[[binary]]
 ==== Binary
 
 The binary type is a base64 representation of binary data that can be
@@ -357,6 +362,7 @@ Defaults to the property/field name.
 |=======================================================================
 
 [float]
+[[fielddata-filters]]
 ==== Fielddata filters
 
 It is possible to control which field values are loaded into memory,
@@ -393,6 +399,7 @@ effect the next time the fielddata for a segment is loaded. Use the
 to reload the fielddata using the new filters.
 
 [float]
+[[postings]]
 ==== Postings format
 
 Posting formats define how fields are written into the index and how
@@ -455,6 +462,7 @@ custom postings format. See
 information.
 
 [float]
+[[similarity]]
 ==== Similarity
 
 Elasticsearch allows you to configure a similarity (scoring algorithm) per field.

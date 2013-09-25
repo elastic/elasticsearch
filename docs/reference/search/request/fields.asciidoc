@@ -37,6 +37,7 @@ Script fields can also be automatically detected and used as fields, so
 things like `_source.obj1.obj2` can be used, though not recommended, as
 `obj1.obj2` will work as well.
 
+[[partial]]
 ==== Partial
 
 When loading data from `_source`, partial fields can be used to use

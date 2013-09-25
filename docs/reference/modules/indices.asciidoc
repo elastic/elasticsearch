@@ -5,6 +5,7 @@ The indices module allow to control settings that are globally managed
 for all indices.
 
 [float]
+[[buffer]]
 === Indexing Buffer
 
 The indexing buffer setting allows to control how much memory will be
@@ -23,6 +24,7 @@ lower limit for the memory allocated per shard for its own indexing
 buffer. It defaults to `4mb`.
 
 [float]
+[[ttl]]
 === TTL interval
 
 You can dynamically set the `indices.ttl.interval` allows to set how
@@ -35,6 +37,7 @@ The deletion orders are processed by bulk. You can set
 See also <<mapping-ttl-field>>.
 
 [float]
+[[recovery]]
 === Recovery
 
 The following settings can be set to manage recovery policy:
@@ -59,6 +62,7 @@ The following settings can be set to manage recovery policy:
     defaults to `20mb`.
 
 [float]
+[[throttling]]
 === Store level throttling
 
 The following settings can be set to control store throttling:

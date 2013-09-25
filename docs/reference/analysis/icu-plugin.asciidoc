@@ -8,6 +8,7 @@ https://github.com/elasticsearch/elasticsearch-analysis-icu[elasticsearch-analys
 The plugin includes the following analysis components:
 
 [float]
+[[icu-normalization]]
 === ICU Normalization
 
 Normalizes characters as explained
@@ -34,6 +35,7 @@ Here is a sample settings:
 --------------------------------------------------
 
 [float]
+[[icu-folding]]
 === ICU Folding
 
 Folding of unicode characters based on `UTR#30`. It registers itself
@@ -58,6 +60,7 @@ normally be left out. Sample setting:
 --------------------------------------------------
 
 [float]
+[[filtering]]
 ==== Filtering
 
 The folding can be filtered by a set of unicode characters with the
@@ -94,6 +97,7 @@ filter below.
 --------------------------------------------------
 
 [float]
+[[icu-collation]]
 === ICU Collation
 
 Uses collation token filter. Allows to either specify the rules for

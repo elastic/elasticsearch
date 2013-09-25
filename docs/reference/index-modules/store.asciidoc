@@ -20,6 +20,7 @@ own consequences) for storing the index in memory.
 
 
 [float]
+[[throttling]]
 === Store Level Throttling
 
 The way Lucene, the IR library elasticsearch uses under the covers,
@@ -52,6 +53,7 @@ using the index update settings API dynamically.
 The following sections lists all the different storage types supported.
 
 [float]
+[[file-system]]
 === File System
 
 File system based storage is the default storage used. There are
@@ -89,6 +91,7 @@ process equal to the size of the file being mapped. Before using this
 class, be sure your have plenty of virtual address space.
 
 [float]
+[[memory]]
 === Memory
 
 The `memory` type stores the index in main memory with the following

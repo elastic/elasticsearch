@@ -85,6 +85,7 @@ If using the HTTP API, make sure that the client does not send HTTP
 chunks, as this will slow things down.
 
 [float]
+[[versioning]]
 === Versioning
 
 Each bulk item can include the version value using the
@@ -94,6 +95,7 @@ support the `version_type`/`_version_type` when using `external`
 versioning.
 
 [float]
+[[routing]]
 === Routing
 
 Each bulk item can include the routing value using the
@@ -101,12 +103,14 @@ Each bulk item can include the routing value using the
 index / delete operation based on the `_routing` mapping.
 
 [float]
+[[percolator]]
 === Percolator
 
 Each bulk index action can include a percolate value using the
 `_percolate`/`percolate` field.
 
 [float]
+[[parent]]
 === Parent
 
 Each bulk item can include the parent value using the `_parent`/`parent`
@@ -114,6 +118,7 @@ field. It automatically follows the behavior of the index / delete
 operation based on the `_parent` / `_routing` mapping.
 
 [float]
+[[timestamp]]
 === Timestamp
 
 Each bulk item can include the timestamp value using the
@@ -121,6 +126,7 @@ Each bulk item can include the timestamp value using the
 the index operation based on the `_timestamp` mapping.
 
 [float]
+[[ttl]]
 === TTL
 
 Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
@@ -128,6 +134,7 @@ It automatically follows the behavior of the index operation based on
 the `_ttl` mapping.
 
 [float]
+[[consistency]]
 === Write Consistency
 
 When making bulk calls, you can require a minimum number of active
@@ -143,6 +150,7 @@ will need to be a single shard active (in this case, `one` and `quorum`
 is the same).
 
 [float]
+[[refresh]]
 === Refresh
 
 The `refresh` parameter can be set to `true` in order to refresh the
@@ -152,6 +160,7 @@ to expire. Setting it to `true` can trigger additional load, and may
 slow down indexing.
 
 [float]
+[[update]]
 === Update
 
 When using `update` action `_retry_on_conflict` can be used as field in

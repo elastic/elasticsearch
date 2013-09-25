@@ -12,6 +12,7 @@ communication between nodes is done using the
 It is separated into several sub modules, which are explained below:
 
 [float]
+[[ping]]
 ==== Ping
 
 This is the process where a node uses the discovery mechanisms to find
@@ -19,6 +20,7 @@ other nodes. There is support for both multicast and unicast based
 discovery (can be used in conjunction as well).
 
 [float]
+[[multicast]]
 ===== Multicast
 
 Multicast ping discovery of other nodes is done by sending one or more
@@ -42,6 +44,7 @@ will bind to all available network interfaces.
 Multicast can be disabled by setting `multicast.enabled` to `false`.
 
 [float]
+[[unicast]]
 ===== Unicast
 
 The unicast discovery allows to perform the discovery when multicast is
@@ -62,6 +65,7 @@ The unicast discovery uses the
 perform the discovery.
 
 [float]
+[[master-election]]
 ==== Master Election
 
 As part of the initial ping process a master of the cluster is either
@@ -81,6 +85,7 @@ within the cluster. Its recommended to set it to a higher value than 1
 when running more than 2 nodes in the cluster.
 
 [float]
+[[fault-detection]]
 ==== Fault Detection
 
 There are two fault detection processes running. The first is by the

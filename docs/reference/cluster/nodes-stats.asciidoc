@@ -81,6 +81,7 @@ curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
 The `all` flag can be set to return all the stats.
 
 [float]
+[[field-data]]
 === Field data statistics
 
 You can get information about field data memory usage on node

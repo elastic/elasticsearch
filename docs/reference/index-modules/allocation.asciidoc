@@ -2,6 +2,7 @@
 == Index Shard Allocation
 
 [float]
+[[filtering]]
 === Shard Allocation Filtering
 
 Allow to control allocation if indices on nodes based on include/exclude
@@ -95,6 +96,7 @@ It can be dynamically set on a live index using the update index
 settings API.
 
 [float]
+[[disk]]
 === Disk-based Shard Allocation
 
 added[0.90.4]

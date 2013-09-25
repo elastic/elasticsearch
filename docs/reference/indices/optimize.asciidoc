@@ -13,6 +13,7 @@ $ curl -XPOST 'http://localhost:9200/twitter/_optimize'
 --------------------------------------------------
 
 [float]
+[[parameters]]
 === Request Parameters
 
 The optimize API accepts the following request parameters:
@@ -36,6 +37,7 @@ to `true`. Note, a merge can potentially be a very heavy operation, so
 it might make sense to run it set to `false`.
 
 [float]
+[[multi-index]]
 === Multi Index
 
 The optimize API can be applied to more than one index with a single

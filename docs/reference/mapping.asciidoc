@@ -17,6 +17,7 @@ no performance overhead) and have sensible defaults. Only when the
 defaults need to be overridden must a mapping definition be provided.
 
 [float]
+[[mapping-types]]
 === Mapping Types
 
 Mapping types are a way to divide the documents in an index into logical
@@ -37,6 +38,7 @@ name usually ends up being a good indication to its "typeness" (e.g.
 apply to the cross index case.
 
 [float]
+[[mapping-api]]
 === Mapping API
 
 To create a mapping, you will need the <<indices-put-mapping,Put Mapping
@@ -44,6 +46,7 @@ API>>, or you can add multiple mappings when you <<indices-create-index,create a
 index>>.
 
 [float]
+[[mapping-settings]]
 === Global Settings
 
 The `index.mapping.ignore_malformed` global setting can be set on the

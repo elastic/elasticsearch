@@ -4,6 +4,7 @@
 [partintro]
 --
 ["float",id="search-multi-index"]
+[[multiple-indices]]
 == Multiple Indices
 
 All search APIs support execution across multiple indices, using simple
@@ -16,6 +17,7 @@ All multi indices API support the `ignore_indices` option. Setting it to
 execution. By default, when its not set, the request will fail. 
 
 [float]
+[[routing]]
 == Routing
 
 When executing a search, it will be broadcasted to all the index/indices
@@ -61,6 +63,7 @@ separated string. This will result in hitting the relevant shards where
 the routing values match to.
 
 [float]
+[[stats-groups]]
 == Stats Groups
 
 A search can be associated with stats groups, which maintains a

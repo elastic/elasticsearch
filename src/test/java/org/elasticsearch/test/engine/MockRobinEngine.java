@@ -64,7 +64,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
                 deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
         final long seed = indexSettings.getAsLong(AbstractIntegrationTest.INDEX_SEED_SETTING, 0l);
-        if (logger.isTraceEnabled()){
+        if (logger.isTraceEnabled()) {
             logger.trace("Using [{}] for shard [{}] seed: [{}]", this.getClass().getName(), shardId, seed);
         }
         random = new Random(seed);
@@ -112,11 +112,13 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
         @Override
         public boolean release() throws ElasticSearchException {
             RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
-            synchronized (lock) { 
+            synchronized (lock) {
                 // make sure we only get this once and store the stack of the first caller!
                 if (remove == null) {
                     assert firstReleaseStack != null;
-                    throw new AssertionError("Released Searcher more than once, source [" + searcher.source() + "]", firstReleaseStack);
+                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + searcher.source() + "]");
+                    error.initCause(firstReleaseStack);
+                    throw error;
                 } else {
                     assert firstReleaseStack == null;
                     firstReleaseStack = new RuntimeException("Searcher Released first here, source [" + searcher.source() + "]");

@@ -14,6 +14,7 @@ character filters, tokenizers and token filters to create
 <<analysis-custom-analyzer,custom analyzers>>.
 
 [float]
+[[default-analyzers]]
 === Default Analyzers
 
 An analyzer is registered under a logical name. It can then be
@@ -28,6 +29,7 @@ used just when indexing, and the `default_search` can be used to
 configure a default analyzer that will be used just when searching.
 
 [float]
+[[aliasing-analyzers]]
 === Aliasing Analyzers
 
 Analyzers can be aliased to have several registered lookup names

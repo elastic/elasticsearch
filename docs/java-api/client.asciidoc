@@ -29,6 +29,7 @@ major versions.
 ______________________________________________________________________________________________________________________________________________________________
 
 
+[[node-client]]
 === Node Client
 
 Instantiating a node based client is the simplest way to get a `Client`
@@ -120,6 +121,7 @@ node.close();
 --------------------------------------------------
 
 
+[[transport-client]]
 === Transport Client
 
 The `TransportClient` connects remotely to an elasticsearch cluster

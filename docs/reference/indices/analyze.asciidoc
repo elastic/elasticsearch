@@ -50,6 +50,7 @@ Also, the text can be provided as part of the request body, and not as a
 parameter.
 
 [float]
+[[format]]
 === Format
 
 By default, the format the tokens are returned in are in json and its

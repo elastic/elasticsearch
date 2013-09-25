@@ -6,6 +6,7 @@ obtained, all of ElasticSearch APIs can be executed on it. Each Groovy
 API is exposed using three different mechanisms.
 
 
+[[closure]]
 === Closure Request
 
 The first type is to simply provide the request as a Closure, which
@@ -57,6 +58,7 @@ indexR.failure = {Throwable t ->
 --------------------------------------------------
 
 
+[[request]]
 === Request
 
 This option allows to pass the actual instance of the request (instead
@@ -81,6 +83,7 @@ println "Indexed $indexR.response.id into $indexR.response.index/$indexR.respons
 --------------------------------------------------
 
 
+[[java-like]]
 === Java Like
 
 The last option is to provide an actual instance of the API request, and

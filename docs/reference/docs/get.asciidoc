@@ -39,6 +39,7 @@ curl -XHEAD 'http://localhost:9200/twitter/tweet/1'
 --------------------------------------------------
 
 [float]
+[[realtime]]
 === Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
@@ -58,12 +59,14 @@ will be loaded from source when using realtime GET, even if the fields
 are stored.
 
 [float]
+[[type]]
 === Optional Type
 
 The get API allows for `_type` to be optional. Set it to `_all` in order
 to fetch the first document matching the id across all types.
 
 [float]
+[[fields]]
 === Fields
 
 The get operation allows specifying a set of fields that will be
@@ -80,6 +83,7 @@ from the `_source` (parsed and extracted). It also supports sub objects
 extraction from _source, like `obj1.obj2`.
 
 [float]
+[[_source]]
 === Getting the _source directly
 
 Use the `/{index}/{type}/{id}/_source` endpoint to get
@@ -100,6 +104,7 @@ curl -XHEAD 'http://localhost:9200/twitter/tweet/1/_source'
 --------------------------------------------------
 
 [float]
+[[routing]]
 === Routing
 
 When indexing using the ability to control the routing, in order to get
@@ -115,6 +120,7 @@ user. Note, issuing a get without the correct routing, will cause the
 document not to be fetched.
 
 [float]
+[[preference]]
 === Preference
 
 Controls a `preference` of which shard replicas to execute the get
@@ -139,6 +145,7 @@ Custom (string) value::
 	user name.
 
 [float]
+[[refresh]]
 === Refresh
 
 The `refresh` parameter can be set to `true` in order to refresh the
@@ -148,6 +155,7 @@ this does not cause a heavy load on the system (and slows down
 indexing).
 
 [float]
+[[distributed]]
 === Distributed
 
 The get operation gets hashed into a specific shard id. It then gets

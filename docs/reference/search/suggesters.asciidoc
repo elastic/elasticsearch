@@ -107,6 +107,7 @@ term suggester's score is based on the edit distance.
 --------------------------------------------------
 
 [float]
+[[global-suggest]]
 === Global suggest text
 
 To avoid repetition of the suggest text, it is possible to define a

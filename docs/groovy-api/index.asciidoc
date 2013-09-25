@@ -17,6 +17,7 @@ manner. The execution options for each API follow a similar manner and
 covered in <<anatomy>>.
 
 
+[[maven]]
 === Maven Repository
 
 The Groovy API is hosted on

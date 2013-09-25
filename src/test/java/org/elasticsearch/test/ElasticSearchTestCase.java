@@ -49,11 +49,11 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
     
-    public boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
+    public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
     
-    public boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    public static boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
@@ -102,8 +102,21 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
     }
     
     public static void ensureAllSearchersClosed() {
-        if (MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
-            return;
+        /* in some cases we finish a test faster than the freeContext calls make it to the
+         * shards. Let's wait for some time if there are still searchers. If the are really 
+         * pending we will fail anyway.*/
+        try {
+            if (awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object o) {
+                    return MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                }
+            }, 5, TimeUnit.SECONDS)) {
+                return;
+            }
+        } catch (InterruptedException ex) {
+            if (MockRobinEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+                return;
+            }
         }
         try {
             RuntimeException ex = null;

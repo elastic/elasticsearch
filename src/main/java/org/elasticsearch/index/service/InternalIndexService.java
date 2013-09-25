@@ -25,6 +25,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
@@ -290,6 +291,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             throw new IndexShardMissingException(new ShardId(index, shardId));
         }
         return shardInjector;
+    }
+
+    @Override
+    public String indexUUID() {
+        return indexSettings.get(IndexMetaData.SETTING_UUID);
     }
 
     @Override

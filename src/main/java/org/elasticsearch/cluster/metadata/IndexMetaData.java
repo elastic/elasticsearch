@@ -56,6 +56,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 public class IndexMetaData {
 
+
     public interface Custom {
 
         String type();
@@ -155,6 +156,7 @@ public class IndexMetaData {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_UUID = "index.uuid";
 
     private final String index;
     private final long version;
@@ -211,6 +213,21 @@ public class IndexMetaData {
     public String index() {
         return index;
     }
+
+    public String getUUID() {
+        return settings.get(SETTING_UUID);
+    }
+
+    /**
+     * Test whether the current index UUID is the same as the given one. Incoming nulls always return true.
+     */
+    public boolean isSameUUID(@Nullable String otherUUID) {
+        if (otherUUID == null || getUUID() == null) {
+            return true;
+        }
+        return otherUUID.equals(getUUID());
+    }
+
 
     public String getIndex() {
         return index();
@@ -330,16 +347,30 @@ public class IndexMetaData {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IndexMetaData that = (IndexMetaData) o;
 
-        if (!aliases.equals(that.aliases)) return false;
-        if (!index.equals(that.index)) return false;
-        if (!mappings.equals(that.mappings)) return false;
-        if (!settings.equals(that.settings)) return false;
-        if (state != that.state) return false;
+        if (!aliases.equals(that.aliases)) {
+            return false;
+        }
+        if (!index.equals(that.index)) {
+            return false;
+        }
+        if (!mappings.equals(that.mappings)) {
+            return false;
+        }
+        if (!settings.equals(that.settings)) {
+            return false;
+        }
+        if (state != that.state) {
+            return false;
+        }
 
         return true;
     }

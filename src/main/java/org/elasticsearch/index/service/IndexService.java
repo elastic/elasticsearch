@@ -86,4 +86,6 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     Injector shardInjector(int shardId);
 
     Injector shardInjectorSafe(int shardId) throws IndexShardMissingException;
+
+    String indexUUID();
 }

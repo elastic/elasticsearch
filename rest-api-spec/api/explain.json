@@ -85,7 +85,7 @@
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         }
-      },
+      }
     },
     "body": {
       "description" : "The query definition using the Query DSL"

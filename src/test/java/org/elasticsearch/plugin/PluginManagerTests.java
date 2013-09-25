@@ -104,6 +104,13 @@ public class PluginManagerTests extends AbstractIntegrationTest {
         assertPluginAvailable(nodeName, pluginName);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testSitePluginWithSourceThrows() throws Exception {
+        String pluginName = "plugin-with-source";
+        URL url = PluginManagerTests.class.getResource("plugin_with_sourcefiles.zip");
+        downloadAndExtract(pluginName, "file://" + url.getFile());
+    }
+
     private static PluginManager pluginManager(String pluginUrl) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);

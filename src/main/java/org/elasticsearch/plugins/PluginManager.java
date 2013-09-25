@@ -186,7 +186,7 @@ public class PluginManager {
         if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
             debug("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
             FileSystemUtils.deleteRecursively(extractLocation);
-            return;
+            throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
         }
 
         File binFile = new File(extractLocation, "bin");

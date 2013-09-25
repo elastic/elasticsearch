@@ -1,3 +1,8 @@
+setup:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
 ---
 "Get missing template - post 0.90.3":
   - skip:
@@ -13,6 +18,10 @@
   - skip:
       version: "0.90.3 - 999"
       reason:  "Missing templates didn't throw 404 before 0.90.3"
+  - do:
+      indices.delete_template:
+        name:   test
+        ignore: 404
   - do:
       indices.get_template:
         name: test

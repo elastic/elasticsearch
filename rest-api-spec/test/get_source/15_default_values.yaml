@@ -1,6 +1,10 @@
 ---
 "Default values":
 
+  - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Get source not supported in pre 0.90.1 versions."
+
   - do:
       index:
         index: test_1

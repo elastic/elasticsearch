@@ -279,6 +279,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     indexSettingsBuilder.put(SETTING_VERSION_CREATED, version);
+                    indexSettingsBuilder.put(SETTING_UUID, Strings.randomBase64UUID());
 
                     Settings actualIndexSettings = indexSettingsBuilder.build();
 

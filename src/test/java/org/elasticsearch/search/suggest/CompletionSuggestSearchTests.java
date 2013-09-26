@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
@@ -555,6 +557,27 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
         long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("*");
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
+
+    @Test
+    public void testThatSortingOnCompletionFieldReturnsUsefulException() throws Exception {
+        createIndexAndMapping();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Nirvana").endArray()
+                .endObject().endObject()
+        ).get();
+
+        refresh();
+        try {
+            client().prepareSearch(INDEX).setTypes(TYPE).addSort(new FieldSortBuilder(FIELD)).execute().actionGet();
+            fail("Expected an exception due to trying to sort on completion field, but did not happen");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status().getStatus(), is(400));
+            assertThat(e.getMessage(), containsString("Sorting not supported for field[" + FIELD + "]"));
+        }
+    }
+
 
     public void assertSuggestions(String suggestion, String... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);

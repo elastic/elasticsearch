@@ -711,4 +711,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         return false;
     }
 
+    @Override
+    public boolean isSortable() {
+        return true;
+    }
 }

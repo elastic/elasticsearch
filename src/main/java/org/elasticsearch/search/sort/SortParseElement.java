@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedFilter;
@@ -196,6 +197,10 @@ public class SortParseElement implements SearchParseElement {
                     return;
                 }
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+            }
+
+            if (!fieldMapper.isSortable()) {
+                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]");
             }
 
             // Enable when we also know how to detect fields that do tokenize, but only emit one token

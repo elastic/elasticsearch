@@ -121,7 +121,7 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
                     }
                     try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
                     } catch (Exception e) {
                         logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }

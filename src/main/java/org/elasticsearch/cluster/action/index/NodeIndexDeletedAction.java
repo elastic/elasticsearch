@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -40,19 +40,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class NodeIndexDeletedAction extends AbstractComponent {
 
     private final ThreadPool threadPool;
-
     private final TransportService transportService;
-
-    private final ClusterService clusterService;
-
     private final List<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
     @Inject
-    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService) {
+    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterService = clusterService;
         transportService.registerHandler(NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedTransportHandler());
         transportService.registerHandler(NodeIndexStoreDeletedTransportHandler.ACTION, new NodeIndexStoreDeletedTransportHandler());
     }
@@ -65,8 +60,8 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         listeners.remove(listener);
     }
 
-    public void nodeIndexDeleted(final String index, final String nodeId) throws ElasticSearchException {
-        DiscoveryNodes nodes = clusterService.state().nodes();
+    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticSearchException {
+        DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new Runnable() {
                 @Override
@@ -75,13 +70,13 @@ public class NodeIndexDeletedAction extends AbstractComponent {
                 }
             });
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+            transportService.sendRequest(clusterState.nodes().masterNode(),
                     NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
-    public void nodeIndexStoreDeleted(final String index, final String nodeId) throws ElasticSearchException {
-        DiscoveryNodes nodes = clusterService.state().nodes();
+    public void nodeIndexStoreDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticSearchException {
+        DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new Runnable() {
                 @Override
@@ -90,7 +85,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
                 }
             });
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+            transportService.sendRequest(clusterState.nodes().masterNode(),
                     NodeIndexStoreDeletedTransportHandler.ACTION, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }

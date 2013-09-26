@@ -193,14 +193,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         assert localNodeId != null;
         for (String index : event.indicesCreated()) {
             try {
-                nodeIndexCreatedAction.nodeIndexCreated(index, localNodeId);
+                nodeIndexCreatedAction.nodeIndexCreated(event.state(), index, localNodeId);
             } catch (Throwable e) {
                 logger.debug("failed to send to master index {} created event", e, index);
             }
         }
         for (String index : event.indicesDeleted()) {
             try {
-                nodeIndexDeletedAction.nodeIndexDeleted(index, localNodeId);
+                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, localNodeId);
             } catch (Throwable e) {
                 logger.debug("failed to send to master index {} deleted event", e, index);
             }
@@ -211,7 +211,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         //handles open/close index notifications
         if (event.indicesStateChanged()) {
             try {
-                nodeIndicesStateUpdatedAction.nodeIndexStateUpdated(new NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
+                nodeIndicesStateUpdatedAction.nodeIndexStateUpdated(event.state(),
+                        new NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
             } catch (Throwable e) {
                 logger.debug("failed to send to master indices state change event", e);
             }
@@ -386,7 +387,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
             if (typesToRefresh != null) {
-                nodeMappingRefreshAction.nodeMappingRefresh(new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
+                nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {
@@ -417,7 +419,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;
                 }
-                nodeMappingCreatedAction.nodeMappingCreated(
+                nodeMappingCreatedAction.nodeMappingCreated(event.state(),
                         new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId(), event.state().version()));
             } else {
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
@@ -433,7 +435,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         // this might happen when upgrading from 0.15 to 0.16
                         logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     }
-                    nodeMappingCreatedAction.nodeMappingCreated(
+                    nodeMappingCreatedAction.nodeMappingCreated(event.state(),
                             new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId(), event.state().version()));
                 }
             }
@@ -470,7 +472,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
             // Notify client that alias changes were applied
-            nodeAliasesUpdatedAction.nodeAliasesUpdated(
+            nodeAliasesUpdatedAction.nodeAliasesUpdated(event.state(),
                     new NodeAliasesUpdatedAction.NodeAliasesUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
         }
     }

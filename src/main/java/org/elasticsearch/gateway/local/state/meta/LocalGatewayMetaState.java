@@ -227,7 +227,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
                     }
                     try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(current.index(), event.state().nodes().masterNodeId());
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
                     } catch (Throwable e) {
                         logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }

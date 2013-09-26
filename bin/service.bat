@@ -9,7 +9,7 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 rem Detect JVM version to figure out appropriate executable to use
 if not exist "%JAVA_HOME%\bin\java.exe" (
 echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Existing...
-goto finally
+goto:eof
 )
 "%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
 
@@ -55,45 +55,45 @@ echo Unknown option "%SERVICE_CMD%"
 :displayUsage
 echo.
 echo Usage: service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
-goto finally
+goto:eof
 
 :doStart
 "%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
-goto finally
+goto:eof
 :started
 echo The service '%SERVICE_ID%' has been started
-goto finally
+goto:eof
 
 :doStop
 "%EXECUTABLE%" //SS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto stopped
 echo Failed stopping '%SERVICE_ID%' service
-goto finally
+goto:eof
 :stopped
 echo The service '%SERVICE_ID%' has been stopped
-goto finally
+goto:eof
 
 :doManagment
 set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr.exe
 "%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
-goto finally
+goto:eof
 :managed
 echo Succesfully started service manager for '%SERVICE_ID%'.
-goto finally
+goto:eof
 
 :doRemove
 rem Remove the service
 "%EXECUTABLE%" //DS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto removed
 echo Failed removing '%SERVICE_ID%' service
-goto finally
+goto:eof
 :removed
 echo The service '%SERVICE_ID%' has been removed
-goto finally
+goto:eof
 
 :doInstall
 echo Installing service      :  "%SERVICE_ID%"
@@ -110,7 +110,7 @@ if exist %JVM_DLL% (
 echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
 ) else (
 echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Existing...
-goto finally
+goto:eof
 )
 
 :foundJVM
@@ -127,7 +127,13 @@ set ES_MIN_MEM=%ES_HEAP_SIZE%
 set ES_MAX_MEM=%ES_HEAP_SIZE%
 )
 
-set JAVA_OPTS=%JAVA_OPTS% -Xms%ES_MIN_MEM% -Xmx%ES_MAX_MEM%
+call:convertxm %ES_MIN_MEM% JVM_XMS
+call:convertxm %ES_MAX_MEM% JVM_XMX
+
+set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
+
+rem JAVA_OPTS might be empty so remove the spaces that might trip commons daemon
+set JAVA_OPTS=%JAVA_OPTS: =%
 
 if NOT "%ES_HEAP_NEWSIZE%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
@@ -137,20 +143,18 @@ if NOT "%ES_DIRECT_SIZE%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
 )
 
-set JAVA_OPTS=%JAVA_OPTS% -Xss256k
+rem thread stack size
+set JVM_SS=256
 
 REM Enable aggressive optimizations in the JVM
 REM    - Disabled by default as it might cause the JVM to crash
 REM set JAVA_OPTS=%JAVA_OPTS% -XX:+AggressiveOpts
 
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
+
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
 
 set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
-
-REM When running under Java 7
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
 
 REM GC logging options -- uncomment to enable
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
@@ -185,29 +189,60 @@ set CONF_FILE=%CONF_DIR%\elasticsearch.yml
 set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/elasticsearch-%ES_VERSION%.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.work="%WORK_DIR%";-Des.default.path.conf="%CONF_DIR%"
 
-set JAVA_OPTS=%JAVA_OPTS: =;%
-set JVM_OPTS=%JAVA_OPTS%;%ES_PARAMS%
+set JVM_OPTS=%JAVA_OPTS: =;%
 
 if not "%ES_JAVA_OPTS%" == "" (
 set JVM_ES_JAVA_OPTS=%ES_JAVA_OPTS: =#%
 set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
 )
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --StartClass org.elasticsearch.bootstrap.ElasticSearch --StopClass org.elasticsearch.bootstrap.ElasticSearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" ++JvmOptions %JVM_OPTS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --StartClass org.elasticsearch.bootstrap.ElasticSearch --StopClass org.elasticsearch.bootstrap.ElasticSearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
 
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service
-goto finally
+goto:eof
 
 :installed
 echo The service '%SERVICE_ID%' has been installed.
-goto finally
+goto:eof
 
 :err
 echo JAVA_HOME environment variable must be set!
 pause
 
-:finally
+goto:eof
+
+rem ---
+rem Function for converting Xm[s|x] values into MB which Commons Daemon accepts
+rem ---
+:convertxm
+set value=%~1
+rem extract last char (unit)
+set unit=%value:~-1%
+rem assume the unit is specified
+set conv=%value:~0,-1%
+
+if "%unit%" == "k" goto kilo
+if "%unit%" == "K" goto kilo
+if "%unit%" == "m" goto mega
+if "%unit%" == "M" goto mega
+if "%unit%" == "g" goto giga
+if "%unit%" == "G" goto giga
+
+rem no unit found, must be bytes; consider the whole value
+set conv=%value%
+rem convert to KB
+set /a conv=%conv% / 1024
+:kilo
+rem convert to MB
+set /a conv=%conv% / 1024
+goto mega
+:giga
+rem convert to MB
+set /a conv=%conv% * 1024
+:mega
+set "%~2=%conv%"
+goto:eof
 
 ENDLOCAL

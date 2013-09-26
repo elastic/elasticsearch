@@ -1,32 +1,39 @@
 [[setup-service]]
-== Running As a Service
+== Running As a Service on Linux
 
-It should be simple to wrap the `elasticsearch` script in an `init.d` or
-the like. But, elasticsearch also supports running it using the
-https://github.com/elasticsearch/elasticsearch-servicewrapper[Java Service Wrapper].
+In order to run elasticsearch as a service on your operating system, the provided packages try to make it as easy as possible for you to start and stop elasticsearch during reboot and upgrades.
 
-ElasticSearch can be run as a service using the `elasticsearch` script
-located under `bin/service` location. The repo for it is located
-http://github.com/elasticsearch/elasticsearch-servicewrapper[here]. The
-script accepts a single parameter with the following values:
+=== Linux
+
+Currently our build automatically creates a debian package and an RPM package, which is available on the download page. The package itself does not have any dependencies, but you have to make sure that you installed a JDK.
+
+Each package features a configuration file, which allows you to set the following parameters
 
 [horizontal]
-`console`:: Run the elasticsearch in the foreground.
+`ES_USER`::               The user to run as, defaults to `elasticsearch`
+`ES_GROUP`::              The group to run as, defaults to `elasticsearch`
+`ES_HEAP_SIZE`::          The heap size to start with
+`ES_HEAP_NEWSIZE`::       The size of the new generation heap
+`ES_DIRECT_SIZE`::        The maximum size of the direct memory
+`MAX_OPEN_FILES`::       Maximum number of open files, defaults to `65535`
+`MAX_LOCKED_MEMORY`::     Maximum locked memory size. Set to "unlimited" if you use the bootstrap.mlockall option in elasticsearch.yml. You must also set ES_HEAP_SIZE.
+`LOG_DIR`::               Log directory, defaults to `/var/log/elasticsearch`
+`DATA_DIR`::              Data directory, defaults to `/var/lib/elasticsearch`
+`WORK_DIR`::              Work directory, defaults to `/tmp/elasticsearch`
+`CONF_DIR`::              Configuration file directory (which needs to include `elasticsearch.yml` and `logging.yml` files), defaults to `/etc/elasticsearch`
+`CONF_FILE`::             Path to configuration file, defaults to `/etc/elasticsearch/elasticsearch.yml`
+`ES_JAVA_OPTS`::          Any additional java options you may want to apply
+`RESTART_ON_UPGRADE`::    Configure restart on package upgrade, defaults to `false`. This means you will have to restart your elasticsearch instance after installing a package manually. The reason for this is to ensure, that upgrades in a cluster do not result in a continouos shard reallocation resulting in high network traffic and reducing the response times of your cluster.
 
-`start`::   Run elasticsearch in the background.
+==== Debian/Ubuntu
 
-`stop`::    Stops elasticsearch if its running.
+The debian package ships with everything you need as it uses standard debian tools like update `update-rc.d` to define the runlevels it runs on. The init script is placed at `/etc/init.d/elasticsearch` is you would expect it. The configuration file is placed at `/etc/default/elasticsearch`.
 
-`install`:: Install elasticsearch to run on system startup (init.d / service).
+==== RedHat/Centos/Fedora
 
-`remove`::  Removes elasticsearch from system startup (init.d / service).
+RedHat based distributions are using `chkconfig` to enable and disable services. The init script is at `/etc/init.d/elasticsearch`, where as the configuration file is placed at `/etc/sysconfig/elasticsearch`.
 
-The service uses Java Service Wrapper which is a small native wrapper
-around the Java virtual machine which also monitors it.
+==== SuSe
 
-Note, passing JVM level configuration (such as -X parameters) should be
-set within the `elasticsearch.conf` file.
+SuSe does not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services. The configuration file is also placed at `/etc/sysconfig/elasticsearch`.
 
-The `ES_MIN_MEM` and `ES_MAX_MEM` environment variables to set the
-minimum and maximum memory allocation for the JVM (set in mega bytes).
-It defaults to `256` and `1024` respectively.

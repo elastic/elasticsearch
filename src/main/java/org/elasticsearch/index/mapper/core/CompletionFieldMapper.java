@@ -357,6 +357,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public boolean isSortable() {
+        return false;
+    }
 
     @Override
     public FieldType defaultFieldType() {

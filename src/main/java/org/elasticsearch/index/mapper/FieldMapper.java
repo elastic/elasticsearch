@@ -202,4 +202,6 @@ public interface FieldMapper<T> {
     PostingsFormatProvider postingsFormatProvider();
 
     boolean isNumeric();
+
+    boolean isSortable();
 }

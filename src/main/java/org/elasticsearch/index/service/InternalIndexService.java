@@ -295,7 +295,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override
     public String indexUUID() {
-        return indexSettings.get(IndexMetaData.SETTING_UUID);
+        return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
     @Override

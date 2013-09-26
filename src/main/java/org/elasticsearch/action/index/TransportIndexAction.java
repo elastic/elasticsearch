@@ -202,6 +202,9 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .version(request.version())
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
+            if (index.parsedDoc().mappingsModified()) {
+                updateMappingOnMaster(request);
+            }
             indexShard.index(index);
             version = index.version();
             op = index;
@@ -211,6 +214,9 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .version(request.version())
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
+            if (create.parsedDoc().mappingsModified()) {
+                updateMappingOnMaster(request);
+            }
             indexShard.create(create);
             version = create.version();
             op = create;
@@ -223,9 +229,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 // ignore
             }
         }
-        if (op.parsedDoc().mappingsModified()) {
-            updateMappingOnMaster(request);
-        }
+
         // update the version on the request, so it will be used for the replicas
         request.version(version);
 

@@ -160,7 +160,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     if (!indexMetaData.isSameUUID(task.indexUUID)) {
                         // index got deleted on us, ignore...
-                        logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task UUID", index, task);
+                        logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
                         continue;
                     }
 

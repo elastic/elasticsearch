@@ -218,12 +218,12 @@ public class IndexMetaData {
         return index();
     }
 
-    public String UUID() {
+    public String uuid() {
         return settings.get(SETTING_UUID);
     }
 
     public String getUUID() {
-        return UUID();
+        return uuid();
     }
 
     /**

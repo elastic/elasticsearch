@@ -20,9 +20,11 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,7 +62,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     }
 
     private void innerMappingRefresh(NodeMappingRefreshRequest request) {
-        metaDataMappingService.refreshMapping(request.index(), request.types());
+        metaDataMappingService.refreshMapping(request.index(), request.indexUUID(), request.types());
     }
 
     private class NodeMappingRefreshTransportHandler extends BaseTransportRequestHandler<NodeMappingRefreshRequest> {
@@ -87,14 +89,16 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     public static class NodeMappingRefreshRequest extends TransportRequest {
 
         private String index;
+        private String indexUUID;
         private String[] types;
         private String nodeId;
 
         NodeMappingRefreshRequest() {
         }
 
-        public NodeMappingRefreshRequest(String index, String[] types, String nodeId) {
+        public NodeMappingRefreshRequest(String index, @Nullable String indexUUID, String[] types, String nodeId) {
             this.index = index;
+            this.indexUUID = indexUUID;
             this.types = types;
             this.nodeId = nodeId;
         }
@@ -102,6 +106,11 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         public String index() {
             return index;
         }
+
+        public String indexUUID() {
+            return indexUUID;
+        }
+
 
         public String[] types() {
             return types;
@@ -117,6 +126,9 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             out.writeString(index);
             out.writeStringArray(types);
             out.writeString(nodeId);
+            if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+                out.writeOptionalString(indexUUID);
+            }
         }
 
         @Override
@@ -125,6 +137,9 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             index = in.readString();
             types = in.readStringArray();
             nodeId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+                indexUUID = in.readOptionalString();
+            }
         }
     }
 }

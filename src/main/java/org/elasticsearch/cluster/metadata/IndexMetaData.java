@@ -214,8 +214,16 @@ public class IndexMetaData {
         return index;
     }
 
-    public String getUUID() {
+    public String getIndex() {
+        return index();
+    }
+
+    public String UUID() {
         return settings.get(SETTING_UUID);
+    }
+
+    public String getUUID() {
+        return UUID();
     }
 
     /**
@@ -226,11 +234,6 @@ public class IndexMetaData {
             return true;
         }
         return otherUUID.equals(getUUID());
-    }
-
-
-    public String getIndex() {
-        return index();
     }
 
     public long version() {

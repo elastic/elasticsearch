@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -77,7 +78,7 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerHandler(ShardFailedTransportHandler.ACTION, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardFailed(final ShardRouting shardRouting, @Nullable final String indexUUID, final String reason) throws ElasticSearchException {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
         logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
         DiscoveryNodes nodes = clusterService.state().nodes();
@@ -94,7 +95,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardStarted(final ShardRouting shardRouting, @Nullable String indexUUID, final String reason) throws ElasticSearchException {
 
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
 
@@ -215,21 +216,25 @@ public class ShardStateAction extends AbstractComponent {
                                 // with the shard still initializing, and it will try and start it again (until the verification comes)
 
                                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardRouting.id());
+
+                                boolean applyShardEvent = true;
+
                                 for (ShardRouting entry : indexShardRoutingTable) {
                                     if (shardRouting.currentNodeId().equals(entry.currentNodeId())) {
                                         // we found the same shard that exists on the same node id
-                                        if (entry.initializing()) {
-                                            // shard not started, add it to the shards to be processed.
-                                            shardRoutingToBeApplied.add(shardRouting);
-                                            logger.debug("{} will apply shard started {}", shardRouting.shardId(), shardRoutingEntry);
-                                        } else {
+                                        if (!entry.initializing()) {
+                                            // shard is in initialized state, skipping event (probable already started)
                                             logger.debug("{} ignoring shard started event for {}, current state: {}", shardRouting.shardId(), shardRoutingEntry, entry.state());
+                                            applyShardEvent = false;
                                         }
-                                    } else {
-                                        shardRoutingToBeApplied.add(shardRouting);
-                                        logger.debug("{} will apply shard started {}", shardRouting.shardId(), shardRoutingEntry);
                                     }
                                 }
+
+                                if (applyShardEvent) {
+                                    shardRoutingToBeApplied.add(shardRouting);
+                                    logger.debug("{} will apply shard started {}", shardRouting.shardId(), shardRoutingEntry);
+                                }
+
                             } catch (Throwable t) {
                                 logger.error("{} unexpected failure while processing shard started [{}]", t, shardRouting.shardId(), shardRouting);
                             }
@@ -306,7 +311,7 @@ public class ShardStateAction extends AbstractComponent {
         private ShardRoutingEntry() {
         }
 
-        private ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String reason) {
+        private ShardRoutingEntry(ShardRouting shardRouting, @Nullable String indexUUID, String reason) {
             this.shardRouting = shardRouting;
             this.reason = reason;
             this.indexUUID = indexUUID;

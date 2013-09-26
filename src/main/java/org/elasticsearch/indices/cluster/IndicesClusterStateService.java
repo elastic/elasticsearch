@@ -388,7 +388,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             if (typesToRefresh != null) {
                 nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.UUID(),
+                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {

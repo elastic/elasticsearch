@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Strings;
@@ -65,7 +66,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -609,7 +609,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
             documentMapper.refreshSource();
 
-            mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(index, type, documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
+            IndexMetaData metaData = clusterService.state().metaData().index(index);
+
+            final MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(index, metaData.uuid(), type, documentMapper.mappingSource());
+            mappingUpdatedAction.execute(request, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override
                 public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                     // all is well
@@ -617,11 +620,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
                 @Override
                 public void onFailure(Throwable e) {
-                    try {
-                        logger.warn("failed to update master on updated mapping for index [{}], type [{}] and source [{}]", e, index, type, documentMapper.mappingSource().string());
-                    } catch (IOException e1) {
-                        // ignore
-                    }
+                    logger.warn("failed to update master on updated mapping for {}", e, request);
                 }
             });
         } catch (Throwable e) {

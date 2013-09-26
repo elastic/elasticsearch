@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -51,7 +52,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -187,7 +187,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
-        MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(request.type());
+        IndexMetaData indexMetaData = clusterState.metaData().index(request.index());
+        MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
                 throw new RoutingMissingException(request.index(), request.type(), request.id());
@@ -205,7 +206,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
             if (index.parsedDoc().mappingsModified()) {
-                updateMappingOnMaster(request);
+                updateMappingOnMaster(request, indexMetaData);
             }
             indexShard.index(index);
             version = index.version();
@@ -216,7 +217,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
             if (create.parsedDoc().mappingsModified()) {
-                updateMappingOnMaster(request);
+                updateMappingOnMaster(request, indexMetaData);
             }
             indexShard.create(create);
             version = create.version();
@@ -278,17 +279,19 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         }
     }
 
-    private void updateMappingOnMaster(final IndexRequest request) {
+    private void updateMappingOnMaster(final IndexRequest request, IndexMetaData indexMetaData) {
         final CountDownLatch latch = new CountDownLatch(1);
         try {
-            MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
+            final MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
             final DocumentMapper documentMapper = mapperService.documentMapper(request.type());
             if (documentMapper == null) { // should not happen
                 return;
             }
             documentMapper.refreshSource();
-            logger.trace("Sending mapping updated to master: index [{}] type [{}]", request.index(), request.type());
-            mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
+            final MappingUpdatedAction.MappingUpdatedRequest mappingRequest =
+                    new MappingUpdatedAction.MappingUpdatedRequest(request.index(), indexMetaData.uuid(), request.type(), documentMapper.mappingSource());
+            logger.trace("Sending mapping updated to master: {}", mappingRequest);
+            mappingUpdatedAction.execute(mappingRequest, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override
                 public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                     // all is well
@@ -298,11 +301,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 @Override
                 public void onFailure(Throwable e) {
                     latch.countDown();
-                    try {
-                        logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + documentMapper.mappingSource().string() + "]", e);
-                    } catch (IOException e1) {
-                        // ignore
-                    }
+                    logger.warn("Failed to update master on updated mapping for {}", e, mappingRequest);
                 }
             });
         } catch (Exception e) {

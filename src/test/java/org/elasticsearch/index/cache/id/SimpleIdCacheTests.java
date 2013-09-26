@@ -27,6 +27,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.Tuple;
@@ -396,7 +397,7 @@ public class SimpleIdCacheTests {
 
         @Override
         public String indexUUID() {
-            return null;
+            return IndexMetaData.INDEX_UUID_NA_VALUE;
         }
 
         @Override

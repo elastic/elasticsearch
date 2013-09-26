@@ -77,7 +77,7 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerHandler(ShardFailedTransportHandler.ACTION, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticSearchException {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
         logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
         DiscoveryNodes nodes = clusterService.state().nodes();
@@ -215,21 +215,25 @@ public class ShardStateAction extends AbstractComponent {
                                 // with the shard still initializing, and it will try and start it again (until the verification comes)
 
                                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardRouting.id());
+
+                                boolean applyShardEvent = true;
+
                                 for (ShardRouting entry : indexShardRoutingTable) {
                                     if (shardRouting.currentNodeId().equals(entry.currentNodeId())) {
                                         // we found the same shard that exists on the same node id
-                                        if (entry.initializing()) {
-                                            // shard not started, add it to the shards to be processed.
-                                            shardRoutingToBeApplied.add(shardRouting);
-                                            logger.debug("{} will apply shard started {}", shardRouting.shardId(), shardRoutingEntry);
-                                        } else {
+                                        if (!entry.initializing()) {
+                                            // shard is in initialized state, skipping event (probable already started)
                                             logger.debug("{} ignoring shard started event for {}, current state: {}", shardRouting.shardId(), shardRoutingEntry, entry.state());
+                                            applyShardEvent = false;
                                         }
-                                    } else {
-                                        shardRoutingToBeApplied.add(shardRouting);
-                                        logger.debug("{} will apply shard started {}", shardRouting.shardId(), shardRoutingEntry);
                                     }
                                 }
+
+                                if (applyShardEvent) {
+                                    shardRoutingToBeApplied.add(shardRouting);
+                                    logger.debug("{} will apply shard started {}", shardRouting.shardId(), shardRoutingEntry);
+                                }
+
                             } catch (Throwable t) {
                                 logger.error("{} unexpected failure while processing shard started [{}]", t, shardRouting.shardId(), shardRouting);
                             }
@@ -299,7 +303,7 @@ public class ShardStateAction extends AbstractComponent {
 
         private ShardRouting shardRouting;
 
-        private String indexUUID;
+        private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
 
         private String reason;
 
@@ -318,7 +322,7 @@ public class ShardStateAction extends AbstractComponent {
             shardRouting = readShardRoutingEntry(in);
             reason = in.readString();
             if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readOptionalString();
+                indexUUID = in.readString();
             }
         }
 
@@ -328,18 +332,13 @@ public class ShardStateAction extends AbstractComponent {
             shardRouting.writeTo(out);
             out.writeString(reason);
             if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeOptionalString(indexUUID);
+                out.writeString(indexUUID);
             }
         }
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder(shardRouting.toString());
-            if (indexUUID != null) {
-                sb.append(", indexUUID [").append(indexUUID).append("]");
-            }
-            sb.append(", reason [").append(reason).append("]");
-            return sb.toString();
+            return "" + shardRouting + ", indexUUID [" + indexUUID + "], reason [" + reason + "]";
         }
     }
 }

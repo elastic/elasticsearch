@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -76,7 +78,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     @Override
     protected void masterOperation(final MappingUpdatedRequest request, final ClusterState state, final ActionListener<MappingUpdatedResponse> listener) throws ElasticSearchException {
-        metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource(), new MetaDataMappingService.Listener() {
+        metaDataMappingService.updateMapping(request.index(), request.indexUUID(), request.type(), request.mappingSource(), new MetaDataMappingService.Listener() {
             @Override
             public void onResponse(MetaDataMappingService.Response response) {
                 listener.onResponse(new MappingUpdatedResponse());
@@ -84,7 +86,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
             @Override
             public void onFailure(Throwable t) {
-                logger.warn("failed to dynamically update the mapping in cluster_state from shard", t);
+                logger.warn("[{}] update-mapping [{}] failed to dynamically update the mapping in cluster_state from shard", t, request.index(), request.type());
                 listener.onFailure(t);
             }
         });
@@ -105,22 +107,26 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> {
 
         private String index;
-
+        private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         private String type;
-
         private CompressedString mappingSource;
 
         MappingUpdatedRequest() {
         }
 
-        public MappingUpdatedRequest(String index, String type, CompressedString mappingSource) {
+        public MappingUpdatedRequest(String index, String indexUUID, String type, CompressedString mappingSource) {
             this.index = index;
+            this.indexUUID = indexUUID;
             this.type = type;
             this.mappingSource = mappingSource;
         }
 
         public String index() {
             return index;
+        }
+
+        public String indexUUID() {
+            return indexUUID;
         }
 
         public String type() {
@@ -142,6 +148,9 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             index = in.readString();
             type = in.readString();
             mappingSource = CompressedString.readCompressedString(in);
+            if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+                indexUUID = in.readString();
+            }
         }
 
         @Override
@@ -150,6 +159,14 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             out.writeString(index);
             out.writeString(type);
             mappingSource.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+                out.writeString(indexUUID);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "index [" + index + "], indexUUID [" + indexUUID + "], type [" + type + "] and source [" + mappingSource + "]";
         }
     }
 }

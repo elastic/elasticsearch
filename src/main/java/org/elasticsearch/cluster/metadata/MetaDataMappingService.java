@@ -68,7 +68,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private final NodeMappingCreatedAction mappingCreatedAction;
 
-    private final BlockingQueue<Object> refreshOrUpdateQueue = ConcurrentCollections.newBlockingQueue();
+    private final BlockingQueue<MappingTask> refreshOrUpdateQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeMappingCreatedAction mappingCreatedAction) {
@@ -78,24 +78,32 @@ public class MetaDataMappingService extends AbstractComponent {
         this.mappingCreatedAction = mappingCreatedAction;
     }
 
-    static class RefreshTask {
+    static class MappingTask {
         final String index;
+        final String indexUUID;
+
+        MappingTask(String index, final String indexUUID) {
+            this.index = index;
+            this.indexUUID = indexUUID;
+        }
+    }
+
+    static class RefreshTask extends MappingTask {
         final String[] types;
 
-        RefreshTask(String index, String[] types) {
-            this.index = index;
+        RefreshTask(String index, final String indexUUID, String[] types) {
+            super(index, indexUUID);
             this.types = types;
         }
     }
 
-    static class UpdateTask {
-        final String index;
+    static class UpdateTask extends MappingTask {
         final String type;
         final CompressedString mappingSource;
         final Listener listener;
 
-        UpdateTask(String index, String type, CompressedString mappingSource, Listener listener) {
-            this.index = index;
+        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, Listener listener) {
+            super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
             this.listener = listener;
@@ -108,7 +116,7 @@ public class MetaDataMappingService extends AbstractComponent {
      * and generate a single cluster change event out of all of those.
      */
     ClusterState executeRefreshOrUpdate(final ClusterState currentState) throws Exception {
-        List<Object> allTasks = new ArrayList<Object>();
+        List<MappingTask> allTasks = new ArrayList<MappingTask>();
         refreshOrUpdateQueue.drainTo(allTasks);
 
         if (allTasks.isEmpty()) {
@@ -117,43 +125,45 @@ public class MetaDataMappingService extends AbstractComponent {
 
         // break down to tasks per index, so we can optimize the on demand index service creation
         // to only happen for the duration of a single index processing of its respective events
-        Map<String, List<Object>> tasksPerIndex = Maps.newHashMap();
-        for (Object task : allTasks) {
-            String index = null;
-            if (task instanceof UpdateTask) {
-                index = ((UpdateTask) task).index;
-            } else if (task instanceof RefreshTask) {
-                index = ((RefreshTask) task).index;
-            } else {
-                logger.warn("illegal state, got wrong mapping task type [{}]", task);
+        Map<String, List<MappingTask>> tasksPerIndex = Maps.newHashMap();
+        for (MappingTask task : allTasks) {
+            if (task.index == null) {
+                logger.debug("ignoring a mapping task of type [{}] with a null index.", task);
             }
-            if (index != null) {
-                List<Object> indexTasks = tasksPerIndex.get(index);
-                if (indexTasks == null) {
-                    indexTasks = new ArrayList<Object>();
-                    tasksPerIndex.put(index, indexTasks);
-                }
-                indexTasks.add(task);
+            List<MappingTask> indexTasks = tasksPerIndex.get(task.index);
+            if (indexTasks == null) {
+                indexTasks = new ArrayList<MappingTask>();
+                tasksPerIndex.put(task.index, indexTasks);
             }
+            indexTasks.add(task);
+
         }
 
         boolean dirty = false;
         MetaData.Builder mdBuilder = newMetaDataBuilder().metaData(currentState.metaData());
-        for (Map.Entry<String, List<Object>> entry : tasksPerIndex.entrySet()) {
+        for (Map.Entry<String, List<MappingTask>> entry : tasksPerIndex.entrySet()) {
             String index = entry.getKey();
-            List<Object> tasks = entry.getValue();
+            List<MappingTask> tasks = entry.getValue();
             boolean removeIndex = false;
             // keep track of what we already refreshed, no need to refresh it again...
             Set<String> processedRefreshes = Sets.newHashSet();
             try {
-                for (Object task : tasks) {
+                for (MappingTask task : tasks) {
+                    final IndexMetaData indexMetaData = mdBuilder.get(index);
+                    if (indexMetaData == null) {
+                        // index got deleted on us, ignore...
+                        logger.debug("[{}] ignoring task [{}] - index meta data doesn't exist", index, task);
+                        continue;
+                    }
+
+                    if (!indexMetaData.isSameUUID(task.indexUUID)) {
+                        // index got deleted on us, ignore...
+                        logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
+                        continue;
+                    }
+
                     if (task instanceof RefreshTask) {
                         RefreshTask refreshTask = (RefreshTask) task;
-                        final IndexMetaData indexMetaData = mdBuilder.get(index);
-                        if (indexMetaData == null) {
-                            // index got delete on us, ignore...
-                            continue;
-                        }
                         IndexService indexService = indicesService.indexService(index);
                         if (indexService == null) {
                             // we need to create the index here, and add the current mapping to it, so we can merge
@@ -194,13 +204,8 @@ public class MetaDataMappingService extends AbstractComponent {
                         String type = updateTask.type;
                         CompressedString mappingSource = updateTask.mappingSource;
 
-                        // first, check if it really needs to be updated
-                        final IndexMetaData indexMetaData = mdBuilder.get(index);
-                        if (indexMetaData == null) {
-                            // index got delete on us, ignore...
-                            continue;
-                        }
                         if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(mappingSource)) {
+                            logger.debug("[{}] update_mapping [{}] ignoring mapping update task as it's source is equal to ours", index, updateTask.type);
                             continue;
                         }
 
@@ -220,16 +225,13 @@ public class MetaDataMappingService extends AbstractComponent {
 
                         // if we end up with the same mapping as the original once, ignore
                         if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(updatedMapper.mappingSource())) {
+                            logger.debug("[{}] update_mapping [{}] ignoring mapping update task as it results in the same source as what we have", index, updateTask.type);
                             continue;
                         }
 
                         // build the updated mapping source
                         if (logger.isDebugEnabled()) {
-                            try {
-                                logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, updatedMapper.mappingSource().string());
-                            } catch (Exception e) {
-                                // ignore
-                            }
+                            logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, updatedMapper.mappingSource());
                         } else if (logger.isInfoEnabled()) {
                             logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
                         }
@@ -261,8 +263,8 @@ public class MetaDataMappingService extends AbstractComponent {
     /**
      * Refreshes mappings if they are not the same between original and parsed version
      */
-    public void refreshMapping(final String index, final String... types) {
-        refreshOrUpdateQueue.add(new RefreshTask(index, types));
+    public void refreshMapping(final String index, final String indexUUID, final String... types) {
+        refreshOrUpdateQueue.add(new RefreshTask(index, indexUUID, types));
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public void onFailure(String source, Throwable t) {
@@ -276,8 +278,8 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
-        refreshOrUpdateQueue.add(new UpdateTask(index, type, mappingSource, listener));
+    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final Listener listener) {
+        refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, listener));
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public void onFailure(String source, Throwable t) {

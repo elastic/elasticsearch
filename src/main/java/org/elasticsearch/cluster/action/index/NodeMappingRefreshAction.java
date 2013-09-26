@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -38,31 +38,23 @@ import java.io.IOException;
  */
 public class NodeMappingRefreshAction extends AbstractComponent {
 
-    private final ThreadPool threadPool;
-
     private final TransportService transportService;
-
-    private final ClusterService clusterService;
-
     private final MetaDataMappingService metaDataMappingService;
 
     @Inject
-    public NodeMappingRefreshAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                                    MetaDataMappingService metaDataMappingService) {
+    public NodeMappingRefreshAction(Settings settings, TransportService transportService, MetaDataMappingService metaDataMappingService) {
         super(settings);
-        this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterService = clusterService;
         this.metaDataMappingService = metaDataMappingService;
         transportService.registerHandler(NodeMappingRefreshTransportHandler.ACTION, new NodeMappingRefreshTransportHandler());
     }
 
-    public void nodeMappingRefresh(final NodeMappingRefreshRequest request) throws ElasticSearchException {
-        DiscoveryNodes nodes = clusterService.state().nodes();
+    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticSearchException {
+        DiscoveryNodes nodes = state.nodes();
         if (nodes.localNodeMaster()) {
             innerMappingRefresh(request);
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+            transportService.sendRequest(state.nodes().masterNode(),
                     NodeMappingRefreshTransportHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }

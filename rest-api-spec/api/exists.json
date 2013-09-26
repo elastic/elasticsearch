@@ -4,7 +4,7 @@
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}", "/{index}/_all/{id}"],
+      "paths": ["/{index}/{type}/{id}"],
       "parts": {
         "id": {
           "type" : "string",

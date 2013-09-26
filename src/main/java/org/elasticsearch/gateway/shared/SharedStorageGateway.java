@@ -180,7 +180,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
                 for (String indexDeleted : indicesDeleted) {
                     try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(indexDeleted, event.state().nodes().masterNodeId());
+                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), indexDeleted, event.state().nodes().localNodeId());
                     } catch (Exception e) {
                         logger.debug("[{}] failed to notify master on local index store deletion", e, indexDeleted);
                     }

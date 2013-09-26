@@ -20,8 +20,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMap.Builder;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.AbstractRandomizedTest.IntegrationTests;
 import org.apache.lucene.util.IOUtils;
@@ -595,12 +593,24 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
     
     protected TestCluster buildTestCluster(Scope scope) {
         long currentClusterSeed = randomLong();
-        Builder<Integer, Settings> ordinalMap = ImmutableMap.builder();
         int numNodes = getNumNodes();
-        for (int i = 0; i < numNodes; i++) {
-            ordinalMap.put(i, nodeSettings(i));
+        NodeSettingsSource nodeSettingsSource;
+        if (numNodes > 0) {
+            NodeSettingsSource.Immutable.Builder nodesSettings = NodeSettingsSource.Immutable.builder();
+            for (int i = 0; i < numNodes; i++) {
+                nodesSettings.set(i, nodeSettings(i));
+            }
+            nodeSettingsSource = nodesSettings.build();
+        } else {
+            nodeSettingsSource = new NodeSettingsSource() {
+                @Override
+                public Settings settings(int nodeOrdinal) {
+                    return nodeSettings(nodeOrdinal);
+                }
+            };
         }
-        return new TestCluster(currentClusterSeed, getNumNodes(), TestCluster.clusterName(scope.name(), ElasticSearchTestCase.CHILD_VM_ID, currentClusterSeed), ordinalMap.build());
+
+        return new TestCluster(currentClusterSeed, numNodes, TestCluster.clusterName(scope.name(), ElasticSearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
     }
     
     @Retention(RetentionPolicy.RUNTIME)

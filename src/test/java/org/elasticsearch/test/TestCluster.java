@@ -94,14 +94,13 @@ public class TestCluster implements Closeable, Iterable<Client> {
 
     private double transportClientRatio = 0.0;
 
-    private final Map<Integer, Settings> perNodeSettingsMap;
-    private static final Map<Integer, Settings> EMPTY = Collections.emptyMap();
+    private final NodeSettingsSource nodeSettingsSource;
 
     public TestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, -1, clusterName, EMPTY);
+        this(clusterSeed, -1, clusterName, NodeSettingsSource.EMPTY);
     }
 
-    public TestCluster(long clusterSeed, int numNodes, String clusterName, Map<Integer, Settings> perNodeSettings) {
+    public TestCluster(long clusterSeed, int numNodes, String clusterName, NodeSettingsSource nodeSettingsSource) {
         this.clusterName = clusterName;
         Random random = new Random(clusterSeed);
         numSharedNodes = numNodes == -1 ? 2 + random.nextInt(4) : numNodes; // at least 2 nodes if randomized
@@ -129,12 +128,12 @@ public class TestCluster implements Closeable, Iterable<Client> {
                         // default to non gateway
                 .put("gateway.type", "none")
                 .build();
-        this.perNodeSettingsMap = perNodeSettings;
+        this.nodeSettingsSource = nodeSettingsSource;
     }
 
     private Settings getSettings(int nodeOrdinal, Settings others) {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings);
-        Settings settings = perNodeSettingsMap.get(nodeOrdinal);
+        Settings settings = nodeSettingsSource.settings(nodeOrdinal);
         if (settings != null) {
             builder.put(settings);
         }

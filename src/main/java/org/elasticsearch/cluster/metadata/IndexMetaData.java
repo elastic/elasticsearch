@@ -157,6 +157,7 @@ public class IndexMetaData {
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_UUID = "index.uuid";
+    public static final String INDEX_UUID_NA_VALUE = "_na_";
 
     private final String index;
     private final long version;
@@ -214,23 +215,28 @@ public class IndexMetaData {
         return index;
     }
 
+    public String getIndex() {
+        return index();
+    }
+
+    public String uuid() {
+        return settings.get(SETTING_UUID, INDEX_UUID_NA_VALUE);
+    }
+
     public String getUUID() {
-        return settings.get(SETTING_UUID);
+        return uuid();
     }
 
     /**
-     * Test whether the current index UUID is the same as the given one. Incoming nulls always return true.
+     * Test whether the current index UUID is the same as the given one. Returns true if either are _na_
      */
-    public boolean isSameUUID(@Nullable String otherUUID) {
-        if (otherUUID == null || getUUID() == null) {
+    public boolean isSameUUID(String otherUUID) {
+        assert otherUUID != null;
+        assert uuid() != null;
+        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(uuid())) {
             return true;
         }
         return otherUUID.equals(getUUID());
-    }
-
-
-    public String getIndex() {
-        return index();
     }
 
     public long version() {

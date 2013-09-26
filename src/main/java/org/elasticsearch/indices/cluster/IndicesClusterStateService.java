@@ -388,7 +388,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             if (typesToRefresh != null) {
                 nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
+                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId()));
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {
@@ -820,9 +821,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         public void onFailedEngine(final ShardId shardId, final Throwable failure) {
             ShardRouting shardRouting = null;
             final IndexService indexService = indicesService.indexService(shardId.index().name());
-            String indexUUID = null;
             if (indexService != null) {
-                indexUUID = indexService.indexUUID();
                 IndexShard indexShard = indexService.shard(shardId.id());
                 if (indexShard != null) {
                     shardRouting = indexShard.routingEntry();
@@ -833,7 +832,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 return;
             }
             final ShardRouting fShardRouting = shardRouting;
-            final String finalIndexUUID = indexUUID;
+            final String indexUUID = indexService.indexUUID(); // we know indexService is not null here.
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -849,7 +848,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         }
                         try {
                             failedShards.put(fShardRouting.shardId(), new FailedShard(fShardRouting.version()));
-                            shardStateAction.shardFailed(fShardRouting, finalIndexUUID, "engine failure, message [" + detailedMessage(failure) + "]");
+                            shardStateAction.shardFailed(fShardRouting, indexUUID, "engine failure, message [" + detailedMessage(failure) + "]");
                         } catch (Throwable e1) {
                             logger.warn("[{}][{}] failed to mark shard as failed after a failed engine", e1, indexService.index().name(), shardId.id());
                         }

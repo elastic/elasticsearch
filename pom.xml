@@ -2,13 +2,13 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <name>elasticsearch-dash</name>
+    <name>elasticsearch-enterprise</name>
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.elasticsearch</groupId>
-    <artifactId>elasticsearch-dash</artifactId>
+    <groupId>org.elasticsearch</groupId>
+    <artifactId>enterprise</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <description>Management &amp; monitoring plugin for ElasticSearch</description>
+    <description>Enterprise Elasticsearch</description>
     <inceptionYear>2013</inceptionYear>
     <licenses>
         <license>
@@ -17,12 +17,6 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
-    <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-m-m.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-m-m.git
-        </developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-m-m</url>
-    </scm>
 
     <parent>
         <groupId>org.sonatype.oss</groupId>
@@ -31,7 +25,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>1.0.0.Beta1-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>0.90.5</elasticsearch.version>
     </properties>
 
     <repositories>

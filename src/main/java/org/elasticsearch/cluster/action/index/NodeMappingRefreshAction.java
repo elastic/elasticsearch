@@ -22,9 +22,9 @@ package org.elasticsearch.cluster.action.index;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -89,14 +89,14 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     public static class NodeMappingRefreshRequest extends TransportRequest {
 
         private String index;
-        private String indexUUID;
+        private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         private String[] types;
         private String nodeId;
 
         NodeMappingRefreshRequest() {
         }
 
-        public NodeMappingRefreshRequest(String index, @Nullable String indexUUID, String[] types, String nodeId) {
+        public NodeMappingRefreshRequest(String index, String indexUUID, String[] types, String nodeId) {
             this.index = index;
             this.indexUUID = indexUUID;
             this.types = types;
@@ -127,7 +127,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             out.writeStringArray(types);
             out.writeString(nodeId);
             if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeOptionalString(indexUUID);
+                out.writeString(indexUUID);
             }
         }
 
@@ -138,7 +138,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             types = in.readStringArray();
             nodeId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readOptionalString();
+                indexUUID = in.readString();
             }
         }
     }

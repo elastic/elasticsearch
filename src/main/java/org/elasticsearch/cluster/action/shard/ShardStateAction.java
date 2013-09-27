@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -78,7 +77,7 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerHandler(ShardFailedTransportHandler.ACTION, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting, @Nullable final String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticSearchException {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
         logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
         DiscoveryNodes nodes = clusterService.state().nodes();
@@ -95,7 +94,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    public void shardStarted(final ShardRouting shardRouting, @Nullable String indexUUID, final String reason) throws ElasticSearchException {
+    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticSearchException {
 
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
 
@@ -304,14 +303,14 @@ public class ShardStateAction extends AbstractComponent {
 
         private ShardRouting shardRouting;
 
-        private String indexUUID;
+        private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
 
         private String reason;
 
         private ShardRoutingEntry() {
         }
 
-        private ShardRoutingEntry(ShardRouting shardRouting, @Nullable String indexUUID, String reason) {
+        private ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String reason) {
             this.shardRouting = shardRouting;
             this.reason = reason;
             this.indexUUID = indexUUID;
@@ -323,7 +322,7 @@ public class ShardStateAction extends AbstractComponent {
             shardRouting = readShardRoutingEntry(in);
             reason = in.readString();
             if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readOptionalString();
+                indexUUID = in.readString();
             }
         }
 
@@ -333,18 +332,13 @@ public class ShardStateAction extends AbstractComponent {
             shardRouting.writeTo(out);
             out.writeString(reason);
             if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeOptionalString(indexUUID);
+                out.writeString(indexUUID);
             }
         }
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder(shardRouting.toString());
-            if (indexUUID != null) {
-                sb.append(", indexUUID [").append(indexUUID).append("]");
-            }
-            sb.append(", reason [").append(reason).append("]");
-            return sb.toString();
+            return "" + shardRouting + ", indexUUID [" + indexUUID + "], reason [" + reason + "]";
         }
     }
 }

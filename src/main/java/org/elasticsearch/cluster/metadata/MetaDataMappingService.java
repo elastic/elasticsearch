@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
@@ -84,7 +83,7 @@ public class MetaDataMappingService extends AbstractComponent {
         final String index;
         final String indexUUID;
 
-        MappingTask(String index, @Nullable final String indexUUID) {
+        MappingTask(String index, final String indexUUID) {
             this.index = index;
             this.indexUUID = indexUUID;
         }
@@ -93,7 +92,7 @@ public class MetaDataMappingService extends AbstractComponent {
     static class RefreshTask extends MappingTask {
         final String[] types;
 
-        RefreshTask(String index, @Nullable final String indexUUID, String[] types) {
+        RefreshTask(String index, final String indexUUID, String[] types) {
             super(index, indexUUID);
             this.types = types;
         }
@@ -104,7 +103,7 @@ public class MetaDataMappingService extends AbstractComponent {
         final CompressedString mappingSource;
         final Listener listener;
 
-        UpdateTask(String index, @Nullable String indexUUID, String type, CompressedString mappingSource, Listener listener) {
+        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, Listener listener) {
             super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
@@ -265,7 +264,7 @@ public class MetaDataMappingService extends AbstractComponent {
     /**
      * Refreshes mappings if they are not the same between original and parsed version
      */
-    public void refreshMapping(final String index, @Nullable final String indexUUID, final String... types) {
+    public void refreshMapping(final String index, final String indexUUID, final String... types) {
         refreshOrUpdateQueue.add(new RefreshTask(index, indexUUID, types));
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
@@ -280,7 +279,7 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void updateMapping(final String index, @Nullable final String indexUUID, final String type, final CompressedString mappingSource, final Listener listener) {
+    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final Listener listener) {
         refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, listener));
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override

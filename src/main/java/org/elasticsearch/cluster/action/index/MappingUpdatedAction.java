@@ -28,8 +28,8 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -107,14 +107,14 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> {
 
         private String index;
-        private String indexUUID;
+        private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         private String type;
         private CompressedString mappingSource;
 
         MappingUpdatedRequest() {
         }
 
-        public MappingUpdatedRequest(String index, @Nullable String indexUUID, String type, CompressedString mappingSource) {
+        public MappingUpdatedRequest(String index, String indexUUID, String type, CompressedString mappingSource) {
             this.index = index;
             this.indexUUID = indexUUID;
             this.type = type;
@@ -149,7 +149,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             type = in.readString();
             mappingSource = CompressedString.readCompressedString(in);
             if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
-                indexUUID = in.readOptionalString();
+                indexUUID = in.readString();
             }
         }
 
@@ -160,18 +160,13 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             out.writeString(type);
             mappingSource.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
-                out.writeOptionalString(indexUUID);
+                out.writeString(indexUUID);
             }
         }
 
         @Override
         public String toString() {
-            StringBuilder stringBuilder = new StringBuilder("index [").append(index).append("]");
-            if (indexUUID != null) {
-                stringBuilder.append(", UUID [").append(indexUUID).append("]");
-            }
-            stringBuilder.append(", type [").append(type).append("] and source [").append(mappingSource).append("]");
-            return stringBuilder.toString();
+            return "index [" + index + "], indexUUID [" + indexUUID + "], type [" + type + "] and source [" + mappingSource + "]";
         }
     }
 }

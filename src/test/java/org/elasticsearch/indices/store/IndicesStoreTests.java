@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
 
 import java.io.File;
@@ -69,12 +70,7 @@ public class IndicesStoreTests extends AbstractIntegrationTest {
 
         File server2Shard = shardDirectory(node_2, "test", 0);
         logger.info("--> stopping node node_2");
-        cluster().stopRandomNode(new Predicate<Settings>() {
-            
-            public boolean apply(Settings settings) {
-                return settings.get("name").equals(node_2);
-            }
-        });
+        cluster().stopRandomNode(TestCluster.nameFilter(node_2));
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");

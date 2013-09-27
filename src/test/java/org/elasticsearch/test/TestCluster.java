@@ -385,11 +385,26 @@ public class TestCluster implements Closeable, Iterable<Client> {
             }
         }
 
-        void restart() {
-            node.close();
-            node = (InternalNode) nodeBuilder().settings(node.settings()).node();
+        void restart(RestartCallback callback) throws Exception {
+            assert callback != null;
+            if (!node.isClosed()) {
+                node.close();
+            }
+            Settings newSettings = callback.onNodeStopped(name);
+            if (newSettings == null) {
+                newSettings = ImmutableSettings.EMPTY;
+            }
+            if (callback.clearData(name)) {
+                NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+                if (nodeEnv.hasNodeFile()) {
+                    FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
+                }
+            }
+            node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
             resetClient();
         }
+        
+        
 
         @Override
         public void close() {
@@ -624,24 +639,79 @@ public class TestCluster implements Closeable, Iterable<Client> {
             nodeAndClient.close();
         }
     }
+    public void restartRandomNode() throws Exception {
+        restartRandomNode(EMPTY_CALLBACK);
+        
+    }
 
-    public void restartRandomNode() {
+    public void restartRandomNode(RestartCallback callback) throws Exception {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient();
         if (nodeAndClient != null) {
             logger.info("Restarting random node [{}] ", nodeAndClient.name);
-            nodeAndClient.restart();
+            nodeAndClient.restart(callback);
         }
     }
-
-    public void restartAllNodes() {
+   
+    private void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
         ensureOpen();
-        logger.info("Restarting all nodes");
-        for (NodeAndClient nodeAndClient : nodes.values()) {
-            logger.info("Restarting node [{}] ", nodeAndClient.name);
-            nodeAndClient.restart();
+        List<NodeAndClient> toRemove = new ArrayList<TestCluster.NodeAndClient>();
+        try {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                if (!callback.doRestart(nodeAndClient.name)) {
+                    logger.info("Closing node [{}] during restart", nodeAndClient.name);
+                    toRemove.add(nodeAndClient);
+                    nodeAndClient.close();
+                }
+            }
+        } finally {
+            for (NodeAndClient nodeAndClient : toRemove) {
+                nodes.remove(nodeAndClient.name);
+            }
+        }
+        logger.info("Restarting remaining nodes rollingRestart [{}]", rollingRestart);
+        if (rollingRestart) {
+            int numNodesRestarted = 0;
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
+                logger.info("Restarting node [{}] ", nodeAndClient.name);
+                nodeAndClient.restart(callback);
+            }
+        } else {
+            int numNodesRestarted = 0;
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
+                logger.info("Stopping node [{}] ", nodeAndClient.name);
+                nodeAndClient.node.close();
+            }
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                logger.info("Starting node [{}] ", nodeAndClient.name);
+                nodeAndClient.restart(callback);
+            }
         }
     }
+    public static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
+        public Settings onNodeStopped(String node) {
+            return null;
+        }
+    };
+    
+    public void fullRestart() throws Exception {
+        fullRestart(EMPTY_CALLBACK);
+    }
+    
+    public void rollingRestart() throws Exception {
+        rollingRestart(EMPTY_CALLBACK);
+    }
+    
+    public void rollingRestart(RestartCallback function) throws Exception {
+        restartAllNodes(true, function);
+    }
+    
+    public void fullRestart(RestartCallback function) throws Exception {
+        restartAllNodes(false, function);
+    }
+    
 
     private String getMasterName() {
         try {
@@ -780,6 +850,44 @@ public class TestCluster implements Closeable, Iterable<Client> {
             }
 
         };
+    }
+    
+    public static Predicate<Settings> nameFilter(String... nodeName) {
+        return new NodeNamePredicate(new HashSet<String>(Arrays.asList(nodeName)));
+    }
+    
+    private static final class NodeNamePredicate implements Predicate<Settings> {
+        private final HashSet<String> nodeNames;
+
+
+        public NodeNamePredicate(HashSet<String> nodeNames) {
+            this.nodeNames = nodeNames;
+        }
+
+        @Override
+        public boolean apply(Settings settings) {
+            return nodeNames.contains(settings.get("name"));
+            		
+        }
+    }
+    
+    public static abstract class RestartCallback {
+        
+        public Settings onNodeStopped(String nodeName) throws Exception {
+            return ImmutableSettings.EMPTY;
+        }
+        
+        public void doAfterNodes(int numNodes, Client client) throws Exception {
+        }
+        
+        public boolean clearData(String nodeName) {
+            return false;
+        }
+        
+        public boolean doRestart(String nodeName) {
+            return true;
+        }
+        
     }
 
 }

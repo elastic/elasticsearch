@@ -24,11 +24,12 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -44,155 +45,137 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class QuorumLocalGatewayTests extends AbstractNodesTests {
-
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            if (node("node" + i) != null) {
-                node("node" + i).stop();
-                // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-                ((InternalNode) node("node" + i)).injector().getInstance(Gateway.class).reset();
-            }
-        }
-        closeAllNodes();
-    }
+@ClusterScope(numNodes=0, scope=Scope.TEST)
+public class QuorumLocalGatewayTests extends AbstractIntegrationTest {
 
     @Test
     @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
-        // clean three nodes
-        logger.info("--> cleaning nodes");
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node3", settingsBuilder().put("gateway.type", "local").build());
-        cleanAndCloseNodes();
-
-
         logger.info("--> starting 3 nodes");
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        Node node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        final String[] nodes = new String[3];
+        nodes[0] = cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        nodes[1] = cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        nodes[2] = cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
 
         logger.info("--> indexing...");
-        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         //We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
-        node1.client().admin().indices().prepareFlush().get();
-        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
-        assertNoFailures(node1.client().admin().indices().prepareRefresh().execute().get());
+        client().admin().indices().prepareFlush().get();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        assertNoFailures(client().admin().indices().prepareRefresh().execute().get());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
-
-        logger.info("--> closing nodes");
-        closeAllNodes();
-
-        logger.info("--> starting 2 nodes back, should not do any recovery (less than quorum)");
-
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        
+        final String nodeToRemove = nodes[between(0,2)];
+        logger.info("--> restarting 2 nodes -- kill 1");
+        cluster().fullRestart(new RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                return settingsBuilder().put("gateway.type", "local").build();
+            }
+            
+            @Override
+            public boolean doRestart(String nodeName) {
+                return !nodeToRemove.equals(nodeName);
+            }
+        });
 
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+                ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
                 return !clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive();
             }
         }, 30, TimeUnit.SECONDS), equalTo(true));
 
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
-        client("node1").admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
 
         logger.info("--> running cluster_health (wait for the shards to startup), 4 shards since we only have 2 nodes");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
     }
 
     @Test
     @Slow
     public void testQuorumRecovery() throws Exception {
-        // clean three nodes
-        logger.info("--> cleaning nodes");
-        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
-        buildNode("node3", settingsBuilder().put("gateway.type", "local").build());
-        cleanAndCloseNodes();
 
         logger.info("--> starting 3 nodes");
-        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        Node node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
 
         logger.info("--> indexing...");
-        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         //We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
-        node1.client().admin().indices().prepareFlush().get();
-        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
-        assertNoFailures(node1.client().admin().indices().prepareRefresh().get());
+        client().admin().indices().prepareFlush().get();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        assertNoFailures(client().admin().indices().prepareRefresh().get());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
 
-        logger.info("--> closing first node, and indexing more data to the second node");
-        closeNode("node1");
-
-        assertThat(awaitBusy(new Predicate<Object>() {
+        logger.info("--> restart all nodes");
+        cluster().fullRestart(new RestartCallback() {
             @Override
-            public boolean apply(Object input) {
-                logger.info("--> running cluster_health (wait for the shards to startup)");
-                ClusterHealthResponse clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
-                logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-                return clusterHealth.isTimedOut() && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                return null;
             }
-        }, 30, TimeUnit.SECONDS), equalTo(false));
 
-        node2.client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
-        assertNoFailures(node2.client().admin().indices().prepareRefresh().get());
-
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(node2.client().prepareCount().setQuery(matchAllQuery()).get(), 3l);
-        }
-
-        logger.info("--> closing the second node and third node");
-        closeNode("node2");
-        closeNode("node3");
-
-        logger.info("--> starting the nodes back, verifying we got the latest version");
-
-        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").build());
-        node3 = startNode("node3", settingsBuilder().put("gateway.type", "local").build());
-
+            @Override
+            public void doAfterNodes(int numNodes, final Client activeClient) throws Exception {
+                if (numNodes == 1) {
+                    assertThat(awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(Object input) {
+                            logger.info("--> running cluster_health (wait for the shards to startup)");
+                            ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
+                            logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+                            return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
+                        }
+                    }, 30, TimeUnit.SECONDS), equalTo(true));
+                    logger.info("--> one node is closed -- index 1 document into the remaining nodes");
+                    activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
+                    assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
+                    for (int i = 0; i < 10; i++) {
+                        assertHitCount(activeClient.prepareCount().setQuery(matchAllQuery()).get(), 3l);
+                    }
+                }
+            }
+            
+        });
+        logger.info("--> all nodes are started back, verifying we got the latest version");
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).get(), 3l);
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 3l);
         }
     }
 }

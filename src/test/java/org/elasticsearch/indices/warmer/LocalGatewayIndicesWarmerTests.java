@@ -25,14 +25,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.AbstractNodesTests;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -40,51 +40,33 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
+@ClusterScope(numNodes=0, scope=Scope.TEST)
+public class LocalGatewayIndicesWarmerTests extends AbstractIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndicesWarmerTests.class);
 
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        super.tearDown();
-        for (int i = 0; i < 10; i++) {
-            if (node("node" + i) != null) {
-                node("node" + i).stop();
-                // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-                if (((InternalNode) node("node" + i)).injector().getInstance(NodeEnvironment.class).hasNodeFile()) {
-                    ((InternalNode) node("node" + i)).injector().getInstance(Gateway.class).reset();
-                }
-            }
-        }
-        closeAllNodes(false);
-    }
-
     @Test
     public void testStatePersistence() throws Exception {
-        logger.info("--> cleaning nodes");
-        buildNode("node1", settingsBuilder().put("gateway.type", "local"));
-        buildNode("node2", settingsBuilder().put("gateway.type", "local"));
-        cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local"));
+        cluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> putting two templates");
-        client("node1").admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client("node1").admin().indices().preparePutWarmer("warmer_1")
-                .setSearchRequest(client("node1").prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
+        client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
                 .execute().actionGet();
-        client("node1").admin().indices().preparePutWarmer("warmer_2")
-                .setSearchRequest(client("node1").prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2")))
+        client().admin().indices().preparePutWarmer("warmer_2")
+                .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2")))
                 .execute().actionGet();
 
         logger.info("--> put template with warmer");
-        client("node1").admin().indices().preparePutTemplate("template_1")
+        client().admin().indices().preparePutTemplate("template_1")
                 .setSource("{\n" +
                         "    \"template\" : \"xxx\",\n" +
                         "    \"warmers\" : {\n" +
@@ -102,7 +84,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
 
 
         logger.info("--> verify warmers are registered in cluster state");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(2));
@@ -111,17 +93,19 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         assertThat(templateWarmers, Matchers.notNullValue());
         assertThat(templateWarmers.entries().size(), equalTo(1));
 
-        logger.info("--> close the node");
-        closeNode("node1");
+        logger.info("--> restarting the node");
+        cluster().fullRestart(new RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                return settingsBuilder().put("gateway.type", "local").build();
+            }
+        });
 
-        logger.info("--> starting the node again...");
-        startNode("node1", settingsBuilder().put("gateway.type", "local"));
-
-        ClusterHealthResponse healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {
@@ -139,25 +123,27 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
 
 
         logger.info("--> delete warmer warmer_1");
-        client("node1").admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
+        client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
 
         logger.info("--> verify warmers (delete) are registered in cluster state");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
 
-        logger.info("--> close the node");
-        closeNode("node1");
+        logger.info("--> restarting the node");
+        cluster().fullRestart(new RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                return settingsBuilder().put("gateway.type", "local").build();
+            }
+        });
 
-        logger.info("--> starting the node again...");
-        startNode("node1", settingsBuilder().put("gateway.type", "local"));
-
-        healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {

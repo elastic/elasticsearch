@@ -85,7 +85,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
-        cluster().restartAllNodes();
+        cluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -132,7 +132,7 @@ public class RecoveryPercolatorTests extends AbstractIntegrationTest {
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
-        cluster().restartAllNodes();
+        cluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();

@@ -20,7 +20,6 @@
 package org.elasticsearch.indexlifecycle;
 
 import com.carrotsearch.randomizedtesting.annotations.Nightly;
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -34,6 +33,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
 
 import java.util.Map;
@@ -177,12 +177,7 @@ public class IndexLifecycleActionTests extends AbstractIntegrationTest {
 
         logger.info("Closing server1");
         // kill the first server
-        cluster().stopRandomNode(new Predicate<Settings>() {
-            public boolean apply(Settings settings) {
-                return server_1.equals(settings.get("name"));
-                        
-            }
-        });
+        cluster().stopRandomNode(TestCluster.nameFilter(server_1));
         // verify health
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
@@ -347,12 +342,7 @@ public class IndexLifecycleActionTests extends AbstractIntegrationTest {
 
         logger.info("Closing server1");
         // kill the first server
-        cluster().stopRandomNode(new Predicate<Settings>() {
-            public boolean apply(Settings settings) {
-                return server_1.equals(settings.get("name"));
-                        
-            }
-        });
+        cluster().stopRandomNode(TestCluster.nameFilter(server_1));
 
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();

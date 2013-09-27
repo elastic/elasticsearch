@@ -954,6 +954,26 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>1.2.1</version>
+                <executions>
+                    <execution>
+                        <id>Java Version</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <executable>java</executable>
+                    <arguments>
+                        <argument>-version</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>

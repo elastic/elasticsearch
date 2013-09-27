@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package com.elasticsearch.dash;/*
-import com.elasticsearch.dash.exporters.ESExporter;
-import com.google.common.collect.ImmutableSet;
+package org.elasticsearch.enterprise.monitor;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.enterprise.monitor.exporter.ESExporter;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.enterprise.monitor.exporter.StatsExporter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesService;
 import org.elasticsearch.node.service.NodeService;
@@ -91,18 +92,18 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
                         }
                     }
 
-                    logger.debug("Collecting shard stats");
-                    List<ShardStats> shardStatsList = indicesService.shardLevelStats(CommonStatsFlags.ALL);
-
-                    logger.debug("Exporting shards stats");
-                    for (StatsExporter e : exporters) {
-                        try {
-                            for (ShardStats shardStats : shardStatsList)
-                                e.exportShardStats(shardStats);
-                        } catch (Throwable t) {
-                            logger.error("StatsExporter {} has thrown an exception:", t, e.name());
-                        }
-                    }
+//                    logger.warn("Collecting shard stats");
+//                    List<ShardStats> shardStatsList = indicesService.shardLevelStats(CommonStatsFlags.ALL);
+//
+//                    logger.debug("Exporting shards stats");
+//                    for (StatsExporter e : exporters) {
+//                        try {
+//                            for (ShardStats shardStats : shardStatsList)
+//                                e.exportShardStats(shardStats);
+//                        } catch (Throwable t) {
+//                            logger.error("StatsExporter {} has thrown an exception:", t, e.name());
+//                        }
+//                    }
                 } catch (Throwable t) {
                     logger.error("Background thread had an uncaught exception:", t);
                 }

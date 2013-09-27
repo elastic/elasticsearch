@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package com.elasticsearch.dash;
+package org.elasticsearch.enterprise.monitor;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;

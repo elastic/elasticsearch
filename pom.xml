@@ -25,7 +25,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.5</elasticsearch.version>
+        <elasticsearch.version>0.90.6-SNAPSHOT</elasticsearch.version>
     </properties>
 
     <repositories>

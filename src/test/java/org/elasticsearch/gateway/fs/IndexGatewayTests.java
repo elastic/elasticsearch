@@ -21,6 +21,7 @@ package org.elasticsearch.gateway.fs;
 
 import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -36,12 +37,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -51,65 +50,51 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IndexGatewayTests extends AbstractNodesTests {
+@ClusterScope(scope=Scope.TEST, numNodes=0)
+public class IndexGatewayTests extends AbstractIntegrationTest {
 
-    private Settings defaultSettings;
     private String storeType;
-
-    @After
-    public void closeNodes() throws Exception {
-        tearDown();
-        node("server1").stop();
-        // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
-        closeAllNodes();
-    }
-
-    @Before
-    public void buildNode1() throws Exception {
-        super.setUp();
-        Builder builder = ImmutableSettings.builder();
-        builder.put("cluster.routing.schedule", "100ms");
-        builder.put("gateway.type", "fs");
-        if (between(0, 5) == 0) {
-            builder.put("gateway.fs.buffer_size", between(1, 100) + "kb");
-        }
-        if (between(0, 5) == 0) {
-            builder.put("gateway.fs.chunk_size", between(1, 100) + "kb");
-        }
-
-        builder.put("index.number_of_replicas", "1");
-        builder.put("index.number_of_shards", rarely() ? Integer.toString(between(2, 6)) : "1");
-        storeType = rarely() ? "ram" : "fs";
-        builder.put("index.store.type", storeType);
-        defaultSettings = builder.build();
-        buildNode("server1");
-        // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
-        closeAllNodes();
-    }
+    private final SetOnce<Settings> settings = new SetOnce<Settings>();
 
     @Override
-    protected final Settings getClassDefaultSettings() {
-        return defaultSettings;
+    protected Settings nodeSettings(int nodeOrdinal) {
+        if (settings.get() == null) {
+            Builder builder = ImmutableSettings.builder();
+            builder.put("cluster.routing.schedule", "100ms");
+            builder.put("gateway.type", "fs");
+            if (between(0, 5) == 0) {
+                builder.put("gateway.fs.buffer_size", between(1, 100) + "kb");
+            }
+            if (between(0, 5) == 0) {
+                builder.put("gateway.fs.chunk_size", between(1, 100) + "kb");
+            }
+    
+            builder.put("index.number_of_replicas", "1");
+            builder.put("index.number_of_shards", rarely() ? Integer.toString(between(2, 6)) : "1");
+            storeType = rarely() ? "ram" : "fs";
+            builder.put("index.store.type", storeType);
+            settings.set(builder.build());
+        }
+        return settings.get();
     }
+
 
     protected boolean isPersistentStorage() {
         assert storeType != null;
-        return "fs".equals(storeType);
+        return "fs".equals(settings.get().get("index.store.type"));
     }
 
     @Test
     @Slow
     public void testSnapshotOperations() throws Exception {
-        startNode("server1", getClassDefaultSettings());
+        cluster().startNode(nodeSettings(0));
 
         // get the environment, so we can clear the work dir when needed
-        Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
+        Environment environment = cluster().getInstance(Environment.class);
 
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -117,145 +102,145 @@ public class IndexGatewayTests extends AbstractNodesTests {
         // Translog tests
 
         logger.info("Creating index [{}]", "test");
-        client("server1").admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
 
         // create a mapping
-        PutMappingResponse putMappingResponse = client("server1").admin().indices().preparePutMapping("test").setType("type1").setSource(mappingSource()).execute().actionGet();
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type1").setSource(mappingSource()).execute().actionGet();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         // verify that mapping is there
-        ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
+        ClusterStateResponse clusterState = client().admin().cluster().state(clusterStateRequest()).actionGet();
         assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         // create two and delete the first
         logger.info("Indexing #1");
-        client("server1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client().index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         logger.info("Indexing #2");
-        client("server1").index(Requests.indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        client().index(Requests.indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
 
         // perform snapshot to the index
         logger.info("Gateway Snapshot");
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Deleting #1");
-        client("server1").delete(deleteRequest("test").type("type1").id("1")).actionGet();
+        client().delete(deleteRequest("test").type("type1").id("1")).actionGet();
 
         // perform snapshot to the index
         logger.info("Gateway Snapshot");
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
         logger.info("Gateway Snapshot (should be a no op)");
         // do it again, it should be a no op
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Closing the server");
-        closeNode("server1");
+        cluster().stopRandomNode();
         logger.info("Starting the server, should recover from the gateway (only translog should be populated)");
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // verify that mapping is there
-        clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
+        clusterState = client().admin().cluster().state(clusterStateRequest()).actionGet();
         assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
-        GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+        GetResponse getResponse = client().get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
 
         // Now flush and add some data (so we have index recovery as well)
         logger.info("Flushing, so we have actual content in the index files (#2 should be in the index)");
-        client("server1").admin().indices().flush(flushRequest("test")).actionGet();
+        client().admin().indices().flush(flushRequest("test")).actionGet();
         logger.info("Indexing #3, so we have something in the translog as well");
-        client("server1").index(Requests.indexRequest("test").type("type1").id("3").source(source("3", "test"))).actionGet();
+        client().index(Requests.indexRequest("test").type("type1").id("3").source(source("3", "test"))).actionGet();
 
         logger.info("Gateway Snapshot");
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
         logger.info("Gateway Snapshot (should be a no op)");
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Closing the server");
-        closeNode("server1");
+        cluster().stopRandomNode();
         logger.info("Starting the server, should recover from the gateway (both index and translog) and reuse work dir");
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Closing the server");
-        closeNode("server1");
+        cluster().stopRandomNode();
         logger.info("Clearing cluster data dir, so there will be a full recovery from the gateway");
         FileSystemUtils.deleteRecursively(environment.dataWithClusterFiles());
         logger.info("Starting the server, should recover from the gateway (both index and translog) without reusing work dir");
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
 
         logger.info("Flushing, so we have actual content in the index files (#3 should be in the index now as well)");
-        client("server1").admin().indices().flush(flushRequest("test")).actionGet();
+        client().admin().indices().flush(flushRequest("test")).actionGet();
 
         logger.info("Gateway Snapshot");
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
         logger.info("Gateway Snapshot (should be a no op)");
-        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+        client().admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Closing the server");
-        closeNode("server1");
+        cluster().stopRandomNode();
         logger.info("Starting the server, should recover from the gateway (just from the index, nothing in the translog)");
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
+        getResponse = client().get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Deleting the index");
-        client("server1").admin().indices().delete(deleteIndexRequest("test")).actionGet();
+        client().admin().indices().delete(deleteIndexRequest("test")).actionGet();
     }
 
     @Test
@@ -273,73 +258,73 @@ public class IndexGatewayTests extends AbstractNodesTests {
     private void testLoad(boolean fullRecovery) {
         logger.info("Running with fullRecover [{}]", fullRecovery);
 
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // get the environment, so we can clear the work dir when needed
-        Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
+        Environment environment = cluster().getInstance(Environment.class);
 
         logger.info("--> creating test index ...");
-        client("server1").admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
 
         logger.info("--> refreshing and checking count");
-        client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         logger.info("--> indexing 1234 docs");
         for (long i = 0; i < 1234; i++) {
-            client("server1").prepareIndex("test", "type1", Long.toString(i))
+            client().prepareIndex("test", "type1", Long.toString(i))
                     .setCreate(true) // make sure we use create, so if we recover wrongly, we will get increments...
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
 
             // snapshot every 100 so we get some actions going on in the gateway 
             if ((i % 11) == 0) {
-                client("server1").admin().indices().prepareGatewaySnapshot().execute().actionGet();
+                client().admin().indices().prepareGatewaySnapshot().execute().actionGet();
             }
             // flush every once is a while, so we get different data
             if ((i % 55) == 0) {
-                client("server1").admin().indices().prepareFlush().execute().actionGet();
+                client().admin().indices().prepareFlush().execute().actionGet();
             }
         }
 
         logger.info("--> refreshing and checking count");
-        client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
 
 
         logger.info("--> closing the server");
-        closeNode("server1");
+        cluster().stopRandomNode();
         if (fullRecovery) {
             logger.info("Clearing cluster data dir, so there will be a full recovery from the gateway");
             FileSystemUtils.deleteRecursively(environment.dataWithClusterFiles());
             logger.info("Starting the server, should recover from the gateway (both index and translog) without reusing work dir");
         }
 
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("--> running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("--> done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("--> checking count");
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
+        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
 
         logger.info("--> checking reuse / recovery status");
-        IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().setRecovery(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().setRecovery(true).execute().actionGet();
         for (IndexShardStatus indexShardStatus : statusResponse.getIndex("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
                 if (shardStatus.getShardRouting().primary()) {
@@ -370,22 +355,22 @@ public class IndexGatewayTests extends AbstractNodesTests {
     @Test
     @Slow
     public void testIndexActions() throws Exception {
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        client().admin().indices().create(createIndexRequest("test")).actionGet();
 
-        closeNode("server1");
+        cluster().stopRandomNode();
 
-        startNode("server1");
+        cluster().startNode(nodeSettings(0));
         Thread.sleep(500);
         try {
-            client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+            client().admin().indices().create(createIndexRequest("test")).actionGet();
             assert false : "index should exists";
         } catch (IndexAlreadyExistsException e) {
             // all is well

@@ -28,13 +28,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.test.AbstractNodesTests;
-import org.junit.After;
+import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
+import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -48,44 +44,20 @@ import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RecoveryPercolatorTests extends AbstractNodesTests {
-
-    @After
-    public void cleanAndCloseNodes() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            if (node("node" + i) != null) {
-                node("node" + i).stop();
-                // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-                if (((InternalNode) node("node" + i)).injector().getInstance(NodeEnvironment.class).hasNodeFile()) {
-                    ((InternalNode) node("node" + i)).injector().getInstance(Gateway.class).reset();
-                }
-            }
-        }
-        closeAllNodes();
-    }
-    
-    
-
-    @Override
-    protected Settings getClassDefaultSettings() {
-        return settingsBuilder().put("gateway.type", "local").build();
-    }
+@ClusterScope(numNodes=0, scope=Scope.TEST)
+public class RecoveryPercolatorTests extends AbstractIntegrationTest {
 
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
-        logger.info("--> cleaning nodes");
-        buildNode("node1");
-        cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1");
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
 
-        Client client = client("node1");
-        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         logger.info("--> register a query");
-        client.prepareIndex("_percolator", "test", "kuku")
+        client().prepareIndex("_percolator", "test", "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -93,25 +65,21 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        PercolateResponse percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches().size(), equalTo(1));
 
-        client.close();
-        closeNode("node1");
-
-        startNode("node1");
-        client = client("node1");
+        cluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
@@ -122,19 +90,15 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
     @AwaitsFix(bugUrl="investigate why this test fails so often")
     @Slow
     public void testRestartNodePercolator2() throws Exception {
-        logger.info("--> cleaning nodes");
-        buildNode("node1");
-        cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1");
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
 
-        Client client = client("node1");
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
         .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         logger.info("--> register a query");
-        client.prepareIndex("_percolator", "test", "kuku")
+        client().prepareIndex("_percolator", "test", "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -142,36 +106,32 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertThat(client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        PercolateResponse percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches().size(), equalTo(1));
-        client.close();
-        closeNode("node1");
-
-        startNode("node1");
-        client = client("node1");
+        cluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertThat(client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete("test").execute().actionGet();
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete("test").execute().actionGet();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
         // The refresh on the _percolator index that that is triggered by deleting index 'test' might not have happened, therefore executing refresh explicitly:
         // (we return success even if the refresh failed, the delete_by_query and removal of the mapping does need to succeed)
-        RefreshResponse refreshResponse = client.admin().indices().prepareRefresh("_percolator").execute().actionGet();
+        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("_percolator").execute().actionGet();
         assertNoFailures(refreshResponse);
-        CreateIndexResponse createIndexResponse = client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -182,16 +142,16 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 return client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount() == 0;
             }
         }, 1, TimeUnit.MINUTES);
-        assertHitCount(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet(), 0l);
+        assertHitCount(client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet(), 0l);
 
-        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches().size(), equalTo(0));
 
         logger.info("--> register a query");
-        client.prepareIndex("_percolator", "test", "kuku")
+        client().prepareIndex("_percolator", "test", "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -199,9 +159,9 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertThat(client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
-        percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
+        percolate = client().preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();

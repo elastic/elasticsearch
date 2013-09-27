@@ -231,6 +231,8 @@ public class IndexMetaData {
      * Test whether the current index UUID is the same as the given one. Returns true if either are _na_
      */
     public boolean isSameUUID(String otherUUID) {
+        assert otherUUID != null;
+        assert uuid() != null;
         if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(uuid())) {
             return true;
         }

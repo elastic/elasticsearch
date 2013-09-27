@@ -33,7 +33,7 @@ public class RiverNodeHelper {
             return false;
         }
         String river = node.attributes().get("river");
-        // by default, if not set, its an river node (better OOB exp)
+        // by default, if not set, it's a river node (better OOB exp)
         if (river == null) {
             return true;
         }

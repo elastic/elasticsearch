@@ -46,18 +46,25 @@ public class MockDirectoryHelper {
     public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "index.store.mock.random.io_exception_rate_on_open";
     public static final String RANDOM_THROTTLE = "index.store.mock.random.throttle";
     public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
+    public static final String RANDOM_PREVENT_DOUBLE_WRITE = "index.store.mock.random.prevent_double_write";
+    public static final String RANDOM_NO_DELETE_OPEN_FILE = "index.store.mock.random.no_delete_open_file";
     public static final Set<MockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
+    
     private final Random random;
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
     private final Throttling throttle;
     private final boolean checkIndexOnClose;
-    private Settings indexSettings;
-    private ShardId shardId;
+    private final Settings indexSettings;
+    private final ShardId shardId;
+    private final boolean preventDoubleWrite;
+    private final boolean noDeleteOpenFile;
 
     public MockDirectoryHelper(ShardId shardId, Settings indexSettings, ESLogger logger) {
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
         randomIOExceptionRateOnOpen = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0.0d);
+        preventDoubleWrite = indexSettings.getAsBoolean(RANDOM_PREVENT_DOUBLE_WRITE, true); // true is default in MDW
+        noDeleteOpenFile = indexSettings.getAsBoolean(RANDOM_NO_DELETE_OPEN_FILE, true); // true is default in MDW
         final long seed = indexSettings.getAsLong(AbstractIntegrationTest.INDEX_SEED_SETTING, 0l);
         random = new Random(seed);
         random.nextInt(shardId.getId() + 1); // some randomness per shard
@@ -77,6 +84,8 @@ public class MockDirectoryHelper {
         w.setRandomIOExceptionRateOnOpen(randomIOExceptionRateOnOpen);
         w.setThrottling(throttle);
         w.setCheckIndexOnClose(checkIndexOnClose);
+        w.setPreventDoubleWrite(preventDoubleWrite);
+        w.setNoDeleteOpenFile(noDeleteOpenFile);
         wrappers.add(w);
         return new FilterDirectory(w) {
             @Override

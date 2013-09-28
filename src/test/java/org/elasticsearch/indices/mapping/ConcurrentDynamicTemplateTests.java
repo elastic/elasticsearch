@@ -22,9 +22,7 @@ package org.elasticsearch.indices.mapping;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
@@ -79,11 +77,8 @@ public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
             latch.await();
             assertThat(throwable, emptyIterable());
             refresh();
-            MatchQueryBuilder builder = QueryBuilders.matchQuery(fieldName, "test-user");
-            SearchHits sh = client().prepareSearch("test").setQuery(builder).execute().actionGet().getHits();
-            assertEquals(sh.getTotalHits(), numDocs);
-
-            assertEquals(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")).execute().actionGet().getHits().getTotalHits(), 0);
+            assertEquals(numDocs, client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")).execute().actionGet().getHits().getTotalHits());
+            assertEquals(0, client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")).execute().actionGet().getHits().getTotalHits());
 
         }
     }

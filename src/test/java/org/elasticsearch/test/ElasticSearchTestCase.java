@@ -26,9 +26,9 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.store.mock.MockDirectoryHelper;
 import org.elasticsearch.junit.listeners.LoggingListener;
 import org.elasticsearch.test.engine.MockRobinEngine;
+import org.elasticsearch.test.store.mock.MockDirectoryHelper;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;

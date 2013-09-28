@@ -48,7 +48,9 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
         void onPing(PingResponse[] pings);
     }
 
-    public class PingResponse implements Streamable {
+    public static class PingResponse implements Streamable {
+        
+        public static PingResponse[] EMPTY = new PingResponse[0];
 
         private ClusterName clusterName;
 

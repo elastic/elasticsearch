@@ -48,10 +48,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.engine.MockEngineModule;
+import org.elasticsearch.test.store.mock.MockFSIndexStoreModule;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Assert;
 

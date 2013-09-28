@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.mock;
+package org.elasticsearch.test.store.mock;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.store.IndexStore;
 
-public class MockFSIndexStoreModule extends AbstractModule {
+public class MockRamIndexStoreModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(IndexStore.class).to(MockFSIndexStore.class).asEagerSingleton();
+        bind(IndexStore.class).to(MockRamIndexStore.class).asEagerSingleton();
     }
 
 }

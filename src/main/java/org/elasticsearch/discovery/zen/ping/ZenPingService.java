@@ -32,6 +32,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.multicast.MulticastZenPing;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
@@ -144,7 +145,12 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         ImmutableList<? extends ZenPing> zenPings = this.zenPings;
         CompoundPingListener compoundPingListener = new CompoundPingListener(listener, zenPings);
         for (ZenPing zenPing : zenPings) {
-            zenPing.ping(compoundPingListener, timeout);
+            try {
+                zenPing.ping(compoundPingListener, timeout);
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Ping execution rejected", ex);
+                compoundPingListener.onPing(null);
+            }
         }
     }
 
@@ -152,15 +158,12 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
         private final PingListener listener;
 
-        private final ImmutableList<? extends ZenPing> zenPings;
-
         private final AtomicInteger counter;
 
         private ConcurrentMap<DiscoveryNode, PingResponse> responses = ConcurrentCollections.newConcurrentMap();
 
         private CompoundPingListener(PingListener listener, ImmutableList<? extends ZenPing> zenPings) {
             this.listener = listener;
-            this.zenPings = zenPings;
             this.counter = new AtomicInteger(zenPings.size());
         }
 

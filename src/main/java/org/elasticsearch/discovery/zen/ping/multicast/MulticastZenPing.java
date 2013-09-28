@@ -33,6 +33,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -199,18 +200,24 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     public PingResponse[] pingAndWait(TimeValue timeout) {
         final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ping(new PingListener() {
-            @Override
-            public void onPing(PingResponse[] pings) {
-                response.set(pings);
-                latch.countDown();
-            }
-        }, timeout);
+        try {
+            ping(new PingListener() {
+                @Override
+                public void onPing(PingResponse[] pings) {
+                    response.set(pings);
+                    latch.countDown();
+                }
+            }, timeout);
+        } catch (EsRejectedExecutionException ex) {
+            logger.debug("Ping execution rejected", ex);
+            return PingResponse.EMPTY;
+        }
         try {
             latch.await();
             return response.get();
         } catch (InterruptedException e) {
-            return null;
+            Thread.currentThread().interrupt();
+            return PingResponse.EMPTY;
         }
     }
 
@@ -220,7 +227,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
-                    listener.onPing(new PingResponse[0]);
+                    listener.onPing(PingResponse.EMPTY);
                 }
             });
             return;

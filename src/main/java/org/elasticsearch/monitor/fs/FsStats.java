@@ -208,12 +208,12 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         builder.startArray(Fields.DATA);
         for (Info info : infos) {
             builder.startObject();
-            builder.field(Fields.PATH, info.path);
+            builder.field(Fields.PATH, info.path, XContentBuilder.FieldCaseConversion.NONE);
             if (info.mount != null) {
-                builder.field(Fields.MOUNT, info.mount);
+                builder.field(Fields.MOUNT, info.mount, XContentBuilder.FieldCaseConversion.NONE);
             }
             if (info.dev != null) {
-                builder.field(Fields.DEV, info.dev);
+                builder.field(Fields.DEV, info.dev, XContentBuilder.FieldCaseConversion.NONE);
             }
 
             if (info.total != -1) {

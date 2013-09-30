@@ -19,12 +19,10 @@
 package org.elasticsearch.index.analysis;
 
 
-import org.apache.lucene.analysis.pattern.PatternCaptureGroupTokenFilter;
-
 import org.apache.lucene.analysis.TokenFilter;
-
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.analysis.pattern.PatternCaptureGroupTokenFilter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -35,22 +33,25 @@ import java.util.regex.Pattern;
 
 @AnalysisSettingsRequired
 public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFactory {
-    private Pattern[] patterns;
-    private boolean preserveOriginal;
-
-
+    private final Pattern[] patterns;
+    private final boolean preserveOriginal;
+    private static final String PATTERNS_KEY = "patterns";
+    private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     @Inject
     public PatternCaptureGroupTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name,
             @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        String[] regexes = settings.getAsArray("patterns",Strings.EMPTY_ARRAY,false);
+        String[] regexes = settings.getAsArray(PATTERNS_KEY, null, false);
+        if (regexes == null) {
+            throw new ElasticSearchIllegalArgumentException("required setting '" + PATTERNS_KEY + "' is missing for token filter [" + name + "]");
+        }
         patterns = new Pattern[regexes.length];
         for (int i = 0; i < regexes.length; i++) {
             patterns[i] = Pattern.compile(regexes[i]);
         }
 
-        preserveOriginal = settings.getAsBoolean("preserve_original", true);
+        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, true);
     }
 
     @Override

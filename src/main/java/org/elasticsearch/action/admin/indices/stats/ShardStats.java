@@ -23,6 +23,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRespons
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.shard.service.IndexShard;
 
 import java.io.IOException;
 
@@ -30,7 +34,7 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardR
 
 /**
  */
-public class ShardStats extends BroadcastShardOperationResponse {
+public class ShardStats extends BroadcastShardOperationResponse implements ToXContent {
 
     private ShardRouting shardRouting;
 
@@ -39,10 +43,10 @@ public class ShardStats extends BroadcastShardOperationResponse {
     ShardStats() {
     }
 
-    ShardStats(ShardRouting shardRouting) {
-        super(shardRouting.index(), shardRouting.id());
-        this.shardRouting = shardRouting;
-        this.stats = new CommonStats();
+    public ShardStats(IndexShard indexShard, CommonStatsFlags flags) {
+        super(indexShard.routingEntry().index(), indexShard.routingEntry().id());
+        this.shardRouting = indexShard.routingEntry();
+        this.stats = new CommonStats(indexShard, flags);
     }
 
     /**
@@ -75,4 +79,26 @@ public class ShardStats extends BroadcastShardOperationResponse {
         shardRouting.writeTo(out);
         stats.writeTo(out);
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.ROUTING)
+                .field(Fields.STATE, shardRouting.state())
+                .field(Fields.PRIMARY, shardRouting.primary())
+                .field(Fields.NODE, shardRouting.currentNodeId())
+                .field(Fields.RELOCATING_NODE, shardRouting.relocatingNodeId())
+                .endObject();
+
+        stats.toXContent(builder, params);
+        return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
+        static final XContentBuilderString STATE = new XContentBuilderString("state");
+        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
+        static final XContentBuilderString NODE = new XContentBuilderString("node");
+        static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
+    }
+
 }

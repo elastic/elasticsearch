@@ -30,6 +30,10 @@ import java.util.EnumSet;
 /**
  */
 public class CommonStatsFlags implements Streamable, Cloneable {
+
+    public final static CommonStatsFlags ALL = new CommonStatsFlags().all();
+    public final static CommonStatsFlags NONE = new CommonStatsFlags().clear();
+
     private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search);
     private String[] types = null;
     private String[] groups = null;

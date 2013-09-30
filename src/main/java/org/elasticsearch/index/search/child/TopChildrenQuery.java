@@ -25,11 +25,14 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.recycler.RecyclerUtils;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,7 +54,9 @@ import java.util.Set;
  * This query is most of the times faster than the {@link ChildrenQuery}. Usually enough parent documents can be returned
  * in the first child document query round.
  */
-public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
+public class TopChildrenQuery extends Query {
+
+    private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
 
     private final CacheRecycler cacheRecycler;
     private final String parentType;
@@ -63,7 +68,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
-    private Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs;
+    private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
     public TopChildrenQuery(Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler) {
@@ -77,13 +82,14 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     // Rewrite invocation logic:
-    // 1) query_then_fetch (default): First contextRewrite and then rewrite is executed
-    // 2) dfs_query_then_fetch:: First rewrite and then contextRewrite is executed. During query phase rewrite isn't
+    // 1) query_then_fetch (default): Rewrite is execute as part of the createWeight invocation, when search child docs.
+    // 2) dfs_query_then_fetch:: First rewrite and then createWeight is executed. During query phase rewrite isn't
     // executed any more because searchContext#queryRewritten() returns true.
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         if (rewrittenChildQuery == null) {
             rewrittenChildQuery = originalChildQuery.rewrite(reader);
+            rewriteIndexReader = reader;
         }
         // We can always return the current instance, and we can do this b/c the child query is executed separately
         // before the main query (other scope) in a different IS#search() invocation than the main query.
@@ -93,30 +99,39 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextRewrite(SearchContext searchContext) throws Exception {
-        this.parentDocs = cacheRecycler.hashMap(-1);
+    public void extractTerms(Set<Term> terms) {
+        rewrittenChildQuery.extractTerms(terms);
+    }
+
+    @Override
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
+        Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs = cacheRecycler.hashMap(-1);
+        SearchContext searchContext = SearchContext.current();
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
         int parentHitsResolved;
-        int numChildDocs = (searchContext.from() + searchContext.size());
-        if (numChildDocs == 0) {
-            numChildDocs = 1;
+        int requestedDocs = (searchContext.from() + searchContext.size());
+        if (requestedDocs <= 0) {
+            requestedDocs = 1;
         }
-        numChildDocs *= factor;
+        int numChildDocs = requestedDocs * factor;
 
         Query childQuery;
         if (rewrittenChildQuery == null) {
-            childQuery = rewrittenChildQuery = searchContext.searcher().rewrite(originalChildQuery);
+            childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
         } else {
+            assert rewriteIndexReader == searcher.getIndexReader();
             childQuery = rewrittenChildQuery;
         }
+
+        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         while (true) {
             parentDocs.v().clear();
-            TopDocs topChildDocs = searchContext.searcher().search(childQuery, numChildDocs);
-            parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext);
+            TopDocs topChildDocs = indexSearcher.search(childQuery, numChildDocs);
+            parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext, parentDocs);
 
             // check if we found enough docs, if so, break
-            if (parentHitsResolved >= (searchContext.from() + searchContext.size())) {
+            if (parentHitsResolved >= requestedDocs) {
                 break;
             }
             // if we did not find enough docs, check if it make sense to search further
@@ -129,21 +144,11 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 numChildDocs = topChildDocs.totalHits;
             }
         }
+
+        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
     }
 
-    @Override
-    public void contextClear() {
-
-    }
-
-    @Override
-    public void executionDone() {
-        if (parentDocs != null) {
-            parentDocs.release();
-        }
-    }
-
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) {
         int parentHitsResolved = 0;
         Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -196,45 +201,14 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         for (int i = 0; i < states.length; i++) {
             if (states[i]) {
                 Recycler.V<IntObjectOpenHashMap<ParentDoc>> value = (Recycler.V<IntObjectOpenHashMap<ParentDoc>>) values[i];
-                ParentDoc[] parentDocs = value.v().values().toArray(ParentDoc.class);
-                Arrays.sort(parentDocs, PARENT_DOC_COMP);
-
-                this.parentDocs.v().put(keys[i], parentDocs);
+                ParentDoc[] _parentDocs = value.v().values().toArray(ParentDoc.class);
+                Arrays.sort(_parentDocs, PARENT_DOC_COMP);
+                parentDocs.v().put(keys[i], _parentDocs);
                 value.release();
             }
         }
         parentDocsPerReader.release();
         return parentHitsResolved;
-    }
-
-    private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
-
-    static class ParentDocComparator implements Comparator<ParentDoc> {
-        @Override
-        public int compare(ParentDoc o1, ParentDoc o2) {
-            return o1.docId - o2.docId;
-        }
-    }
-
-    static class ParentDoc {
-        public int docId;
-        public int count;
-        public float maxScore = Float.NaN;
-        public float sumScores = 0;
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        if (parentDocs == null) {
-            throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
-        }
-
-        return new ParentWeight(searcher, rewrittenChildQuery.createWeight(searcher));
     }
 
     @Override
@@ -274,15 +248,14 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         return sb.toString();
     }
 
-    class ParentWeight extends Weight {
+    private class ParentWeight extends Weight implements Releasable {
 
-        final IndexSearcher searcher;
+        private final Weight queryWeight;
+        private final Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs;
 
-        final Weight queryWeight;
-
-        public ParentWeight(IndexSearcher searcher, Weight queryWeight) throws IOException {
-            this.searcher = searcher;
+        public ParentWeight(Weight queryWeight, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws IOException {
             this.queryWeight = queryWeight;
+            this.parentDocs = parentDocs;
         }
 
         public Query getQuery() {
@@ -299,6 +272,12 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         @Override
         public void normalize(float norm, float topLevelBoost) {
             // Nothing to normalize
+        }
+
+        @Override
+        public boolean release() throws ElasticSearchException {
+            RecyclerUtils.release(parentDocs);
+            return true;
         }
 
         @Override
@@ -342,7 +321,8 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
     }
 
-    static abstract class ParentScorer extends Scorer {
+    private static abstract class ParentScorer extends Scorer {
+
         private final ParentDoc spare = new ParentDoc();
         protected final ParentDoc[] docs;
         protected ParentDoc doc = spare;
@@ -388,4 +368,19 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             return docs.length;
         }
     }
+
+    private static class ParentDocComparator implements Comparator<ParentDoc> {
+        @Override
+        public int compare(ParentDoc o1, ParentDoc o2) {
+            return o1.docId - o2.docId;
+        }
+    }
+
+    private static class ParentDoc {
+        public int docId;
+        public int count;
+        public float maxScore = Float.NaN;
+        public float sumScores = 0;
+    }
+
 }

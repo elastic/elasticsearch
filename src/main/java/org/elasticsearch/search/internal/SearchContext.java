@@ -90,15 +90,6 @@ public class SearchContext implements Releasable {
         return current.get();
     }
 
-    public static interface Rewrite {
-
-        void contextRewrite(SearchContext searchContext) throws Exception;
-
-        void executionDone();
-
-        void contextClear();
-    }
-
     private final long id;
 
     private final ShardSearchRequest request;
@@ -186,8 +177,7 @@ public class SearchContext implements Releasable {
 
     private volatile long lastAccessTime;
 
-    private List<Rewrite> rewrites = null;
-
+    private List<Releasable> clearables = null;
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -215,12 +205,6 @@ public class SearchContext implements Releasable {
     public boolean release() throws ElasticSearchException {
         if (scanContext != null) {
             scanContext.clear();
-        }
-        // clear and scope phase we  have
-        if (rewrites != null) {
-            for (Rewrite rewrite : rewrites) {
-                rewrite.contextClear();
-            }
         }
         searcher.release();
         engineSearcher.release();
@@ -269,6 +253,10 @@ public class SearchContext implements Releasable {
 
     public ShardSearchRequest request() {
         return this.request;
+    }
+
+    public String source() {
+        return engineSearcher.source();
     }
 
     public SearchType searchType() {
@@ -619,15 +607,33 @@ public class SearchContext implements Releasable {
         return fetchResult;
     }
 
-    public void addRewrite(Rewrite rewrite) {
-        if (this.rewrites == null) {
-            this.rewrites = new ArrayList<Rewrite>();
+    public void addReleasable(Releasable releasable) {
+        if (clearables == null) {
+            clearables = new ArrayList<Releasable>();
         }
-        this.rewrites.add(rewrite);
+        clearables.add(releasable);
     }
 
-    public List<Rewrite> rewrites() {
-        return this.rewrites;
+    public void clearReleasables() {
+        if (clearables != null) {
+            Throwable th = null;
+            for (Releasable releasable : clearables) {
+                try {
+                    releasable.release();
+                } catch (Throwable t) {
+                    if (th == null) {
+                        th = t;
+                    }
+                }
+            }
+            if (th != null) {
+                throw new RuntimeException(th);
+            }
+        }
+    }
+    public boolean clearAndRelease() {
+        clearReleasables();
+        return release();
     }
 
     public ScanContext scanContext() {

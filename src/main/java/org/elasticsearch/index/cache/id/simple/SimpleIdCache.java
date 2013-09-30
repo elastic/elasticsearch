@@ -42,6 +42,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
@@ -105,7 +106,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @SuppressWarnings({"StringEquality"})
     @Override
-    public void refresh(List<AtomicReaderContext> atomicReaderContexts) throws Exception {
+    public void refresh(List<AtomicReaderContext> atomicReaderContexts) throws IOException {
         // do a quick check for the common case, that all are there
         if (refreshNeeded(atomicReaderContexts)) {
             synchronized (idReaders) {

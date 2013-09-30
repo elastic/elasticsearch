@@ -281,7 +281,6 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("timestamp", getTimestamp());
         builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
 

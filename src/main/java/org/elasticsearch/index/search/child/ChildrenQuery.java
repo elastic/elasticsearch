@@ -29,12 +29,14 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.recycler.RecyclerUtils;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -53,9 +55,8 @@ import java.util.Set;
  * a score based on the aggregated child scores and score type.
  */
 // TODO We use a score of 0 to indicate a doc was not scored in uidToScore, this means score of 0 can be problematic, if we move to HPCC, we can use lset/...
-public class ChildrenQuery extends Query implements SearchContext.Rewrite {
+public class ChildrenQuery extends Query {
 
-    private final SearchContext searchContext;
     private final String parentType;
     private final String childType;
     private final Filter parentFilter;
@@ -64,11 +65,9 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     private final int shortCircuitParentDocSet;
 
     private Query rewrittenChildQuery;
-    private Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore;
-    private Recycler.V<ObjectIntOpenHashMap<HashedBytesArray>> uidToCount;
+    private IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet) {
-        this.searchContext = searchContext;
+    public ChildrenQuery(String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet) {
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
@@ -115,6 +114,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
         if (rewrittenChildQuery == null) {
+            rewriteIndexReader = reader;
             rewrittenChildQuery = originalChildQuery.rewrite(reader);
         }
         return this;
@@ -126,11 +126,14 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
-    public void contextRewrite(SearchContext searchContext) throws Exception {
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
+        SearchContext searchContext = SearchContext.current();
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
-        uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
-        Collector collector;
+        Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
+        Recycler.V<ObjectIntOpenHashMap<HashedBytesArray>> uidToCount = null;
+
+        final Collector collector;
         switch (scoreType) {
             case AVG:
                 uidToCount = searchContext.cacheRecycler().objectIntMap(-1);
@@ -139,39 +142,22 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             default:
                 collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore.v());
         }
-        Query childQuery;
+        final Query childQuery;
         if (rewrittenChildQuery == null) {
-            childQuery = rewrittenChildQuery = searchContext.searcher().rewrite(originalChildQuery);
+            childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
         } else {
+            assert rewriteIndexReader == searcher.getIndexReader();
             childQuery = rewrittenChildQuery;
         }
-        searchContext.searcher().search(childQuery, collector);
-    }
-
-    @Override
-    public void executionDone() {
-        if (uidToScore != null) {
-            uidToScore.release();
-        }
-        uidToScore = null;
-        if (uidToCount != null) {
-            uidToCount.release();
-        }
-        uidToCount = null;
-    }
-
-    @Override
-    public void contextClear() {
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        if (uidToScore == null) {
-            throw new ElasticSearchIllegalStateException("has_child query hasn't executed properly");
-        }
+        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+        indexSearcher.search(childQuery, collector);
 
         int size = uidToScore.v().size();
         if (size == 0) {
+            uidToScore.release();
+            if (uidToCount != null) {
+                uidToCount.release();
+            }
             return Queries.NO_MATCH_QUERY.createWeight(searcher);
         }
 
@@ -184,19 +170,28 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         } else {
             parentFilter = this.parentFilter;
         }
-        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, size);
+        ParentWeight parentWeight = new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, searchContext, size, uidToScore, uidToCount);
+        searchContext.addReleasable(parentWeight);
+        return parentWeight;
     }
 
-    final class ParentWeight extends Weight {
+    private final class ParentWeight extends Weight implements Releasable {
 
-        final Weight childWeight;
-        final Filter parentFilter;
-        int remaining;
+        private final Weight childWeight;
+        private final Filter parentFilter;
+        private final SearchContext searchContext;
+        private final Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore;
+        private final Recycler.V<ObjectIntOpenHashMap<HashedBytesArray>> uidToCount;
 
-        public ParentWeight(Weight childWeight, Filter parentFilter, int remaining) {
+        private int remaining;
+
+        private ParentWeight(Weight childWeight, Filter parentFilter, SearchContext searchContext, int remaining, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore, Recycler.V<ObjectIntOpenHashMap<HashedBytesArray>> uidToCount) {
             this.childWeight = childWeight;
             this.parentFilter = parentFilter;
+            this.searchContext = searchContext;
             this.remaining = remaining;
+            this.uidToScore = uidToScore;
+            this.uidToCount= uidToCount;
         }
 
         @Override
@@ -237,7 +232,13 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             }
         }
 
-        class ParentScorer extends Scorer {
+        @Override
+        public boolean release() throws ElasticSearchException {
+            RecyclerUtils.release(uidToScore, uidToCount);
+            return true;
+        }
+
+        private class ParentScorer extends Scorer {
 
             final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
             final IdReaderTypeCache idTypeCache;
@@ -320,7 +321,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             }
         }
 
-        final class AvgParentScorer extends ParentScorer {
+        private final class AvgParentScorer extends ParentScorer {
 
             HashedBytesArray currentUid;
             final ObjectIntOpenHashMap<HashedBytesArray> uidToCount;
@@ -369,11 +370,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
     }
 
-    static class ChildUidCollector extends ParentIdCollector {
+    private static class ChildUidCollector extends ParentIdCollector {
 
-        final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
-        final ScoreType scoreType;
-        Scorer scorer;
+        protected final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
+        private final ScoreType scoreType;
+        protected Scorer scorer;
 
         ChildUidCollector(ScoreType scoreType, SearchContext searchContext, String childType, ObjectFloatOpenHashMap<HashedBytesArray> uidToScore) {
             super(childType, searchContext);
@@ -414,9 +415,9 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
     }
 
-    final static class AvgChildUidCollector extends ChildUidCollector {
+    private final static class AvgChildUidCollector extends ChildUidCollector {
 
-        final ObjectIntOpenHashMap<HashedBytesArray> uidToCount;
+        private final ObjectIntOpenHashMap<HashedBytesArray> uidToCount;
 
         AvgChildUidCollector(ScoreType scoreType, SearchContext searchContext, String childType, ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, ObjectIntOpenHashMap<HashedBytesArray> uidToCount) {
             super(scoreType, searchContext, childType, uidToScore);

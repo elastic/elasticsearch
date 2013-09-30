@@ -22,6 +22,7 @@ package org.elasticsearch.search.child;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -215,125 +217,52 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
 
         // TOP CHILDREN QUERY
-
         searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "yellow"))).execute()
                 .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "blue"))).execute()
-                .actionGet();
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "blue")))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
         searchResponse = client().prepareSearch("test").setQuery(topChildrenQuery("child", termQuery("c_field", "red"))).execute()
                 .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
 
-        // HAS CHILD QUERY
-
-        searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"))).execute()
-                .actionGet();
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        // HAS CHILD
+        searchResponse = client().prepareSearch("test").setQuery(randomHasChild("child", "c_field", "yellow"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"))).execute()
+        searchResponse = client().prepareSearch("test").setQuery(randomHasChild("child", "c_field", "blue")).execute()
                 .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
 
-        searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"))).execute().actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        searchResponse = client().prepareSearch("test").setQuery(randomHasChild("child", "c_field", "red")).execute().actionGet();
+        assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
 
-        // HAS CHILD FILTER
-
+        // HAS PARENT
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "yellow")))).execute().actionGet();
+                .setQuery(randomHasParent("parent", "p_field", "p_value2")).execute().actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
-
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
-                .execute().actionGet();
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
-            }
-        }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
-
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "red"))))
-                .execute().actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
-        assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
-
-        // HAS PARENT FILTER
-        searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value2")))).execute().actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c3"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c4"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "p_value1")))).execute().actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+                .setQuery(randomHasParent("parent", "p_field", "p_value1")).execute().actionGet();
+        assertHitCount(searchResponse, 2l);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
-
-        // HAS PARENT QUERY
-        searchResponse = client().prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "p_value2"))).execute()
-                .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c3"));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c4"));
-
-        searchResponse = client().prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "p_value1"))).execute()
-                .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
-        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
-
     }
 
     @Test
@@ -980,7 +909,6 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testCountApiUsage() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
@@ -994,34 +922,76 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .endObject().endObject()).execute().actionGet();
 
         String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "p_value1").execute().actionGet();
-        client().prepareIndex("test", "child", parentId + "_c1").setSource("c_field1", parentId).setParent(parentId).execute().actionGet();
+        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        CountResponse countResponse = client().prepareCount("test").setQuery(topChildrenQuery("child", termQuery("c_field1", "1")))
+        CountResponse countResponse = client().prepareCount("test").setQuery(topChildrenQuery("child", termQuery("c_field", "1")))
                 .execute().actionGet();
-        assertThat(countResponse.getFailedShards(), equalTo(1));
-        assertThat(countResponse.getShardFailures()[0].reason().contains("top_children query hasn't executed properly"), equalTo(true));
+        assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(hasChildQuery("child", termQuery("c_field1", "2")).scoreType("max"))
+        countResponse = client().prepareCount("test").setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .execute().actionGet();
-        assertThat(countResponse.getFailedShards(), equalTo(1));
-        assertThat(countResponse.getShardFailures()[0].reason().contains("has_child query hasn't executed properly"), equalTo(true));
+        assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(hasParentQuery("parent", termQuery("p_field1", "1")).scoreType("score"))
+        countResponse = client().prepareCount("test").setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
                 .execute().actionGet();
-        assertThat(countResponse.getFailedShards(), equalTo(1));
-        assertThat(countResponse.getShardFailures()[0].reason().contains("has_parent query hasn't executed properly"), equalTo(true));
+        assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field1", "2"))))
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "1"))))
                 .execute().actionGet();
-        assertThat(countResponse.getFailedShards(), equalTo(1));
-        assertThat(countResponse.getShardFailures()[0].reason().contains("has_child filter hasn't executed properly"), equalTo(true));
+        assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field1", "1"))))
+        countResponse = client().prepareCount("test").setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field", "1"))))
                 .execute().actionGet();
-        assertThat(countResponse.getFailedShards(), equalTo(1));
-        assertThat(countResponse.getShardFailures()[0].reason().contains("has_parent filter hasn't executed properly"), equalTo(true));
+        assertHitCount(countResponse, 1l);
+    }
+
+    @Test
+    public void testExplainUsage() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType("child")
+                .setSource(
+                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                                .endObject().endObject()).execute().actionGet();
+
+        String parentId = "p1";
+        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "1").setParent(parentId).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setExplain(true)
+                .setQuery(topChildrenQuery("child", termQuery("c_field", "1")))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("not implemented yet..."));
+
+        searchResponse = client().prepareSearch("test")
+                .setExplain(true)
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("not implemented yet..."));
+
+        searchResponse = client().prepareSearch("test")
+                .setExplain(true)
+                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("not implemented yet..."));
+
+        ExplainResponse explainResponse = client().prepareExplain("test", "parent", parentId)
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                .execute().actionGet();
+        assertThat(explainResponse.isExists(), equalTo(true));
+        assertThat(explainResponse.getExplanation().getDescription(), equalTo("not implemented yet..."));
     }
 
     @Test
@@ -1600,6 +1570,206 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         response = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), termsFilter("_parent", "parent#p1", "parent2#p1"))).execute().actionGet();
         assertHitCount(response, 2l);
+    }
+
+    @Test
+    public void testHasChildNotBeingCached() throws ElasticSearchException, IOException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").execute().actionGet();
+        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").execute().actionGet();
+        client().prepareIndex("test", "parent", "p5").setSource("p_field", "p_value5").execute().actionGet();
+        client().prepareIndex("test", "parent", "p6").setSource("p_field", "p_value6").execute().actionGet();
+        client().prepareIndex("test", "parent", "p7").setSource("p_field", "p_value7").execute().actionGet();
+        client().prepareIndex("test", "parent", "p8").setSource("p_field", "p_value8").execute().actionGet();
+        client().prepareIndex("test", "parent", "p9").setSource("p_field", "p_value9").execute().actionGet();
+        client().prepareIndex("test", "parent", "p10").setSource("p_field", "p_value10").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+        client().admin().indices().prepareFlush("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).cache(true)))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        client().prepareIndex("test", "child", "c2").setParent("p2").setSource("c_field", "blue").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue")).cache(true)))
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+    }
+
+    @Test
+    public void testDeleteByQuery_has_child() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 1)
+                                .put("index.refresh_interval", "-1")
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().admin().indices().prepareFlush("test").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").execute().actionGet();
+        client().admin().indices().prepareFlush("test").execute().actionGet();
+        client().prepareIndex("test", "child", "c5").setSource("c_field", "blue").setParent("p3").execute().actionGet();
+        client().prepareIndex("test", "child", "c6").setSource("c_field", "red").setParent("p3").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        // p4 will not be found via search api, but will be deleted via delete_by_query api!
+        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").execute().actionGet();
+        client().prepareIndex("test", "child", "c7").setSource("c_field", "blue").setParent("p4").execute().actionGet();
+        client().prepareIndex("test", "child", "c8").setSource("c_field", "red").setParent("p4").execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(randomHasChild("child", "c_field", "blue"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 2l);
+
+        client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomHasChild("child", "c_field", "blue"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 0l);
+    }
+
+    @Test
+    public void testDeleteByQuery_has_child_SingleRefresh() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 1)
+                                .put("index.refresh_interval", "-1")
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
+        client().admin().indices().prepareFlush().execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").execute().actionGet();
+        client().prepareIndex("test", "child", "c5").setSource("c_field", "blue").setParent("p3").execute().actionGet();
+        client().prepareIndex("test", "child", "c6").setSource("c_field", "red").setParent("p3").execute().actionGet();
+        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").execute().actionGet();
+        client().prepareIndex("test", "child", "c7").setSource("c_field", "blue").setParent("p4").execute().actionGet();
+        client().prepareIndex("test", "child", "c8").setSource("c_field", "red").setParent("p4").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(randomHasChild("child", "c_field", "blue"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 3l);
+
+        client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomHasChild("child", "c_field", "blue"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 0l);
+    }
+
+    private QueryBuilder randomHasChild(String type, String field, String value) {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return constantScoreQuery(hasChildFilter(type, termQuery(field, value)));
+            } else {
+                return filteredQuery(matchAllQuery(), hasChildFilter(type, termQuery(field, value)));
+            }
+        } else {
+            return hasChildQuery(type, termQuery(field, value));
+        }
+    }
+
+    @Test
+    public void testDeleteByQuery_has_parent() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 1)
+                                .put("index.refresh_interval", "-1")
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().admin().indices().prepareFlush("test").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(randomHasParent("parent", "p_field", "p_value2"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 2l);
+
+        client().prepareDeleteByQuery("test")
+                .setQuery(randomHasParent("parent", "p_field", "p_value2"))
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomHasParent("parent", "p_field", "p_value2"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 0l);
+    }
+
+    private QueryBuilder randomHasParent(String type, String field, String value) {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return constantScoreQuery(hasParentFilter(type, termQuery(field, value)));
+            } else {
+                return filteredQuery(matchAllQuery(), hasParentFilter(type, termQuery(field, value)));
+            }
+        } else {
+            return hasParentQuery(type, termQuery(field, value));
+        }
     }
 
 }

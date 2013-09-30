@@ -176,7 +176,7 @@ public class SimpleValidateQueryTests extends AbstractIntegrationTest {
                         "child-type",
                         QueryBuilders.fieldQuery("foo", "1")
                 )
-        ), equalTo("filtered(foo:1)->child_filter[child-type/type1](filtered(foo:1)->cache(_type:child-type))"));
+        ), equalTo("filtered(foo:1)->CustomQueryWrappingFilter(child_filter[child-type/type1](filtered(foo:1)->cache(_type:child-type)))"));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),

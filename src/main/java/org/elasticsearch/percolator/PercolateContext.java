@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -270,6 +271,11 @@ public class PercolateContext extends SearchContext {
 
     // Unused:
     @Override
+    public boolean clearAndRelease() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void preProcess() {
         throw new UnsupportedOperationException();
     }
@@ -281,6 +287,11 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public long id() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String source() {
         throw new UnsupportedOperationException();
     }
 
@@ -625,12 +636,12 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public void addRewrite(Rewrite rewrite) {
+    public void addReleasable(Releasable releasable) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Rewrite> rewrites() {
+    public void clearReleasables() {
         throw new UnsupportedOperationException();
     }
 

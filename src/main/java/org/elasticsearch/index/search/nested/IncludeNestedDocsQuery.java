@@ -13,7 +13,9 @@ import java.util.Set;
 
 /**
  * A special query that accepts a top level parent matching query, and returns the nested docs of the matching parent
- * doc as well. This is handy when deleting by query.
+ * doc as well. This is handy when deleting by query, don't use it for other purposes.
+ *
+ * @elasticsearch.internal
  */
 public class IncludeNestedDocsQuery extends Query {
 

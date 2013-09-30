@@ -21,14 +21,14 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.HasChildFilter;
+import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -132,22 +132,16 @@ public class HasChildQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
-        // wrap the query with type query
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
-        }
-
+        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
         Query query;
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        if (scoreType != null) {
-            ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet);
-            searchContext.addRewrite(childrenQuery);
-            query = childrenQuery;
+        if (!deleteByQuery && scoreType != null) {
+            query = new ChildrenQuery(parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet);
         } else {
-            HasChildFilter hasChildFilter = new HasChildFilter(innerQuery, parentType, childType, parentFilter, searchContext, shortCircuitParentDocSet);
-            searchContext.addRewrite(hasChildFilter);
-            query = new XConstantScoreQuery(hasChildFilter);
+            query = new ChildrenConstantScoreQuery(innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, true);
+            if (deleteByQuery) {
+                query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
+            }
         }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

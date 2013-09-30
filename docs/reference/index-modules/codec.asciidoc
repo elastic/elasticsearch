@@ -11,7 +11,7 @@ using the builtin postings formats will suite your needs as is described
 in the <<mapping-core-types,mapping section>>
 
 [float]
-[[postings]]
+[[custom-postings]]
 === Configuring a custom postings format
 
 Custom postings format can be defined in the index settings in the

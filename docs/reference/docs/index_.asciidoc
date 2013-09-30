@@ -70,7 +70,7 @@ for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
 meaning allowed, and - meaning disallowed).
 
 [float]
-[[versioning]]
+[[index-versioning]]
 === Versioning
 
 Each indexed document is given a version number. The associated
@@ -179,7 +179,7 @@ The result of the above index operation is:
 --------------------------------------------------
 
 [float]
-[[routing]]
+[[index-routing]]
 === Routing
 
 By default, shard placement — or `routing` — is controlled by using a
@@ -225,7 +225,7 @@ to be the same as it's parent, unless the routing value is explicitly
 specified using the `routing` parameter.
 
 [float]
-[[timestamp]]
+[[index-timestamp]]
 === Timestamp
 
 A document can be indexed with a `timestamp` associated with it. The
@@ -247,7 +247,7 @@ processed by the indexing chain. More information can be found on the
 page>>.
 
 [float]
-[[ttl]]
+[[index-ttl]]
 === TTL
 
 A document can be indexed with a `ttl` (time to live) associated with
@@ -321,7 +321,7 @@ cuts down on parsing overhead, as the parse tree for the document is
 simply re-used for percolation.
 
 [float]
-[[distributed]]
+[[index-distributed]]
 === Distributed
 
 The index operation is directed to the primary shard based on its route
@@ -330,7 +330,7 @@ containing this shard. After the primary shard completes the operation,
 if needed, the update is distributed to applicable replicas.
 
 [float]
-[[consistency]]
+[[index-consistency]]
 === Write Consistency
 
 To prevent writes from taking place on the "wrong" side of a network
@@ -343,7 +343,7 @@ parameter can be used.
 Valid write consistency values are `one`, `quorum`, and `all`.
 
 [float]
-[[replication]]
+[[index-replication]]
 === Asynchronous Replication
 
 By default, the index operation only returns after all shards within the
@@ -354,7 +354,7 @@ When asynchronous replication is used, the index operation will return
 as soon as the operation succeeds on the primary shard.
 
 [float]
-[[refresh]]
+[[index-refresh]]
 === Refresh
 
 To refresh the index immediately after the operation occurs, so that the

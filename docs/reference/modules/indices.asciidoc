@@ -24,7 +24,7 @@ lower limit for the memory allocated per shard for its own indexing
 buffer. It defaults to `4mb`.
 
 [float]
-[[ttl]]
+[[indices-ttl]]
 === TTL interval
 
 You can dynamically set the `indices.ttl.interval` allows to set how

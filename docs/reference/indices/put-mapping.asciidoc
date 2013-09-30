@@ -41,7 +41,7 @@ conflict. New mapping definitions can be added to object types, and core
 type mapping can be upgraded to `multi_field` type.
 
 [float]
-[[multi-index]]
+[[put-mapping-multi-index]]
 === Multi Index
 
 The put mapping API can be applied to more than one index with a single

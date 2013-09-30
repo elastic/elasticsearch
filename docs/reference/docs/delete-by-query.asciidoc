@@ -77,7 +77,7 @@ $ curl -XDELETE 'http://localhost:9200/_all/_query?q=tag:wow'
 --------------------------------------------------
 
 [float]
-[[parameters]]
+[[delete-by-query-parameters]]
 === Request Parameters
 
 When executing a delete by query using the query parameter `q`, the
@@ -106,14 +106,14 @@ executed and delete all documents. The body content can also be passed
 as a REST parameter named `source`.
 
 [float]
-[[distributed]]
+[[delete-by-query-distributed]]
 === Distributed
 
 The delete by query API is broadcast across all primary shards, and from
 there, replicated across all shards replicas.
 
 [float]
-[[routing]]
+[[delete-by-query-routing]]
 === Routing
 
 The routing value (a comma separated list of the routing values) can be
@@ -130,7 +130,7 @@ the primary shard). The `replication` parameter can be set to `async`
 (defaults to `sync`) in order to enable it.
 
 [float]
-[[consistency]]
+[[delete-by-query-consistency]]
 === Write Consistency
 
 Control if the operation will be allowed to execute based on the number

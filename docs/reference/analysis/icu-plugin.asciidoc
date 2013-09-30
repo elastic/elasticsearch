@@ -60,7 +60,7 @@ normally be left out. Sample setting:
 --------------------------------------------------
 
 [float]
-[[filtering]]
+[[icu-filtering]]
 ==== Filtering
 
 The folding can be filtered by a set of unicode characters with the

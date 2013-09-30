@@ -66,7 +66,7 @@ The get API allows for `_type` to be optional. Set it to `_all` in order
 to fetch the first document matching the id across all types.
 
 [float]
-[[fields]]
+[[get-fields]]
 === Fields
 
 The get operation allows specifying a set of fields that will be
@@ -104,7 +104,7 @@ curl -XHEAD 'http://localhost:9200/twitter/tweet/1/_source'
 --------------------------------------------------
 
 [float]
-[[routing]]
+[[get-routing]]
 === Routing
 
 When indexing using the ability to control the routing, in order to get
@@ -145,7 +145,7 @@ Custom (string) value::
 	user name.
 
 [float]
-[[refresh]]
+[[get-refresh]]
 === Refresh
 
 The `refresh` parameter can be set to `true` in order to refresh the
@@ -155,7 +155,7 @@ this does not cause a heavy load on the system (and slows down
 indexing).
 
 [float]
-[[distributed]]
+[[get-distributed]]
 === Distributed
 
 The get operation gets hashed into a specific shard id. It then gets

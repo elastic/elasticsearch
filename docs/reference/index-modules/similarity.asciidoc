@@ -48,7 +48,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
-[[default]]
+[[default-similarity]]
 ==== Default similarity
 
 The default similarity that is based on the TF/IDF model. This
@@ -122,7 +122,7 @@ based model] . This similarity has the following options:
 Type name: `IB`
 
 [float]
-[[default]]
+[[default-base]]
 ==== Default and Base Similarities
 
 By default, Elasticsearch will use whatever similarity is configured as

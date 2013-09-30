@@ -68,7 +68,7 @@ Download Page].
 
 For example:
 
-[source,java]
+[source,xml]
 --------------------------------------------------
 <dependency>
     <groupId>com.fasterxml.jackson.core</groupId>

@@ -12,7 +12,7 @@ GetResponse response = client.prepareGet("twitter", "tweet", "1")
         .actionGet();
 --------------------------------------------------
 
-For more information on the index operation, check out the REST
+For more information on the get operation, check out the REST
 {ref}/docs-get.html[get] docs.
 
 

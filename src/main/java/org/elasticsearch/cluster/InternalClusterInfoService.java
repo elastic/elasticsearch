@@ -237,7 +237,11 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 if (logger.isTraceEnabled()) {
                     logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                 }
-                threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
+                try {
+                    threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
+                } catch (EsRejectedExecutionException ex) {
+                    logger.debug("Reschedule cluster info service was rejected", ex);
+                }
             }
             if (!enabled) {
                 // Short-circuit if not enabled

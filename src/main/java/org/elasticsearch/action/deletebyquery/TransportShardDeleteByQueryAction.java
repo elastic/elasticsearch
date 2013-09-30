@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -31,8 +34,14 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,11 +50,16 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportShardDeleteByQueryAction extends TransportShardReplicationOperationAction<ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
+    private final ScriptService scriptService;
+    private final CacheRecycler cacheRecycler;
+
     @Inject
     public TransportShardDeleteByQueryAction(Settings settings, TransportService transportService,
                                              ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                             ShardStateAction shardStateAction) {
+                                             ShardStateAction shardStateAction, ScriptService scriptService, CacheRecycler cacheRecycler) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+        this.scriptService = scriptService;
+        this.cacheRecycler = cacheRecycler;
     }
 
     @Override
@@ -91,10 +105,21 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected PrimaryResponse<ShardDeleteByQueryResponse, ShardDeleteByQueryRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types())
-                .origin(Engine.Operation.Origin.PRIMARY);
-        indexShard.deleteByQuery(deleteByQuery);
+        IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
+        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
+
+        SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()), null,
+                indexShard.acquireSearcher("delete_by_query"), indexService, indexShard, scriptService, cacheRecycler));
+        try {
+            Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types())
+                    .origin(Engine.Operation.Origin.PRIMARY);
+            SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
+            indexShard.deleteByQuery(deleteByQuery);
+        } finally {
+            SearchContext searchContext = SearchContext.current();
+            searchContext.clearAndRelease();
+            SearchContext.removeCurrent();
+        }
         return new PrimaryResponse<ShardDeleteByQueryResponse, ShardDeleteByQueryRequest>(shardRequest.request, new ShardDeleteByQueryResponse(), null);
     }
 
@@ -102,10 +127,21 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types())
-                .origin(Engine.Operation.Origin.REPLICA);
-        indexShard.deleteByQuery(deleteByQuery);
+        IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
+        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
+
+        SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()), null,
+                indexShard.acquireSearcher("delete_by_query"), indexService, indexShard, scriptService, cacheRecycler));
+        try {
+            Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types())
+                    .origin(Engine.Operation.Origin.REPLICA);
+            SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
+            indexShard.deleteByQuery(deleteByQuery);
+        } finally {
+            SearchContext searchContext = SearchContext.current();
+            searchContext.clearAndRelease();
+            SearchContext.removeCurrent();
+        }
     }
 
     @Override

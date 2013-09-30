@@ -79,7 +79,13 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
      */
     public void shortCircuit() {
         try {
-            iterator.advance(DocIdSetIterator.NO_MORE_DOCS);
+            if (iterator instanceof NoAcceptDocsIterator) {
+                ((NoAcceptDocsIterator) iterator).shortCircuit();
+            } else if (iterator instanceof BothIterator) {
+                ((BothIterator) iterator).shortCircuit();
+            } else {
+                iterator.advance(DocIdSetIterator.NO_MORE_DOCS);
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -124,6 +130,12 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
         public long cost() {
             return maxDoc;
         }
+
+        // This is invoked from matchDoc, so we can do maxDoc - 1, when nextDoc / advance is invoked, then doc == maxDoc, so we abort
+        public void shortCircuit() {
+            doc = maxDoc - 1;
+        }
+
     }
 
     class FixedBitSetIterator extends FilteredDocIdSetIterator {
@@ -177,6 +189,11 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
         @Override
         public long cost() {
             return maxDoc;
+        }
+
+        // This is invoked from matchDoc, so we can do maxDoc - 1, when nextDoc / advance is invoked, then doc == maxDoc, so we abort
+        public void shortCircuit() {
+            doc = maxDoc - 1;
         }
     }
 }

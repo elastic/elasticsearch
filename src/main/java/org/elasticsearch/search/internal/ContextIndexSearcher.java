@@ -40,8 +40,7 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     public static enum Stage {
         NA,
-        MAIN_QUERY,
-        REWRITE
+        MAIN_QUERY
     }
 
     private final SearchContext searchContext;
@@ -117,11 +116,16 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     @Override
     public Weight createNormalizedWeight(Query query) throws IOException {
-        // if its the main query, use we have dfs data, only then do it
-        if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
-            return dfSource.createNormalizedWeight(query);
+        try {
+            // if its the main query, use we have dfs data, only then do it
+            if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
+                return dfSource.createNormalizedWeight(query);
+            }
+            return super.createNormalizedWeight(query);
+        } catch (Throwable t) {
+            searchContext.clearReleasables();
+            throw new RuntimeException(t);
         }
-        return super.createNormalizedWeight(query);
     }
 
     @Override
@@ -152,37 +156,45 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
 
         // we only compute the doc id set once since within a context, we execute the same query always...
-        if (searchContext.timeoutInMillis() != -1) {
-            try {
+        try {
+            if (searchContext.timeoutInMillis() != -1) {
+                try {
+                    super.search(leaves, weight, collector);
+                } catch (TimeLimitingCollector.TimeExceededException e) {
+                    searchContext.queryResult().searchTimedOut(true);
+                }
+            } else {
                 super.search(leaves, weight, collector);
-            } catch (TimeLimitingCollector.TimeExceededException e) {
-                searchContext.queryResult().searchTimedOut(true);
             }
-        } else {
-            super.search(leaves, weight, collector);
-        }
-        if (currentState == Stage.MAIN_QUERY) {
-            if (enableMainDocIdSetCollector) {
-                enableMainDocIdSetCollector = false;
-                mainDocIdSetCollector.postCollection();
-            }
-            if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                for (Collector queryCollector : queryCollectors) {
-                    if (queryCollector instanceof XCollector) {
-                        ((XCollector) queryCollector).postCollection();
+
+            if (currentState == Stage.MAIN_QUERY) {
+                if (enableMainDocIdSetCollector) {
+                    enableMainDocIdSetCollector = false;
+                    mainDocIdSetCollector.postCollection();
+                }
+                if (queryCollectors != null && !queryCollectors.isEmpty()) {
+                    for (Collector queryCollector : queryCollectors) {
+                        if (queryCollector instanceof XCollector) {
+                            ((XCollector) queryCollector).postCollection();
+                        }
                     }
                 }
             }
+        } finally {
+            searchContext.clearReleasables();
         }
     }
 
     @Override
     public Explanation explain(Query query, int doc) throws IOException {
-        if (searchContext.aliasFilter() == null) {
-            return super.explain(query, doc);
+        try {
+            if (searchContext.aliasFilter() == null) {
+                return super.explain(query, doc);
+            }
+            XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
+            return super.explain(filteredQuery, doc);
+        } finally {
+            searchContext.clearReleasables();
         }
-
-        XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
-        return super.explain(filteredQuery, doc);
     }
 }

@@ -77,14 +77,7 @@ public abstract class SearchContext implements Releasable {
         return current.get();
     }
 
-    public static interface Rewrite {
-
-        void contextRewrite(SearchContext searchContext) throws Exception;
-
-        void executionDone();
-
-        void contextClear();
-    }
+    public abstract boolean clearAndRelease();
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
@@ -94,6 +87,8 @@ public abstract class SearchContext implements Releasable {
     public abstract Filter searchFilter(String[] types);
 
     public abstract long id();
+
+    public abstract String source();
 
     public abstract ShardSearchRequest request();
 
@@ -275,9 +270,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FetchSearchResult fetchResult();
 
-    public abstract void addRewrite(Rewrite rewrite);
+    public abstract void addReleasable(Releasable releasable);
 
-    public abstract List<Rewrite> rewrites();
+    public abstract void clearReleasables();
 
     public abstract ScanContext scanContext();
 

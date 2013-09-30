@@ -172,14 +172,15 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
     public Facet reduce(ReduceContext context) {
         List<Facet> facets = context.facets();
         if (facets.size() == 1) {
+            InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facets.get(0);
             if (requiredSize == 0) {
                 // we need to sort it here!
-                InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<LongEntry> entries = tsFacet.mutableList();
                     CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
+            tsFacet.trimExcessEntries();
             return facets.get(0);
         }
         int missing = 0;
@@ -225,6 +226,25 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
             }
             map.release();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, ordered, missing);
+        }
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize == 0 || requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<LongEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
         }
     }
 

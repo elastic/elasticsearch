@@ -41,15 +41,17 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
 
     private final InternalStringTermsFacet.ComparatorType comparatorType;
     private final int size;
+    private final int shardSize;
     private final IndexFieldData[] indexFieldDatas;
     private final SearchScript script;
     private final HashedAggregator aggregator;
     long missing;
     long total;
 
-    public FieldsTermsStringFacetExecutor(String facetName, FieldMapper[] fieldMappers, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                          ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
+    public FieldsTermsStringFacetExecutor(FieldMapper[] fieldMappers, int size, int shardSize, InternalStringTermsFacet.ComparatorType comparatorType,
+                                          boolean allTerms, SearchContext context, ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.script = script;
         this.indexFieldDatas = new IndexFieldData[fieldMappers.length];
@@ -78,7 +80,7 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         try {
-            return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+            return HashedAggregator.buildFacet(facetName, size, shardSize, missing, total, comparatorType, aggregator);
         } finally {
             aggregator.release();
         }

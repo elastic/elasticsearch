@@ -67,6 +67,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         String keyField = null;
         String valueField = null;
         int size = 10;
+        int shardSize = -1;
         TermsStatsFacet.ComparatorType comparatorType = TermsStatsFacet.ComparatorType.COUNT;
         String scriptLang = null;
         String script = null;
@@ -92,6 +93,8 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
+                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
                 } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {
                     if (parser.booleanValue()) {
                         size = 0; // indicates all terms
@@ -117,6 +120,10 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         }
         IndexFieldData keyIndexFieldData = context.fieldData().getForField(keyMapper);
 
+        if (shardSize < size) {
+            shardSize = size;
+        }
+
         IndexNumericFieldData valueIndexFieldData = null;
         SearchScript valueScript = null;
         if (valueField != null) {
@@ -134,11 +141,11 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         if (keyIndexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData keyIndexNumericFieldData = (IndexNumericFieldData) keyIndexFieldData;
             if (keyIndexNumericFieldData.getNumericType().isFloatingPoint()) {
-                return new TermsStatsDoubleFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+                return new TermsStatsDoubleFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, shardSize, comparatorType, context);
             } else {
-                return new TermsStatsLongFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+                return new TermsStatsLongFacetExecutor(keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, shardSize, comparatorType, context);
             }
         }
-        return new TermsStatsStringFacetExecutor(keyIndexFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+        return new TermsStatsStringFacetExecutor(keyIndexFieldData, valueIndexFieldData, valueScript, size, shardSize, comparatorType, context);
     }
 }

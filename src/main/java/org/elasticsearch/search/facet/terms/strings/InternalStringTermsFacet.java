@@ -172,7 +172,9 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     public Facet reduce(ReduceContext context) {
         List<Facet> facets = context.facets();
         if (facets.size() == 1) {
-            return facets.get(0);
+            InternalStringTermsFacet facet = (InternalStringTermsFacet) facets.get(0);
+            facet.trimExcessEntries();
+            return facet;
         }
 
         InternalStringTermsFacet first = null;
@@ -213,6 +215,25 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         aggregated.release();
 
         return first;
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<TermEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
+        }
     }
 
     static final class Fields {

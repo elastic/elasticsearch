@@ -51,16 +51,18 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     final IndexNumericFieldData valueIndexFieldData;
     final SearchScript script;
     private final int size;
+    private final int shardSize;
 
     final Recycler.V<ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry>> entries;
     long missing;
 
     public TermsStatsStringFacetExecutor(IndexFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript valueScript,
-                                         int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
+                                         int size, int shardSize, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = valueScript;
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
 
         this.entries = context.cacheRecycler().hashMap(-1);
@@ -79,13 +81,13 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.v().values(), missing);
+            return new InternalTermsStatsStringFacet(facetName, comparatorType, 0/* indicates all terms*/, entries.v().values(), missing);
         }
         Object[] values = entries.v().internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         List<InternalTermsStatsStringFacet.StringEntry> ordered = Lists.newArrayList();
-        int limit = size;
+        int limit = shardSize;
         for (int i = 0; i < limit; i++) {
             InternalTermsStatsStringFacet.StringEntry value = (InternalTermsStatsStringFacet.StringEntry) values[i];
             if (value == null) {

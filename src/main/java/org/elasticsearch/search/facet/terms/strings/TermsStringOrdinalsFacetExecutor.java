@@ -56,6 +56,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     final CacheRecycler cacheRecycler;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
+    private final int shardSize;
     private final int minCount;
     private final ImmutableSet<BytesRef> excluded;
     private final Matcher matcher;
@@ -65,10 +66,11 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public TermsStringOrdinalsFacetExecutor(IndexFieldData.WithOrdinals indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsStringOrdinalsFacetExecutor(IndexFieldData.WithOrdinals indexFieldData, int size, int shardSize, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                             ImmutableSet<BytesRef> excluded, Pattern pattern, int ordinalsCacheAbove) {
         this.indexFieldData = indexFieldData;
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.ordinalsCacheAbove = ordinalsCacheAbove;
 
@@ -107,9 +109,9 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
 
         // YACK, we repeat the same logic, but once with an optimizer priority queue for smaller sizes
-        if (size < EntryPriorityQueue.LIMIT) {
+        if (shardSize < EntryPriorityQueue.LIMIT) {
             // optimize to use priority size
-            EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+            EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
 
             while (queue.size() > 0) {
                 ReaderAggregator agg = queue.top();
@@ -149,7 +151,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
-        BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
+        BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();

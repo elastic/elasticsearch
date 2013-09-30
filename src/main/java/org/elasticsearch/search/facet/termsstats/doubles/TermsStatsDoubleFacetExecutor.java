@@ -48,13 +48,15 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
     final SearchScript script;
 
     private final int size;
+    private final int shardSize;
 
     final Recycler.V<ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry>> entries;
     long missing;
 
     public TermsStatsDoubleFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
-                                         int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
+                                         int size, int shardSize, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
@@ -81,7 +83,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
         Object[] values = entries.v().internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
-        int limit = size;
+        int limit = shardSize;
         List<InternalTermsStatsDoubleFacet.DoubleEntry> ordered = Lists.newArrayList();
         for (int i = 0; i < limit; i++) {
             InternalTermsStatsDoubleFacet.DoubleEntry value = (InternalTermsStatsDoubleFacet.DoubleEntry) values[i];

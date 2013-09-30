@@ -52,6 +52,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
 
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
+    private final int shardSize;
     private final int size;
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
@@ -60,10 +61,11 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public TermsLongFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsLongFacetExecutor(IndexNumericFieldData indexFieldData, int size, int shardSize, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                   ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
@@ -119,7 +121,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
             return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
                 for (TLongIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
@@ -131,7 +133,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                 facets.release();
                 return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), size);
+                BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), shardSize);
                 for (TLongIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));

@@ -44,6 +44,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     private final TermsFacet.ComparatorType comparatorType;
     private final SearchScript script;
 
+    private final int shardSize;
     private final int size;
 
     // the aggregation map
@@ -52,10 +53,11 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     private final boolean allTerms;
     private final HashedAggregator aggregator;
 
-    public TermsStringFacetExecutor(IndexFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsStringFacetExecutor(IndexFieldData indexFieldData, int size, int shardSize, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                     ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
         this.indexFieldData = indexFieldData;
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.script = script;
         this.allTerms = allTerms;
@@ -79,7 +81,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         try {
-            return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+            return HashedAggregator.buildFacet(facetName, size, shardSize, missing, total, comparatorType, aggregator);
         } finally {
             aggregator.release();
         }

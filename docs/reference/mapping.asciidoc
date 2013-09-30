@@ -17,7 +17,7 @@ no performance overhead) and have sensible defaults. Only when the
 defaults need to be overridden must a mapping definition be provided.
 
 [float]
-[[mapping-types]]
+[[all-mapping-types]]
 === Mapping Types
 
 Mapping types are a way to divide the documents in an index into logical

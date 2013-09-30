@@ -20,7 +20,7 @@ own consequences) for storing the index in memory.
 
 
 [float]
-[[throttling]]
+[[store-throttling]]
 === Store Level Throttling
 
 The way Lucene, the IR library elasticsearch uses under the covers,
@@ -91,7 +91,7 @@ process equal to the size of the file being mapped. Before using this
 class, be sure your have plenty of virtual address space.
 
 [float]
-[[memory]]
+[[store-memory]]
 === Memory
 
 The `memory` type stores the index in main memory with the following

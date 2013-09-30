@@ -187,7 +187,7 @@ curl -XPOST 'http://localhost:9200/test/_optimize?max_num_segments=5'
 --------------------------------------------------
 
 [float]
-[[analysis]]
+[[update-settings-analysis]]
 === Updating Index Analysis
 
 It is also possible to define new <<analysis,analyzers>> for the index.

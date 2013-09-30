@@ -66,7 +66,7 @@ curl -XPUT localhost:9200/_template/template_1 -d '
 --------------------------------------------------
 
 [float]
-[[adding]]
+[[warmer-adding]]
 === Put Warmer
 
 Allows to put a warmup search request on a specific index (or indices),
@@ -133,7 +133,7 @@ curl -XDELETE localhost:9200/test/_warmer/
 --------------------------------------------------
 
 [float]
-[[retrieving]]
+[[warmer-retrieving]]
 === GETting Warmer
 
 Getting a warmer for specific index (or alias, or several indices) based

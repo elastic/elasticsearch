@@ -129,7 +129,7 @@ plugin --remove head --silent
 === Known Plugins
 
 [float]
-[[analysis]]
+[[analysis-plugins]]
 ==== Analysis Plugins
 
 .Supported by Elasticsearch

@@ -281,19 +281,21 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
+        if (!params.param("node_info_format", "default").equals("none")) {
+            builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
 
-        if (getHostname() != null) {
-            builder.field("hostname", getHostname(), XContentBuilder.FieldCaseConversion.NONE);
-        }
-
-        if (!getNode().attributes().isEmpty()) {
-            builder.startObject("attributes");
-            for (Map.Entry<String, String> attr : getNode().attributes().entrySet()) {
-                builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+            if (getHostname() != null) {
+                builder.field("hostname", getHostname(), XContentBuilder.FieldCaseConversion.NONE);
             }
-            builder.endObject();
+
+            if (!getNode().attributes().isEmpty()) {
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : getNode().attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                }
+                builder.endObject();
+            }
         }
 
         if (getIndices() != null) {

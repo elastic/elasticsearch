@@ -37,6 +37,7 @@ import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -46,6 +47,117 @@ import java.io.IOException;
 /**
  */
 public class CommonStats implements Streamable, ToXContent {
+
+    public CommonStats() {
+        this(CommonStatsFlags.NONE);
+    }
+
+    public CommonStats(CommonStatsFlags flags) {
+        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
+
+        for (CommonStatsFlags.Flag flag : setFlags) {
+            switch (flag) {
+                case Docs:
+                    docs = new DocsStats();
+                    break;
+                case Store:
+                    store = new StoreStats();
+                    break;
+                case Indexing:
+                    indexing = new IndexingStats();
+                    break;
+                case Get:
+                    get = new GetStats();
+                    break;
+                case Search:
+                    search = new SearchStats();
+                    break;
+                case Merge:
+                    merge = new MergeStats();
+                    break;
+                case Refresh:
+                    refresh = new RefreshStats();
+                    break;
+                case Flush:
+                    flush = new FlushStats();
+                    break;
+                case Warmer:
+                    warmer = new WarmerStats();
+                    break;
+                case FilterCache:
+                    filterCache = new FilterCacheStats();
+                    break;
+                case IdCache:
+                    idCache = new IdCacheStats();
+                    break;
+                case FieldData:
+                    fieldData = new FieldDataStats();
+                    break;
+                case Completion:
+                    completion = new CompletionStats();
+                    break;
+                case Percolate:
+                    percolate = new PercolateStats();
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown Flag: " + flag);
+            }
+        }
+    }
+
+
+    public CommonStats(IndexShard indexShard, CommonStatsFlags flags) {
+        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
+
+        for (CommonStatsFlags.Flag flag : setFlags) {
+            switch (flag) {
+                case Docs:
+                    docs = indexShard.docStats();
+                    break;
+                case Store:
+                    store = indexShard.storeStats();
+                    break;
+                case Indexing:
+                    indexing = indexShard.indexingStats(flags.types());
+                    break;
+                case Get:
+                    get = indexShard.getStats();
+                    break;
+                case Search:
+                    search = indexShard.searchStats(flags.groups());
+                    break;
+                case Merge:
+                    merge = indexShard.mergeStats();
+                    break;
+                case Refresh:
+                    refresh = indexShard.refreshStats();
+                    break;
+                case Flush:
+                    flush = indexShard.flushStats();
+                    break;
+                case Warmer:
+                    warmer = indexShard.warmerStats();
+                    break;
+                case FilterCache:
+                    filterCache = indexShard.filterCacheStats();
+                    break;
+                case IdCache:
+                    idCache = indexShard.idCacheStats();
+                    break;
+                case FieldData:
+                    fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
+                    break;
+                case Completion:
+                    completion = indexShard.completionStats(flags.completionDataFields());
+                    break;
+                case Percolate:
+                    percolate = indexShard.shardPercolateService().stats();
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown Flag: " + flag);
+            }
+        }
+    }
 
     @Nullable
     public DocsStats docs;

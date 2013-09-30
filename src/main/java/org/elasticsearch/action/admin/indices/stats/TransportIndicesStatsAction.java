@@ -138,51 +138,57 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticSearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
-        ShardStats stats = new ShardStats(indexShard.routingEntry());
+
+        CommonStatsFlags flags = new CommonStatsFlags().clear();
 
         if (request.request.docs()) {
-            stats.stats.docs = indexShard.docStats();
+            flags.set(CommonStatsFlags.Flag.Docs);
         }
         if (request.request.store()) {
-            stats.stats.store = indexShard.storeStats();
+            flags.set(CommonStatsFlags.Flag.Store);
         }
         if (request.request.indexing()) {
-            stats.stats.indexing = indexShard.indexingStats(request.request.types());
+            flags.set(CommonStatsFlags.Flag.Indexing);
+            flags.types(request.request.types());
         }
         if (request.request.get()) {
-            stats.stats.get = indexShard.getStats();
+            flags.set(CommonStatsFlags.Flag.Get);
         }
         if (request.request.search()) {
-            stats.getStats().search = indexShard.searchStats(request.request.groups());
+            flags.set(CommonStatsFlags.Flag.Search);
+            flags.groups(request.request.groups());
         }
         if (request.request.merge()) {
-            stats.stats.merge = indexShard.mergeStats();
+            flags.set(CommonStatsFlags.Flag.Merge);
         }
         if (request.request.refresh()) {
-            stats.stats.refresh = indexShard.refreshStats();
+            flags.set(CommonStatsFlags.Flag.Refresh);
         }
         if (request.request.flush()) {
-            stats.stats.flush = indexShard.flushStats();
+            flags.set(CommonStatsFlags.Flag.Flush);
         }
         if (request.request.warmer()) {
-            stats.stats.warmer = indexShard.warmerStats();
+            flags.set(CommonStatsFlags.Flag.Warmer);
         }
         if (request.request.filterCache()) {
-            stats.stats.filterCache = indexShard.filterCacheStats();
+            flags.set(CommonStatsFlags.Flag.FilterCache);
         }
         if (request.request.idCache()) {
-            stats.stats.idCache = indexShard.idCacheStats();
+            flags.set(CommonStatsFlags.Flag.IdCache);
         }
         if (request.request.fieldData()) {
-            stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
+            flags.set(CommonStatsFlags.Flag.FieldData);
+            flags.fieldDataFields(request.request.fieldDataFields());
         }
         if (request.request.percolate()) {
-            stats.stats.percolate = indexShard.shardPercolateService().stats();
+            flags.set(CommonStatsFlags.Flag.Percolate);
         }
         if (request.request.completion()) {
-            stats.stats.completion = indexShard.completionStats(request.request.completionFields());
+            flags.set(CommonStatsFlags.Flag.Completion);
+            flags.completionDataFields(request.request.completionFields());
         }
 
+        ShardStats stats = new ShardStats(indexShard, flags);
         return stats;
     }
 

@@ -109,6 +109,9 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString UPTIME = new XContentBuilderString("uptime");
         static final XContentBuilderString UPTIME_IN_MILLIS = new XContentBuilderString("uptime_in_millis");
         static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
+        static final XContentBuilderString LOAD_AVERAGE_1m = new XContentBuilderString("1m");
+        static final XContentBuilderString LOAD_AVERAGE_5m = new XContentBuilderString("5m");
+        static final XContentBuilderString LOAD_AVERAGE_15m = new XContentBuilderString("15m");
 
         static final XContentBuilderString CPU = new XContentBuilderString("cpu");
         static final XContentBuilderString SYS = new XContentBuilderString("sys");
@@ -142,11 +145,19 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         }
 
         if (loadAverage.length > 0) {
-            builder.startArray(Fields.LOAD_AVERAGE);
-            for (double value : loadAverage) {
-                builder.value(value);
+            if (params.param("load_average_format", "array").equals("hash")) {
+                builder.startObject(Fields.LOAD_AVERAGE);
+                builder.field(Fields.LOAD_AVERAGE_1m, loadAverage[0]);
+                builder.field(Fields.LOAD_AVERAGE_5m, loadAverage[1]);
+                builder.field(Fields.LOAD_AVERAGE_15m, loadAverage[2]);
+                builder.endObject();
+            } else {
+                builder.startArray(Fields.LOAD_AVERAGE);
+                for (double value : loadAverage) {
+                    builder.value(value);
+                }
+                builder.endArray();
             }
-            builder.endArray();
         }
 
         if (cpu != null) {

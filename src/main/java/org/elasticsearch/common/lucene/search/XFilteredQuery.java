@@ -160,7 +160,11 @@ public class XFilteredQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-        return delegate.equals(o);
+        if (!(o instanceof XFilteredQuery)) {
+            return false;
+        } else {
+            return delegate.equals(((XFilteredQuery)o).delegate);
+        }
     }
 
     /**

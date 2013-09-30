@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -113,6 +112,10 @@ public class TopChildrenQueryParser implements QueryParser {
             return null;
         }
 
+        if ("delete_by_query".equals(SearchContext.current().source())) {
+            throw new QueryParsingException(parseContext.index(), "[top_children] unsupported in delete_by_query api");
+        }
+
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
@@ -125,13 +128,7 @@ public class TopChildrenQueryParser implements QueryParser {
         query.setBoost(boost);
         // wrap the query with type query
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
-
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new ElasticSearchIllegalStateException("[top_children] Can't execute, search context not set.");
-        }
         TopChildrenQuery childQuery = new TopChildrenQuery(query, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler());
-        searchContext.addRewrite(childQuery);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, childQuery);
         }

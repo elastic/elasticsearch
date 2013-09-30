@@ -26,6 +26,7 @@ import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.service.IndexService;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -41,7 +42,7 @@ public interface IdCache extends IndexComponent, CloseableComponent, Iterable<Id
 
     void clear(IndexReader reader);
 
-    void refresh(List<AtomicReaderContext> readers) throws Exception;
+    void refresh(List<AtomicReaderContext> readers) throws IOException;
 
     IdReaderCache reader(AtomicReader reader);
 }

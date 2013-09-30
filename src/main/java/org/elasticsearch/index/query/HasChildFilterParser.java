@@ -21,15 +21,15 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.search.child.HasChildFilter;
+import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -59,8 +59,6 @@ public class HasChildFilterParser implements FilterParser {
         String childType = null;
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
 
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -99,9 +97,9 @@ public class HasChildFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    // noop to be backwards compatible
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else {
@@ -131,28 +129,23 @@ public class HasChildFilterParser implements FilterParser {
         // wrap the query with type query
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
-        SearchContext searchContext = SearchContext.current();
-        if (searchContext == null) {
-            throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
-        }
-
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        HasChildFilter childFilter = new HasChildFilter(query, parentType, childType, parentFilter, searchContext, shortCircuitParentDocSet);
-        searchContext.addRewrite(childFilter);
-        Filter filter = childFilter;
-
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
-        }
+        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(query, parentType, childType, parentFilter, shortCircuitParentDocSet, false);
 
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, filter);
+            parseContext.addNamedQuery(filterName, childrenConstantScoreQuery);
         }
-        return filter;
+
+        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
+        if (deleteByQuery) {
+            return new DeleteByQueryWrappingFilter(childrenConstantScoreQuery);
+        } else {
+            return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
+        }
     }
 }

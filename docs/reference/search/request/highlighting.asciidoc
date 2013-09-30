@@ -168,7 +168,7 @@ is required. Note that `fragment_size` is ignored in this case.
 When using `fast-vector-highlighter` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
-[[settings]]
+[[highlighting-settings]]
 ==== Global Settings
 
 Highlighting settings can be set on a global level and then overridden

@@ -46,7 +46,7 @@ other hand is the fact that for each doc returned, a block will need to
 be decompressed (its fast though) in order to extract the document data.
 
 [float]
-[[throttling]]
+[[store-throttling]]
 === Store Level Throttling
 
 (0.19.5 and above).
@@ -119,7 +119,7 @@ process equal to the size of the file being mapped. Before using this
 class, be sure your have plenty of virtual address space.
 
 [float]
-[[memory]]
+[[store-memory]]
 === Memory
 
 The `memory` type stores the index in main memory with the following

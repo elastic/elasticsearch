@@ -27,7 +27,7 @@ documents. The `completion` suggester circumvents this by storing the
 FST as part of your index during index time. This allows for really fast
 loads and executions.
 
-[[mapping]]
+[[completion-suggester-mapping]]
 ==== Mapping
 
 In order to use this feature, you have to specify a special mapping for

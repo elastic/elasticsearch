@@ -13,7 +13,7 @@ in the <<mapping-core-types,mapping section>>
 Codecs are available in Elasticsearch from version `0.90.0.beta1`.
 
 [float]
-[[postings]]
+[[custom-postings]]
 === Configuring a custom postings format
 
 Custom postings format can be defined in the index settings in the

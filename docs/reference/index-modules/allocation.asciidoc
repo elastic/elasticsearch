@@ -2,7 +2,7 @@
 == Index Shard Allocation
 
 [float]
-[[filtering]]
+[[shard-allocation-filtering]]
 === Shard Allocation Filtering
 
 Allow to control allocation if indices on nodes based on include/exclude

@@ -4,7 +4,6 @@
 [partintro]
 --
 ["float",id="search-multi-index"]
-[[multiple-indices]]
 == Multiple Indices
 
 All search APIs support execution across multiple indices, using simple
@@ -18,7 +17,7 @@ execution. By default, when its not set, the request will fail. Note,
 this feature is available since 0.20 version.
 
 [float]
-[[routing]]
+[[search-routing]]
 == Routing
 
 When executing a search, it will be broadcasted to all the index/indices

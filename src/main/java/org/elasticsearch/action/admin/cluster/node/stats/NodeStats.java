@@ -283,7 +283,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("timestamp", getTimestamp());
         builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.field("transport_address", getNode().address().toString());
+        builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
 
         if (getHostname() != null) {
             builder.field("hostname", getHostname(), XContentBuilder.FieldCaseConversion.NONE);
@@ -292,7 +292,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         if (!getNode().attributes().isEmpty()) {
             builder.startObject("attributes");
             for (Map.Entry<String, String> attr : getNode().attributes().entrySet()) {
-                builder.field(attr.getKey(), attr.getValue());
+                builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
             }
             builder.endObject();
         }

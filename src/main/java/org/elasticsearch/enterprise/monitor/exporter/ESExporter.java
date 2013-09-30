@@ -61,7 +61,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         timeout = (int) settings.getAsTime("timeout", new TimeValue(6000)).seconds();
 
         xContentParams = new ToXContent.MapParams(
-                ImmutableMap.of("load_average_format", "hash"));
+                ImmutableMap.of("load_average_format", "hash", "routing_format", "full"));
 
 
         logger.info("ESExporter initialized. Targets: {}, index prefix [{}], index time format [{}]", hosts, indexPrefix, indexTimeFormat);
@@ -97,15 +97,15 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             ;
         }
 
-        logger.debug("Exporting {}", type);
+        logger.debug("exporting {}", type);
         HttpURLConnection conn = openConnection("POST", "/_bulk", XContentType.SMILE.restContentType());
         if (conn == null) {
-            logger.error("Could not connect to any configured elasticsearch instances: [{}]", hosts);
+            logger.error("could not connect to any configured elasticsearch instances: [{}]", hosts);
             return;
         }
         try {
             OutputStream os = conn.getOutputStream();
-            // TODO: find a way to disable builder's substream flushing.
+            // TODO: find a way to disable builder's substream flushing or something neat solution
             for (ToXContent xContent : xContentArray) {
                 XContentBuilder builder = XContentFactory.smileBuilder(os);
                 builder.startObject().startObject("index")
@@ -133,7 +133,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
 
         } catch (IOException e) {
-            logger.error("Error connecting to target", e);
+            logger.error("error sending data", e);
             return;
         }
 
@@ -181,7 +181,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
                 return conn;
             } catch (IOException e) {
-                logger.error("error connecting to [{}]: {}", host, e);
+                logger.error("error connecting to [{}]", e, host);
             }
         }
 
@@ -230,7 +230,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             }
             checkedForIndexTemplate = true;
         } catch (IOException e) {
-            logger.error("Error when checking/adding metrics template to elasticsearch", e);
+            logger.error("error when checking/adding template to elasticsearch", e);
             return false;
         }
         return true;

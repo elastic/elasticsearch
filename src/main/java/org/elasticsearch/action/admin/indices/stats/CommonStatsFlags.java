@@ -30,6 +30,10 @@ import java.util.EnumSet;
 /**
  */
 public class CommonStatsFlags implements Streamable, Cloneable {
+
+    public final static CommonStatsFlags ALL = new CommonStatsFlags().all();
+    public final static CommonStatsFlags NONE = new CommonStatsFlags().clear();
+
     private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Percolate);
     private String[] types = null;
     private String[] groups = null;
@@ -69,7 +73,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     }
 
     /**
-     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
+     * Document types to return stats for. Mainly affects {@link Flag#Indexing} when
      * enabled, returning specific indexing stats for those types.
      */
     public CommonStatsFlags types(String... types) {
@@ -78,7 +82,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     }
 
     /**
-     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
+     * Document types to return stats for. Mainly affects {@link Flag#Indexing} when
      * enabled, returning specific indexing stats for those types.
      */
     public String[] types() {

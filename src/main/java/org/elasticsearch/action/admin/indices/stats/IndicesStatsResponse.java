@@ -186,16 +186,7 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
                     builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
                     for (ShardStats shardStats : indexShardStats) {
                         builder.startObject();
-
-                        builder.startObject(Fields.ROUTING)
-                                .field(Fields.STATE, shardStats.getShardRouting().state())
-                                .field(Fields.PRIMARY, shardStats.getShardRouting().primary())
-                                .field(Fields.NODE, shardStats.getShardRouting().currentNodeId())
-                                .field(Fields.RELOCATING_NODE, shardStats.getShardRouting().relocatingNodeId())
-                                .endObject();
-
-                        shardStats.getStats().toXContent(builder, params);
-
+                        shardStats.toXContent(builder, params);
                         builder.endObject();
                     }
                     builder.endArray();
@@ -213,11 +204,6 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
     static final class Fields {
         static final XContentBuilderString INDICES = new XContentBuilderString("indices");
         static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
-        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
-        static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
     }
 
     @Override

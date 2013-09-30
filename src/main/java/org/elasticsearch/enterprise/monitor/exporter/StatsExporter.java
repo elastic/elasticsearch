@@ -14,5 +14,5 @@ public interface StatsExporter<T> extends LifecycleComponent<T> {
 
     void exportNodeStats(NodeStats nodeStats);
 
-    void exportShardStats(ShardStats shardStats);
+    void exportShardStats(ShardStats[] shardStatsArray);
 }

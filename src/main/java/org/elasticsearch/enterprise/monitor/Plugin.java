@@ -22,7 +22,7 @@ public class Plugin extends AbstractPlugin {
 
     @Override
     public String name() {
-        return "Dash";
+        return "Elasticsearch enterprise - monitor";
     }
 
     @Override

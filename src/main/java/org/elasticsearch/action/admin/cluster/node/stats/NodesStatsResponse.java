@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -67,7 +66,7 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
         builder.startObject("nodes");
         for (NodeStats nodeStats : this) {
             builder.startObject(nodeStats.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
-
+            builder.field("timestamp", nodeStats.getTimestamp());
             nodeStats.toXContent(builder, params);
 
             builder.endObject();

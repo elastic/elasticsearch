@@ -37,6 +37,7 @@ public class TermsFacetBuilder extends FacetBuilder {
     private String fieldName;
     private String[] fieldsNames;
     private int size = 10;
+    private int shardSize = -1;
     private Boolean allTerms;
     private Object[] exclude;
     private String regex;
@@ -121,6 +122,11 @@ public class TermsFacetBuilder extends FacetBuilder {
      */
     public TermsFacetBuilder size(int size) {
         this.size = size;
+        return this;
+    }
+
+    public TermsFacetBuilder shardSize(int shardSize) {
+        this.shardSize = shardSize;
         return this;
     }
 
@@ -213,6 +219,12 @@ public class TermsFacetBuilder extends FacetBuilder {
             builder.field("field", fieldName);
         }
         builder.field("size", size);
+
+        // no point in sending shard size if it's not greater than size
+        if (shardSize > size) {
+            builder.field("shard_size", shardSize);
+        }
+
         if (exclude != null) {
             builder.startArray("exclude");
             for (Object ex : exclude) {

@@ -82,6 +82,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
     public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String field = null;
         int size = 10;
+        int shardSize = -1;
 
         String[] fieldsNames = null;
         ImmutableSet<BytesRef> excluded = ImmutableSet.of();
@@ -124,6 +125,8 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
+                } else if ("shard_size".equals(currentFieldName)) {
+                    shardSize = parser.intValue();
                 } else if ("all_terms".equals(currentFieldName) || "allTerms".equals(currentFieldName)) {
                     allTerms = parser.booleanValue();
                 } else if ("regex".equals(currentFieldName)) {
@@ -143,7 +146,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         }
 
         if ("_index".equals(field)) {
-            return new IndexNameFacetExecutor(context.shardTarget().index(), comparatorType, size);
+            return new IndexNameFacetExecutor(context.shardTarget().index(), comparatorType, size, shardSize);
         }
 
         if (fieldsNames != null && fieldsNames.length == 1) {
@@ -161,6 +164,11 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
         }
 
+        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
+        if (shardSize < size) {
+            shardSize = size;
+        }
+
         if (fieldsNames != null) {
 
             // in case of multi files, we only collect the fields that are mapped and facet on them.
@@ -175,10 +183,10 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                 // non of the fields is mapped
                 return new UnmappedFieldExecutor(size, comparatorType);
             }
-            return new FieldsTermsStringFacetExecutor(facetName, mappers.toArray(new FieldMapper[mappers.size()]), size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+            return new FieldsTermsStringFacetExecutor(mappers.toArray(new FieldMapper[mappers.size()]), size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
         if (field == null && fieldsNames == null && script != null) {
-            return new ScriptTermsStringFieldFacetExecutor(size, comparatorType, context, excluded, pattern, scriptLang, script, params, context.cacheRecycler());
+            return new ScriptTermsStringFieldFacetExecutor(size, shardSize, comparatorType, context, excluded, pattern, scriptLang, script, params, context.cacheRecycler());
         }
 
         FieldMapper fieldMapper = context.smartNameFieldMapper(field);
@@ -190,17 +198,17 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         if (indexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) indexFieldData;
             if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
-                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
+                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, shardSize, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
             } else {
-                return new TermsLongFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
+                return new TermsLongFacetExecutor(indexNumericFieldData, size, shardSize, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
             }
         } else {
             if (script != null || "map".equals(executionHint)) {
-                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+                return new TermsStringFacetExecutor(indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
             } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
+                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
             } else {
-                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+                return new TermsStringFacetExecutor(indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }
         }
     }

@@ -49,13 +49,15 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     final SearchScript script;
 
     private final int size;
+    private final int shardSize;
 
     final Recycler.V<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> entries;
     long missing;
 
     public TermsStatsLongFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
-                                       int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
+                                       int size, int shardSize, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
@@ -84,7 +86,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
         Object[] values = entries.v().internalValues();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
-        int limit = size;
+        int limit = shardSize;
         List<InternalTermsStatsLongFacet.LongEntry> ordered = Lists.newArrayList();
         for (int i = 0; i < limit; i++) {
             InternalTermsStatsLongFacet.LongEntry value = (InternalTermsStatsLongFacet.LongEntry) values[i];

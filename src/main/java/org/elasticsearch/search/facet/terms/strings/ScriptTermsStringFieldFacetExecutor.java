@@ -48,6 +48,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
 
     private final InternalStringTermsFacet.ComparatorType comparatorType;
     private final int size;
+    private final int shardSize;
     private final SearchScript script;
     private final Matcher matcher;
     private final ImmutableSet<BytesRef> excluded;
@@ -57,10 +58,11 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public ScriptTermsStringFieldFacetExecutor(int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
+    public ScriptTermsStringFieldFacetExecutor(int size, int shardSize, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
                                                ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params,
                                                CacheRecycler cacheRecycler) {
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
         this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
@@ -82,8 +84,8 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
             facets.release();
             return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
-            if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+            if (shardSize < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
                 for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));
@@ -95,7 +97,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                 facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
                 for (TObjectIntIterator<BytesRef> it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalStringTermsFacet.TermEntry(it.key(), it.value()));

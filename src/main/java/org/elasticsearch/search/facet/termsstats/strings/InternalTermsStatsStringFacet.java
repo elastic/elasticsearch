@@ -177,15 +177,16 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
     public Facet reduce(ReduceContext context) {
         List<Facet> facets = context.facets();
         if (facets.size() == 1) {
+            InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facets.get(0);
             if (requiredSize == 0) {
                 // we need to sort it here!
-                InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<StringEntry> entries = tsFacet.mutableList();
                     CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
-            return facets.get(0);
+            tsFacet.trimExcessEntries();
+            return tsFacet;
         }
         int missing = 0;
         Recycler.V<ExtTHashMap<Text, StringEntry>> map = context.cacheRecycler().hashMap(-1);
@@ -220,7 +221,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         } else {
             Object[] values = map.v().internalValues();
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<StringEntry> ordered = new ArrayList<StringEntry>(map.v().size());
+            List<StringEntry> ordered = new ArrayList<StringEntry>(Math.min(map.v().size(), requiredSize));
             for (int i = 0; i < requiredSize; i++) {
                 StringEntry value = (StringEntry) values[i];
                 if (value == null) {
@@ -230,6 +231,25 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             }
             map.release();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, ordered, missing);
+        }
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize == 0 || requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<StringEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
         }
     }
 

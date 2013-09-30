@@ -36,13 +36,15 @@ public class IndexNameFacetExecutor extends FacetExecutor {
     private final String indexName;
     private final InternalStringTermsFacet.ComparatorType comparatorType;
     private final int size;
+    private final int shardSize;
 
     private int count = 0;
 
-    public IndexNameFacetExecutor(String indexName, TermsFacet.ComparatorType comparatorType, int size) {
+    public IndexNameFacetExecutor(String indexName, TermsFacet.ComparatorType comparatorType, int size, int shardSize) {
         this.indexName = indexName;
         this.comparatorType = comparatorType;
         this.size = size;
+        this.shardSize = shardSize;
     }
 
     @Override

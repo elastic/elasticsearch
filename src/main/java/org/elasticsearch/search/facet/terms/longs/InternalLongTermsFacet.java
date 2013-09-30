@@ -163,7 +163,13 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     public Facet reduce(ReduceContext context) {
         List<Facet> facets = context.facets();
         if (facets.size() == 1) {
-            return facets.get(0);
+            Facet facet = facets.get(0);
+
+            // facet could be InternalStringTermsFacet representing unmapped fields
+            if (facet instanceof InternalLongTermsFacet) {
+                ((InternalLongTermsFacet) facet).trimExcessEntries();
+            }
+            return facet;
         }
 
         InternalLongTermsFacet first = null;
@@ -196,6 +202,25 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         aggregated.release();
 
         return first;
+    }
+
+    private void trimExcessEntries() {
+        if (requiredSize >= entries.size()) {
+            return;
+        }
+
+        if (entries instanceof List) {
+            entries = ((List) entries).subList(0, requiredSize);
+            return;
+        }
+
+        int i = 0;
+        for (Iterator<LongEntry> iter  = entries.iterator(); iter.hasNext();) {
+            iter.next();
+            if (i++ >= requiredSize) {
+                iter.remove();
+            }
+        }
     }
 
     static final class Fields {

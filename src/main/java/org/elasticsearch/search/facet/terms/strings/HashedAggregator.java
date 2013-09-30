@@ -100,14 +100,13 @@ public class HashedAggregator {
         public boolean shared();
     }
 
-    public static InternalFacet buildFacet(String facetName, int size, long missing, long total, TermsFacet.ComparatorType comparatorType,
+    public static InternalFacet buildFacet(String facetName, int size, int shardSize, long missing, long total, TermsFacet.ComparatorType comparatorType,
                                            HashedAggregator aggregator) {
         if (aggregator.isEmpty()) {
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(),
-                    missing, total);
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
-            if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+            if (shardSize < EntryPriorityQueue.LIMIT) {
+                EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
                 BytesRefCountIterator iter = aggregator.getIter();
                 while (iter.next() != null) {
                     ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(iter.makeSafe(), iter.count()));
@@ -120,8 +119,7 @@ public class HashedAggregator {
                 }
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(
-                        comparatorType.comparator(), size);
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
                 BytesRefCountIterator iter = aggregator.getIter();
                 while (iter.next() != null) {
                     ordered.add(new InternalStringTermsFacet.TermEntry(iter.makeSafe(), iter.count()));

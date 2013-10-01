@@ -35,7 +35,7 @@
           "description" : "Wait until the specified number of shards is active"
         },
         "wait_for_nodes": {
-          "type" : "number",
+          "type" : "string",
           "description" : "Wait until the specified number of nodes is available"
         },
         "wait_for_relocating_shards": {

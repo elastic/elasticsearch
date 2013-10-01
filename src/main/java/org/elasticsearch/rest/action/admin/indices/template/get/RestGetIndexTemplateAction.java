@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.template.get;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -60,28 +59,28 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.listenerThreaded(false);
 
+        final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
+
         client.admin().indices().getTemplates(getIndexTemplatesRequest, new ActionListener<GetIndexTemplatesResponse>() {
             @Override
             public void onResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
                 try {
                     boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
 
-                    if (!templateExists) {
-                        channel.sendResponse(new StringRestResponse(NOT_FOUND));
-                    } else {
-                        Map<String, String> paramsMap = Maps.newHashMap();
-                        paramsMap.put("reduce_mappings", "true");
-                        ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
+                    Map<String, String> paramsMap = Maps.newHashMap();
+                    paramsMap.put("reduce_mappings", "true");
+                    ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
 
-                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                        builder.startObject();
-                        for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplatesResponse.getIndexTemplates()) {
-                            IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
-                        }
-                        builder.endObject();
-
-                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    builder.startObject();
+                    for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplatesResponse.getIndexTemplates()) {
+                        IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
                     }
+                    builder.endObject();
+
+                    RestStatus restStatus = (templateExists || implicitAll) ? OK : NOT_FOUND;
+
+                    channel.sendResponse(new XContentRestResponse(request, restStatus, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -90,7 +89,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

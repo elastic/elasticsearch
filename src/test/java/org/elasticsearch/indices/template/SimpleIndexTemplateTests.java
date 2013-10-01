@@ -33,6 +33,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -40,8 +42,17 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
 
+
     @Test
     public void simpleIndexTemplateTests() throws Exception {
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
                 .setOrder(0)
@@ -49,7 +60,7 @@ public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
                         .startObject("field1").field("type", "string").field("store", "yes").endObject()
                         .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
-                .execute().actionGet();
+                .get();
 
         client().admin().indices().preparePutTemplate("template_2")
                 .setTemplate("test*")
@@ -57,24 +68,21 @@ public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "string").field("store", "no").endObject()
                         .endObject().endObject().endObject())
-                .execute().actionGet();
+                .get();
 
         // test create param
-        try {
-            client().admin().indices().preparePutTemplate("template_2")
-                    .setTemplate("test*")
-                    .setCreate(true)
-                    .setOrder(1)
-                    .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                            .startObject("field2").field("type", "string").field("store", "no").endObject()
-                            .endObject().endObject().endObject())
-                    .execute().actionGet();
-            assertThat(false, equalTo(true));
-        } catch (IndexTemplateAlreadyExistsException e) {
-            // OK
-        } catch (Exception e) {
-            assertThat(false, equalTo(true));
-        }
+        assertThrows(client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("test*")
+                .setCreate(true)
+                .setOrder(1)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .endObject().endObject().endObject())
+                , IndexTemplateAlreadyExistsException.class
+        );
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(2));
 
 
         // index something into test_index, will match on both templates
@@ -86,12 +94,8 @@ public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
                 .execute().actionGet();
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
-        }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+
+        assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2")); // this will still be loaded because of the source feature
 
@@ -107,9 +111,7 @@ public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
         if (searchResponse.getFailedShards() > 0) {
             logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
         }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
     }
@@ -137,7 +139,7 @@ public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
 
         logger.info("--> explicitly delete template_1");
         admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(1+existingTemplates));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(1 + existingTemplates));
         assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_2"), equalTo(true));
         assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_1"), equalTo(false));
 
@@ -262,12 +264,9 @@ public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
     }
 
     private void testExpectActionRequestValidationException(String... names) {
-        try {
-            client().admin().indices().prepareGetTemplates(names).execute().actionGet();
-            fail("We should have raised an ActionRequestValidationException for " + names);
-        } catch (ActionRequestValidationException e) {
-            // That's fine!
-        }
+        assertThrows(client().admin().indices().prepareGetTemplates(names),
+                ActionRequestValidationException.class,
+                "get template with " + Arrays.toString(names));
     }
 
 }

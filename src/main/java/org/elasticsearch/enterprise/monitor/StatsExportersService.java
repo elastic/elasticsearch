@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.enterprise.monitor.exporter.ESExporter;
 import org.elasticsearch.enterprise.monitor.exporter.StatsExporter;
 import org.elasticsearch.indices.IndicesService;
@@ -35,13 +36,14 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
     private Collection<StatsExporter> exporters;
 
     @Inject
-    public StatsExportersService(Settings settings, IndicesService indicesService, ClusterName clusterName, NodeService nodeService) {
+    public StatsExportersService(Settings settings, IndicesService indicesService,
+                                 NodeService nodeService, Discovery discovery) {
         super(settings);
         this.indicesService = (InternalIndicesService) indicesService;
         this.nodeService = nodeService;
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(5));
 
-        StatsExporter esExporter = new ESExporter(settings.getComponentSettings(ESExporter.class), clusterName);
+        StatsExporter esExporter = new ESExporter(settings.getComponentSettings(ESExporter.class), discovery);
         this.exporters = ImmutableSet.of(esExporter);
     }
 
@@ -77,6 +79,13 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
         @Override
         public void run() {
             while (!closed) {
+                // sleep first to allow node to complete initialization before collectiont the first start
+                try {
+                    Thread.sleep(interval.millis());
+                } catch (InterruptedException e) {
+                    // ignore, if closed, good....
+                }
+
                 // do the actual export..., go over the actual exporters list and...
                 try {
                     logger.debug("Collecting node stats");
@@ -104,12 +113,6 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
                     }
                 } catch (Throwable t) {
                     logger.error("Background thread had an uncaught exception:", t);
-                }
-
-                try {
-                    Thread.sleep(interval.millis());
-                } catch (InterruptedException e) {
-                    // ignore, if closed, good....
                 }
 
             }

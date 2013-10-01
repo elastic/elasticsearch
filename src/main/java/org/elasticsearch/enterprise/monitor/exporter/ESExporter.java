@@ -8,6 +8,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.joda.time.DateTimeZone;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,12 +26,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.node.service.NodeService;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URL;
+import java.util.Map;
 
 public class ESExporter extends AbstractLifecycleComponent<ESExporter> implements StatsExporter<ESExporter> {
 
@@ -37,21 +45,25 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
     final DateTimeFormatter indexTimeFormatter;
     final int timeout;
 
-    final ClusterName clusterName;
+    final Discovery discovery;
+    final String hostname;
 
     final ESLogger logger = ESLoggerFactory.getLogger(ESExporter.class.getName());
-
-    final ToXContent.Params xContentParams;
 
     public final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     boolean checkedForIndexTemplate = false;
 
+    final NodeStatsRenderer nodeStatsRenderer;
+    final ShardStatsRenderer shardStatsRenderer;
 
-    public ESExporter(Settings settings, ClusterName clusterName) {
+    public ESExporter(Settings settings, Discovery discovery) {
         super(settings);
 
-        this.clusterName = clusterName;
+        this.discovery = discovery;
+        InetAddress address = NetworkUtils.getLocalAddress();
+        this.hostname = address == null ? null : address.getHostName();
+
 
         hosts = settings.getAsArray("hosts", new String[]{"localhost:9200"});
         indexPrefix = settings.get("index.prefix", "es_monitor");
@@ -60,12 +72,10 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
         timeout = (int) settings.getAsTime("timeout", new TimeValue(6000)).seconds();
 
-        xContentParams = new ToXContent.MapParams(
-                ImmutableMap.of("load_average_format", "hash", "routing_format", "full"));
-
+        nodeStatsRenderer = new NodeStatsRenderer();
+        shardStatsRenderer = new ShardStatsRenderer();
 
         logger.info("ESExporter initialized. Targets: {}, index prefix [{}], index time format [{}]", hosts, indexPrefix, indexTimeFormat);
-
     }
 
     @Override
@@ -76,16 +86,19 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
     @Override
     public void exportNodeStats(NodeStats nodeStats) {
-        exportXContent("nodestats", new ToXContent[]{nodeStats}, nodeStats.getTimestamp());
+        nodeStatsRenderer.reset(nodeStats);
+        exportXContent("nodestats", nodeStatsRenderer);
     }
 
     @Override
     public void exportShardStats(ShardStats[] shardStatsArray) {
-        exportXContent("shardstats", shardStatsArray, System.currentTimeMillis());
+        shardStatsRenderer.reset(shardStatsArray);
+        exportXContent("shardstats", shardStatsRenderer);
     }
 
-    private void exportXContent(String type, ToXContent[] xContentArray, long collectionTimestamp) {
-        if (xContentArray == null || xContentArray.length == 0) {
+
+    private void exportXContent(String type, MultiXContentRenderer xContentRenderer) {
+        if (xContentRenderer.length() == 0) {
             return;
         }
 
@@ -106,7 +119,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         try {
             OutputStream os = conn.getOutputStream();
             // TODO: find a way to disable builder's substream flushing or something neat solution
-            for (ToXContent xContent : xContentArray) {
+            for (int i = 0; i < xContentRenderer.length(); i++) {
                 XContentBuilder builder = XContentFactory.smileBuilder(os);
                 builder.startObject().startObject("index")
                         .field("_index", getIndexName()).field("_type", type).endObject().endObject();
@@ -115,10 +128,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
                 builder = XContentFactory.smileBuilder(os);
                 builder.humanReadable(false);
-                builder.startObject();
-                builder.field("@timestamp", defaultDatePrinter.print(collectionTimestamp));
-                xContent.toXContent(builder, xContentParams);
-                builder.endObject();
+                xContentRenderer.render(i, builder);
                 builder.flush();
                 os.write(SmileXContent.smileXContent.streamSeparator());
 
@@ -246,5 +256,92 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             logger.error("connection had an error while reporting the error. tough life.");
         }
     }
+
+    interface MultiXContentRenderer {
+
+        int length();
+
+        void render(int index, XContentBuilder builder) throws IOException;
+    }
+
+
+    private void addNodeInfo(XContentBuilder builder) throws IOException {
+        builder.startObject("node");
+        DiscoveryNode node = discovery.localNode();
+        builder.field("id", node.id());
+        builder.field("name", node.name());
+        builder.field("transport_address", node.address());
+
+        if (hostname != null) {
+            builder.field("hostname", hostname);
+        }
+
+        if (!node.attributes().isEmpty()) {
+            builder.startObject("attributes");
+            for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                builder.field(attr.getKey(), attr.getValue());
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
+
+    class NodeStatsRenderer implements MultiXContentRenderer {
+
+        NodeStats stats;
+        ToXContent.MapParams xContentParams = new ToXContent.MapParams(
+                ImmutableMap.of("node_info_format", "none", "load_average_format", "hash"));
+
+        public void reset(NodeStats stats) {
+            this.stats = stats;
+        }
+
+        @Override
+        public int length() {
+            return 1;
+        }
+
+        @Override
+        public void render(int index, XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("@timestamp", defaultDatePrinter.print(stats.getTimestamp()));
+            addNodeInfo(builder);
+            stats.toXContent(builder, xContentParams);
+            builder.endObject();
+        }
+    }
+
+    class ShardStatsRenderer implements MultiXContentRenderer {
+
+        ShardStats[] stats;
+        long collectionTime;
+        ToXContent.Params xContentParams = ToXContent.EMPTY_PARAMS;
+
+        public void reset(ShardStats[] stats) {
+            this.stats = stats;
+            collectionTime = System.currentTimeMillis();
+        }
+
+        @Override
+        public int length() {
+            return stats == null ? 0 : stats.length;
+        }
+
+        @Override
+        public void render(int index, XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("@timestamp", defaultDatePrinter.print(collectionTime));
+            ShardRouting shardRouting = stats[index].getShardRouting();
+            builder.field("id", shardRouting.id());
+            builder.field("index", shardRouting.index());
+            builder.field("status", shardRouting.state());
+            builder.field("primary", shardRouting.primary());
+            addNodeInfo(builder);
+            stats[index].getStats().toXContent(builder, xContentParams);
+            builder.endObject();
+        }
+    }
+
 }
 

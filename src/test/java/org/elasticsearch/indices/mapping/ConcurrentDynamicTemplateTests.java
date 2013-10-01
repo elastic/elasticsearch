@@ -19,9 +19,11 @@
 
 package org.elasticsearch.indices.mapping;
 
+
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
@@ -29,10 +31,10 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
 public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
@@ -52,16 +54,21 @@ public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
         int iters = atLeast(5);
         for (int i = 0; i < iters; i++) {
             wipeIndex("test");
-            client().admin().indices().prepareCreate("test").addMapping(mappingType, mapping).execute().actionGet();
+            client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                        .put("number_of_shards", between(1,5))
+                        .put("number_of_replicas", between(0,1)).build())
+                        .addMapping(mappingType, mapping).execute().actionGet();
             ensureYellow();
-            int numDocs = atLeast(5);
+            int numDocs = atLeast(10);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<Throwable>();
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<String, Object>();
-                source.put("an_id", UUID.randomUUID().toString());
+                source.put("an_id", Strings.randomBase64UUID(getRandom()));
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test", mappingType).setSource(source).setConsistencyLevel(WriteConsistencyLevel.QUORUM).execute(new ActionListener<IndexResponse>() {
+                client().prepareIndex("test", mappingType).setSource(source).execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
                         latch.countDown();
@@ -77,8 +84,8 @@ public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
             latch.await();
             assertThat(throwable, emptyIterable());
             refresh();
-            assertEquals(numDocs, client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")).execute().actionGet().getHits().getTotalHits());
-            assertEquals(0, client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")).execute().actionGet().getHits().getTotalHits());
+            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")).get(), numDocs);
+            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")).get(), 0);
 
         }
     }

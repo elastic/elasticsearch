@@ -22,9 +22,13 @@ package org.elasticsearch.index.mapper.dynamictemplate.simple;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -36,6 +40,30 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleDynamicTemplatesTests {
+
+    @Test
+    public void testMatchTypeOnly() throws Exception {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject().startObject("person").startArray("dynamic_templates").startObject().startObject("test")
+                .field("match_mapping_type", "string")
+                .startObject("mapping").field("index", "no").endObject()
+                .endObject().endObject().endArray().endObject().endObject();
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(builder.string());
+        builder = JsonXContent.contentBuilder();
+        builder.startObject().field("_id", "1").field("s", "hello").field("l", 1).endObject();
+        docMapper.parse(builder.bytes());
+
+        DocumentFieldMappers mappers = docMapper.mappers();
+
+        assertThat(mappers.smartName("s"), Matchers.notNullValue());
+        assertThat(mappers.smartName("s").mapper().fieldType().indexed(), equalTo(false));
+
+        assertThat(mappers.smartName("l"), Matchers.notNullValue());
+        assertThat(mappers.smartName("l").mapper().fieldType().indexed(), equalTo(true));
+
+
+    }
+
 
     @Test
     public void testSimple() throws Exception {

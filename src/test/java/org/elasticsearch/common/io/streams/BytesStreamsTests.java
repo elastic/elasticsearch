@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.streams;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.junit.Test;
@@ -26,6 +27,7 @@ import org.junit.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 /**
  *
@@ -34,6 +36,7 @@ public class BytesStreamsTests {
 
     @Test
     public void testSimpleStreams() throws Exception {
+        assumeTrue(Constants.JRE_IS_64BIT);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeBoolean(false);
         out.writeByte((byte) 1);
@@ -46,7 +49,6 @@ public class BytesStreamsTests {
         out.writeDouble(2.2);
         out.writeString("hello");
         out.writeString("goodbye");
-
         BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes(), false);
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte) 1));
@@ -63,6 +65,7 @@ public class BytesStreamsTests {
 
     @Test
     public void testGrowLogic() throws Exception {
+        assumeTrue(Constants.JRE_IS_64BIT);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeBytes(new byte[BytesStreamOutput.DEFAULT_SIZE - 5]);
         assertThat(out.bufferSize(), equalTo(2048)); // remains the default

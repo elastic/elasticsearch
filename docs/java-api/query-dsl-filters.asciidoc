@@ -467,8 +467,6 @@ Note that you can ask not to cache the result using
 `NestedFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
 
 [[query-dsl-filters-caching]]
-
-[[caching]]
 === Caching
 
 By default, some filters are cached or not cached. You can have a fine

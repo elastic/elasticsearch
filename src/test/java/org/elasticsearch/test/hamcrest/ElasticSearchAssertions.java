@@ -55,7 +55,7 @@ public class ElasticSearchAssertions {
     public static void assertAcked(PutMappingRequestBuilder builder) {
         assertAcked(builder.get());
     }
-    
+
     private static void assertAcked(PutMappingResponse response) {
         assertThat("Put Mapping failed - not acked", response.isAcknowledged(), equalTo(true));
 
@@ -114,11 +114,11 @@ public class ElasticSearchAssertions {
         }
         assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs." + shardStatus, idsSet.size(), equalTo(0));
     }
-    
+
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
         assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
-        for (int i=0; i<ids.length; i++) {
+        for (int i = 0; i < ids.length; i++) {
             SearchHit hit = searchResponse.getHits().hits()[i];
             assertThat("Expected id: " + ids[i] + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
         }
@@ -200,7 +200,7 @@ public class ElasticSearchAssertions {
      */
     public static void assertSuggestion(Suggest searchSuggest, int entry, String key, int size, String... text) {
         assertSuggestionSize(searchSuggest, entry, size, key);
-        for( int i = 0; i < text.length; i++) {
+        for (int i = 0; i < text.length; i++) {
             assertSuggestion(searchSuggest, entry, i, key, text[i]);
         }
     }
@@ -232,20 +232,31 @@ public class ElasticSearchAssertions {
         assertThrows(builder.execute(), exceptionClass);
     }
 
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
+        assertThrows(builder.execute(), exceptionClass, extraInfo);
+    }
+
     public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass) {
+        assertThrows(future, exceptionClass, null);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, String extraInfo) {
         boolean fail = false;
+        extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
+        extraInfo += "expected a " + exceptionClass + " exception to be thrown";
+
         try {
             future.actionGet();
             fail = true;
 
         } catch (ElasticSearchException esException) {
-            assertThat(esException.unwrapCause(), instanceOf(exceptionClass));
+            assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));
         } catch (Throwable e) {
-            assertThat(e, instanceOf(exceptionClass));
+            assertThat(extraInfo, e, instanceOf(exceptionClass));
         }
         // has to be outside catch clause to get a proper message
         if (fail) {
-            throw new AssertionError("Expected a " + exceptionClass + " exception to be thrown");
+            throw new AssertionError(extraInfo);
         }
     }
 

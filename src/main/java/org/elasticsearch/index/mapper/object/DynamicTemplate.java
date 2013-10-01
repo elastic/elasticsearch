@@ -78,8 +78,8 @@ public class DynamicTemplate {
             }
         }
 
-        if (match == null && pathMatch == null) {
-            throw new MapperParsingException("template must have match or path_match set");
+        if (match == null && pathMatch == null && matchMappingType == null) {
+            throw new MapperParsingException("template must have match, path_match or match_mapping_type set");
         }
         if (mapping == null) {
             throw new MapperParsingException("template must have mapping set");
@@ -202,17 +202,28 @@ public class DynamicTemplate {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         DynamicTemplate that = (DynamicTemplate) o;
 
         // check if same matching, if so, replace the mapping
-        if (match != null ? !match.equals(that.match) : that.match != null) return false;
-        if (matchMappingType != null ? !matchMappingType.equals(that.matchMappingType) : that.matchMappingType != null)
+        if (match != null ? !match.equals(that.match) : that.match != null) {
             return false;
-        if (matchType != that.matchType) return false;
-        if (unmatch != null ? !unmatch.equals(that.unmatch) : that.unmatch != null) return false;
+        }
+        if (matchMappingType != null ? !matchMappingType.equals(that.matchMappingType) : that.matchMappingType != null) {
+            return false;
+        }
+        if (matchType != that.matchType) {
+            return false;
+        }
+        if (unmatch != null ? !unmatch.equals(that.unmatch) : that.unmatch != null) {
+            return false;
+        }
 
         return true;
     }

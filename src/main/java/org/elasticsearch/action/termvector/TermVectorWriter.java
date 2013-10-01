@@ -153,6 +153,8 @@ final class TermVectorWriter {
         if (payload != null) {
             output.writeVInt(payload.length);
             output.writeBytes(payload.bytes, payload.offset, payload.length);
+        } else {
+            output.writeVInt(0);
         }
     }
 

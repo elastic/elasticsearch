@@ -246,7 +246,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
                 builder.field(FieldStrings.START_OFFSET, currentStartOffset[i]);
                 builder.field(FieldStrings.END_OFFSET, currentEndOffset[i]);
             }
-            if (curTerms.hasPayloads()) {
+            if (curTerms.hasPayloads() && (currentPayloads[i] != null)) {
                 builder.field(FieldStrings.PAYLOAD, currentPayloads[i]);
             }
             builder.endObject();
@@ -266,8 +266,12 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
                 currentEndOffset[j] = posEnum.endOffset();
             }
             if (curTerms.hasPayloads()) {
-                BytesRef curPaypoad = posEnum.getPayload();
-                currentPayloads[j] = new BytesArray(curPaypoad.bytes, 0, curPaypoad.length);
+                BytesRef curPayload = posEnum.getPayload();
+                if (curPayload != null) {
+                    currentPayloads[j] = new BytesArray(curPayload.bytes, 0, curPayload.length);
+                } else {
+                    currentPayloads[j] = null;
+                }
 
             }
         }

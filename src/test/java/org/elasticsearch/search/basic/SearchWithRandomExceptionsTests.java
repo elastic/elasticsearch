@@ -116,9 +116,10 @@ public class SearchWithRandomExceptionsTests extends AbstractIntegrationTest {
             } catch (ElasticSearchException ex) {
             }
         }
+        logger.info("Start Refresh");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
-        logger.info("Refresh failed [{}]", refreshFailed);
+        logger.info("Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ", refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length, refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
 
         final int numSearches = atLeast(10);
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.

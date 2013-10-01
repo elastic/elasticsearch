@@ -1,7 +1,8 @@
 = Community Supported Clients 
 
-
 include::clients.asciidoc[]
+
+include::community_clients.asciidoc[]
 
 include::frontends.asciidoc[]
 

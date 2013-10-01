@@ -36,7 +36,8 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
 
     private String[] names;
 
-    public GetIndexTemplatesRequest() {}
+    public GetIndexTemplatesRequest() {
+    }
 
     @Deprecated
     public GetIndexTemplatesRequest(String name) {
@@ -51,7 +52,7 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (names == null || names.length == 0) {
+        if (names == null) {
             validationException = addValidationError("names is null or empty", validationException);
         } else {
             for (String name : names) {

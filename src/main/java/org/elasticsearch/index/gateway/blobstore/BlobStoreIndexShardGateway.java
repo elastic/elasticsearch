@@ -487,7 +487,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                                 position = si.position();
                                 break;
                             }
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             logger.warn("failed to retrieve translog after [{}] operations, ignoring the rest, considered corrupted", e, recoveryStatus.translog().currentTranslogOperations());
                             ignore = true;
                             latch.countDown();

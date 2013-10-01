@@ -50,6 +50,11 @@ public class RiverNodeHelper {
         }
         String river = node.attributes().get("river");
         // by default, if not set, its an river node (better OOB exp)
-        return river == null || river.contains(riverName.type()) || river.contains(riverName.name());
+        if (river == null) {
+            return true;
+        } else {
+            List<String> rivers = Arrays.asList(river.split("\\s*,\\s*"));
+            return rivers.contains(riverName.type()) || river.contains(riverName.name());
+        }
     }
 }

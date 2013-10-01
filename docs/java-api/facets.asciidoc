@@ -1,4 +1,4 @@
-[[facets]]
+[[java-facets]]
 == Facets
 
 Elasticsearch provides a full Java API to play with facets. See the
@@ -30,7 +30,7 @@ import org.elasticsearch.search.facet.FacetBuilders.*;
 === Facets
 
 
-[[terms]]
+[[java-facet-terms]]
 ==== Terms Facet
 
 Here is how you can use
@@ -76,7 +76,7 @@ for (TermsFacet.Entry entry : f) {
 --------------------------------------------------
 
 
-[[range]]
+[[java-facet-range]]
 ==== Range Facet
 
 Here is how you can use

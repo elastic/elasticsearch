@@ -286,7 +286,7 @@ QueryBuilder qb = QueryBuilders.queryString("+kimchy -elasticsearch");
 --------------------------------------------------
 
 
-[[range]]
+[[java-range]]
 === Range Query
 
 See {ref}/query-dsl-range-query.html[Range Query]
@@ -355,7 +355,7 @@ QueryBuilder qb = QueryBuilders.termQuery("name", "kimchy");
 --------------------------------------------------
 
 
-[[terms]]
+[[java-terms]]
 === Terms Query
 
 See {ref}/query-dsl-terms-query.html[Terms Query]

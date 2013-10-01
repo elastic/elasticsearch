@@ -118,7 +118,7 @@ for (MultiSearchResponse.Item item : sr.responses()) {
 --------------------------------------------------
 
 
-[[facets]]
+[[java-search-facets]]
 === Using Facets
 
 The following code shows how to add two facets within your search:
@@ -136,5 +136,5 @@ TermsFacet f1 = (TermsFacet) sr.facets().facetsAsMap().get("f1");
 DateHistogramFacet f2 = (DateHistogramFacet) sr.facets().facetsAsMap().get("f2");
 --------------------------------------------------
 
-See <<facets,Facets Java API>>
+See <<java-facets,Facets Java API>>
 documentation for details.

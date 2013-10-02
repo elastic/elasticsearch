@@ -102,11 +102,11 @@ echo Using JAVA_HOME (%ARCH%):  "%JAVA_HOME%"
 rem Check JVM server dll first
 set JVM_DLL=%JAVA_HOME%\jre\bin\server\jvm.dll
 
-if exist %JVM_DLL% goto foundJVM
+if exist "%JVM_DLL%" goto foundJVM
 
 set JVM_DLL=%JAVA_HOME%\bin\client\jvm.dll
 
-if exist %JVM_DLL% (
+if exist "%JVM_DLL%" (
 echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
 ) else (
 echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Existing...

@@ -66,7 +66,10 @@ public class ChildSearchAndIndexingBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        String clusterName = ChildSearchAndIndexingBenchmark.class.getSimpleName();
+        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1"))
+                .clusterName(clusterName)
+                .node();
         Client client = node1.client();
 
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
@@ -114,9 +117,16 @@ public class ChildSearchAndIndexingBenchmark {
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
         System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
-        new Thread(new SearchThread(client)).start();
-        new Thread(new IndexThread(client)).start();
-        Thread.sleep(Long.MAX_VALUE);
+
+        SearchThread searchThread = new SearchThread(client);
+        new Thread(searchThread).start();
+        IndexThread indexThread = new IndexThread(client);
+        new Thread(indexThread).start();
+
+        System.in.read();
+
+        indexThread.stop();
+        searchThread.stop();
         client.close();
         node1.close();
     }
@@ -132,6 +142,7 @@ public class ChildSearchAndIndexingBenchmark {
     static class IndexThread implements Runnable {
 
         private final Client client;
+        private volatile boolean run = true;
 
         IndexThread(Client client) {
             this.client = client;
@@ -139,8 +150,8 @@ public class ChildSearchAndIndexingBenchmark {
 
         @Override
         public void run() {
-            while (true) {
-                for (int i = 1; i < COUNT; i++) {
+            while (run) {
+                for (int i = 1; run && i < COUNT; i++) {
                     try {
                         client.prepareIndex(indexName, "parent", Integer.toString(i))
                                 .setSource(parentSource(Integer.toString(i), "test" + i)).execute().actionGet();
@@ -163,11 +174,16 @@ public class ChildSearchAndIndexingBenchmark {
             }
         }
 
+        public void stop() {
+            run = false;
+        }
+
     }
 
     static class SearchThread implements Runnable {
 
         private final Client client;
+        private volatile boolean run = true;
 
         SearchThread(Client client) {
             this.client = client;
@@ -175,7 +191,7 @@ public class ChildSearchAndIndexingBenchmark {
 
         @Override
         public void run() {
-            while (true) {
+            while (run) {
                 try {
                     long totalQueryTime = 0;
                     for (int j = 0; j < QUERY_COUNT; j++) {
@@ -191,7 +207,7 @@ public class ChildSearchAndIndexingBenchmark {
                             System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
                         }
                         if (searchResponse.getHits().totalHits() != COUNT) {
-                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + COUNT + "]");
+//                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + COUNT + "]");
                         }
                         totalQueryTime += searchResponse.getTookInMillis();
                     }
@@ -212,7 +228,7 @@ public class ChildSearchAndIndexingBenchmark {
                         }
                         long expected = (COUNT / BATCH) * BATCH;
                         if (searchResponse.getHits().totalHits() != expected) {
-                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + expected + "]");
+//                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + expected + "]");
                         }
                         totalQueryTime += searchResponse.getTookInMillis();
                     }
@@ -228,6 +244,11 @@ public class ChildSearchAndIndexingBenchmark {
                 }
             }
         }
+
+        public void stop() {
+            run = false;
+        }
+
     }
 
 }

@@ -59,7 +59,9 @@ public class ChildSearchBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder().clusterName("classic").settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        String clusterName = ChildSearchBenchmark.class.getSimpleName();
+        Node node1 = nodeBuilder().clusterName(clusterName)
+                .settings(settingsBuilder().put(settings).put("name", "node1")).node();
         Client client = node1.client();
 
         long COUNT = SizeValue.parseSizeValue("10m").singles();

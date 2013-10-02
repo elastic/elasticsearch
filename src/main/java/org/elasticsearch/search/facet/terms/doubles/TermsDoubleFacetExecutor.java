@@ -53,6 +53,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
+    private final int shardSize;
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
 
@@ -60,10 +61,11 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public TermsDoubleFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsDoubleFacetExecutor(IndexNumericFieldData indexFieldData, int size, int shardSize, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                     ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
+        this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
@@ -120,7 +122,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
             return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
-                EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
+                EntryPriorityQueue ordered = new EntryPriorityQueue(shardSize, comparatorType.comparator());
                 for (TDoubleIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.insertWithOverflow(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
@@ -132,7 +134,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 facets.release();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), size);
+                BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), shardSize);
                 for (TDoubleIntIterator it = facets.v().iterator(); it.hasNext(); ) {
                     it.advance();
                     ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));

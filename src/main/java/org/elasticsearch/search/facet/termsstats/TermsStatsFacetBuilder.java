@@ -36,6 +36,7 @@ public class TermsStatsFacetBuilder extends FacetBuilder {
     private String keyField;
     private String valueField;
     private int size = -1;
+    private int shardSize = -1;
     private TermsStatsFacet.ComparatorType comparatorType;
 
     private String script;
@@ -72,6 +73,16 @@ public class TermsStatsFacetBuilder extends FacetBuilder {
      */
     public TermsStatsFacetBuilder size(int size) {
         this.size = size;
+        return this;
+    }
+
+    /**
+     * Sets the number of terms that will be returned from each shard. The higher the number the more accurate the results will be. The
+     * shard size cannot be smaller than {@link #size(int) size}, therefore in this case it will fall back and be treated as being equal to
+     * size.
+     */
+    public TermsStatsFacetBuilder shardSize(int shardSize) {
+        this.shardSize = shardSize;
         return this;
     }
 
@@ -145,6 +156,9 @@ public class TermsStatsFacetBuilder extends FacetBuilder {
 
         if (size != -1) {
             builder.field("size", size);
+        }
+        if (shardSize > size) {
+            builder.field("shard_size", shardSize);
         }
 
         builder.endObject();

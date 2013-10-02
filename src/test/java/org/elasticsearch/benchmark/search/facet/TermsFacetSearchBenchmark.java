@@ -74,12 +74,17 @@ public class TermsFacetSearchBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
+        String clusterName = TermsFacetSearchBenchmark.class.getSimpleName();
         Node[] nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
+            nodes[i] = nodeBuilder().clusterName(clusterName)
+                    .settings(settingsBuilder().put(settings).put("name", "node" + i))
+                    .node();
         }
 
-        Node clientNode = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+        Node clientNode = nodeBuilder()
+                .clusterName(clusterName)
+                .settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
 
         client = clientNode.client();
 

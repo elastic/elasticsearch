@@ -125,6 +125,11 @@ public class TermsFacetBuilder extends FacetBuilder {
         return this;
     }
 
+    /**
+     * Sets the number of terms that will be returned from each shard. The higher the number the more accurate the results will be. The
+     * shard size cannot be smaller than {@link #size(int) size}, therefore in this case it will fall back and be treated as being equal to
+     * size.
+     */
     public TermsFacetBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;

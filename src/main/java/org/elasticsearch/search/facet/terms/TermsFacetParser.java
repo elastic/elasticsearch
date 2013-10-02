@@ -146,7 +146,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         }
 
         if ("_index".equals(field)) {
-            return new IndexNameFacetExecutor(context.shardTarget().index(), comparatorType, size, shardSize);
+            return new IndexNameFacetExecutor(context.shardTarget().index(), comparatorType, size);
         }
 
         if (fieldsNames != null && fieldsNames.length == 1) {

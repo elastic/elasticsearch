@@ -56,9 +56,12 @@ public class HistogramFacetSearchBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        String clusterName = HistogramFacetSearchBenchmark.class.getSimpleName();
+        Node node1 = nodeBuilder()
+                .clusterName(clusterName)
+                .settings(settingsBuilder().put(settings).put("name", "node1")).node();
 
-        //Node clientNode = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+        //Node clientNode = nodeBuilder().clusterName(clusterName).settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
 
         Client client = node1.client();
 

@@ -61,7 +61,10 @@ public class QueryFilterFacetSearchBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        String clusterName = QueryFilterFacetSearchBenchmark.class.getSimpleName();
+        Node node1 = nodeBuilder()
+                .clusterName(clusterName)
+                .settings(settingsBuilder().put(settings).put("name", "node1")).node();
         client = node1.client();
 
         long[] lValues = new long[NUMBER_OF_TERMS];

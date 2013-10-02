@@ -182,7 +182,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         @Override
         public String source() {
-            return this.source();
+            return source;
         }
 
         @Override

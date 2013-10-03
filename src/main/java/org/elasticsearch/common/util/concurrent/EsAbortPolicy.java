@@ -49,7 +49,16 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
             }
         }
         rejected.inc();
-        throw new EsRejectedExecutionException("rejected execution of [" + r.getClass().getName() + "]");
+        StringBuilder sb = new StringBuilder("rejected execution ");
+        if (executor.isShutdown()) {
+            sb.append("(shutting down) ");
+        } else {
+            if (executor.getQueue() instanceof SizeBlockingQueue) {
+                sb.append("(queue capacity ").append(((SizeBlockingQueue) executor.getQueue()).capacity()).append(") ");
+            }
+        }
+        sb.append("on ").append(r.toString());
+        throw new EsRejectedExecutionException(sb.toString());
     }
 
     @Override

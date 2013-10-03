@@ -51,7 +51,7 @@ Index templates are identified by a name (in the above case
 curl -XGET localhost:9200/_template/template_1
 --------------------------------------------------
 
-added::[0.90.4] You can also match several templates
+added[0.90.4] You can also match several templates
 by using wildcards like:
 
 [source,js]
@@ -64,7 +64,7 @@ To get list of all index templates you can use
 <<cluster-state,Cluster State>> API
 and check for the metadata/templates section of the response.
 
-added::[0.90.4] Or run:
+added[0.90.4] Or run:
 
 [source,js]
 --------------------------------------------------

@@ -91,5 +91,6 @@ public class HandlesStreamInput extends AdapterStreamInput {
 
     public void cleanHandles() {
         handles.clear();
+        handlesText.clear();
     }
 }

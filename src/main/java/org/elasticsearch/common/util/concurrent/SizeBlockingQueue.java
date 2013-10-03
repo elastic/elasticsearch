@@ -51,6 +51,10 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
         return size.get();
     }
 
+    public int capacity() {
+        return this.capacity;
+    }
+
     @Override
     public Iterator<E> iterator() {
         final Iterator<E> it = queue.iterator();

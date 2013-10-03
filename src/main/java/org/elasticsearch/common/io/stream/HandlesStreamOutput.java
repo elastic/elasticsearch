@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -36,9 +35,9 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     // a threshold above which strings will use identity check
     private final int identityThreshold;
 
-    private TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+    private ObjectIntOpenHashMap<String> handles = new ObjectIntOpenHashMap<String>();
     private HandleTable identityHandles = new HandleTable(10, (float) 3.00);
-    private TObjectIntHashMap<Text> handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+    private ObjectIntOpenHashMap<Text> handlesText = new ObjectIntOpenHashMap<Text>();
 
     public HandlesStreamOutput(StreamOutput out) {
         this(out, DEFAULT_IDENTITY_THRESHOLD);
@@ -52,16 +51,15 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     @Override
     public void writeString(String s) throws IOException {
         if (s.length() < identityThreshold) {
-            int handle = handles.get(s);
-            if (handle == -1) {
-                handle = handles.size();
+            if (!handles.containsKey(s)) {
+                int handle = handles.size();
                 handles.put(s, handle);
                 out.writeByte((byte) 0);
                 out.writeVInt(handle);
                 out.writeString(s);
             } else {
                 out.writeByte((byte) 1);
-                out.writeVInt(handle);
+                out.writeVInt(handles.lget());
             }
         } else {
             int handle = identityHandles.lookup(s);
@@ -86,16 +84,15 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
             length = text.string().length();
         }
         if (length < identityThreshold) {
-            int handle = handlesText.get(text);
-            if (handle == -1) {
-                handle = handlesText.size();
+            if (!handlesText.containsKey(text)) {
+                int handle = handlesText.size();
                 handlesText.put(text, handle);
                 out.writeByte((byte) 0);
                 out.writeVInt(handle);
                 out.writeText(text);
             } else {
                 out.writeByte((byte) 1);
-                out.writeVInt(handle);
+                out.writeVInt(handlesText.lget());
             }
         } else {
             out.writeByte((byte) 2);
@@ -112,21 +109,13 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     }
 
     public void clear() {
-        if (handles.capacity() > 10000) {
-            handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-        } else {
-            handles.clear();
-        }
+        handles.clear();
         if (identityHandles.capacity() > 10000) {
             identityHandles = new HandleTable(10, (float) 3.00);
         } else {
             identityHandles.clear();
         }
-        if (handlesText.capacity() > 10000) {
-            handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-        } else {
-            handlesText.clear();
-        }
+        handlesText.clear();
     }
 
     /**

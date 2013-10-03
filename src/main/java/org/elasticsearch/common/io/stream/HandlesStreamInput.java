@@ -29,10 +29,10 @@ import java.io.IOException;
  */
 public class HandlesStreamInput extends AdapterStreamInput {
 
-    private final IntObjectOpenHashMap<String> handles = new IntObjectOpenHashMap<String>();
-    private final IntObjectOpenHashMap<Text> handlesText = new IntObjectOpenHashMap<Text>();
+    private IntObjectOpenHashMap<String> handles = new IntObjectOpenHashMap<String>();
+    private IntObjectOpenHashMap<String> identityHandles = new IntObjectOpenHashMap<String>();
 
-    private TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
+    private IntObjectOpenHashMap<Text> handlesText = new IntObjectOpenHashMap<Text>();
 
     HandlesStreamInput() {
         super();
@@ -95,20 +95,7 @@ public class HandlesStreamInput extends AdapterStreamInput {
     }
 
     public void cleanHandles() {
-        if (handles.capacity() > 10000) {
-            handles = new TIntObjectHashMap<String>();
-        } else {
-            handles.clear();
-        }
-        if (identityHandles.capacity() > 10000) {
-            identityHandles = new TIntObjectHashMap<String>();
-        } else {
-            identityHandles.clear();
-        }
-        if (handlesText.capacity() > 10000) {
-            handlesText = new TIntObjectHashMap<Text>();
-        } else {
-            handlesText.clear();
-        }
+        handles.clear();
+        handlesText.clear();
     }
 }

@@ -38,6 +38,10 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.hamcrest.Matchers;
@@ -253,6 +257,36 @@ public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
             assertThat(request.routing(), equalTo(parent));
 
         }
-
     }
+    
+    @Test
+    public void testFieldTypeToTermVectorString() throws Exception {
+        FieldType ft = new FieldType();
+        ft.setStoreTermVectorOffsets(false);
+        ft.setStoreTermVectorPayloads(true);
+        ft.setStoreTermVectors(true);
+        ft.setStoreTermVectorPositions(true);
+        String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
+        assertThat("with_positions_payloads", equalTo(ftOpts));
+        AllFieldMapper.Builder builder = new AllFieldMapper.Builder();
+        boolean exceptiontrown = false;
+        try {
+            TypeParsers.parseTermVector("", ftOpts, builder);
+        } catch (MapperParsingException e) {
+            exceptiontrown = true;
+        }
+        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.", exceptiontrown, equalTo(false));
+    }
+
+    @Test
+    public void testTermVectorStringGenerationWithoutPositions() throws Exception {
+        FieldType ft = new FieldType();
+        ft.setStoreTermVectorOffsets(true);
+        ft.setStoreTermVectorPayloads(true);
+        ft.setStoreTermVectors(true);
+        ft.setStoreTermVectorPositions(false);
+        String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
+        assertThat(ftOpts, equalTo("with_offsets"));
+    }
+    
 }

@@ -26,6 +26,9 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class FieldDataType {
 
+    public static final String LOADING = "loading";
+    public static final String EAGER_LOADING = "eager";
+
     private final String type;
     private final Settings settings;
 

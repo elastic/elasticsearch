@@ -35,7 +35,7 @@ public interface IndicesWarmer {
             return ThreadPool.Names.WARMER;
         }
 
-        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
+        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
     }
 
     public static class WarmerContext {

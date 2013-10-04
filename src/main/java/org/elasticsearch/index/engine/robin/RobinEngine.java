@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine.robin;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
@@ -1313,6 +1314,26 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
              * in combination with the default writelock timeout*/
             config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
+            // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
+            // of the merge operation and won't slow down _refresh
+            config.setMergedSegmentWarmer(new IndexReaderWarmer() {
+                @Override
+                public void warm(AtomicReader reader) throws IOException {
+                    try {
+                        final Map<String, String> diagnostics = ((SegmentReader) reader).getSegmentInfo().info.getDiagnostics();
+                        final String source = diagnostics.get(IndexWriter.SOURCE);
+                        assert IndexWriter.SOURCE_MERGE.equals(source) : "Got a non-merged segment! " + source;
+                        final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
+                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher, searcher);
+                        warmer.warm(context);
+                    } catch (Throwable t) {
+                        // Don't fail a merge if the warm-up failed
+                        if (!closed) {
+                            logger.warn("Warm-up failed", t);
+                        }
+                    }
+                }
+            });
             return new IndexWriter(store.directory(), config);
         } catch (LockObtainFailedException ex) {
             boolean isLocked = IndexWriter.isLocked(store.directory());
@@ -1485,6 +1506,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // figure out the newSearcher, with only the new readers that are relevant for us
                         List<IndexReader> readers = Lists.newArrayList();
                         for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
+                            final Map<String, String> diagnostics = ((SegmentReader) newReaderContext.reader()).getSegmentInfo().info.getDiagnostics();
+                            final String source = diagnostics.get(IndexWriter.SOURCE);
+                            assert source != null;
+                            if (source.equals(IndexWriter.SOURCE_MERGE)) {
+                                // SOURCE_MERGE is already handled by IndexWriterConfig.setMergedSegmentWarmer
+                                continue;
+                            }
+                            assert IndexWriter.SOURCE_FLUSH.equals(source) || IndexWriter.SOURCE_ADDINDEXES_READERS.equals(source) : "Unknown source: " + source;
                             boolean found = false;
                             for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
                                 if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {

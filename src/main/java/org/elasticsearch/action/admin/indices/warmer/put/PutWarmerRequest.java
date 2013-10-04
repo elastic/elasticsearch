@@ -19,26 +19,34 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to put a search warmer.
  */
-public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerRequest> {
+public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerRequest>
+        implements AcknowledgedRequest<PutWarmerRequest> {
 
     private String name;
 
     private SearchRequest searchRequest;
+
+    private TimeValue timeout = timeValueSeconds(10);
 
     PutWarmerRequest() {
 
@@ -87,6 +95,22 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
     }
 
     @Override
+    public PutWarmerRequest timeout(String timeout) {
+        return this;
+    }
+
+    @Override
+    public PutWarmerRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    @Override
+    public TimeValue timeout() {
+        return timeout;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = searchRequest.validate();
         if (name == null) {
@@ -103,6 +127,9 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
             searchRequest = new SearchRequest();
             searchRequest.readFrom(in);
         }
+        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+            timeout = readTimeValue(in);
+        }
     }
 
     @Override
@@ -114,6 +141,9 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
         } else {
             out.writeBoolean(true);
             searchRequest.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+            timeout.writeTo(out);
         }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +29,7 @@ import java.io.IOException;
 /**
  * The response of put warmer operation.
  */
-public class PutWarmerResponse extends ActionResponse {
+public class PutWarmerResponse extends ActionResponse implements AcknowledgedResponse {
 
     private boolean acknowledged;
 

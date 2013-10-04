@@ -15,11 +15,11 @@ the `_name` value). For example:
         "filter" : {
             "nested" : {
                 "path" : "obj1",
-                "query" : {
+                "filter" : {
                     "bool" : {
                         "must" : [
                             {
-                                "match" : {"obj1.name" : "blue"}
+                                "term" : {"obj1.name" : "blue"}
                             },
                             {
                                 "range" : {"obj1.count" : {"gt" : 5}}

@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.warmer;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
@@ -126,7 +127,8 @@ public class LocalGatewayIndicesWarmerTests extends AbstractIntegrationTest {
 
 
         logger.info("--> delete warmer warmer_1");
-        client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
+        assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> verify warmers (delete) are registered in cluster state");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();

@@ -25,6 +25,29 @@ example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
 
 [float]
+=== Fielddata loading
+
+By default, field data is loaded lazily, on the first time that a query that
+requires field data is fired. However, this can make the first requests that
+follow a merge operation quite slow since fielddata loading is a heavy
+operation.
+
+It is possible to force field data to be loaded and cached eagerly through the
+`loading` setting of fielddata:
+
+[source,js]
+--------------------------------------------------
+{
+    category: {
+        type:      "string",
+        fielddata: {
+            loading: "eager"
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
 [[field-data-filtering]]
 === Filtering fielddata
 

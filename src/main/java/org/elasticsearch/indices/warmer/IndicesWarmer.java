@@ -35,19 +35,17 @@ public interface IndicesWarmer {
             return ThreadPool.Names.WARMER;
         }
 
-        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
+        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
     }
 
     public static class WarmerContext {
 
         private final ShardId shardId;
 
-        private final Engine.Searcher fullSearcher;
         private final Engine.Searcher newSearcher;
 
-        public WarmerContext(ShardId shardId, Engine.Searcher fullSearcher, Engine.Searcher newSearcher) {
+        public WarmerContext(ShardId shardId, Engine.Searcher newSearcher) {
             this.shardId = shardId;
-            this.fullSearcher = fullSearcher;
             this.newSearcher = newSearcher;
         }
 
@@ -55,10 +53,7 @@ public interface IndicesWarmer {
             return shardId;
         }
 
-        public Engine.Searcher fullSearcher() {
-            return fullSearcher;
-        }
-
+        /** Return a searcher instance that only wraps the segments to warm. */
         public Engine.Searcher newSearcher() {
             return newSearcher;
         }

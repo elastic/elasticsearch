@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine.robin;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
@@ -1283,6 +1284,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
+    /** Returns whether a leaf reader comes from a merge (versus flush or addIndexes). */
+    private static boolean isMergedSegment(AtomicReader reader) {
+        // We expect leaves to be segment readers
+        final Map<String, String> diagnostics = ((SegmentReader) reader).getSegmentInfo().info.getDiagnostics();
+        final String source = diagnostics.get(IndexWriter.SOURCE);
+        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH, IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
+        return IndexWriter.SOURCE_MERGE.equals(source);
+    }
+
     private IndexWriter createWriter() throws IOException {
         try {
             // release locks when started
@@ -1313,6 +1323,28 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
              * in combination with the default writelock timeout*/
             config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
+            // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
+            // of the merge operation and won't slow down _refresh
+            config.setMergedSegmentWarmer(new IndexReaderWarmer() {
+                @Override
+                public void warm(AtomicReader reader) throws IOException {
+                    try {
+                        assert isMergedSegment(reader);
+                        final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
+                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
+                        warmer.warm(context);
+                    } catch (Throwable t) {
+                        // Don't fail a merge if the warm-up failed
+                        if (!closed) {
+                            logger.warn("Warm-up failed", t);
+                        }
+                        if (t instanceof Error) {
+                            // assertion/out-of-memory error, don't ignore those
+                            throw (Error) t;
+                        }
+                    }
+                }
+            });
             return new IndexWriter(store.directory(), config);
         } catch (LockObtainFailedException ex) {
             boolean isLocked = IndexWriter.isLocked(store.directory());
@@ -1485,6 +1517,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // figure out the newSearcher, with only the new readers that are relevant for us
                         List<IndexReader> readers = Lists.newArrayList();
                         for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
+                            if (isMergedSegment(newReaderContext.reader())) {
+                                // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
+                                continue;
+                            }
                             boolean found = false;
                             for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
                                 if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
@@ -1505,7 +1541,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                     if (newSearcher != null) {
                         IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
-                                new SimpleSearcher("warmer", searcher),
                                 new SimpleSearcher("warmer", newSearcher));
                         warmer.warm(context);
                     }

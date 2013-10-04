@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
@@ -60,6 +61,23 @@ public class PutWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<P
      */
     public PutWarmerRequestBuilder setSearchRequest(SearchRequestBuilder searchRequest) {
         request.searchRequest(searchRequest);
+        return this;
+    }
+
+    /**
+     * Sets the maximum wait for acknowledgement from other nodes
+     */
+    public PutWarmerRequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
+    public PutWarmerRequestBuilder setTimeout(String timeout) {
+        request.timeout(timeout);
         return this;
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.warmer;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
@@ -58,12 +59,14 @@ public class LocalGatewayIndicesWarmerTests extends AbstractIntegrationTest {
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client().admin().indices().preparePutWarmer("warmer_1")
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
                 .execute().actionGet();
-        client().admin().indices().preparePutWarmer("warmer_2")
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+        putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_2")
                 .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2")))
                 .execute().actionGet();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> put template with warmer");
         client().admin().indices().preparePutTemplate("template_1")

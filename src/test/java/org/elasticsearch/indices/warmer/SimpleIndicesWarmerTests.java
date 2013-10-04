@@ -19,8 +19,11 @@
 
 package org.elasticsearch.indices.warmer;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -29,6 +32,8 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -45,12 +50,14 @@ public class SimpleIndicesWarmerTests extends AbstractIntegrationTest {
                 .execute().actionGet();
         ensureGreen();
 
-        client().admin().indices().preparePutWarmer("warmer_1")
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.termQuery("field", "value1")))
                 .execute().actionGet();
-        client().admin().indices().preparePutWarmer("warmer_2")
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+        putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_2")
                 .setSearchRequest(client().prepareSearch("test").setTypes("a2").setQuery(QueryBuilders.termQuery("field", "value2")))
                 .execute().actionGet();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
@@ -172,9 +179,10 @@ public class SimpleIndicesWarmerTests extends AbstractIntegrationTest {
                 .execute().actionGet();
         ensureGreen();
 
-        client().admin().indices().preparePutWarmer("custom_warmer")
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
 
         client().prepareIndex("test", "test", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
 
@@ -192,5 +200,25 @@ public class SimpleIndicesWarmerTests extends AbstractIntegrationTest {
     private long getWarmerRuns() {
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setWarmer(true).execute().actionGet();
         return indicesStatsResponse.getIndex("test").getPrimaries().warmer.total();
+    }
+
+    @Test
+    public void testPutWarmerAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+            assertThat(getWarmersResponse.warmers().size(), equalTo(1));
+            Map.Entry<String,ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().entrySet().iterator().next();
+            assertThat(entry.getKey(), equalTo("test"));
+            assertThat(entry.getValue().size(), equalTo(1));
+            assertThat(entry.getValue().get(0).name(), equalTo("custom_warmer"));
+        }
     }
 }

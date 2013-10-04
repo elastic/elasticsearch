@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
@@ -44,6 +45,23 @@ public class DeleteWarmerRequestBuilder extends MasterNodeOperationRequestBuilde
      */
     public DeleteWarmerRequestBuilder setName(String name) {
         request.name(name);
+        return this;
+    }
+
+    /**
+     * Sets the maximum wait for acknowledgement from other nodes
+     */
+    public DeleteWarmerRequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
+    public DeleteWarmerRequestBuilder setTimeout(String timeout) {
+        request.timeout(timeout);
         return this;
     }
 

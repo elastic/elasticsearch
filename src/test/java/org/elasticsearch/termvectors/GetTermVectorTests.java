@@ -30,10 +30,7 @@ import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.TypeParsers;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -379,36 +376,4 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             }
         }
     }
-
-    @Test
-    public void testFieldTypeToTermVectorString() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(false);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(true);
-        String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
-        assertThat("with_positions_payloads", equalTo(ftOpts));
-        AllFieldMapper.Builder builder = new AllFieldMapper.Builder();
-        boolean excptiontrown = false;
-        try {
-            TypeParsers.parseTermVector("", ftOpts, builder);
-        } catch (MapperParsingException e) {
-            excptiontrown = true;
-        }
-        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.", excptiontrown, equalTo(false));
-
-    }
-
-    @Test
-    public void testTermVectorStringGenerationIllegalState() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(true);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(false);
-        String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
-        assertThat(ftOpts, equalTo("with_offsets"));
-    }
-
 }

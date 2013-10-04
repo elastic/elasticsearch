@@ -50,6 +50,7 @@ import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -66,6 +67,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
@@ -116,6 +118,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardPercolateService shardPercolateService;
     private final CodecService codecService;
     private final ShardTermVectorService termVectorService;
+    private final IndexFieldDataService indexFieldDataService;
+    private final IndexService indexService;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -141,7 +145,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData,
                               PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService) {
+                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -164,6 +168,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.shardFieldData = shardFieldData;
         this.percolatorQueriesRegistry = percolatorQueriesRegistry;
         this.shardPercolateService = shardPercolateService;
+        this.indexFieldDataService = indexFieldDataService;
+        this.indexService = indexService;
         this.codecService = codecService;
         state = IndexShardState.CREATED;
 
@@ -207,6 +213,20 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return termVectorService;
     }
 
+    @Override
+    public IndexFieldDataService indexFieldDataService() {
+        return indexFieldDataService;
+    }
+
+    @Override
+    public MapperService mapperService() {
+        return mapperService;
+    }
+
+    @Override
+    public IndexService indexService() {
+        return indexService;
+    }
 
     @Override
     public ShardSearchService searchService() {

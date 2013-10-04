@@ -345,12 +345,22 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").execute().actionGet();
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        // No _parent field yet, there shouldn't be anything in the parent id cache
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices()
+                .prepareStats("test").setIdCache(true).execute().actionGet();
+        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+
+        // Now add mapping + children
         client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
 
         // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
         client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
         client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
         client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
@@ -359,9 +369,10 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices()
+        indicesStatsResponse = client().admin().indices()
                 .prepareStats("test").setIdCache(true).execute().actionGet();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+        // automatic warm-up has populated the cache since it found a parent field mapper
+        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))

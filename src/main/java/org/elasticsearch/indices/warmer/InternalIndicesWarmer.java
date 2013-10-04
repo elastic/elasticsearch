@@ -31,7 +31,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -83,29 +82,12 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
             return;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] warming [{}], new [{}]", context.shardId().index().name(), context.shardId().id(), context.fullSearcher().reader(), context.newSearcher().reader());
+            logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
         for (final Listener listener : listeners) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            threadPool.executor(listener.executor()).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        listener.warm(indexShard, indexMetaData, context);
-                    } catch (Throwable e) {
-                        indexShard.warmerService().logger().warn("failed to warm [{}]", e, listener);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            });
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                return;
-            }
+            listener.warm(indexShard, indexMetaData, context, threadPool);
         }
         long took = System.nanoTime() - time;
         indexShard.warmerService().onPostWarm(took);

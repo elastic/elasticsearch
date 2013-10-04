@@ -30,12 +30,14 @@ import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
@@ -44,6 +46,7 @@ import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -105,6 +108,12 @@ public interface IndexShard extends IndexShardComponent {
     ShardPercolateService shardPercolateService();
 
     ShardTermVectorService termVectorService();
+
+    MapperService mapperService();
+
+    IndexFieldDataService indexFieldDataService();
+
+    IndexService indexService();
 
     IndexShardState state();
 

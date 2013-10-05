@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +51,11 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version, ignoreCase);
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.LUCENE_30));
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
+        if (!enablePositionIncrements && version.onOrAfter(Version.LUCENE_44)) {
+            throw new ElasticSearchIllegalArgumentException("[enable_position_increments: false] is not supported anymore as of Lucene 4.4 as it can create broken token streams."
+                    + " Please fix your analysis chain or use an older compatibility version (<=4.3) but beware that it might cause unexpected behavior.");
+        }
     }
 
     @Override

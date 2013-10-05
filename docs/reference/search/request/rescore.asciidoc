@@ -42,7 +42,7 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
    "query" : {
       "match" : {
          "field1" : {
-            "operator" : "OR",
+            "operator" : "or",
             "query" : "the quick brown",
             "type" : "boolean"
          }

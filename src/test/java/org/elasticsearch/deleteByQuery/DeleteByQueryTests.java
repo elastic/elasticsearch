@@ -30,6 +30,7 @@ import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -37,7 +38,7 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testDeleteAllNoIndices() {
-                client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
@@ -98,7 +99,7 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testFailure() throws Exception {
-                client().admin().indices().prepareCreate("twitter").execute().actionGet();
+        client().admin().indices().prepareCreate("twitter").execute().actionGet();
 
         DeleteByQueryResponse response = client().prepareDeleteByQuery("twitter")
                 .setQuery(QueryBuilders.hasChildQuery("type", QueryBuilders.matchAllQuery()))
@@ -107,6 +108,26 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
         assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(response.getIndex("twitter").getSuccessfulShards(), equalTo(0));
         assertThat(response.getIndex("twitter").getFailedShards(), equalTo(5));
+    }
+    
+    @Test
+    public void testDeleteByFieldQuery() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        int numDocs = atLeast(10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "test", Integer.toString(i))
+            .setRouting(randomAsciiOfLengthBetween(1,5))
+            .setSource("foo", "bar").get();
+        }
+        refresh();
+        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.fieldQuery("_id",Integer.toString(between(0,numDocs-1)))).get(), 1);
+        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs);
+        client().prepareDeleteByQuery("test")
+                .setQuery(QueryBuilders.fieldQuery("_id", Integer.toString(between(0,numDocs-1))))
+                .execute().actionGet();
+        refresh();
+        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs-1);
+
     }
 
 }

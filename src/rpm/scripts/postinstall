@@ -35,7 +35,6 @@ if [ $1 -eq 1 ] ; then
         /sbin/chkconfig --add elasticsearch
     fi
 
-	startElasticsearch
 elif [ $1 -ge 2 -a "$RESTART_ON_UPGRADE" == "true" ] ; then
 	stopElasticsearch
 	startElasticsearch

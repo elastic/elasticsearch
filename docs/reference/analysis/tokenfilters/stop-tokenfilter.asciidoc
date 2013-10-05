@@ -18,9 +18,6 @@ absolute) to a stopwords file configuration. Each stop word should be in
 its own "line" (separated by a line break). The file must be UTF-8
 encoded.
 
-|`enable_position_increments` |Set to `true` if token positions should
-record the removed stop words, `false` otherwise. Defaults to `true`.
-
 |`ignore_case` |Set to `true` to lower case all words first. Defaults to
 `false`.
 |=======================================================================

@@ -46,6 +46,7 @@ import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -111,6 +112,8 @@ public interface IndexShard extends IndexShardComponent {
     MapperService mapperService();
 
     IndexFieldDataService indexFieldDataService();
+
+    IndexService indexService();
 
     IndexShardState state();
 

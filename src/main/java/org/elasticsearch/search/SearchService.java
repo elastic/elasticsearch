@@ -48,6 +48,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -655,11 +656,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public void warm(final IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+        public void warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<String, FieldMapper<?>>();
+            boolean parentChild = false;
             for (DocumentMapper docMapper : mapperService) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                    if (fieldMapper instanceof ParentFieldMapper) {
+                        parentChild = true;
+                    }
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -676,7 +681,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final CountDownLatch latch = new CountDownLatch(warmUp.size() * context.newSearcher().reader().leaves().size());
+            final int numTasks = warmUp.size() * context.newSearcher().reader().leaves().size() + (parentChild ? 1 : 0);
+            final CountDownLatch latch = new CountDownLatch(numTasks);
             for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
                     threadPool.executor(executor()).execute(new Runnable() {
@@ -689,6 +695,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
                                     indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldMapper.names().name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
+                            } catch (Throwable t) {
+                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldMapper.names().name());
                             } finally {
                                 latch.countDown();
                             }
@@ -696,6 +704,27 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
                     });
                 }
+            }
+
+            if (parentChild) {
+                threadPool.executor(executor()).execute(new Runnable() {
+
+                    @Override
+                    public void run() {
+                        try {
+                            final long start = System.nanoTime();
+                            indexShard.indexService().cache().idCache().refresh(context.newSearcher().reader().leaves());
+                            if (indexShard.warmerService().logger().isTraceEnabled()) {
+                                indexShard.warmerService().logger().trace("warmed id_cache, took [{}]", TimeValue.timeValueNanos(System.nanoTime() - start));
+                            }
+                        } catch (Throwable t) {
+                            indexShard.warmerService().logger().warn("failed to warm-up id cache", t);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+
+                });
             }
 
             try {

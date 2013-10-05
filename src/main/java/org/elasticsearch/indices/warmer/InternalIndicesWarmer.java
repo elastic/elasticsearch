@@ -82,7 +82,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
             return;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] warming [{}], new [{}]", context.shardId().index().name(), context.shardId().id(), context.fullSearcher().reader(), context.newSearcher().reader());
+            logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();

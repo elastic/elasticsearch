@@ -72,6 +72,32 @@ Folding of unicode characters based on `UTR#30`. It registers itself under `icu_
         }
     }
 
+ICU Filtering
+-------------
+
+The folding can be filtered by a set of unicode characters with the parameter `unicodeSetFilter`. This is useful for a non-internationalized search engine where retaining a set of national characters which are primary letters in a specific language is wanted. See syntax for the UnicodeSet "here":http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html.
+
+The Following example exempts Swedish characters from the folding. Note that the filtered characters are NOT lowercased which is why we add that filter below.
+
+    {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "folding" : {
+                        "tokenizer" : "standard",
+                        "filter" : ["my_icu_folding", "lowercase"]
+                    }
+                }
+                "filter" : {
+                    "my_icu_folding" : {
+                        "type" : "icu_folding"
+                        "unicodeSetFilter" : "[^åäöÅÄÖ]"
+                    }
+                }
+            }
+        }
+    }
+
 ICU Collation
 -------------
 

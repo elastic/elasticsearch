@@ -1,7 +1,7 @@
 [[river]]
 = Rivers
 
-== Intro 
+== Intro
 
 A river is a pluggable service running within elasticsearch cluster
 pulling data (or being pushed with data) that is then indexed into the
@@ -49,7 +49,7 @@ curl -XDELETE 'localhost:9200/_river/my_river/'
 == Cluster Allocation
 
 Rivers are singletons within the cluster. They get allocated
-automatically to one of the nodes and run. If that node fails, an river
+automatically to one of the nodes and run. If that node fails, a river
 will be automatically allocated to another node.
 
 River allocation on nodes can be controlled on each node. The

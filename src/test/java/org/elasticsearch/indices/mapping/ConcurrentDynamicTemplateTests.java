@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
@@ -42,6 +43,7 @@ public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
     private final String mappingType = "test-mapping";
 
     @Test // see #3544
+    @AwaitsFix(bugUrl="Boaz is looking into this test")
     public void testConcurrentDynamicMapping() throws Exception {
         final String mapping = "{" + mappingType + ": {" + "\"properties\": {" + "\"an_id\": {"
                 + "\"type\": \"string\"," + "\"store\": \"yes\"," + "\"index\": \"not_analyzed\"" + "}" + "}," + "\"dynamic_templates\": ["

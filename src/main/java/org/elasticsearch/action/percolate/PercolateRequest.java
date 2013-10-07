@@ -22,7 +22,6 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -95,12 +94,10 @@ public class PercolateRequest extends SingleCustomOperationRequest<PercolateRequ
         return source;
     }
 
-    @Required
     public PercolateRequest source(Map source) throws ElasticSearchGenerationException {
         return source(source, XContentType.SMILE);
     }
 
-    @Required
     public PercolateRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -111,14 +108,12 @@ public class PercolateRequest extends SingleCustomOperationRequest<PercolateRequ
         }
     }
 
-    @Required
     public PercolateRequest source(String source) {
         this.source = new BytesArray(source);
         this.sourceUnsafe = false;
         return this;
     }
 
-    @Required
     public PercolateRequest source(XContentBuilder sourceBuilder) {
         source = sourceBuilder.bytes();
         sourceUnsafe = false;
@@ -129,17 +124,14 @@ public class PercolateRequest extends SingleCustomOperationRequest<PercolateRequ
         return source(source, 0, source.length);
     }
 
-    @Required
     public PercolateRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
     }
 
-    @Required
     public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
         return source(new BytesArray(source, offset, length), unsafe);
     }
 
-    @Required
     public PercolateRequest source(BytesReference source, boolean unsafe) {
         this.source = source;
         this.sourceUnsafe = unsafe;

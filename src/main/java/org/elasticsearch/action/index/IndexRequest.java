@@ -31,7 +31,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -208,7 +207,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     /**
      * Sets the type of the indexed document.
      */
-    @Required
     public IndexRequest type(String type) {
         this.type = type;
         return this;
@@ -322,7 +320,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      *
      * @param source The map to index
      */
-    @Required
     public IndexRequest source(Map source) throws ElasticSearchGenerationException {
         return source(source, contentType);
     }
@@ -332,7 +329,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      *
      * @param source The map to index
      */
-    @Required
     public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -349,7 +345,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
-    @Required
     public IndexRequest source(String source) {
         this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
         this.sourceUnsafe = false;
@@ -359,14 +354,12 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     /**
      * Sets the content source to index.
      */
-    @Required
     public IndexRequest source(XContentBuilder sourceBuilder) {
         source = sourceBuilder.bytes();
         sourceUnsafe = false;
         return this;
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -377,7 +370,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1, String field2, Object value2) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -388,7 +380,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -399,7 +390,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
     }
 
-    @Required
     public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -410,7 +400,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
     }
 
-    @Required
     public IndexRequest source(Object... source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -449,7 +438,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * @param offset The offset in the byte array
      * @param length The length of the data
      */
-    @Required
     public IndexRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
     }
@@ -462,7 +450,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * @param length The length of the data
      * @param unsafe Is the byte array safe to be used form a different thread
      */
-    @Required
     public IndexRequest source(byte[] source, int offset, int length, boolean unsafe) {
         this.source = new BytesArray(source, offset, length);
         this.sourceUnsafe = unsafe;

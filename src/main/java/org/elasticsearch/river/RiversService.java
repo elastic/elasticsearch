@@ -25,13 +25,11 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -54,6 +52,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
 /**
  *
@@ -278,7 +278,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                         // this might happen if the state of the river index has not been propagated yet to this node, which
                         // should happen pretty fast since we managed to get the _meta in the RiversRouter
                         Throwable failure = ExceptionsHelper.unwrapCause(e);
-                        if ((failure instanceof NoShardAvailableActionException) || (failure instanceof ClusterBlockException) || (failure instanceof IndexMissingException)) {
+                        if (isShardNotAvailableException(failure)) {
                             logger.debug("failed to get _meta from [{}]/[{}], retrying...", e, routing.riverName().type(), routing.riverName().name());
                             final ActionListener<GetResponse> listener = this;
                             threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {

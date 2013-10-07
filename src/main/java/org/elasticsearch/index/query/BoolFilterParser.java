@@ -131,6 +131,7 @@ public class BoolFilterParser implements FilterParser {
         }
 
         if (boolFilter.clauses().isEmpty()) {
+            // no filters provided, it should be ignored upstream
             return null;
         }
 

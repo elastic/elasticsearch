@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.filter;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedFilter;
@@ -59,9 +60,6 @@ public class FilterFacetParser extends AbstractComponent implements FacetParser 
     @Override
     public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
-        if (parsedFilter == null) {
-            parsedFilter = ParsedFilter.EMPTY;
-        }
-        return new FilterFacetExecutor(parsedFilter.filter());
+        return new FilterFacetExecutor(parsedFilter == null ? Queries.MATCH_ALL_FILTER : parsedFilter.filter());
     }
 }

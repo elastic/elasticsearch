@@ -56,6 +56,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
         InternalDateHistogramFacet.registerStreams();
 
         dateFieldParsers = MapBuilder.<String, DateFieldParser>newMapBuilder()
+                .put("century", new DateFieldParser.Century())
                 .put("year", new DateFieldParser.YearOfCentury())
                 .put("1y", new DateFieldParser.YearOfCentury())
                 .put("quarter", new DateFieldParser.Quarter())
@@ -235,6 +236,13 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
             @Override
             public DateTimeField parse(Chronology chronology) {
                 return chronology.yearOfCentury();
+            }
+        }
+
+        static class Century implements DateFieldParser {
+            @Override
+            public DateTimeField parse(Chronology chronology) {
+                return chronology.centuryOfEra();
             }
         }
 

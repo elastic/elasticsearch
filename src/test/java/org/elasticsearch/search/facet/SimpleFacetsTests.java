@@ -1851,6 +1851,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
                     .addFacet(dateHistogramFacet("stats6").field("date").valueField("num").interval("day").preZone("-02:00").postZone("-02:00").mode(mode))
                     .addFacet(dateHistogramFacet("stats7").field("date").interval("quarter").mode(mode))
                     .addFacet(dateHistogramFacet("stats8").field("date_in_seconds").interval("day").factor(1000f).mode(mode))
+                    .addFacet(dateHistogramFacet("stats9").field("date").interval("century").mode(mode))
                     .execute().actionGet();
 
             if (searchResponse.getFailedShards() > 0) {
@@ -1931,6 +1932,11 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(1).getTime(), equalTo(utcTimeInMillis("2009-03-06")));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
+
+            facet = searchResponse.getFacets().facet("stats9");
+            assertThat(facet.getName(), equalTo("stats9"));
+            assertThat(facet.getEntries().size(), equalTo(1));
+            assertThat(facet.getEntries().get(0).getTime(), equalTo(utcTimeInMillis("2000-01-01")));
         }
     }
 

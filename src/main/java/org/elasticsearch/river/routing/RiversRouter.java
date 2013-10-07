@@ -36,6 +36,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.river.RiverName;
@@ -121,6 +122,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
                         } catch (ClusterBlockException e) {
                             // ignore, we will get it next time
                         } catch (IndexMissingException e) {
+                            // ignore, we will get it next time
+                        } catch (IllegalIndexShardStateException e) {
                             // ignore, we will get it next time
                         } catch (Exception e) {
                             logger.warn("failed to get/parse _meta for [{}]", e, mappingType);

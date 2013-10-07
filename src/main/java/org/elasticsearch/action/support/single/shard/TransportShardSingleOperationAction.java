@@ -41,6 +41,8 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+
 /**
  * A base class for single shard read operations.
  */
@@ -139,7 +141,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
                 Throwable failure = lastFailure;
-                if (failure == null) {
+                if (failure == null || isShardNotAvailableException(failure)) {
                     failure = new NoShardAvailableActionException(shardIt.shardId());
                 } else {
                     if (logger.isDebugEnabled()) {

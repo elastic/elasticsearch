@@ -88,13 +88,13 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
     @Override
     public void exportNodeStats(NodeStats nodeStats) {
         nodeStatsRenderer.reset(nodeStats);
-        exportXContent("nodestats", nodeStatsRenderer);
+        exportXContent("node_stats", nodeStatsRenderer);
     }
 
     @Override
     public void exportShardStats(ShardStats[] shardStatsArray) {
         shardStatsRenderer.reset(shardStatsArray);
-        exportXContent("shardstats", shardStatsRenderer);
+        exportXContent("shard_stats", shardStatsRenderer);
     }
 
 
@@ -342,9 +342,9 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             builder.startObject();
             builder.field("@timestamp", defaultDatePrinter.print(collectionTime));
             ShardRouting shardRouting = stats[index].getShardRouting();
-            builder.field("id", shardRouting.id());
             builder.field("index", shardRouting.index());
-            builder.field("status", shardRouting.state());
+            builder.field("shard_id", shardRouting.id());
+            builder.field("shard_state", shardRouting.state());
             builder.field("primary", shardRouting.primary());
             addNodeInfo(builder);
             stats[index].getStats().toXContent(builder, xContentParams);

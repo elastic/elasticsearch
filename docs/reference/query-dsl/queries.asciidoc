@@ -89,4 +89,3 @@ include::queries/text-query.asciidoc[]
 include::queries/minimum-should-match.asciidoc[]
 
 include::queries/multi-term-rewrite.asciidoc[]
-

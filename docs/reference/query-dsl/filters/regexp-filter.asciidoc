@@ -6,6 +6,8 @@ The `regexp` filter is similar to the
 that it is cacheable and can speedup performance in case you are reusing
 this filter in your queries.
 
+See <<regexp-syntax>> for details of the supported regular expression language.
+
 [source,js]
 --------------------------------------------------
 {

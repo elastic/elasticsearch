@@ -22,7 +22,6 @@ package org.elasticsearch.search.scan;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -31,6 +30,7 @@ import org.elasticsearch.test.AbstractIntegrationTest;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchScanScrollingTests extends AbstractIntegrationTest {
@@ -40,9 +40,8 @@ public class SearchScanScrollingTests extends AbstractIntegrationTest {
     }
 
     private void testScroll(int numberOfShards, long numberOfDocs, int size, boolean unbalanced) throws Exception {
-        wipeIndex("test");
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).get();
+        ensureGreen();
 
         Set<String> ids = Sets.newHashSet();
         Set<String> expectedIds = Sets.newHashSet();
@@ -66,7 +65,7 @@ public class SearchScanScrollingTests extends AbstractIntegrationTest {
             }
         }
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.SCAN)
@@ -75,15 +74,15 @@ public class SearchScanScrollingTests extends AbstractIntegrationTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
         try {
-            assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
+            assertHitCount(searchResponse, numberOfDocs);
     
             // start scrolling, until we get not results
             while (true) {
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-                assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
-                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                assertHitCount(searchResponse, numberOfDocs);
+
                 for (SearchHit hit : searchResponse.getHits()) {
-                    assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
+                    assertThat(hit.id() + "should not exist in the result set", ids.contains(hit.id()), equalTo(false));
                     ids.add(hit.id());
                 }
                 if (searchResponse.getHits().hits().length == 0) {

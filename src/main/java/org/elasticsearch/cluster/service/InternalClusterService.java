@@ -50,7 +50,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -623,8 +622,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private class AckCountDownListener implements Discovery.AckListener {
         private final AckedClusterStateUpdateTask ackedUpdateTask;
         private final long version;
-        private final AtomicInteger countDown;
-        private final AtomicBoolean notified = new AtomicBoolean(false);
+        private final CountDown countDown;
         private final Future<?> ackTimeoutCallback;
         private Throwable lastFailure;
 
@@ -638,7 +636,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
             }
             logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, version);
-            this.countDown = new AtomicInteger(countDown);
+            this.countDown = new CountDown(countDown);
             this.ackTimeoutCallback = threadPool.schedule(ackedUpdateTask.ackTimeout(), ThreadPool.Names.GENERIC, new Runnable() {
                 @Override
                 public void run() {
@@ -659,19 +657,16 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 logger.debug("ack received from node [{}], cluster_state update (version: {})", t, node, version);
             }
 
-            assert countDown.get() > 0;
-            if (countDown.decrementAndGet() == 0) {
-                if (notified.compareAndSet(false, true) ) {
-                    logger.trace("all expected nodes acknowledged cluster_state update (version: {})", version);
-                    ackTimeoutCallback.cancel(true);
-                    ackedUpdateTask.onAllNodesAcked(lastFailure);
-                }
+            if (countDown.countDown()) {
+                logger.trace("all expected nodes acknowledged cluster_state update (version: {})", version);
+                ackTimeoutCallback.cancel(true);
+                ackedUpdateTask.onAllNodesAcked(lastFailure);
             }
         }
 
         @Override
         public void onTimeout() {
-            if (notified.compareAndSet(false, true)) {
+            if (countDown.fastForward()) {
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", version);
                 ackedUpdateTask.onAckTimeout();
             }

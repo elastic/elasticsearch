@@ -37,8 +37,6 @@ public class Queries {
      * In this case the instance is immutable so that's ok.*/
     public final static Query NO_MATCH_QUERY = MatchNoDocsQuery.INSTANCE;
 
-    private static final Filter MATCH_ALL_DOCS_FILTER = new MatchAllDocsFilter();
-
     /**
      * A match all docs filter. Note, requires no caching!.
      */
@@ -49,7 +47,7 @@ public class Queries {
         // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
         // NEVER cache this XConstantScore Query it's not immutable and based on #3521
         // some code might set a boost on this query.
-        return new XConstantScoreQuery(MATCH_ALL_DOCS_FILTER);
+        return new XConstantScoreQuery(MATCH_ALL_FILTER);
     }
 
     /**

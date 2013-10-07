@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -34,7 +35,10 @@ public class FilterBinaryParseElement implements SearchParseElement {
         byte[] filterSource = parser.binaryValue();
         XContentParser fSourceParser = XContentFactory.xContent(filterSource).createParser(filterSource);
         try {
-            context.parsedFilter(context.queryParserService().parseInnerFilter(fSourceParser));
+            ParsedFilter filter = context.queryParserService().parseInnerFilter(fSourceParser);
+            if (filter != null) {
+                context.parsedFilter(filter);
+            }
         } finally {
             fSourceParser.close();
         }

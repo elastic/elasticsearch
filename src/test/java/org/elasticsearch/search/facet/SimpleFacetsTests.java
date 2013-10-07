@@ -103,7 +103,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(0));
         FilterFacet facet = searchResponse.getFacets().facet("facet1");
         assertThat(facet.getName(), equalTo("facet1"));
-        assertThat(facet.getCount(), equalTo(0l));
+        assertThat(facet.getCount(), equalTo(1l));
     }
 
     @Test
@@ -1807,7 +1807,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
     public void testDateHistoFacetsPostMode() throws Exception {
         testDateHistoFacets(FacetBuilder.Mode.POST);
     }
-    
+
     private void testDateHistoFacets(FacetBuilder.Mode mode) throws Exception {
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -1922,7 +1922,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             assertThat(facet.getName(), equalTo("stats7"));
             assertThat(facet.getEntries().size(), equalTo(1));
             assertThat(facet.getEntries().get(0).getTime(), equalTo(utcTimeInMillis("2009-01-01")));
-            
+
             // check date_histogram on a long field containing date in seconds - we use a factor. 
             facet = searchResponse.getFacets().facet("stats8");
             assertThat(facet.getName(), equalTo("stats8"));

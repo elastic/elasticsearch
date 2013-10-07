@@ -121,9 +121,9 @@ public class FilteredQueryParser implements QueryParser {
                 // we allow for null filter, so it makes compositions on the client side to be simpler
                 return query;
             } else {
-                // the filter was provided, but returned null, meaning we should discard it, this means no
-                // matches for this query...
-                return Queries.NO_MATCH_QUERY;
+                // even if the filter is not found, and its null, we should simply ignore it, and go
+                // by the query
+                return query;
             }
         }
         if (filter == Queries.MATCH_ALL_FILTER) {

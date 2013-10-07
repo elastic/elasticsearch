@@ -32,9 +32,8 @@ public class FilterParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
-        if (filter == null) {
-            filter = ParsedFilter.EMPTY;
+        if (filter != null) {
+            context.parsedFilter(filter);
         }
-        context.parsedFilter(filter);
     }
 }

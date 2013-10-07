@@ -31,10 +31,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Delete index action.
@@ -102,9 +101,10 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) throws ElasticSearchException {
         if (request.indices().length == 0) {
             listener.onResponse(new DeleteIndexResponse(true));
+            return;
         }
         // TODO: this API should be improved, currently, if one delete index failed, we send a failure, we should send a response array that includes all the indices that were deleted
-        final AtomicInteger count = new AtomicInteger(request.indices().length);
+        final CountDown count = new CountDown(request.indices().length);
         for (final String index : request.indices()) {
             deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
 
@@ -116,7 +116,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                     if (!response.acknowledged()) {
                         ack = false;
                     }
-                    if (count.decrementAndGet() == 0) {
+                    if (count.countDown()) {
                         if (lastFailure != null) {
                             listener.onFailure(lastFailure);
                         } else {
@@ -129,7 +129,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                 public void onFailure(Throwable t) {
                     logger.debug("[{}] failed to delete index", t, index);
                     lastFailure = t;
-                    if (count.decrementAndGet() == 0) {
+                    if (count.countDown()) {
                         listener.onFailure(t);
                     }
                 }

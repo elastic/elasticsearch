@@ -117,7 +117,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) throws ElasticSearchException {
         NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, false, true, false, true);
-        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false);
+        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<ShardStats>();
         for (String index : indicesService.indices()) {
             IndexService indexService = indicesService.indexService(index);

@@ -35,21 +35,27 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 /**
  */
 public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytesAtomicFieldData> {
 
+    private final CircuitBreakerService breakerService;
+
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache) {
-            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);
+        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
 
-    FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType,
+                           IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
+        this.breakerService = breakerService;
     }
 
     @Override
@@ -57,8 +63,13 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
+        FSTBytesAtomicFieldData data = null;
+        // TODO: Use an actual estimator to estimate before loading.
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            return FSTBytesAtomicFieldData.empty(reader.maxDoc());
+            data = FSTBytesAtomicFieldData.empty(reader.maxDoc());
+            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            return data;
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<Long>(INPUT_TYPE.BYTE1, outputs);
@@ -72,6 +83,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         }
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio);
+        boolean success = false;
         try {
             
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
@@ -92,8 +104,13 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
 
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            return new FSTBytesAtomicFieldData(fst, ordinals);
+            data = new FSTBytesAtomicFieldData(fst, ordinals);
+            success = true;
+            return data;
         } finally {
+            if (success) {
+                estimator.afterLoad(null, data.getMemorySizeInBytes());
+            }
             builder.close();
         }
     }

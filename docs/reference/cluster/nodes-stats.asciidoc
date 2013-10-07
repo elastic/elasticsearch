@@ -23,7 +23,7 @@ second command selectively retrieves nodes stats of only `nodeId1` and
 <<cluster-nodes,here>>.
 
 By default, `indices` stats are returned. With options for `indices`,
-`os`, `process`, `jvm`, `network`, `transport`, `http`, `fs`, and
+`os`, `process`, `jvm`, `network`, `transport`, `http`, `fs`, `breaker`, and
 `thread_pool`. For example:
 
 [horizontal]
@@ -59,6 +59,9 @@ By default, `indices` stats are returned. With options for `indices`,
 `transport`:: 
 	Transport statistics about sent and received bytes in
 	cluster communication
+
+`breaker`::
+	Statistics about the field data circuit breaker
 
 `clear`:: 
 	Clears all the flags (first). Useful, if you only want to

@@ -23,16 +23,14 @@ import com.google.common.cache.*;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,6 +45,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, AtomicFieldData> {
 
+    private static final long JVM_HEAP_MAX_BYTES = JvmInfo.jvmInfo().getMem().getHeapMax().bytes();
+
     Cache<Key, AtomicFieldData> cache;
 
     private volatile String size;
@@ -59,7 +59,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         super(settings);
         this.size = componentSettings.get("size", "-1");
         this.expire = componentSettings.getAsTime("expire", null);
-        computeSizeInBytes();
+        this.sizeInBytes = computeSizeInBytes();
         buildCache();
     }
 
@@ -78,14 +78,17 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         cache = cacheBuilder.build();
     }
 
-    private void computeSizeInBytes() {
+    /**
+     * @return the maximum configured size for the field data cache, in bytes, or -1 if not set
+     */
+    public long computeSizeInBytes() {
         if (size.equals("-1")) {
-            sizeInBytes = -1;
+            return -1;
         } else if (size.endsWith("%")) {
             double percent = Double.parseDouble(size.substring(0, size.length() - 1));
-            sizeInBytes = (long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
+            return (long) ((percent / 100) * JVM_HEAP_MAX_BYTES);
         } else {
-            sizeInBytes = ByteSizeValue.parseBytesSizeValue(size).bytes();
+            return ByteSizeValue.parseBytesSizeValue(size).bytes();
         }
     }
 

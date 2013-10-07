@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -36,7 +37,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
@@ -64,7 +64,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
     private class Async {
 
         final DiscoveryNodes nodes;
-        final AtomicInteger expectedOps;
+        final CountDown expectedOps;
         final ClearScrollRequest request;
         final List<Tuple<String, Long>[]> contexts = new ArrayList<Tuple<String, Long>[]>();
         final AtomicReference<Throwable> expHolder;
@@ -86,11 +86,11 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
             this.request = request;
             this.listener = listener;
             this.expHolder = new AtomicReference<Throwable>();
-            this.expectedOps = new AtomicInteger(expectedOps);
+            this.expectedOps = new CountDown(expectedOps);
         }
 
         public void run() {
-            if (expectedOps.get() == 0) {
+            if (expectedOps.isCountedDown()) {
                 listener.onResponse(new ClearScrollResponse(true));
                 return;
             }
@@ -135,8 +135,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         }
 
         void onFreedContext() {
-            assert expectedOps.get() > 0;
-            if (expectedOps.decrementAndGet() == 0) {
+            if (expectedOps.countDown()) {
                 boolean succeeded = expHolder.get() == null;
                 listener.onResponse(new ClearScrollResponse(succeeded));
             }
@@ -144,8 +143,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
         void onFailedFreedContext(Throwable e, DiscoveryNode node) {
             logger.warn("Clear SC failed on node[{}]", e, node);
-            assert expectedOps.get() > 0;
-            if (expectedOps.decrementAndGet() == 0) {
+            if (expectedOps.countDown()) {
                 listener.onResponse(new ClearScrollResponse(false));
             } else {
                 expHolder.set(e);

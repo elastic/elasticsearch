@@ -258,6 +258,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
+    /**
+     * Parses an inner filter, returning null if the filter should be ignored.
+     */
     @Nullable
     public ParsedFilter parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();

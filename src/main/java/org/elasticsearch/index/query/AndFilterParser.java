@@ -108,6 +108,7 @@ public class AndFilterParser implements FilterParser {
         }
 
         if (filters.isEmpty()) {
+            // no filters provided, this should be ignored upstream
             return null;
         }
 

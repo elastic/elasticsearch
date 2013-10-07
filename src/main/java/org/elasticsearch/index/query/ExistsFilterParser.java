@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -84,7 +85,8 @@ public class ExistsFilterParser implements FilterParser {
 
         Set<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
-            return null;
+            // no fields exists, so we should not match anything
+            return Queries.MATCH_NO_FILTER;
         }
         MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 

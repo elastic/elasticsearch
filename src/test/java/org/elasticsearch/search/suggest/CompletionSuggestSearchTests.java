@@ -578,6 +578,16 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
         }
     }
 
+    @Test(expected = MapperParsingException.class)
+    public void testThatIndexingInvalidFieldsInCompletionFieldResultsInException() throws Exception {
+        createIndexAndMapping();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("FRIGGININVALID").value("Nirvana").endArray()
+                .endObject().endObject()).get();
+    }
+
 
     public void assertSuggestions(String suggestion, String... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
@@ -828,7 +838,6 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
                 .field("output", "foobar")
                 .endObject().endObject()
         ).setRefresh(true).get();
-
     }
 
     private static String replaceReservedChars(String input, char replacement) {

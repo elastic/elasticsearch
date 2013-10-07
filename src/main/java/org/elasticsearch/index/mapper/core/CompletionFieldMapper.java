@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
@@ -42,6 +43,7 @@ import java.io.Reader;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -65,6 +67,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     public static class Fields {
+        // Mapping field names
         public static final String ANALYZER = "analyzer";
         public static final String INDEX_ANALYZER = "index_analyzer";
         public static final String SEARCH_ANALYZER = "search_analyzer";
@@ -73,7 +76,15 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         public static final String PAYLOADS = "payloads";
         public static final String TYPE = "type";
         public static final String MAX_INPUT_LENGTH = "max_input_len";
+        // Content field names
+        public static final String CONTENT_FIELD_NAME_INPUT = "input";
+        public static final String CONTENT_FIELD_NAME_OUTPUT = "output";
+        public static final String CONTENT_FIELD_NAME_PAYLOAD = "payload";
+        public static final String CONTENT_FIELD_NAME_WEIGHT = "weight";
     }
+
+    public static Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
+            Fields.CONTENT_FIELD_NAME_OUTPUT, Fields.CONTENT_FIELD_NAME_PAYLOAD, Fields.CONTENT_FIELD_NAME_WEIGHT);
 
     public static class Builder extends AbstractFieldMapper.OpenBuilder<Builder, CompletionFieldMapper> {
 
@@ -224,7 +235,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("payload".equals(currentFieldName)) {
+                    if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
+                        throw new ElasticSearchIllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
+                    }
+                } else if (Fields.CONTENT_FIELD_NAME_PAYLOAD.equals(currentFieldName)) {
                     if (!isStoringPayloads()) {
                         throw new MapperException("Payloads disabled in mapping");
                     }
@@ -238,21 +252,21 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         throw new MapperException("payload doesn't support type " + token);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if ("output".equals(currentFieldName)) {
+                    if (Fields.CONTENT_FIELD_NAME_OUTPUT.equals(currentFieldName)) {
                         surfaceForm = parser.text();
                     }
-                    if ("input".equals(currentFieldName)) {
+                    if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
                         inputs.add(parser.text());
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if ("weight".equals(currentFieldName)) {
+                    if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
                         weight = parser.longValue(); // always parse a long to make sure we don't get the overflow value
                         if (weight < 0 || weight > Integer.MAX_VALUE) {
                             throw new ElasticSearchIllegalArgumentException("Weight must be in the interval [0..2147483647] but was " + weight);
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("input".equals(currentFieldName)) {
+                    if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             inputs.add(parser.text());
                         }

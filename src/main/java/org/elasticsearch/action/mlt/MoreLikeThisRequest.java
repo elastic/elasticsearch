@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -121,7 +120,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The type of document to load from which the "like" query will execute with.
      */
-    @Required
     public MoreLikeThisRequest type(String type) {
         this.type = type;
         return this;
@@ -137,7 +135,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The id of document to load from which the "like" query will execute with.
      */
-    @Required
     public MoreLikeThisRequest id(String id) {
         this.id = id;
         return this;

@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -100,7 +99,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    @Required
     public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
         this.querySource = queryBuilder.buildAsBytes();
         this.querySourceUnsafe = false;
@@ -111,7 +109,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * The query source to execute. It is preferable to use either {@link #query(byte[])}
      * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
-    @Required
     public DeleteByQueryRequest query(String querySource) {
         this.querySource = new BytesArray(querySource.getBytes(Charsets.UTF_8));
         this.querySourceUnsafe = false;
@@ -121,7 +118,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The query source to execute in the form of a map.
      */
-    @Required
     public DeleteByQueryRequest query(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -132,7 +128,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         }
     }
 
-    @Required
     public DeleteByQueryRequest query(XContentBuilder builder) {
         this.querySource = builder.bytes();
         this.querySourceUnsafe = false;
@@ -142,7 +137,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The query source to execute.
      */
-    @Required
     public DeleteByQueryRequest query(byte[] querySource) {
         return query(querySource, 0, querySource.length, false);
     }
@@ -150,7 +144,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The query source to execute.
      */
-    @Required
     public DeleteByQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = new BytesArray(querySource, offset, length);
         this.querySourceUnsafe = unsafe;

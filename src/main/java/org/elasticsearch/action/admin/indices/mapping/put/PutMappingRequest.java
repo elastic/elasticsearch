@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -111,7 +110,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The type of the mappings.
      */
-    @Required
     public PutMappingRequest type(String type) {
         this.type = type;
         return this;
@@ -166,7 +164,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The mapping source definition.
      */
-    @Required
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
             return source(mappingBuilder.string());
@@ -178,7 +175,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The mapping source definition.
      */
-    @Required
     public PutMappingRequest source(Map mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -192,7 +188,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The mapping source definition.
      */
-    @Required
     public PutMappingRequest source(String mappingSource) {
         this.source = mappingSource;
         return this;

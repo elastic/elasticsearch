@@ -22,7 +22,6 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.VersionType;
@@ -108,7 +107,6 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * Sets the type of the document to delete.
      */
-    @Required
     public DeleteRequest type(String type) {
         this.type = type;
         return this;
@@ -124,7 +122,6 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * Sets the id of the document to delete.
      */
-    @Required
     public DeleteRequest id(String id) {
         this.id = id;
         return this;

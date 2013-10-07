@@ -37,13 +37,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
@@ -243,14 +241,12 @@ public class MetaDataIndexStateService extends AbstractComponent {
     }
 
     private class CountDownListener implements NodeIndicesStateUpdatedAction.Listener {
-
-        private final AtomicBoolean notified = new AtomicBoolean();
-        private final AtomicInteger countDown;
+        private final CountDown countDown;
         private final Listener listener;
         private final long version;
 
-        public CountDownListener(int countDown, Listener listener, long version) {
-            this.countDown = new AtomicInteger(countDown);
+        public CountDownListener(int count, Listener listener, long version) {
+            this.countDown = new CountDown(count);
             this.listener = listener;
             this.version = version;
         }
@@ -259,20 +255,18 @@ public class MetaDataIndexStateService extends AbstractComponent {
         public void onIndexStateUpdated(NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse response) {
             if (version <= response.version()) {
                 logger.trace("Received NodeIndexStateUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
-                if (countDown.decrementAndGet() == 0) {
+                if (countDown.countDown()) {
                     indicesStateUpdatedAction.remove(this);
-                    if (notified.compareAndSet(false, true)) {
-                        logger.trace("NodeIndexStateUpdated was acknowledged by all expected nodes, returning");
-                        listener.onResponse(new Response(true));
-                    }
+                    logger.trace("NodeIndexStateUpdated was acknowledged by all expected nodes, returning");
+                    listener.onResponse(new Response(true));
                 }
             }
         }
 
         @Override
         public void onTimeout() {
-            indicesStateUpdatedAction.remove(this);
-            if (notified.compareAndSet(false, true)) {
+            if (countDown.fastForward()) {
+                indicesStateUpdatedAction.remove(this);
                 listener.onResponse(new Response(false));
             }
         }

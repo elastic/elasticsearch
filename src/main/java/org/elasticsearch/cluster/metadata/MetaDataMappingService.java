@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -48,8 +49,6 @@ import org.elasticsearch.indices.TypeMissingException;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -588,8 +587,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private class CountDownListener implements NodeMappingCreatedAction.Listener {
 
-        private final AtomicBoolean notified = new AtomicBoolean();
-        private final AtomicInteger countDown;
+        private final CountDown countDown;
         private final Listener listener;
         private final List<String> indices;
         private final String type;
@@ -597,7 +595,7 @@ public class MetaDataMappingService extends AbstractComponent {
         public CountDownListener(int countDown, String[] indices, String type, Listener listener) {
             this.indices = Arrays.asList(indices);
             this.type = type;
-            this.countDown = new AtomicInteger(countDown);
+            this.countDown = new CountDown(countDown);
             this.listener = listener;
         }
 
@@ -614,18 +612,16 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         public void decrementCounter() {
-            if (countDown.decrementAndGet() == 0) {
+            if (countDown.countDown()) {
                 mappingCreatedAction.remove(this);
-                if (notified.compareAndSet(false, true)) {
-                    listener.onResponse(new Response(true));
-                }
+                listener.onResponse(new Response(true));
             }
         }
 
         @Override
         public void onTimeout() {
-            mappingCreatedAction.remove(this);
-            if (notified.compareAndSet(false, true)) {
+            if (countDown.fastForward()) {
+                mappingCreatedAction.remove(this);
                 listener.onResponse(new Response(false));
             }
         }

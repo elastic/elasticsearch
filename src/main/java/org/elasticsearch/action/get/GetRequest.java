@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -113,7 +112,6 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     /**
      * Sets the id of the document to fetch.
      */
-    @Required
     public GetRequest id(String id) {
         this.id = id;
         return this;

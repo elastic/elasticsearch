@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Required;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -95,7 +94,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    @Required
     public ValidateQueryRequest query(QueryBuilder queryBuilder) {
         this.querySource = queryBuilder.buildAsBytes();
         this.querySourceUnsafe = false;
@@ -105,7 +103,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The query source to execute in the form of a map.
      */
-    @Required
     public ValidateQueryRequest query(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -116,7 +113,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         }
     }
 
-    @Required
     public ValidateQueryRequest query(XContentBuilder builder) {
         this.querySource = builder.bytes();
         this.querySourceUnsafe = false;
@@ -127,7 +123,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      * The query source to validate. It is preferable to use either {@link #query(byte[])}
      * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
-    @Required
     public ValidateQueryRequest query(String querySource) {
         this.querySource = new BytesArray(querySource);
         this.querySourceUnsafe = false;
@@ -137,7 +132,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The query source to validate.
      */
-    @Required
     public ValidateQueryRequest query(byte[] querySource) {
         return query(querySource, 0, querySource.length, false);
     }
@@ -145,7 +139,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The query source to validate.
      */
-    @Required
     public ValidateQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         return query(new BytesArray(querySource, offset, length), unsafe);
     }
@@ -153,7 +146,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The query source to validate.
      */
-    @Required
     public ValidateQueryRequest query(BytesReference querySource, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceUnsafe = unsafe;

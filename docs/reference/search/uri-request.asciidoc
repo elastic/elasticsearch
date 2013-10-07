@@ -27,7 +27,7 @@ And here is a sample response:
             {
                 "_index" : "twitter",
                 "_type" : "tweet",
-                "_id" : "1", 
+                "_id" : "1",
                 "_source" : {
                     "user" : "kimchy",
                     "postDate" : "2009-11-15T14:12:12",

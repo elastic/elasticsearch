@@ -19,7 +19,7 @@ The `query_string` top level parameters include:
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-|`query` |The actual query to be parsed.
+|`query` |The actual query to be parsed. See <<query-string-syntax>>.
 
 |`default_field` |The default field for query terms if no prefix field
 is specified. Defaults to the `index.query.default_field` index
@@ -158,16 +158,4 @@ introduced fields included). For example:
 }
 --------------------------------------------------
 
-[[Syntax_Extension]]
-[float]
-==== Syntax Extension
-
-There are several syntax extensions to the Lucene query language.
-
-[float]
-===== missing / exists
-
-The `_exists_` and `_missing_` syntax allows to control docs that have
-fields that exists within them (have a value) and missing. The syntax
-is: `_exists_:field1`, `_missing_:field` and can be used anywhere a
-query string is used.
+include::query-string-syntax.asciidoc[]

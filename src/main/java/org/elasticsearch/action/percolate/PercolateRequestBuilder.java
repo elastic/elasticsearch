@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.util.Map;
@@ -104,16 +105,68 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         return this;
     }
 
+    /**
+     * Similar as {@link #setScore(boolean)}, but also sort by the score.
+     */
     public PercolateRequestBuilder setSort(boolean sort) {
         sourceBuilder().setSort(sort);
         return this;
     }
 
+    /**
+     * Whether to compute a score for each match and include it in the response. The score is based on
+     * {@link #setPercolateQuery(QueryBuilder)}}.
+     */
     public PercolateRequestBuilder setScore(boolean score) {
         sourceBuilder().setScore(score);
         return this;
     }
 
+    /**
+     * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
+     * on this query.
+     */
+    public PercolateRequestBuilder setPercolateDoc(PercolateSourceBuilder.DocBuilder docBuilder) {
+        sourceBuilder().setDoc(docBuilder);
+        return this;
+    }
+
+    /**
+     * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
+     * on this query.
+     */
+    public PercolateRequestBuilder setPercolateQuery(QueryBuilder queryBuilder) {
+        sourceBuilder().setQueryBuilder(queryBuilder);
+        return this;
+    }
+
+    /**
+     * Sets a filter to reduce the number of percolate queries to be evaluated.
+     */
+    public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
+        sourceBuilder().setFilterBuilder(filterBuilder);
+        return this;
+    }
+
+    /**
+     * Enables highlighting for the percolate document. Per matched percolate query highlight the percolate document.
+     */
+    public PercolateRequestBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
+        sourceBuilder().setHighlightBuilder(highlightBuilder);
+        return this;
+    }
+
+    /**
+     * Add a facet definition.
+     */
+    public PercolateRequestBuilder addFacet(FacetBuilder facetBuilder) {
+        sourceBuilder().addFacet(facetBuilder);
+        return this;
+    }
+
+    /**
+     * Sets the raw percolate request body.
+     */
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;
         return this;
@@ -161,26 +214,6 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
 
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
         request.source(source, offset, length, unsafe);
-        return this;
-    }
-
-    public PercolateRequestBuilder setPercolateDoc(PercolateSourceBuilder.DocBuilder docBuilder) {
-        sourceBuilder().setDoc(docBuilder);
-        return this;
-    }
-
-    public PercolateRequestBuilder setPercolateQuery(QueryBuilder queryBuilder) {
-        sourceBuilder().setQueryBuilder(queryBuilder);
-        return this;
-    }
-
-    public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
-        sourceBuilder().setFilterBuilder(filterBuilder);
-        return this;
-    }
-
-    public PercolateRequestBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
-        sourceBuilder().setHighlightBuilder(highlightBuilder);
         return this;
     }
 

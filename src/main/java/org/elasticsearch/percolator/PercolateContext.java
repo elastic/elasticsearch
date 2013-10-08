@@ -91,10 +91,14 @@ public class PercolateContext extends SearchContext {
     private final IndexService indexService;
     private final IndexFieldDataService fieldDataService;
     private final IndexShard indexShard;
+    private final CacheRecycler cacheRecycler;
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
     private String[] types;
 
     private Engine.Searcher docEngineSearcher;
+    private Engine.Searcher engineSearcher;
+    private ContextIndexSearcher searcher;
+
     private SearchContextHighlight highlight;
     private SearchLookup searchLookup;
     private ParsedQuery parsedQuery;
@@ -102,8 +106,10 @@ public class PercolateContext extends SearchContext {
     private boolean queryRewritten;
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
+    private SearchContextFacets facets;
+    private QuerySearchResult querySearchResult;
 
-    public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService) {
+    public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard, IndexService indexService, CacheRecycler cacheRecycler) {
         this.request = request;
         this.indexShard = indexShard;
         this.indexService = indexService;
@@ -111,6 +117,10 @@ public class PercolateContext extends SearchContext {
         this.searchShardTarget = searchShardTarget;
         this.percolateQueries = indexShard.percolateRegistry().percolateQueries();
         this.types = new String[]{request.documentType()};
+        this.cacheRecycler = cacheRecycler;
+        this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
+        this.engineSearcher = indexShard.acquireSearcher("percolate");
+        this.searcher = new ContextIndexSearcher(this, engineSearcher);
     }
 
     public void initialize(final MemoryIndex memoryIndex, ParsedDocument parsedDocument) {
@@ -209,6 +219,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public boolean release() throws ElasticSearchException {
+        engineSearcher.release();
         if (docEngineSearcher != null) {
             IndexReader indexReader = docEngineSearcher.reader();
             fieldDataService.clear(indexReader);
@@ -267,6 +278,17 @@ public class PercolateContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return fieldDataService;
+    }
+
+    @Override
+    public SearchContextFacets facets() {
+        return facets;
+    }
+
+    @Override
+    public SearchContext facets(SearchContextFacets facets) {
+        this.facets = facets;
+        return this;
     }
 
     // Unused:
@@ -346,16 +368,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public SearchContextFacets facets() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext facets(SearchContextFacets facets) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public SuggestionSearchContext suggest() {
         throw new UnsupportedOperationException();
     }
@@ -417,7 +429,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public ContextIndexSearcher searcher() {
-        throw new UnsupportedOperationException();
+        return searcher;
     }
 
     @Override
@@ -442,7 +454,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public CacheRecycler cacheRecycler() {
-        throw new UnsupportedOperationException();
+        return cacheRecycler;
     }
 
     @Override
@@ -462,7 +474,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public long timeoutInMillis() {
-        throw new UnsupportedOperationException();
+        return -1;
     }
 
     @Override
@@ -477,7 +489,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public Float minimumScore() {
-        throw new UnsupportedOperationException();
+        return null;
     }
 
     @Override
@@ -507,7 +519,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public ParsedFilter parsedFilter() {
-        throw new UnsupportedOperationException();
+        return null;
     }
 
     @Override
@@ -627,7 +639,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public QuerySearchResult queryResult() {
-        throw new UnsupportedOperationException();
+        return querySearchResult;
     }
 
     @Override
@@ -662,7 +674,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public FieldMapper smartNameFieldMapper(String name) {
-        throw new UnsupportedOperationException();
+        return mapperService().smartNameFieldMapper(name, types);
     }
 
     @Override

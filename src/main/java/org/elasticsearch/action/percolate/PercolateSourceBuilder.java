@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,13 +27,16 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
+import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
+ * Builder to create the percolate request body.
  */
 public class PercolateSourceBuilder implements ToXContent {
 
@@ -43,6 +47,7 @@ public class PercolateSourceBuilder implements ToXContent {
     private Boolean sort;
     private Boolean score;
     private HighlightBuilder highlightBuilder;
+    private List<FacetBuilder> facets;
 
     public DocBuilder percolateDocument() {
         if (docBuilder == null) {
@@ -55,6 +60,9 @@ public class PercolateSourceBuilder implements ToXContent {
         return docBuilder;
     }
 
+    /**
+     * Sets the document to run the percolate queries against.
+     */
     public PercolateSourceBuilder setDoc(DocBuilder docBuilder) {
         this.docBuilder = docBuilder;
         return this;
@@ -64,6 +72,10 @@ public class PercolateSourceBuilder implements ToXContent {
         return queryBuilder;
     }
 
+    /**
+     * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
+     * on this query.
+     */
     public PercolateSourceBuilder setQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
         return this;
@@ -73,28 +85,55 @@ public class PercolateSourceBuilder implements ToXContent {
         return filterBuilder;
     }
 
+    /**
+     * Sets a filter to reduce the number of percolate queries to be evaluated.
+     */
     public PercolateSourceBuilder setFilterBuilder(FilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
         return this;
     }
 
+    /**
+     * Limits the maximum number of percolate query matches to be returned.
+     */
     public PercolateSourceBuilder setSize(int size) {
         this.size = size;
         return this;
     }
 
+    /**
+     * Similar as {@link #setScore(boolean)}, but also sort by the score.
+     */
     public PercolateSourceBuilder setSort(boolean sort) {
         this.sort = sort;
         return this;
     }
 
+    /**
+     * Whether to compute a score for each match and include it in the response. The score is based on
+     * {@link #setQueryBuilder(QueryBuilder)}.
+     */
     public PercolateSourceBuilder setScore(boolean score) {
         this.score = score;
         return this;
     }
 
+    /**
+     * Enables highlighting for the percolate document. Per matched percolate query highlight the percolate document.
+     */
     public PercolateSourceBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
         this.highlightBuilder = highlightBuilder;
+        return this;
+    }
+
+    /**
+     * Add a facet definition.
+     */
+    public PercolateSourceBuilder addFacet(FacetBuilder facetBuilder) {
+        if (facets == null) {
+            facets = Lists.newArrayList();
+        }
+        facets.add(facetBuilder);
         return this;
     }
 
@@ -133,6 +172,14 @@ public class PercolateSourceBuilder implements ToXContent {
         }
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
+        }
+        if (facets != null) {
+            builder.field("facets");
+            builder.startObject();
+            for (FacetBuilder facet : facets) {
+                facet.toXContent(builder, params);
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;

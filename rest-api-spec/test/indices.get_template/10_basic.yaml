@@ -15,3 +15,26 @@
 
   - match: {test.template: "test-*"}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+---
+"Get all templates":
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          template: test-*
+          settings:
+            number_of_shards:   1
+  - do:
+      indices.put_template:
+        name: test2
+        body:
+          template: test2-*
+          settings:
+            number_of_shards:   1
+
+  - do:
+      indices.get_template: {}
+
+  - match: {test.template: "test-*"}
+  - match: {test2.template: "test2-*"}
+

@@ -24,11 +24,11 @@
         }
       },
       "params": {
-        "_source_exclude": {
+        "exclude": {
           "type" : "list",
           "description" : "A list of fields to exclude from the returned _source field"
         },
-        "_source_include": {
+        "include": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },

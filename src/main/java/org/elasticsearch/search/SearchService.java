@@ -669,8 +669,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType == null) {
                         continue;
                     }
-                    final String loading = fieldDataType.getSettings().get(FieldDataType.LOADING);
-                    if (!FieldDataType.EAGER_LOADING.equals(loading)) {
+                    if (fieldDataType.getLoading() != FieldDataType.Loading.EAGER) {
                         continue;
                     }
                     final String indexName = fieldMapper.names().indexName();

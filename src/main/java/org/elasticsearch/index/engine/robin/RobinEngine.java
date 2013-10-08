@@ -1284,6 +1284,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
+    /** Returns whether a leaf reader comes from a merge (versus flush or addIndexes). */
+    private static boolean isMergedSegment(AtomicReader reader) {
+        // We expect leaves to be segment readers
+        final Map<String, String> diagnostics = ((SegmentReader) reader).getSegmentInfo().info.getDiagnostics();
+        final String source = diagnostics.get(IndexWriter.SOURCE);
+        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH, IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
+        return IndexWriter.SOURCE_MERGE.equals(source);
+    }
+
     private IndexWriter createWriter() throws IOException {
         try {
             // release locks when started
@@ -1320,9 +1329,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 @Override
                 public void warm(AtomicReader reader) throws IOException {
                     try {
-                        final Map<String, String> diagnostics = ((SegmentReader) reader).getSegmentInfo().info.getDiagnostics();
-                        final String source = diagnostics.get(IndexWriter.SOURCE);
-                        assert IndexWriter.SOURCE_MERGE.equals(source) : "Got a non-merged segment! " + source;
+                        assert isMergedSegment(reader);
                         final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
                         final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                         warmer.warm(context);
@@ -1330,6 +1337,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // Don't fail a merge if the warm-up failed
                         if (!closed) {
                             logger.warn("Warm-up failed", t);
+                        }
+                        if (t instanceof Error) {
+                            // assertion/out-of-memory error, don't ignore those
+                            throw (Error) t;
                         }
                     }
                 }
@@ -1506,14 +1517,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         // figure out the newSearcher, with only the new readers that are relevant for us
                         List<IndexReader> readers = Lists.newArrayList();
                         for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
-                            final Map<String, String> diagnostics = ((SegmentReader) newReaderContext.reader()).getSegmentInfo().info.getDiagnostics();
-                            final String source = diagnostics.get(IndexWriter.SOURCE);
-                            assert source != null;
-                            if (source.equals(IndexWriter.SOURCE_MERGE)) {
-                                // SOURCE_MERGE is already handled by IndexWriterConfig.setMergedSegmentWarmer
+                            if (isMergedSegment(newReaderContext.reader())) {
+                                // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
                                 continue;
                             }
-                            assert IndexWriter.SOURCE_FLUSH.equals(source) || IndexWriter.SOURCE_ADDINDEXES_READERS.equals(source) : "Unknown source: " + source;
                             boolean found = false;
                             for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
                                 if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {

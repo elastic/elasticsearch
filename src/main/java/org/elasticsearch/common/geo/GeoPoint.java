@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class GeoPoint {
+public final class GeoPoint {
 
     public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
     public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
@@ -39,6 +39,16 @@ public class GeoPoint {
     private double lon;
 
     public GeoPoint() {
+    }
+
+    /**
+     * Create a new Geopointform a string. This String must either be a geohash
+     * or a lat-lon tuple.
+     *   
+     * @param value String to create the point from
+     */
+    public GeoPoint(String value) {
+        this.resetFromString(value);
     }
 
     public GeoPoint(double lat, double lon) {

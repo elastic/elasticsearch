@@ -1036,6 +1036,14 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder latlon(String name, double lat, double lon) throws IOException {
+        return startObject(name).field("lat", lat).field("lon", lon).endObject();
+    }
+    
+    public XContentBuilder latlon(double lat, double lon) throws IOException {
+        return startObject().field("lat", lat).field("lon", lon).endObject();
+    }
+        
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;

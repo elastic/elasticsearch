@@ -179,6 +179,9 @@ is used as `score`. Also the `text` field uses the `output` of your
 indexed suggestion, if configured, otherwise the matched part of the
 `input` field.
 
+NOTE: The completion suggester considers all documents in the index.
+See <<suggester-context>> for an explanation of how to query a subset of
+documents instead.
 
 [[fuzzy]]
 ==== Fuzzy queries

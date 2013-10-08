@@ -31,15 +31,14 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.fst.ByteSequenceOutputs;
-import org.apache.lucene.util.fst.FST;
-import org.apache.lucene.util.fst.PairOutputs;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
+import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
 import java.util.*;
@@ -74,7 +73,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         int options = preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
         // needs to fixed in the suggester first before it can be supported
         //options |= exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-        prototype = new XAnalyzingSuggester(null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
+        prototype = new XAnalyzingSuggester(null, null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
     }
 
     @Override
@@ -199,9 +198,6 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         }
     }
 
-    ;
-
-
     @Override
     public LookupFactory load(IndexInput input) throws IOException {
         long sizeInBytes = 0;
@@ -256,25 +252,26 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
-            public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
+            public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
                 AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
-                int flags = analyzingSuggestHolder.preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
+                int flags = analyzingSuggestHolder.getPreserveSeparator() ? XAnalyzingSuggester.PRESERVE_SEP : 0;
 
-                XAnalyzingSuggester suggester;
+                final XAnalyzingSuggester suggester;
+                final Automaton queryPrefix = mapper.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
+
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
+                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
                             suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), suggestionContext.isFuzzyUnicodeAware(),
                             analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                             analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
                             analyzingSuggestHolder.holeCharacter);
-
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
+                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                             analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
@@ -309,7 +306,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             }
 
             @Override
-            AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper) {
+            AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
                 return lookupMap.get(mapper.names().indexName());
             }
 
@@ -350,6 +347,18 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             this.payloadSep = payloadSep;
             this.endByte = endByte;
             this.holeCharacter = holeCharacter;
+        }
+
+        public boolean getPreserveSeparator() {
+            return preserveSep;
+        }
+
+        public boolean getPreservePositionIncrements() {
+            return preservePositionIncrements;
+        }
+
+        public boolean hasPayloads() {
+            return hasPayloads;
         }
     }
 

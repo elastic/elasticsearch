@@ -28,11 +28,10 @@ import org.apache.lucene.store.IOContext.Context;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFiniteStrings;
 
 import java.io.ByteArrayInputStream;
@@ -284,7 +283,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
             this.lookup = lookup;
         }
 
-        public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
+        public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
             return lookup.getLookup(mapper, suggestionContext);
         }
 
@@ -364,9 +363,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
     }
 
     public static abstract class LookupFactory {
-        public abstract Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext);
+        public abstract Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
-        abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper);
+        abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper);
         public abstract long ramBytesUsed();
     }
 }

@@ -1,0 +1,319 @@
+[[suggester-context]]
+== Context Suggester
+
+The context suggester is an extension to the suggest API of Elasticsearch. Namely the
+suggester system provides a very fast way of searching documents by handling these
+entirely in memory. But this special treatenment does not allow the handling of
+traditional queries and filters, because those would have notable impact on the
+performance. So the context extension is designed to take so-called context information
+into account to specify a more accurate way of searching within the suggester system. 
+Instead of using the traditional query and filter system a predefined ``context`` is
+configured to limit suggestions to a particular subset of suggestions.
+Such a context is defined by a set of context mappings which can either be a simple
+*category* or a *geo location*. The information used by the context suggester is
+configured in the type mapping with the `context` parameter, which lists all of the
+contexts that need to be specified in each document and in each suggestion request.
+For instance:
+
+[source,js]
+--------------------------------------------------
+PUT services/service/_mapping
+{
+    "service": {
+        "properties": {
+            "name": {
+                "type" : "string"
+            },
+            "tag": {
+                "type" : "string"
+            },
+            "suggest_field": {
+                "type": "completion",
+                "context": {
+                    "color": { <1>
+                        "type": "category",
+                        "path": "color_field"
+                        "default": ["red", "green", "blue"]
+                    },
+                    "location": { <2>
+                        "type": "geo",
+                        "precision": "5m",
+                        "neighbors": true,
+                        "default": "u33"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+<1> See <<suggester-context-category>>
+<2> See <<suggester-context-geo>>
+
+However contexts are specified (as type `category` or `geo`, which are discussed below), each
+context value generates a new sub-set of documents which can be queried by the completion
+suggester. All three types accept a `default` parameter which provides a default value to use
+if the corresponding context value is absent.
+
+The basic structure of this element is that each field forms a new context and the fieldname
+is used to reference this context information later on during indexing or querying. All context
+mappings have the `default` and the `type` option in common. The value of the `default` field
+is used, when ever no specific is provided for the certain context. Note that a context is
+defined by at least one value. The `type` option defines the kind of information hold by this
+context. These type will be explained further in the following sections.
+
+[[suggester-context-category]]
+[float]
+=== Category Context
+The `category` context allows you to specify one or more categories in the document at index time.
+The document will be assigned to each named category, which can then be queried later. The category
+type also allows to specify a field to extract the categories from. The `path` parameter is used to
+specify this field of the documents that should be used. If the referenced field contains multiple
+values, all these values will be used as alternative categories.
+
+[float]
+==== Category Mapping
+
+The mapping for a category is simply defined by its `default` values. These can either be
+defined as list of *default* categories:
+
+[source,js]
+--------------------------------------------------
+"context": {
+    "color": {
+        "type": "category",
+        "default": ["red", "orange"]
+    }
+}
+--------------------------------------------------
+
+or as a single value
+
+[source,js]
+--------------------------------------------------
+"context": {
+    "color": {
+        "type": "category",
+        "default": "red"
+    }
+}
+--------------------------------------------------
+
+or as reference to another field within the documents indexed:
+
+[source,js]
+--------------------------------------------------
+"context": {
+    "color": {
+        "type": "category",
+        "default": "red"
+        "path": "color_field"
+    }
+}
+--------------------------------------------------
+
+in this case the *default* categories will only be used, if the given field does not
+exist within the document. In the example above the categories are received from a
+field named `color_field`. If this field does not exist a category *red* is assumed for
+the context *color*.
+
+[float]
+==== Indexing category contexts
+Within a document the category is specified either as an `array` of values, a
+single value or `null`. A list of values is interpreted as alternative categories. So
+a document belongs to all the categories defined. If the category is `null` or remains
+unset the categories will be retrieved from the documents field addressed by the `path`
+parameter. If this value is not set or the field is missing, the default values of the
+mapping will be assigned to the context.
+
+[source,js]
+--------------------------------------------------
+PUT services/service/1
+{
+    "name": "knapsack",
+    "suggest_field": {
+        "input": ["knacksack", "backpack", "daypack"],
+        "context": {
+            "color": ["red", "yellow"]
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Category Query
+A query within a category works similar to the configuration. If the value is `null`
+the mappings default categories will be used. Otherwise the suggestion takes place
+for all documents that have at least one category in common with the query.
+
+[source,js]
+--------------------------------------------------
+POST services/_suggest?pretty'
+{
+    "suggest" : {
+        "text" : "m",
+        "completion" : {
+            "field" : "suggest_field",
+            "size": 10,
+            "context": {
+                "color": "red"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[[suggester-context-geo]]
+[float]
+=== Geo location Context
+A `geo` context allows you to limit results to those that lie within a certain distance
+of a specified geolocation. At index time, a lat/long geo point is converted into a
+geohash of a certain precision, which provides the context.
+
+[float]
+==== Geo location Mapping
+The mapping for a geo context accepts four settings:
+
+[horizontal]
+`precision`::  This defines the precision of the geohash and can be specified as `5m`, `10km`,
+               or as a raw geohash precision: `1`..`12`. It's also possible to setup multiple
+               precisions by defining a list of precisions: `["5m", "10km"]`
+               (default is a geohash level of 12)
+`neighbors`::  Geohashes are rectangles, so a geolocation, which in reality is only 1 metre
+               away from the specified point, may fall into the neighbouring rectangle. Set
+               `neighbours` to `true` to include the neighbouring geohashes in the context.
+               (default is *on*)
+`path`::       Optionally specify a field to use to look up the geopoint.
+`default`::    The geopoint to use if no geopoint has been specified.
+
+Since all locations of this mapping are translated into geohashes, each location matches
+a geohash cell. So some results that lie within the specified range but not in the same
+cell as the query location will not match. To avoid this the `neighbors` option allows a
+matching of cells that join the bordering regions of the documents location. This option
+is turned on by default.
+If a document or a query doesn't define a location a value to use instead can defined by
+the `default` option. The value of this option supports all the ways a `geo_point` can be
+defined. The `path` refers to another field within the document to retrieve the
+location. If this field contains multiple values, the document will be linked to all these
+locations.
+
+[source,js]
+--------------------------------------------------
+"context": {
+    "location": {
+        "type": "geo",
+        "precision": ["1km", "5m"],
+        "neighbors": true,
+        "path": "pin",
+        "default": {
+            "lat": 0.0,
+            "lon": 0.0
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Geo location Config
+
+Within a document a geo location retrieved from the mapping definition can be overridden
+by another location. In this case the context mapped to a geo location supports all
+variants of defining a `geo_point`.
+
+[source,js]
+--------------------------------------------------
+PUT services/service/1
+{
+    "name": "some hotel 1",
+    "suggest_field": {
+        "input": ["my hotel", "this hotel"],
+        "context": {
+            "location": {
+                    "lat": 0,
+                    "lon": 0
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Geo location Query
+
+Like in the configuration, querying with a geo location in context, the geo location
+query supports all representations of a `geo_point` to define the location. In this
+simple case all precision values defined in the mapping will be applied to the given
+location.
+
+[source,js]
+--------------------------------------------------
+POST services/_suggest
+{
+    "suggest" : {
+        "text" : "m",
+        "completion" : {
+            "field" : "suggest_field",
+            "size": 10,
+            "context": {
+                "location": {
+                    "lat": 0,
+                    "lon": 0
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+But it also possible to set a subset of the precisions set in the mapping, by using the
+`precision` parameter. Like in the mapping, this parameter is allowed to be set to a
+single precision value or a list of these.
+
+[source,js]
+--------------------------------------------------
+POST services/_suggest
+{
+    "suggest" : {
+        "text" : "m",
+        "completion" : {
+            "field" : "suggest_field",
+            "size": 10,
+            "context": {
+                "location": {
+                    "value": {
+                        "lat": 0,
+                        "lon": 0
+                    },
+                    "precision": "1km"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+A special form of the query is definied by an extension of the object representation of
+the `geo_point`. Using this representation allows to set the `precision` parameter within
+the location itself:
+
+[source,js]
+--------------------------------------------------
+POST services/_suggest
+{
+    "suggest" : {
+        "text" : "m",
+        "completion" : {
+            "field" : "suggest_field",
+            "size": 10,
+            "context": {
+                "location": {
+                        "lat": 0,
+                        "lon": 0,
+                        "precision": "1km"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+

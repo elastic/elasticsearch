@@ -31,16 +31,15 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.fst.ByteSequenceOutputs;
-import org.apache.lucene.util.fst.FST;
-import org.apache.lucene.util.fst.PairOutputs;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
-import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
+import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
 import java.util.*;
@@ -84,7 +83,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
         int options = preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
         // needs to fixed in the suggester first before it can be supported
         //options |= exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-        prototype = new XAnalyzingSuggester(null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements,
+        prototype = new XAnalyzingSuggester(null,null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements,
                 null, false, 1, SEP_LABEL, PAYLOAD_SEP, END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
     }
 
@@ -243,24 +242,25 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
         final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
-            public Lookup getLookup(FieldMapper<?> mapper, CompletionSuggestionContext suggestionContext) {
+            public Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext) {
                 AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(mapper.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
-                int flags = analyzingSuggestHolder.preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
+                int flags = analyzingSuggestHolder.getPreserveSeparator() ? XAnalyzingSuggester.PRESERVE_SEP : 0;
+
+                final Automaton queryPrefix = mapper.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
 
                 XAnalyzingSuggester suggester;
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
+                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(),queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
                             suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), false,
                             analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                             analyzingSuggestHolder.maxAnalyzedPathsForOneInput, SEP_LABEL, PAYLOAD_SEP, END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
-
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), mapper.searchAnalyzer(), flags,
+                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             analyzingSuggestHolder.preservePositionIncrements,
                             analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
@@ -294,7 +294,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                 return new CompletionStats(sizeInBytes, completionFields);
             }
             @Override
-            AnalyzingSuggestHolder getAnalyzingSuggestHolder(FieldMapper<?> mapper) {
+            AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
                 return lookupMap.get(mapper.names().indexName());
             }
 

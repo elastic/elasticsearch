@@ -25,6 +25,9 @@ import java.util.List;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
+import org.elasticsearch.search.suggest.context.CategoryContextMapping;
+import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
@@ -123,12 +126,75 @@ public class SuggestBuilder implements ToXContent {
         private String analyzer;
         private Integer size;
         private Integer shardSize;
+        
+        private List<ContextQuery> contextQueries = new ArrayList<ContextQuery>();
 
         public SuggestionBuilder(String name, String suggester) {
             this.name = name;
             this.suggester = suggester;
         }
 
+        @SuppressWarnings("unchecked")
+        private T addContextQuery(ContextQuery ctx) {
+            this.contextQueries.add(ctx);
+            return (T) this;
+        }
+
+        /**
+         * Setup a Geolocation for suggestions. See {@link GeoContextMapping}.
+         * @param lat Latitude of the location
+         * @param lon Longitude of the Location
+         * @return this
+         */
+        public T addGeoLocation(String name, double lat, double lon) {
+            return addContextQuery(GeolocationContextMapping.query(name, lat, lon));
+        }
+
+        /**
+         * Setup a Geolocation for suggestions. See {@link GeoContextMapping}.
+         * @param geohash Geohash of the location
+         * @return this
+         */
+        public T addGeoLocation(String name, String geohash) {
+            return addContextQuery(GeolocationContextMapping.query(name, geohash));
+        }
+        
+        /**
+         * Setup a Category for suggestions. See {@link CategoryMapping}.
+         * @param category name of the category
+         * @return this
+         */
+        public T addCategory(String name, CharSequence...categories) {
+            return addContextQuery(CategoryContextMapping.query(name, categories));
+        }
+        
+        /**
+         * Setup a Category for suggestions. See {@link CategoryMapping}.
+         * @param category name of the category
+         * @return this
+         */
+        public T addCategory(String name, Iterable<? extends CharSequence> categories) {
+            return addContextQuery(CategoryContextMapping.query(name, categories));
+        }
+        
+        /**
+         * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
+         * @param category name of the category
+         * @return this
+         */
+        public T addContextField(String name, CharSequence...fieldvalues) {
+            return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
+        }
+        
+        /**
+         * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
+         * @param category name of the category
+         * @return this
+         */
+        public T addContextField(String name, Iterable<? extends CharSequence> fieldvalues) {
+            return addContextQuery(CategoryContextMapping.query(name, fieldvalues));
+        }
+        
         /**
          * Same as in {@link SuggestBuilder#setText(String)}, but in the suggestion scope.
          */
@@ -156,6 +222,14 @@ public class SuggestBuilder implements ToXContent {
             }
             if (shardSize != null) {
                 builder.field("shard_size", shardSize);
+            }
+
+            if (!contextQueries.isEmpty()) {
+                builder.startObject("context");
+                for (ContextQuery query : contextQueries) {
+                    query.toXContent(builder, params);
+                }
+                builder.endObject();
             }
             builder = innerToXContent(builder, params);
             builder.endObject();

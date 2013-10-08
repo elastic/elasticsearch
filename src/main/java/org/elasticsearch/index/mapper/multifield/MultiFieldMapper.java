@@ -21,17 +21,14 @@ package org.elasticsearch.index.mapper.multifield;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -227,18 +224,25 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // its a single field mapper, upgraded into a multi field mapper, just update the default mapper
                 if (defaultMapper == null) {
                     if (!mergeContext.mergeFlags().simulate()) {
-                        defaultMapper = mergeWith;
-                        mergeContext.newFieldMappers().mappers.add((FieldMapper) defaultMapper);
+                        mergeContext.docMapper().addFieldMappers((FieldMapper) defaultMapper);
+                        defaultMapper = mergeWith; // only set & expose it after adding fieldmapper
                     }
                 }
             } else {
                 MultiFieldMapper mergeWithMultiField = (MultiFieldMapper) mergeWith;
+
+                List<FieldMapper> newFieldMappers = null;
+                MapBuilder<String, Mapper> newMappersBuilder = null;
+                Mapper newDefaultMapper = null;
                 // merge the default mapper
                 if (defaultMapper == null) {
                     if (mergeWithMultiField.defaultMapper != null) {
                         if (!mergeContext.mergeFlags().simulate()) {
-                            defaultMapper = mergeWithMultiField.defaultMapper;
-                            mergeContext.newFieldMappers().mappers.add((FieldMapper) defaultMapper);
+                            if (newFieldMappers == null) {
+                                newFieldMappers = new ArrayList<FieldMapper>();
+                            }
+                            newFieldMappers.add((FieldMapper) defaultMapper);
+                            newDefaultMapper = mergeWithMultiField.defaultMapper;
                         }
                     }
                 } else {
@@ -257,14 +261,32 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
                                 ((AllFieldMapper.IncludeInAll) mergeWithMapper).includeInAll(false);
                             }
-                            mappers = newMapBuilder(mappers).put(mergeWithMapper.name(), mergeWithMapper).immutableMap();
+                            if (newMappersBuilder == null) {
+                                newMappersBuilder = newMapBuilder(mappers);
+                            }
+                            newMappersBuilder.put(mergeWithMapper.name(), mergeWithMapper);
                             if (mergeWithMapper instanceof AbstractFieldMapper) {
-                                mergeContext.newFieldMappers().mappers.add((FieldMapper) mergeWithMapper);
+                                if (newFieldMappers == null) {
+                                    newFieldMappers = new ArrayList<FieldMapper>();
+                                }
+                                newFieldMappers.add((FieldMapper) mergeWithMapper);
                             }
                         }
                     } else {
                         mergeIntoMapper.merge(mergeWithMapper, mergeContext);
                     }
+                }
+
+                // first add all field mappers
+                if (newFieldMappers != null && !newFieldMappers.isEmpty()) {
+                    mergeContext.docMapper().addFieldMappers(newFieldMappers);
+                }
+                // now publish mappers
+                if (newDefaultMapper != null) {
+                    defaultMapper = newDefaultMapper;
+                }
+                if (newMappersBuilder != null) {
+                    mappers = newMappersBuilder.immutableMap();
                 }
             }
         }

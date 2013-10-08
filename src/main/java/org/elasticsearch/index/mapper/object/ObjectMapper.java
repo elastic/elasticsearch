@@ -831,25 +831,30 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         doMerge(mergeWithObject, mergeContext);
 
-        List<Mapper> mappersToTraverse = new ArrayList<Mapper>();
+        List<Mapper> mappersToPut = new ArrayList<Mapper>();
+        FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
+        ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
         synchronized (mutex) {
             for (Mapper mergeWithMapper : mergeWithObject.mappers.values()) {
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
                     if (!mergeContext.mergeFlags().simulate()) {
-                        putMapper(mergeWithMapper);
-                        mappersToTraverse.add(mergeWithMapper);
+                        mappersToPut.add(mergeWithMapper);
+                        mergeWithMapper.traverse(newFieldMappers);
+                        mergeWithMapper.traverse(newObjectMappers);
                     }
                 } else {
                     if ((mergeWithMapper instanceof MultiFieldMapper) && !(mergeIntoMapper instanceof MultiFieldMapper)) {
                         MultiFieldMapper mergeWithMultiField = (MultiFieldMapper) mergeWithMapper;
                         mergeWithMultiField.merge(mergeIntoMapper, mergeContext);
                         if (!mergeContext.mergeFlags().simulate()) {
-                            putMapper(mergeWithMultiField);
+                            mappersToPut.add(mergeWithMultiField);
                             // now, record mappers to traverse events for all mappers
+                            // we don't just traverse mergeWithMultiField as we already have the default handler
                             for (Mapper mapper : mergeWithMultiField.mappers().values()) {
-                                mappersToTraverse.add(mapper);
+                                mapper.traverse(newFieldMappers);
+                                mapper.traverse(newObjectMappers);
                             }
                         }
                     } else {
@@ -857,12 +862,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     }
                 }
             }
+            if (!newFieldMappers.mappers.isEmpty()) {
+                mergeContext.docMapper().addFieldMappers(newFieldMappers.mappers);
+            }
+            if (!newObjectMappers.mappers.isEmpty()) {
+                mergeContext.docMapper().addObjectMappers(newObjectMappers.mappers);
+            }
+            // and the mappers only after the administration have been done, so it will not be visible to parser (which first try to read with no lock)
+            for (Mapper mapper : mappersToPut) {
+                putMapper(mapper);
+            }
         }
-        // call this outside of the mutex
-        for (Mapper mapper : mappersToTraverse) {
-            mapper.traverse(mergeContext.newFieldMappers());
-            mapper.traverse(mergeContext.newObjectMappers());
-        }
+
     }
 
     protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {

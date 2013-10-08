@@ -578,7 +578,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                     this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
                             ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
                     );
-                    mergeContext.addFieldDataChange(this);
                 }
             }
         }

@@ -20,13 +20,19 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
 
@@ -47,6 +53,9 @@ public class CompletionSuggestParser implements SuggestContextParser {
         XContentParser.Token token;
         String fieldName = null;
         CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester);
+        
+        XContentParser contextParser = null;
+        
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -56,32 +65,57 @@ public class CompletionSuggestParser implements SuggestContextParser {
                         suggestion.setFuzzy(parser.booleanValue());
                     }
                 }
-            } else if (token == XContentParser.Token.START_OBJECT && "fuzzy".equals(fieldName)) {
-                suggestion.setFuzzy(true);
-                String fuzzyConfigName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        fuzzyConfigName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if (FUZZINESS.match(fuzzyConfigName, ParseField.EMPTY_FLAGS)) {
-                            suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
-                        } else if ("transpositions".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyTranspositions(parser.booleanValue());
-                        } else if ("min_length".equals(fuzzyConfigName) || "minLength".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyMinLength(parser.intValue());
-                        } else if ("prefix_length".equals(fuzzyConfigName) || "prefixLength".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyPrefixLength(parser.intValue());
-                        } else if ("unicode_aware".equals(fuzzyConfigName) || "unicodeAware".equals(fuzzyConfigName)) {
-                            suggestion.setFuzzyUnicodeAware(parser.booleanValue());
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if("fuzzy".equals(fieldName)) {
+                    suggestion.setFuzzy(true);
+                    String fuzzyConfigName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fuzzyConfigName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if (FUZZINESS.match(fuzzyConfigName, ParseField.EMPTY_FLAGS)) {
+                                suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
+                            } else if ("transpositions".equals(fuzzyConfigName)) {
+                                suggestion.setFuzzyTranspositions(parser.booleanValue());
+                            } else if ("min_length".equals(fuzzyConfigName) || "minLength".equals(fuzzyConfigName)) {
+                                suggestion.setFuzzyMinLength(parser.intValue());
+                            } else if ("prefix_length".equals(fuzzyConfigName) || "prefixLength".equals(fuzzyConfigName)) {
+                                suggestion.setFuzzyPrefixLength(parser.intValue());
+                            } else if ("unicode_aware".equals(fuzzyConfigName) || "unicodeAware".equals(fuzzyConfigName)) {
+                                suggestion.setFuzzyUnicodeAware(parser.booleanValue());
+                            }
                         }
                     }
+                } else if("context".equals(fieldName)) {
+                    // Copy the current structure. We will parse, once the mapping is provided
+                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                    builder.copyCurrentStructure(parser);
+                    BytesReference bytes = builder.bytes();               
+                    contextParser = parser.contentType().xContent().createParser(bytes);
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
                 }
             } else {
                 throw new ElasticsearchIllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
             }
         }
-        suggestion.mapper(mapperService.smartNameFieldMapper(suggestion.getField()));
+        
+        suggestion.mapper((CompletionFieldMapper)mapperService.smartNameFieldMapper(suggestion.getField()));
 
+        CompletionFieldMapper mapper = suggestion.mapper();
+        if (mapper != null) {
+            if (mapper.requiresContext()) {
+                if (contextParser == null) {
+                    throw new ElasticsearchIllegalArgumentException("suggester [completion] requires context to be setup");
+                } else {
+                    contextParser.nextToken();
+                    List<ContextQuery> contextQueries = ContextQuery.parseQueries(mapper.getContextMapping(), contextParser);
+                    suggestion.setContextQuery(contextQueries);
+                }
+            } else if (contextParser != null) {
+                throw new ElasticsearchIllegalArgumentException("suggester [completion] doesn't expect any context");
+            }
+        }
         return suggestion;
     }
 

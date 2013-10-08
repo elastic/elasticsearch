@@ -121,7 +121,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      *           Analyzer that will be used for analyzing query text during lookup
      */
     public XFuzzySuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
-        this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, DEFAULT_MAX_EDITS, DEFAULT_TRANSPOSITIONS,
+        this(indexAnalyzer, null, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, DEFAULT_MAX_EDITS, DEFAULT_TRANSPOSITIONS,
                 DEFAULT_NON_FUZZY_PREFIX, DEFAULT_MIN_FUZZY_LENGTH, DEFAULT_UNICODE_AWARE, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
 
     }
@@ -151,11 +151,11 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      * @param payloadSep payload separator byte
      * @param endByte end byte marker byte
      */
-    public XFuzzySuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
+    public XFuzzySuggester(Analyzer indexAnalyzer, Automaton queryPrefix, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                            int maxEdits, boolean transpositions, int nonFuzzyPrefix, int minFuzzyLength, boolean unicodeAware,
                            FST<PairOutputs.Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
                            int sepLabel, int payloadSep, int endByte, int holeCharacter) {
-        super(indexAnalyzer, queryAnalyzer, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, true, fst, hasPayloads, maxAnalyzedPathsForOneInput, sepLabel, payloadSep, endByte, holeCharacter);
+        super(indexAnalyzer, queryPrefix, queryAnalyzer, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, true, fst, hasPayloads, maxAnalyzedPathsForOneInput, sepLabel, payloadSep, endByte, holeCharacter);
         if (maxEdits < 0 || maxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
             throw new IllegalArgumentException("maxEdits must be between 0 and " + LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
         }
@@ -202,11 +202,12 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
     @Override
     protected Automaton convertAutomaton(Automaton a) {
       if (unicodeAware) {
-        Automaton utf8automaton = new UTF32ToUTF8().convert(a);
+        // FLORIAN EDIT: get converted Automaton from superclass
+        Automaton utf8automaton = new UTF32ToUTF8().convert(super.convertAutomaton(a));
         BasicOperations.determinize(utf8automaton);
         return utf8automaton;
       } else {
-        return a;
+        return super.convertAutomaton(a);
       }
     }
 

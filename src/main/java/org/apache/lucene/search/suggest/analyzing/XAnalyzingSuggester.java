@@ -26,8 +26,6 @@ import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Sort;
 import org.apache.lucene.store.*;
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.*;
@@ -36,7 +34,10 @@ import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.Util.MinResult;
 import org.elasticsearch.common.collect.HppcMaps;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.*;
 
 /**
@@ -167,6 +168,8 @@ public class XAnalyzingSuggester extends Lookup {
 
   public static final int PAYLOAD_SEP = '\u001F';
   public static final int HOLE_CHARACTER = '\u001E';
+  
+  private final Automaton queryPrefix;
 
   /** Whether position holes should appear in the automaton. */
   private boolean preservePositionIncrements;
@@ -180,7 +183,7 @@ public class XAnalyzingSuggester extends Lookup {
    * PRESERVE_SEP, 256, -1)}
    */
   public XAnalyzingSuggester(Analyzer analyzer) {
-    this(analyzer, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
+    this(analyzer, null, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
@@ -189,7 +192,7 @@ public class XAnalyzingSuggester extends Lookup {
    * PRESERVE_SEP, 256, -1)}
    */
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
-    this(indexAnalyzer, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
+    this(indexAnalyzer, null, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
@@ -208,7 +211,7 @@ public class XAnalyzingSuggester extends Lookup {
    *   to expand from the analyzed form.  Set this to -1 for
    *   no limit.
    */
-  public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
+  public XAnalyzingSuggester(Analyzer indexAnalyzer, Automaton queryPrefix, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                              boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
                              int sepLabel, int payloadSep, int endByte, int holeCharacter) {
       // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput 
@@ -222,6 +225,9 @@ public class XAnalyzingSuggester extends Lookup {
     this.exactFirst = (options & EXACT_FIRST) != 0;
     this.preserveSep = (options & PRESERVE_SEP) != 0;
 
+    // FLORIAN EDIT: I added <code>queryPrefix</code> for context dependent suggestions
+    this.queryPrefix = queryPrefix;
+    
     // NOTE: this is just an implementation limitation; if
     // somehow this is a problem we could fix it by using
     // more than one byte to disambiguate ... but 256 seems
@@ -298,6 +304,10 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   protected Automaton convertAutomaton(Automaton a) {
+    if (queryPrefix != null) {
+      a = Automaton.concatenate(Arrays.asList(queryPrefix, a));
+      BasicOperations.determinize(a);
+    }
     return a;
   }
 

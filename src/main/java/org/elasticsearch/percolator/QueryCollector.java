@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -34,6 +35,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.facet.SearchContextFacets;
+import org.elasticsearch.search.facet.nested.NestedFacetExecutor;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 
@@ -57,6 +60,9 @@ abstract class QueryCollector extends Collector {
 
     BytesValues values;
 
+    final List<Collector> facetCollectors = new ArrayList<Collector>();
+    final Collector facetCollector;
+
     QueryCollector(ESLogger logger, PercolateContext context) {
         this.logger = logger;
         this.queries = context.percolateQueries();
@@ -66,16 +72,41 @@ abstract class QueryCollector extends Collector {
                 new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
                 false
         );
+
+        if (context.facets() != null) {
+            for (SearchContextFacets.Entry entry : context.facets().entries()) {
+                if (entry.isGlobal()) {
+                    continue; // not supported for now
+                }
+                Collector collector = entry.getFacetExecutor().collector();
+                if (entry.getFilter() != null) {
+                    if (collector instanceof NestedFacetExecutor.Collector) {
+                        collector = new NestedFacetExecutor.Collector((NestedFacetExecutor.Collector) collector, entry.getFilter());
+                    } else {
+                        collector = new FilteredCollector(collector, entry.getFilter());
+                    }
+                }
+                facetCollectors.add(collector);
+            }
+        }
+
+        facetCollector = facetCollectors.isEmpty() ? null : MultiCollector.wrap(facetCollectors.toArray(new Collector[facetCollectors.size()]));
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
+        if (facetCollector != null) {
+            facetCollector.setScorer(scorer);
+        }
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues();
+        if (facetCollector != null) {
+            facetCollector.setNextReader(context);
+        }
     }
 
     @Override
@@ -145,6 +176,9 @@ abstract class QueryCollector extends Collector {
                         }
                     }
                     counter++;
+                    if (facetCollector != null) {
+                        facetCollector.collect(doc);
+                    }
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
@@ -188,6 +222,9 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     topDocsCollector.collect(doc);
+                    if (facetCollector != null) {
+                        facetCollector.collect(doc);
+                    }
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
@@ -260,6 +297,9 @@ abstract class QueryCollector extends Collector {
                         }
                     }
                     counter++;
+                    if (facetCollector != null) {
+                        facetCollector.collect(doc);
+                    }
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
@@ -310,6 +350,9 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     counter++;
+                    if (facetCollector != null) {
+                        facetCollector.collect(doc);
+                    }
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);

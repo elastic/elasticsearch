@@ -437,4 +437,16 @@ public abstract class StreamInput extends InputStream {
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
     }
+
+    /**
+     * Serializes a potential null value.
+     */
+    public <T extends Streamable> T readOptionalStreamable(T streamable) throws IOException {
+        if (readBoolean()) {
+            streamable.readFrom(this);
+            return streamable;
+        } else {
+            return null;
+        }
+    }
 }

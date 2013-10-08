@@ -131,6 +131,8 @@ Though not dependent on actually using `ec2` as discovery (but still requires th
 
 ## S3 Gateway
 
+*note*: As explained [here](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-gateway-s3.html) S3 Gateway functionality is being deprecated. Please use [local gateway](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-gateway-local.html) instead.
+
 s3 based gateway allows to do long term reliable async persistency of the cluster state and indices directly to Amazon s3. Note, this is a shared gateway where the indices are periodically persisted to s3 while being served from the data location of each node. 
 
 Here is how it can be configured:

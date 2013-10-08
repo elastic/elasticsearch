@@ -18,6 +18,7 @@
 
 package org.elasticsearch.plugin;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -183,5 +184,11 @@ public class PluginManagerTests extends AbstractIntegrationTest {
 
         // We want to remove plugin with groupid/artifactid form
         singlePluginInstallAndRemove("groupid/plugintest", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+    }
+
+    @Test(expected = ElasticSearchIllegalArgumentException.class)
+    public void testRemovePluginWithURLForm() throws Exception {
+        PluginManager pluginManager = pluginManager(null);
+        pluginManager.removePlugin("file://whatever");
     }
 }

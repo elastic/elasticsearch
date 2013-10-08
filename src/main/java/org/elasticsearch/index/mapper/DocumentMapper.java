@@ -572,7 +572,7 @@ public class DocumentMapper implements ToXContent {
         addFieldMappers(fieldMappers.toArray(new FieldMapper[fieldMappers.size()]));
     }
 
-    private void addFieldMappers(FieldMapper... fieldMappers) {
+    public void addFieldMappers(FieldMapper... fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
         }
@@ -644,12 +644,6 @@ public class DocumentMapper implements ToXContent {
         }
 
         if (!mergeFlags.simulate()) {
-            if (!mergeContext.newFieldMappers().mappers.isEmpty()) {
-                addFieldMappers(mergeContext.newFieldMappers().mappers);
-            }
-            if (!mergeContext.newObjectMappers().mappers.isEmpty()) {
-                addObjectMappers(mergeContext.newObjectMappers().mappers);
-            }
             // let the merge with attributes to override the attributes
             meta = mergeWith.meta();
             // update the source of the merged one

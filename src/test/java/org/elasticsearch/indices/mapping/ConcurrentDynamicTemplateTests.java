@@ -20,10 +20,8 @@
 package org.elasticsearch.indices.mapping;
 
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
@@ -43,34 +41,33 @@ public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
     private final String mappingType = "test-mapping";
 
     @Test // see #3544
-    @AwaitsFix(bugUrl="Boaz is looking into this test")
     public void testConcurrentDynamicMapping() throws Exception {
-        final String mapping = "{" + mappingType + ": {" + "\"properties\": {" + "\"an_id\": {"
-                + "\"type\": \"string\"," + "\"store\": \"yes\"," + "\"index\": \"not_analyzed\"" + "}" + "}," + "\"dynamic_templates\": ["
-                + "{" + "\"participants\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"string\"," + "\"store\": \"yes\","
-                + "\"index\": \"analyzed\"," + "\"analyzer\": \"whitespace\"" + "}" + "}" + "}" + "]" + "}" + "}";
+        final String fieldName = "field";
+        final String mapping = "{ \"" + mappingType + "\": {" +
+                "\"dynamic_templates\": ["
+                + "{ \"" + fieldName + "\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"string\"," + "\"store\": \"yes\","
+                + "\"index\": \"analyzed\", \"analyzer\": \"whitespace\" } } } ] } }";
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
-        final String fieldName = "participants.ACCEPTED";
         int iters = atLeast(5);
         for (int i = 0; i < iters; i++) {
             wipeIndex("test");
             client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                        .put("number_of_shards", between(1,5))
-                        .put("number_of_replicas", between(0,1)).build())
-                        .addMapping(mappingType, mapping).execute().actionGet();
+                    .setSettings(
+                            ImmutableSettings.settingsBuilder()
+                                    .put("number_of_shards", between(1, 5))
+                                    .put("number_of_replicas", between(0, 1)).build())
+                    .addMapping(mappingType, mapping).execute().actionGet();
             ensureYellow();
             int numDocs = atLeast(10);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<Throwable>();
+            int currentID = 0;
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<String, Object>();
-                source.put("an_id", Strings.randomBase64UUID(getRandom()));
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test", mappingType).setSource(source).execute(new ActionListener<IndexResponse>() {
+                client().prepareIndex("test", mappingType, Integer.toString(currentID++)).setSource(source).execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
                         latch.countDown();

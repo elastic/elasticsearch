@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugins;
 
+import com.google.common.base.Strings;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -221,6 +223,10 @@ public class PluginManager {
         PluginHandle pluginHandle = PluginHandle.parse(name);
         boolean removed = false;
 
+        if (Strings.isNullOrEmpty(pluginHandle.name)) {
+            throw new ElasticSearchIllegalArgumentException("plugin name is incorrect");
+        }
+
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
@@ -331,6 +337,7 @@ public class PluginManager {
                         // Deprecated commands
                         || command.equals("remove") || command.equals("-remove")) {
                     pluginName = args[++c];
+
                     action = ACTION.REMOVE;
                 } else if (command.equals("-l") || command.equals("--list")) {
                     action = ACTION.LIST;
@@ -371,6 +378,9 @@ public class PluginManager {
                         pluginManager.log("-> Removing " + pluginName + " ");
                         pluginManager.removePlugin(pluginName);
                         exitCode = EXIT_CODE_OK;
+                    } catch (ElasticSearchIllegalArgumentException e) {
+                        exitCode = EXIT_CODE_CMD_USAGE;
+                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                     } catch (IOException e) {
                         exitCode = EXIT_CODE_IO_ERROR;
                         pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());

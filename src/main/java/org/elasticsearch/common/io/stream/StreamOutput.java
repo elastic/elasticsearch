@@ -412,4 +412,16 @@ public abstract class StreamOutput extends OutputStream {
             throw new IOException("Can't write type [" + type + "]");
         }
     }
+
+    /**
+     * Serializes a potential null value.
+     */
+    public void writeOptionalStreamable(@Nullable Streamable streamable) throws IOException {
+        if (streamable != null) {
+            writeBoolean(true);
+            streamable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
 }

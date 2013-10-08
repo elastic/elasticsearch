@@ -131,6 +131,10 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         return result;
     }
 
+    public static InternalFacets readOptionalFacets(StreamInput in) throws IOException {
+        return in.readOptionalStreamable(new InternalFacets());
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();

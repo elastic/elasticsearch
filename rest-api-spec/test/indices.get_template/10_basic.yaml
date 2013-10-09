@@ -17,6 +17,10 @@
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 ---
 "Get all templates":
+  - skip:
+      version: "0 - 0.90.3"
+      reason:  "Get all templates not available before 0.90.4"
+
   - do:
       indices.put_template:
         name: test

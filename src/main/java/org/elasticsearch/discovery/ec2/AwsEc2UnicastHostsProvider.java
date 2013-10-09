@@ -185,13 +185,13 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                     if (address != null) {
                         try {
                             TransportAddress[] addresses = transportService.addressesFromString(address);
-                            // we only limit to 1 addresses, makes no sense to ping 100 ports
+                            // we only limit to 1 address, makes no sense to ping 100 ports
                             for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
                                 logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
                                 discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], Version.CURRENT));
                             }
                         } catch (Exception e) {
-                            logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);
+                            logger.warn("failed to add {}, address {}", e, instance.getInstanceId(), address);
                         }
                     } else {
                         logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);

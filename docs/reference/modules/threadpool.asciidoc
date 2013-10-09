@@ -95,8 +95,7 @@ threadpool:
         queue_size: 1000
 --------------------------------------------------
 
-[processors]] 
-[float] 
+[float]
 [[processors]]
 === Processors setting
 The number of processors is automatically detected, and the thread pool

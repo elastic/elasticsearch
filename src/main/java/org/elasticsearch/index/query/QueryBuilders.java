@@ -253,6 +253,16 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A Query that matches documents using fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
+    public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
+        return new FuzzyQueryBuilder(name, value);
+    }
+
+    /**
      * A query that executes the query string against a field. It is a simplified
      * version of {@link QueryStringQueryBuilder} that simply runs against
      * a single field.
@@ -562,7 +572,7 @@ public abstract class QueryBuilders {
     /**
      * A query that allows to define a custom scoring function.
      *
-     * @param filterBuilder The filterBuilder to custom score
+     * @param function The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
         return new FunctionScoreQueryBuilder(function);
@@ -572,7 +582,7 @@ public abstract class QueryBuilders {
      * A query that allows to define a custom scoring function.
      *
      * @param queryBuilder The query to custom score
-     * @param scoreFunctionBuilder The score function used to re-score the query
+     * @param function The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
@@ -582,6 +592,7 @@ public abstract class QueryBuilders {
      * A query that allows to define a custom scoring function.
      *
      * @param filterBuilder The query to custom score
+     * @param function The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(filterBuilder)).add(function);

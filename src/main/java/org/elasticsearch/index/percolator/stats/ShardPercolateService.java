@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,12 +31,16 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * Shard level percolator service that maintains percolator statistics.
  */
 public class ShardPercolateService extends AbstractIndexShardComponent {
 
+    private final PercolatorQueriesRegistry registry;
+
     @Inject
-    public ShardPercolateService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardPercolateService(ShardId shardId, @IndexSettings Settings indexSettings, PercolatorQueriesRegistry registry) {
         super(shardId, indexSettings);
+        this.registry = registry;
     }
 
     private final MeanMetric percolateMetric = new MeanMetric();
@@ -51,7 +56,7 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
     }
 
     public PercolateStats stats() {
-        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count());
+        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count(), registry.sizeInBytes(), registry.percolateQueries().size());
     }
 
 }

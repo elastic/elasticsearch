@@ -4,6 +4,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -111,6 +113,15 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
     public void removePercolateQuery(String idAsString) {
         percolateQueries.remove(new HashedBytesRef(idAsString));
+    }
+
+    public long sizeInBytes() {
+        long size = 0;
+        for (Map.Entry<HashedBytesRef, Query> entry : percolateQueries.entrySet()) {
+            size += (3 * RamUsageEstimator.NUM_BYTES_INT) + RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + entry.getKey().bytes.bytes.length;
+            size += RamUsageEstimator.sizeOf(entry.getValue());
+        }
+        return size;
     }
 
     Query parsePercolatorDocument(String id, BytesReference source) {

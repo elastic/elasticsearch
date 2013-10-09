@@ -90,7 +90,7 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
         if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
             out.writeStringArray(names);
         } else {
-            out.writeString(names[0]);
+            out.writeString(names.length == 0 ? "*" : names[0]);
         }
     }
 }

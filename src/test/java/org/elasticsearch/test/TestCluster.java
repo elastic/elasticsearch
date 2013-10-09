@@ -52,6 +52,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.test.store.mock.MockFSIndexStoreModule;
+import org.elasticsearch.test.transport.AssertingLocalTransportModule;
+import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Assert;
 
@@ -117,18 +119,28 @@ public class TestCluster implements Closeable, Iterable<Client> {
             sharedNodesSeeds[i] = random.nextLong();
         }
         logger.info("Setup TestCluster [{}] with seed [{}] using [{}] nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedNodes);
-        this.defaultSettings = ImmutableSettings.settingsBuilder()
-                /* use RAM directories in 10% of the runs */
-//                .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
-                .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
-                .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
-                .put("cluster.name", clusterName)
-                        // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
-                .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
-                        // default to non gateway
-                .put("gateway.type", "none")
-                .build();
+        Builder builder = ImmutableSettings.settingsBuilder()
+        /* use RAM directories in 10% of the runs */
+//        .put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
+        .put("index.store.type", MockFSIndexStoreModule.class.getName()) // no RAM dir for now!
+        .put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName())
+        .put("cluster.name", clusterName)
+                // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
+        .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
+                // default to non gateway
+        .put("gateway.type", "none");
+        if (isLocalTransportConfigured()) {
+            builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
+        }
+        this.defaultSettings = builder.build();
         this.nodeSettingsSource = nodeSettingsSource;
+    }
+
+    private static boolean isLocalTransportConfigured() {
+        if ("local".equals(System.getProperty("es.node.mode", "network"))) {
+           return true;
+        }
+        return Boolean.parseBoolean(System.getProperty("es.node.local", "false"));
     }
 
     private Settings getSettings(int nodeOrdinal, Settings others) {

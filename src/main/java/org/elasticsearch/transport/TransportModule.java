@@ -35,6 +35,8 @@ import org.elasticsearch.transport.netty.NettyTransportModule;
 public class TransportModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
+    
+    public static final String TRANSPORT_TYPE_KEY = "transport.type";
 
     public TransportModule(Settings settings) {
         this.settings = settings;
@@ -48,7 +50,7 @@ public class TransportModule extends AbstractModule implements SpawnModules {
         } else {
             defaultTransportModule = NettyTransportModule.class;
         }
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("transport.type", defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
+        return ImmutableList.of(Modules.createModule(settings.getAsClass(TRANSPORT_TYPE_KEY, defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
     }
 
     @Override

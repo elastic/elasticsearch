@@ -21,7 +21,9 @@ package org.elasticsearch.test.hamcrest;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -34,10 +36,20 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -51,14 +63,13 @@ import static org.junit.Assert.fail;
  */
 public class ElasticSearchAssertions {
 
-
     public static void assertAcked(PutMappingRequestBuilder builder) {
         assertAcked(builder.get());
     }
 
     private static void assertAcked(PutMappingResponse response) {
         assertThat("Put Mapping failed - not acked", response.isAcknowledged(), equalTo(true));
-
+        assertVersionSerializable(response);
     }
 
     public static void assertAcked(DeleteIndexRequestBuilder builder) {
@@ -71,15 +82,17 @@ public class ElasticSearchAssertions {
 
     public static void assertAcked(DeleteIndexResponse response) {
         assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
+        assertVersionSerializable(response);
     }
 
     public static void assertAcked(CreateIndexResponse response) {
         assertThat("Create Index failed - not acked", response.isAcknowledged(), equalTo(true));
+        assertVersionSerializable(response);
     }
 
     public static String formatShardStatus(BroadcastOperationResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() +
-                " & " + response.getFailedShards() + " shard failures:";
+        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
+                + response.getFailedShards() + " shard failures:";
         for (ShardOperationFailedException failure : response.getShardFailures()) {
             msg += "\n " + failure.toString();
         }
@@ -87,8 +100,8 @@ public class ElasticSearchAssertions {
     }
 
     public static String formatShardStatus(SearchResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() +
-                " & " + response.getFailedShards() + " shard failures:";
+        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
+                + response.getFailedShards() + " shard failures:";
         for (ShardSearchFailure failure : response.getShardFailures()) {
             msg += "\n " + failure.toString();
         }
@@ -100,8 +113,10 @@ public class ElasticSearchAssertions {
      */
     public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
         if (searchResponse.getHits().totalHits() != expectedHitCount) {
-            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(searchResponse));
+            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. "
+                    + formatShardStatus(searchResponse));
         }
+        assertVersionSerializable(searchResponse);
     }
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
@@ -110,9 +125,12 @@ public class ElasticSearchAssertions {
 
         Set<String> idsSet = new HashSet<String>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()), equalTo(true));
+            assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()),
+                    equalTo(true));
         }
-        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs." + shardStatus, idsSet.size(), equalTo(0));
+        assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[0])) + " in the result - result size differs."
+                + shardStatus, idsSet.size(), equalTo(0));
+        assertVersionSerializable(searchResponse);
     }
 
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
@@ -122,13 +140,14 @@ public class ElasticSearchAssertions {
             SearchHit hit = searchResponse.getHits().hits()[i];
             assertThat("Expected id: " + ids[i] + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
         }
+        assertVersionSerializable(searchResponse);
     }
 
     public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
         if (countResponse.getCount() != expectedHitCount) {
-            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " +
-                    formatShardStatus(countResponse));
+            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
+        assertVersionSerializable(countResponse);
     }
 
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
@@ -148,18 +167,23 @@ public class ElasticSearchAssertions {
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
         assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long) number));
         assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
+        assertVersionSerializable(searchResponse);
     }
 
     public static void assertNoFailures(SearchResponse searchResponse) {
-        assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
+                searchResponse.getShardFailures().length, equalTo(0));
+        assertVersionSerializable(searchResponse);
     }
 
     public static void assertNoFailures(BroadcastOperationResponse response) {
         assertThat("Unexpectd ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
+        assertVersionSerializable(response);
     }
 
     public static void assertSearchHit(SearchHit searchHit, Matcher<SearchHit> matcher) {
         assertThat(searchHit, matcher);
+        assertVersionSerializable(searchHit);
     }
 
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
@@ -168,6 +192,7 @@ public class ElasticSearchAssertions {
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field), notNullValue());
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));
         assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(), matcher);
+        assertVersionSerializable(resp);
     }
 
     public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {
@@ -176,7 +201,7 @@ public class ElasticSearchAssertions {
         assertThat(searchSuggest.getSuggestion(key).getName(), equalTo(key));
         assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), equalTo(size));
-
+        assertVersionSerializable(searchSuggest);
     }
 
     public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
@@ -186,6 +211,7 @@ public class ElasticSearchAssertions {
         assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), greaterThan(ord));
         assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));
+        assertVersionSerializable(searchSuggest);
     }
 
     /**
@@ -196,7 +222,8 @@ public class ElasticSearchAssertions {
     }
 
     /**
-     * Assert suggestion returns size suggestions and the first are the provided text.
+     * Assert suggestion returns size suggestions and the first are the provided
+     * text.
      */
     public static void assertSuggestion(Suggest searchSuggest, int entry, String key, int size, String... text) {
         assertSuggestionSize(searchSuggest, entry, size, key);
@@ -257,6 +284,55 @@ public class ElasticSearchAssertions {
         // has to be outside catch clause to get a proper message
         if (fail) {
             throw new AssertionError(extraInfo);
+        }
+    }
+
+    private static BytesReference serialize(Version version, Streamable streamable) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(version);
+        streamable.writeTo(output);
+        output.flush();
+        return output.bytes();
+    }
+
+    public static void assertVersionSerializable(Streamable streamable) {
+        assert Version.CURRENT.after(ElasticSearchTestCase.getPreviousVersion());
+        assertVersionSerializable(ElasticSearchTestCase.randomVersion(), streamable);
+    }
+
+    public static void assertVersionSerializable(Version version, Streamable streamable) {
+        try {
+            Streamable newInstance = tryCreateNewInstance(streamable);
+            if (newInstance == null) {
+                return; // can't create a new instance - we never modify a
+                        // streamable that comes in.
+            }
+            if (streamable instanceof ActionRequest) {
+                ((ActionRequest<?>)streamable).validate();
+            }
+            BytesReference orig = serialize(version, streamable);
+            StreamInput input = new BytesStreamInput(orig);
+            input.setVersion(version);
+            newInstance.readFrom(input);
+            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(), equalTo(0));
+            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]", serialize(version, streamable), equalTo(orig));
+        } catch (Throwable ex) {
+            throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
+        }
+
+    }
+
+    private static Streamable tryCreateNewInstance(Streamable streamable) throws NoSuchMethodException, InstantiationException,
+            IllegalAccessException, InvocationTargetException {
+        try {
+            Class<? extends Streamable> clazz = streamable.getClass();
+            Constructor<? extends Streamable> constructor = clazz.getDeclaredConstructor();
+            assertThat(constructor, Matchers.notNullValue());
+            constructor.setAccessible(true);
+            Streamable newInstance = constructor.newInstance();
+            return newInstance;
+        } catch (Throwable e) {
+            return null;
         }
     }
 

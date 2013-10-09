@@ -21,10 +21,12 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.junit.listeners.LoggingListener;
@@ -35,9 +37,11 @@ import org.junit.BeforeClass;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
@@ -45,7 +49,7 @@ import java.util.concurrent.TimeUnit;
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
 @Listeners(LoggingListener.class)
 public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
-
+    
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
@@ -166,5 +170,47 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
     public static boolean maybeDocValues() {
         return LuceneTestCase.defaultCodecSupportsSortedSet() && randomBoolean();
     }
-
-}
+    
+    private static final List<Version> SORTED_VERSIONS;
+    
+    static {
+        Field[] declaredFields = Version.class.getDeclaredFields();
+        Set<Integer> ids = new HashSet<Integer>();
+        for (Field field : declaredFields) {
+            final int mod = field.getModifiers();
+            if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+                if (field.getType() == Version.class) {
+                    try {
+                        Version object = (Version) field.get(null);
+                        ids.add(object.id);
+                    } catch (Throwable e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        List<Integer> idList = new ArrayList<Integer>(ids);
+        Collections.sort(idList);
+        Collections.reverse(idList);
+        ImmutableList.Builder<Version> version = ImmutableList.builder();
+        for (Integer integer : idList) {
+            version.add(Version.fromId(integer));
+        }
+        SORTED_VERSIONS = version.build();
+    }
+    
+    public static Version getPreviousVersion() {
+        Version version = SORTED_VERSIONS.get(1);
+        assert version.before(Version.CURRENT);
+        return version;
+    }
+    
+    public static Version randomVersion() {
+        return randomVersion(getRandom());
+    }
+    
+    public static Version randomVersion(Random random) {
+        return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
+    }
+    
+  }

@@ -186,7 +186,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return this.threadPool;
     }
 
-    void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
+   protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
         try {
             transportServiceAdapter.received(data.length);
             StreamInput stream = new BytesStreamInput(data, false);
@@ -244,7 +244,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
 
-    private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
+    protected void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
         try {
             response.readFrom(buffer);
@@ -252,6 +252,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
+        handleParsedRespone(response, handler);
+    }
+    
+    protected void handleParsedRespone(final TransportResponse response, final TransportResponseHandler handler) {
         threadPool.executor(handler.executor()).execute(new Runnable() {
             @SuppressWarnings({"unchecked"})
             @Override

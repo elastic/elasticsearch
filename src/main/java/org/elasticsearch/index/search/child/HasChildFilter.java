@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -130,7 +131,8 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
         collectedUids = searchContext.cacheRecycler().hashSet(-1);
         UidCollector collector = new UidCollector(parentType, searchContext, collectedUids.v());
-        searchContext.searcher().search(childQuery, collector);
+        TermFilter childTypeFilter = new TermFilter(new Term(TypeFieldMapper.NAME, childType));
+        searchContext.searcher().search(childQuery, childTypeFilter, collector);
         remaining = collectedUids.v().size();
         if (remaining == 0) {
             shortCircuitFilter = Queries.MATCH_NO_FILTER;

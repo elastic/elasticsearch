@@ -548,6 +548,8 @@ public class PercolatorTests extends AbstractIntegrationTest {
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(5l)); // We have 5 partitions
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l)); // One primary and replica
+        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         long percolateCount = 0;
@@ -567,6 +569,8 @@ public class PercolatorTests extends AbstractIntegrationTest {
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l));
+        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
 
         percolateCount = 0;
         nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();

@@ -70,7 +70,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     public static final String CONTENT_TYPE = "date";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime", Locale.ROOT);
 
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
@@ -97,6 +97,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public Builder(String name) {
             super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
+            // do *NOT* rely on the default locale
+            locale = Locale.ROOT;
         }
 
         public Builder timeUnit(TimeUnit timeUnit) {
@@ -121,8 +123,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            if (locale != null && !locale.equals(dateTimeFormatter.locale())) {
-                // this sucks we should use the root local by default and not be dependent on the node if it is null?
+            if (!locale.equals(dateTimeFormatter.locale())) {
                 dateTimeFormatter = new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale);
             }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,

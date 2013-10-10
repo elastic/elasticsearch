@@ -147,8 +147,15 @@ public interface IndexShard extends IndexShardComponent {
 
     Engine.Searcher acquireSearcher(String source);
 
+    Engine.Searcher acquireSearcher(String source, Mode mode);
+
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */
     public boolean ignoreRecoveryAttempt();
+
+    public enum Mode {
+        READ,
+        WRITE
+    }
 }

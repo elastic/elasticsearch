@@ -131,7 +131,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()), null,
-                indexShard.acquireSearcher("delete_by_query"), indexService, indexShard, scriptService, cacheRecycler));
+                indexShard.acquireSearcher("delete_by_query", IndexShard.Mode.WRITE), indexService, indexShard, scriptService, cacheRecycler));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types())
                     .origin(Engine.Operation.Origin.REPLICA);

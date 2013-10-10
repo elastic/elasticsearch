@@ -600,7 +600,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public Engine.Searcher acquireSearcher(String source) {
-        readAllowed();
+        return acquireSearcher(source, Mode.READ);
+    }
+
+    @Override
+    public Engine.Searcher acquireSearcher(String source, Mode mode) {
+        readAllowed(mode);
         return engine.acquireSearcher(source);
     }
 
@@ -756,9 +761,23 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     public void readAllowed() throws IllegalIndexShardStateException {
+        readAllowed(Mode.READ);
+    }
+
+
+    public void readAllowed(Mode mode) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
+        switch (mode) {
+            case READ:
+                if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+                    throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
+                }
+                break;
+            case WRITE:
+                if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
+                    throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
+                }
+                break;
         }
     }
 

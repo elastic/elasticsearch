@@ -448,7 +448,7 @@ and the <<query-dsl-custom-filters-score-query>>
 "custom_filters_score": {
     "filters": [
         {
-            "boost": "3",
+            "boost_factor": "3",
             "filter": {...}
         },
         {
@@ -472,7 +472,7 @@ becomes:
 "function_score": {
     "functions": [
         {
-            "boost": "3",
+            "boost_factor": "3",
             "filter": {...}
         },
         {

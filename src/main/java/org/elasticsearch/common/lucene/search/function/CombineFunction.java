@@ -31,7 +31,7 @@ public enum CombineFunction {
 
         @Override
         public String getName() {
-            return "mult";
+            return "multiply";
         }
 
         @Override

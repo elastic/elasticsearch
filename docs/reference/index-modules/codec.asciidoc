@@ -12,7 +12,14 @@ inverted index into main memory.
 
 Configuring custom postings or doc values formats is an expert feature and
 most likely using the builtin formats will suit your needs as is described
-in the <<mapping-core-types,mapping section>>
+in the <<mapping-core-types,mapping section>>.
+
+**********************************
+Only the default codec, postings format and doc values format are supported:
+other formats may break backward compatibility between minor versions of
+Elasticsearch, requiring data to be reindexed.
+**********************************
+
 
 [float]
 [[custom-postings]]

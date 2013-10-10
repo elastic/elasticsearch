@@ -2,9 +2,7 @@
 == Suggesters
 
 The suggest feature suggests similar looking terms based on a provided
-text by using a suggester. The suggest feature is available from version
-`0.90.0.Beta1`. Parts of the suggest feature are still under
-development.
+text by using a suggester.
 
 The suggest request part is either defined alongside the query part in a
 `_search` request or via the REST `_suggest` endpoint.
@@ -18,7 +16,7 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
   "suggest" : {
     ...
   }
-}' 
+}'
 --------------------------------------------------
 
 Suggest requests executed against the `_suggest` endpoint should omit
@@ -79,11 +77,11 @@ in the suggest text and if found an arbitrary number of options.
         "options": [
            ...
         ]
-      },     
-      ...       
+      },
+      ...
     ],
     "my-suggest-2" : [
-      ... 
+      ...
     ]
   }
   ...
@@ -104,7 +102,7 @@ term suggester's score is based on the edit distance.
     "score": 0.8888889
   },
   ...
-]  
+]
 --------------------------------------------------
 
 [float]
@@ -155,7 +153,7 @@ curl -s -XPOST 'localhost:9200/_search?search_type=count' -d '{
       "text" : "devloping distibutd saerch engies",
       "term" : {
         "size" : 3,
-        "field" : "title"  
+        "field" : "title"
       }
     }
   }

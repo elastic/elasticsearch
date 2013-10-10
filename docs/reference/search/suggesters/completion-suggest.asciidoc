@@ -1,6 +1,8 @@
 [[search-suggesters-completion]]
 === Completion Suggester
 
+added[0.90.3]
+
 NOTE: In order to understand the format of suggestions, please
 read the <<search-suggesters>> page first.
 

@@ -108,12 +108,9 @@ public class RestIndexAction extends BaseRestHandler {
             public void onResponse(IndexResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field(Fields.OK, true)
-                            .field(Fields._INDEX, response.getIndex())
-                            .field(Fields._TYPE, response.getType())
-                            .field(Fields._ID, response.getId())
-                            .field(Fields._VERSION, response.getVersion());
+                    builder.startObject();
+                    builder.field(Fields.OK, true);
+                    response.toXContent(builder, request);
                     builder.endObject();
                     RestStatus status = OK;
                     if (response.isCreated()) {
@@ -135,14 +132,10 @@ public class RestIndexAction extends BaseRestHandler {
             }
         });
     }
-
-    static final class Fields {
+    private static class Fields {
         static final XContentBuilderString OK = new XContentBuilderString("ok");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
     }
+
+
 
 }

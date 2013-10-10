@@ -22,16 +22,20 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
 /**
  * A response of an index operation,
- *
+ * 
  * @see org.elasticsearch.action.index.IndexRequest
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexResponse extends ActionResponse {
+public class IndexResponse extends ActionResponse implements ToXContent {
 
     private String index;
     private String id;
@@ -104,5 +108,34 @@ public class IndexResponse extends ActionResponse {
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(created);
+    }
+
+    static final class Fields {
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields._INDEX, index);
+        builder.field(Fields._TYPE, type);
+        builder.field(Fields._ID, id);
+        builder.field(Fields._VERSION, version);
+        return builder;
+    }
+    
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
     }
 }

@@ -32,11 +32,12 @@ public enum IndexShardState {
     RELOCATED((byte) 4),
     CLOSED((byte) 5);
 
-    private static final IndexShardState[] ORDS = new IndexShardState[IndexShardState.values().length];
+    private static final IndexShardState[] IDS = new IndexShardState[IndexShardState.values().length];
 
     static {
         for (IndexShardState state : IndexShardState.values()) {
-            ORDS[state.id()] = state;
+            assert state.id() < IDS.length && state.id() >= 0;
+            IDS[state.id()] = state;
         }
     }
 
@@ -51,9 +52,9 @@ public enum IndexShardState {
     }
 
     public static IndexShardState fromId(byte id) throws ElasticSearchIllegalArgumentException {
-        if (id < ORDS[0].id && id > ORDS[ORDS.length - 1].id) {
+        if (id < 0 || id >= IDS.length) {
             throw new ElasticSearchIllegalArgumentException("No mapping for id [" + id + "]");
         }
-        return ORDS[id];
+        return IDS[id];
     }
 }

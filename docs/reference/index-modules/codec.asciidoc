@@ -8,7 +8,13 @@ and offsets stored in the postings list.
 
 Configuring custom postings formats is an expert feature and most likely
 using the builtin postings formats will suite your needs as is described
-in the <<mapping-core-types,mapping section>>
+in the <<mapping-core-types,mapping section>>.
+
+**********************************
+Only the default codec and postings format are supported: other formats may
+break backward compatibility between minor versions of Elasticsearch,
+requiring data to be reindexed.
+**********************************
 
 Codecs are available in Elasticsearch from version `0.90.0.beta1`.
 

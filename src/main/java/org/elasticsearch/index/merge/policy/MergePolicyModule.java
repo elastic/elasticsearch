@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 public class MergePolicyModule extends AbstractModule {
 
     private final Settings settings;
+    public static final String MERGE_POLICY_TYPE_KEY = "index.merge.policy.type";
 
     public MergePolicyModule(Settings settings) {
         this.settings = settings;

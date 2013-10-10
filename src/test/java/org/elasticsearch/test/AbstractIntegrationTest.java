@@ -55,6 +55,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -201,10 +202,32 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
             client().admin().indices().preparePutTemplate("random_index_template")
             .setTemplate("*")
             .setOrder(0)
-            .setSettings(ImmutableSettings.builder()
-                    .put(INDEX_SEED_SETTING, getRandom().nextLong()))
+            .setSettings(setRandomMergePolicy(getRandom(), ImmutableSettings.builder()
+                    .put(INDEX_SEED_SETTING, getRandom().nextLong())))
                     .execute().actionGet();
         }
+    }
+    
+    
+    private static ImmutableSettings.Builder setRandomMergePolicy(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
+                    random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
+        }
+        Class<? extends MergePolicyProvider<?>> clazz = TieredMergePolicyProvider.class;
+        switch(random.nextInt(5)) {
+        case 4:
+            clazz = LogByteSizeMergePolicyProvider.class;
+            break;
+        case 3:
+            clazz = LogDocMergePolicyProvider.class;
+            break;
+        case 0:
+            return builder; // don't set the setting at all
+        }
+        assert clazz != null;
+        builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, clazz.getName());
+        return builder;
     }
 
     public static Iterable<Client> clients() {

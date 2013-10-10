@@ -31,7 +31,27 @@ different location). It can also be explicitly set using the
 The dynamic creation of mappings for unmapped types can be completely
 disabled by setting `index.mapper.dynamic` to `false`.
 
-As an example, here is how we can change the default
+The dynamic creation of fields within a type can be completely
+disabled by setting the `dynamic` property of the type to `strict`.
+
+Here is a <<indices-put-mapping,Put Mapping>> example that
+disables dynamic field creation for a `tweet`:
+
+[source,js]
+--------------------------------------------------
+$ curl -XPUT 'http://localhost:9200/twitter/tweet/_mapping' -d '
+{
+    "tweet" : {
+        "dynamic": "strict",
+        "properties" : {
+            "message" : {"type" : "string", "store" : "yes"}
+        }
+    }
+}
+'
+--------------------------------------------------
+
+Here is how we can change the default
 <<mapping-date-format,date_formats>> used in the
 root and inner object types:
 

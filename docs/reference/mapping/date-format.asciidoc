@@ -27,7 +27,7 @@ query/filter (mainly make sense in `range` query/filter).
 The expression starts with an "anchor" date, which can be either `now`
 or a date string (in the applicable format) ending with `||`. It can
 then follow by a math expression, supporting `+`, `-` and `/`
-(rounding). The units supported are `M` (month), `w` (week), `h` (hour),
+(rounding). The units supported are `y` (year), `M` (month), `w` (week), `h` (hour),
 `m` (minute), and `s` (second).
 
 Here are some samples: `now+1h`, `now+1h+1m`, `now+1h/d`,

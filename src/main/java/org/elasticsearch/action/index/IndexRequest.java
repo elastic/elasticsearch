@@ -401,6 +401,9 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     }
 
     public IndexRequest source(Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+        }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject();

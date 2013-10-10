@@ -91,6 +91,19 @@ public class DateMathParser {
                 }
                 char unit = mathString.charAt(i++);
                 switch (unit) {
+                    case 'y':
+                        if (type == 0) {
+                            if (roundUp) {
+                                dateTime.yearOfCentury().roundCeiling();
+                            } else {
+                                dateTime.yearOfCentury().roundFloor();
+                            }
+                        } else if (type == 1) {
+                            dateTime.addYears(num);
+                        } else if (type == 2) {
+                            dateTime.addYears(-num);
+                        }
+                        break;
                     case 'M':
                         if (type == 0) {
                             if (roundUp) {

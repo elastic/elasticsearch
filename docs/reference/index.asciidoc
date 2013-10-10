@@ -21,5 +21,7 @@ include::modules.asciidoc[]
 
 include::index-modules.asciidoc[]
 
+include::common-options.asciidoc[]
+
 include::glossary.asciidoc[]
 

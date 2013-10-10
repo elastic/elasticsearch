@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -183,5 +184,15 @@ public interface Validator {
             return null;
         }
     };
+    
+    public static final Validator BOOLEAN = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
 
+            if (value != null && (Booleans.isExplicitFalse(value) || Booleans.isExplicitTrue(value))) {
+                return null;
+            }
+            return "cannot parse value [" + value + "] as a boolean";
+        }
+    };
 }

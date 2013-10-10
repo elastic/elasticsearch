@@ -80,6 +80,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_TERM_INDEX_INTERVAL, Validator.POSITIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_TERM_INDEX_DIVISOR, Validator.POSITIVE_INTEGER);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_INDEX_CONCURRENCY, Validator.NON_NEGATIVE_INTEGER);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_COMPOUND_ON_FLUSH, Validator.BOOLEAN);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_GC_DELETES, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_CODEC);
         indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE);

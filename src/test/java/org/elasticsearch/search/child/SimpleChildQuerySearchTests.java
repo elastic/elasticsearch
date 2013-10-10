@@ -165,6 +165,13 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 .setSource(
                         jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
                                 .endObject().endObject()).execute().actionGet();
+        client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType("different-child")
+                .setSource(
+                        jsonBuilder().startObject().startObject("type").startObject("_parent").field("type", "parent").endObject()
+                                .endObject().endObject()).execute().actionGet();
 
         // index simple data
         client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
@@ -173,6 +180,11 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
         client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").execute().actionGet();
         client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").execute().actionGet();
+        // different child type but same field
+        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").execute().actionGet();
+        client().prepareIndex("test", "different-child", "c5").setSource("c_field", "green").setParent("p3").execute().actionGet();
+        client().prepareIndex("test", "different-child", "c6").setSource("c_field", "pink").setParent("p3").execute().actionGet();
+        
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -270,6 +282,29 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
+        
+        // different-child with 'green' exists
+        searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("different-child", termQuery("c_field", "green"))).execute()
+                .actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p3"));
+        
+        // different-child with 'blue' does not exist
+        searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("different-child", termQuery("c_field", "blue"))).execute()
+                .actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+        
+        // child with 'green' does not exist
+        searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "green"))).execute()
+                .actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+        
 
         // HAS CHILD FILTER
 

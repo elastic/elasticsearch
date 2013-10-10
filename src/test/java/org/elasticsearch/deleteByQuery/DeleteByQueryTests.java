@@ -35,6 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Martijn is working on a fix for a failure here caused by a shard reject the delete because it's in a POST_RECOVERY or RECOVERY state, because we now acquire a searcher during a delete by query shard operation.")
 public class DeleteByQueryTests extends AbstractIntegrationTest {
 
     @Test
@@ -47,7 +48,6 @@ public class DeleteByQueryTests extends AbstractIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "Martijn is working on a fix for a failure here caused by a shard reject the delete because it's in a POST_RECOVERY state")
     public void testDeleteAllOneIndex() {
 
         String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";

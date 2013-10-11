@@ -35,21 +35,21 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     public void testSetIndexCompoundOnFlush() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0));
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
-        assertTotalCompoundSegments(2, 2, "test");
+        assertTotalCompoundSegments(1, 1, "test");
         client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, false)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
-        assertTotalCompoundSegments(2, 4, "test");
+        assertTotalCompoundSegments(1, 2, "test");
         
         client().admin().indices().prepareUpdateSettings("test")
         .setSettings(ImmutableSettings.builder().put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true)).get();
         client().prepareIndex("test", "foo").setSource("field", "foo").get();
         refresh();
-        assertTotalCompoundSegments(4, 6, "test");
+        assertTotalCompoundSegments(2, 3, "test");
 
     }
 
@@ -61,11 +61,13 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
         int total = 0;
         for (IndexShardSegments indexShardSegments : values) {
             for (ShardSegments s : indexShardSegments) {
-                for (Segment segment : s.getSegments()) {
-                    if (segment.isCompound()) {
-                        compounds++;
+                for (Segment segment : s) {
+                    if (segment.isSearch() && segment.getNumDocs() > 0) {
+                        if (segment.isCompound()) {
+                            compounds++;
+                        }
+                        total++;
                     }
-                    total++;
                 }
             }
         }

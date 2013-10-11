@@ -49,6 +49,7 @@ public class CustomSuggesterSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
+        createIndex("test");
         client().prepareIndex("test", "test", "1").setSource(jsonBuilder()
                 .startObject()
                 .field("name", "arbitrary content")

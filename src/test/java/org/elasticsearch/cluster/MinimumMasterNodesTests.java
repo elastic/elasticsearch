@@ -207,6 +207,7 @@ public class MinimumMasterNodesTests extends AbstractIntegrationTest {
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
 
+        createIndex("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();

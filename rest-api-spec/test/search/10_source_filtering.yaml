@@ -11,7 +11,7 @@
         id:     1
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
   - do:
-      indices.refresh:
+      indices.refresh: {}
 
 
   - do:

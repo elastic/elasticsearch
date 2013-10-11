@@ -20,10 +20,10 @@
 package org.elasticsearch.rest.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,21 +60,16 @@ public class RestGetSourceAction extends BaseRestHandler {
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
 
-        String[] includes = null, excludes = null;
-        String sIncludes = request.param("include");
-        sIncludes = request.param("includes", sIncludes);
-        if (sIncludes != null) {
-            includes = Strings.splitStringByCommaToArray(sIncludes);
-        }
+        getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        String sExcludes = request.param("exclude");
-        sExcludes = request.param("excludes", sExcludes);
-        if (sExcludes != null) {
-            excludes = Strings.splitStringByCommaToArray(sExcludes);
-        }
-
-        if (includes != null || excludes != null) {
-            getRequest.fetchSourceContext(new FetchSourceContext(includes, excludes));
+        if (getRequest.fetchSourceContext() != null && !getRequest.fetchSourceContext().fetchSource()) {
+            try {
+                ActionRequestValidationException validationError = new ActionRequestValidationException();
+                validationError.addValidationError("fetching source can not be disabled");
+                channel.sendResponse(new XContentThrowableRestResponse(request, validationError));
+            } catch (IOException e) {
+                logger.error("Failed to send failure response", e);
+            }
         }
 
         client.get(getRequest, new ActionListener<GetResponse>() {

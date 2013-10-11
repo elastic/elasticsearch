@@ -21,11 +21,13 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
@@ -44,6 +46,9 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -1616,5 +1621,146 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         logger.info("regexp");
         assertHitCount(client().prepareSearch("test").setQuery(queryString("/value[01]/").field("field1").field("field2")).get(), 1);
         assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:/value[01]/")).get(), 1);
+    }
+    
+    // see #3881 - for extensive description of the issue
+    @Test
+    public void testMatchQueryWithSynonyms() throws IOException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.analyzer.index.type", "custom")
+                .put("index.analysis.analyzer.index.tokenizer", "standard")
+                .put("index.analysis.analyzer.index.filter", "lowercase")
+                .put("index.analysis.analyzer.search.type", "custom")
+                                .put("index.analysis.analyzer.search.tokenizer", "standard")
+
+                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .put("index.analysis.filter.synonym.type", "synonym")
+                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
+                .startObject("properties")
+                .startObject("text")
+                        .field("type", "string")
+                        .field("index_analyzer", "index")
+                        .field("search_analyzer", "search")
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("test", mapping));
+        ensureGreen();
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .field("text", "quick brown fox")
+                .endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "quick").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "quick brown").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "fast").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        
+        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .field("text", "fast brown fox")
+                .endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "quick").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2);
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "quick brown").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2);
+    }
+    
+    @Test
+    public void testMatchQueryWithStackedStems() throws IOException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.analyzer.index.type", "custom")
+                .put("index.analysis.analyzer.index.tokenizer", "standard")
+                .put("index.analysis.analyzer.index.filter", "lowercase")
+                .put("index.analysis.analyzer.search.type", "custom")
+                .put("index.analysis.analyzer.search.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porterStem", "unique_stem")
+                .put("index.analysis.filter.unique_stem.type", "unique")
+                .put("index.analysis.filter.unique_stem.only_on_same_position", true));
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
+                .startObject("properties")
+                .startObject("text")
+                        .field("type", "string")
+                        .field("index_analyzer", "index")
+                        .field("search_analyzer", "search")
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("test", mapping));
+        ensureGreen();
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .field("text", "the fox runs across the street")
+                .endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "fox runs").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        
+        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .field("text", "run fox run")
+                .endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "fox runs").operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2);
+    }
+    
+    @Test
+    public void testQueryStringWithSynonyms() throws IOException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.analysis.analyzer.index.type", "custom")
+                .put("index.analysis.analyzer.index.tokenizer", "standard")
+                .put("index.analysis.analyzer.index.filter", "lowercase")
+                .put("index.analysis.analyzer.search.type", "custom")
+                                .put("index.analysis.analyzer.search.tokenizer", "standard")
+
+                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .put("index.analysis.filter.synonym.type", "synonym")
+                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
+                .startObject("properties")
+                .startObject("text")
+                        .field("type", "string")
+                        .field("index_analyzer", "index")
+                        .field("search_analyzer", "search")
+                .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(builder.addMapping("test", mapping));
+        ensureGreen();
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .field("text", "quick brown fox")
+                .endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("fast").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 1);
+        
+        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .field("text", "fast brown fox")
+                .endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("quick").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2);
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2);
     }
 }

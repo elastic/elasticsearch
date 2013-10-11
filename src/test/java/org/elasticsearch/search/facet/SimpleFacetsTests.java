@@ -67,21 +67,20 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleFacetsTests extends AbstractIntegrationTest {
 
-
+    private int numRuns = -1;
     @Override
     public Settings getSettings() {
         return randomSettingsBuilder()
-                .put("index.number_of_shards", numberOfShards())
+                .put("index.number_of_shards", between(1, 5))
                 .put("index.number_of_replicas", 0)
                 .build();
     }
 
-    protected int numberOfShards() {
-        return 1;
-    }
-
     protected int numberOfRuns() {
-        return 5;
+        if (numRuns == -1) {
+            numRuns = atLeast(3);
+        }
+        return numRuns;
     }
 
     @Test
@@ -790,7 +789,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
 
     @Test
     public void testFilterFacets() throws Exception {
-        createIndex("test1");
+        createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -2346,6 +2345,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
 
     @Test // #3479: Null pointer exception for POST mode facets if facet_filter accepts no documents
     public void testFilterFacetWithFacetFilterPostMode() throws IOException {
+        createIndex("test");
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("field", "xxx")
                 .endObject()).execute().actionGet();

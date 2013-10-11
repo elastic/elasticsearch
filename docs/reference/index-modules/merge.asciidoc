@@ -43,7 +43,7 @@ This policy has the following settings:
 
 	Segments smaller than this are "rounded up" to this size, i.e. treated as
 	equal (floor) size for merge selection. This is to prevent frequent
-	flushing of tiny segments from allowing a long tail in the index. Default
+	flushing of tiny segments, thus allowing a long tail in the index. Default
 	is `2mb`.
 
 `index.merge.policy.max_merge_at_once`::
@@ -67,7 +67,7 @@ This policy has the following settings:
 
 	Sets the allowed number of segments per tier. Smaller values mean more
 	merging but fewer segments. Default is `10`. Note, this value needs to be
-	>= then the `max_merge_at_once` otherwise you'll force too many merges to
+	>= than the `max_merge_at_once` otherwise you'll force too many merges to
 	occur.
 
 `index.reclaim_deletes_weight`::

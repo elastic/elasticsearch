@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -240,6 +241,28 @@ public class MatchQuery {
                     assert hasNext == true;
                     q.add(new Term(field, termToByteRef(termAtt)));
                 }
+                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
+            } if (severalTokensAtSamePosition && occur == Occur.MUST) {
+                BooleanQuery q = new BooleanQuery(positionCount == 1);
+                Query currentQuery = null;
+                for (int i = 0; i < numTokens; i++) {
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                  if (posIncrAtt != null && posIncrAtt.getPositionIncrement() == 0) {
+                    if (!(currentQuery instanceof BooleanQuery)) {
+                      Query t = currentQuery;
+                      currentQuery = new BooleanQuery(true);
+                      ((BooleanQuery)currentQuery).add(t, BooleanClause.Occur.SHOULD);
+                    }
+                    ((BooleanQuery)currentQuery).add(newTermQuery(mapper, new Term(field, termToByteRef(termAtt))), BooleanClause.Occur.SHOULD);
+                  } else {
+                    if (currentQuery != null) {
+                      q.add(currentQuery, occur);
+                    }
+                    currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
+                  }
+                }
+                q.add(currentQuery, occur);
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             } else {
                 BooleanQuery q = new BooleanQuery(positionCount == 1);

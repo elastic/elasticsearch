@@ -160,6 +160,8 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
 
         builder.endObject();
+
+        builder.endObject();
     }
 
 }

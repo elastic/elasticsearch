@@ -250,11 +250,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
         long origin = SearchContext.current().nowInMillis();
         if (originString != null) {
-            origin = dateFieldMapper.value(originString).longValue();
+            origin = dateFieldMapper.parseToMilliseconds(originString, parseContext);
         }
 
         if (scaleString == null) {
-            throw new ElasticSearchParseException(DecayFunctionBuilder.SCALE + "must be set for date fields.");
+            throw new ElasticSearchParseException(DecayFunctionBuilder.SCALE + " must be set for date fields.");
         }
         TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24));
         double scale = val.getMillis();

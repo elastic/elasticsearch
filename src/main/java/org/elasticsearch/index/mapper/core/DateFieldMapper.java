@@ -294,44 +294,48 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        long lValue = dateMathParser.parse(convertToString(value), now);
+        long lValue = parseToMilliseconds(value, context);
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lValue, lValue, true, true);
+    }
+    
+    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context) {
+        return parseToMilliseconds(value, context, false);
+    }
+    
+    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper) {
+        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
+        return includeUpper ? dateMathParser.parseUpperInclusive(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
     }
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        long lValue = dateMathParser.parse(convertToString(value), now);
+        final long lValue = parseToMilliseconds(value, context);
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lValue, lValue, true, true);
     }
 
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : dateMathParser.parse(convertToString(lowerTerm), now),
-                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(convertToString(upperTerm), now) : dateMathParser.parse(convertToString(upperTerm), now),
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper && parseUpperInclusive),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : dateMathParser.parse(convertToString(lowerTerm), now),
-                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(convertToString(upperTerm), now) : dateMathParser.parse(convertToString(upperTerm), now),
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper && parseUpperInclusive),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData<?>) fieldData.getForField(this),
-                lowerTerm == null ? null : dateMathParser.parse(convertToString(lowerTerm), now),
-                upperTerm == null ? null : (includeUpper && parseUpperInclusive) ? dateMathParser.parseUpperInclusive(convertToString(upperTerm), now) : dateMathParser.parse(convertToString(upperTerm), now),
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper && parseUpperInclusive),
                 includeLower, includeUpper);
     }
 

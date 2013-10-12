@@ -9,22 +9,32 @@ pools, but the important ones include:
 `index`:: 
     For index/delete operations, defaults to `fixed`, 
     size `# of available processors`. 
+    queue_size `200`.
 
 `search`:: 
     For count/search operations, defaults to `fixed`,
     size `3x # of available processors`. 
+    queue_size `1000`.
 
 `suggest`::
     For suggest operations, defaults to `fixed`,
     size `# of available processors`.
+    queue_size `1000`.
 
 `get`:: 
     For get operations, defaults to `fixed`
     size `# of available processors`.
+    queue_size `1000`.
 
-`bulk`:: 
+`bulk`::
     For bulk operations, defaults to `fixed`
     size `# of available processors`.
+    queue_size `50`.
+
+`percolate`::
+    For percolate operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `1000`.
 
 `warmer`:: 
     For segment warm-up operations, defaults to `scaling`

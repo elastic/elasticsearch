@@ -46,7 +46,6 @@ public class NamedAnalyzer extends CustomAnalyzerWrapper {
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
-        // our named analyzer always wrap a non per field analyzer, so no need to have per field analyzer
         super(analyzer.getReuseStrategy());
         this.name = name;
         this.scope = scope;

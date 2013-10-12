@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -742,6 +743,90 @@ public class MapperQueryParser extends QueryParser {
         }
 
         return super.getWildcardQuery(field, aggStr.toString());
+    }
+
+    @Override
+    protected Query getRegexpQuery(String field, String termStr) throws ParseException {
+        if (lowercaseExpandedTerms) {
+            termStr = termStr.toLowerCase(locale);
+        }
+        Collection<String> fields = extractMultiFields(field);
+        if (fields != null) {
+            if (fields.size() == 1) {
+                return getRegexpQuerySingle(fields.iterator().next(), termStr);
+            }
+            if (settings.useDisMax()) {
+                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
+                boolean added = false;
+                for (String mField : fields) {
+                    Query q = getRegexpQuerySingle(mField, termStr);
+                    if (q != null) {
+                        added = true;
+                        applyBoost(mField, q);
+                        disMaxQuery.add(q);
+                    }
+                }
+                if (!added) {
+                    return null;
+                }
+                return disMaxQuery;
+            } else {
+                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                for (String mField : fields) {
+                    Query q = getRegexpQuerySingle(mField, termStr);
+                    if (q != null) {
+                        applyBoost(mField, q);
+                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                    }
+                }
+                if (clauses.size() == 0)  // happens for stopwords
+                    return null;
+                return getBooleanQuery(clauses, true);
+            }
+        } else {
+            return getRegexpQuerySingle(field, termStr);
+        }
+    }
+
+    private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
+        currentMapper = null;
+        Analyzer oldAnalyzer = analyzer;
+        try {
+            MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
+            if (fieldMappers != null) {
+                if (!forcedAnalyzer) {
+                    analyzer = fieldMappers.searchAnalyzer();
+                }
+                currentMapper = fieldMappers.fieldMappers().mapper();
+                if (currentMapper != null) {
+                    Query query = null;
+                    if (currentMapper.useTermQueryWithQueryString()) {
+                        if (fieldMappers.explicitTypeInNameWithDocMapper()) {
+                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
+                            try {
+                                query = currentMapper.regexpQuery(termStr, RegExp.ALL, multiTermRewriteMethod, parseContext);
+                            } finally {
+                                QueryParseContext.setTypes(previousTypes);
+                            }
+                        } else {
+                            query = currentMapper.regexpQuery(termStr, RegExp.ALL, multiTermRewriteMethod, parseContext);
+                        }
+                    }
+                    if (query == null) {
+                        query = super.getRegexpQuery(field, termStr);
+                    }
+                    return wrapSmartNameQuery(query, fieldMappers, parseContext);
+                }
+            }
+            return super.getRegexpQuery(field, termStr);
+        } catch (RuntimeException e) {
+            if (settings.lenient()) {
+                return null;
+            }
+            throw e;
+        } finally {
+            analyzer = oldAnalyzer;
+        }
     }
 
     @Override

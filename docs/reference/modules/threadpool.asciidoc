@@ -7,33 +7,42 @@ pools, but the important ones include:
 
 [horizontal]
 `index`:: 
-    For index/delete operations, defaults to `fixed` type since
-    `0.90.0`, size `# of available processors`. (previously type `cached`)
+    For index/delete operations, defaults to `fixed`,
+    size `# of available processors`.
+    queue_size `200`.
 
-`search`:: 
-    For count/search operations, defaults to `fixed` type since
-    `0.90.0`, size `3x # of available processors`. (previously type
-    `cached`)
+`search`::
+    For count/search operations, defaults to `fixed`,
+    size `3x # of available processors`.
+    queue_size `1000`.
 
 `suggest`::
     For suggest operations, defaults to `fixed`,
     size `# of available processors`.
+    queue_size `1000`.
 
-`get`:: 
-    For get operations, defaults to `fixed` type since `0.90.0`,
-    size `# of available processors`. (previously type `cached`)
+`get`::
+    For get operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `1000`.
 
-`bulk`:: 
-    For bulk operations, defaults to `fixed` type since `0.90.0`,
-    size `# of available processors`. (previously type `cached`)
+`bulk`::
+    For bulk operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `50`.
 
-`warmer`:: 
-    For segment warm-up operations, defaults to `scaling` since
-    `0.90.0` with a `5m` keep-alive. (previously type `cached`)
+`percolate`::
+    For percolate operations, defaults to `fixed`
+    size `# of available processors`.
+    queue_size `1000`.
 
-`refresh`:: 
-    For refresh operations, defaults to `scaling` since
-    `0.90.0` with a `5m` keep-alive. (previously type `cached`)
+`warmer`::
+    For segment warm-up operations, defaults to `scaling`
+    with a `5m` keep-alive.
+
+`refresh`::
+    For refresh operations, defaults to `scaling`
+    with a `5m` keep-alive.
 
 Changing a specific thread pool can be done by setting its type and
 specific type parameters, for example, changing the `index` thread pool

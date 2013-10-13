@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -43,7 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class RebalanceAfterActiveTests {
+public class RebalanceAfterActiveTests extends ElasticSearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(RebalanceAfterActiveTests.class);
 

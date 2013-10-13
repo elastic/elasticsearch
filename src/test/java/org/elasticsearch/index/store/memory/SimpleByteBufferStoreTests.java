@@ -22,6 +22,7 @@ package org.elasticsearch.index.store.memory;
 import org.apache.lucene.store.*;
 import org.apache.lucene.store.bytebuffer.ByteBufferDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleByteBufferStoreTests {
+public class SimpleByteBufferStoreTests extends ElasticSearchTestCase {
 
     @Test
     public void test1BufferNoCache() throws Exception {

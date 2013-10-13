@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -50,7 +51,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SingleShardNoReplicasRoutingTests {
+public class SingleShardNoReplicasRoutingTests extends ElasticSearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 

@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleAllMapperTests {
+public class SimpleAllMapperTests extends ElasticSearchTestCase {
 
     @Test
     public void testSimpleAllMappers() throws Exception {

@@ -56,6 +56,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class SimpleIdCacheTests {
+public class SimpleIdCacheTests extends ElasticSearchTestCase {
 
     @Test
     public void testDeletedDocuments() throws Exception {

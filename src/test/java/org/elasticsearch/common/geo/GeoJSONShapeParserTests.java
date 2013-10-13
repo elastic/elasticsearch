@@ -7,18 +7,17 @@ import com.vividsolutions.jts.geom.*;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-
 /**
  * Tests for {@link GeoJSONShapeParser}
  */
-public class GeoJSONShapeParserTests {
+public class GeoJSONShapeParserTests extends ElasticSearchTestCase {
 
     private final static GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 

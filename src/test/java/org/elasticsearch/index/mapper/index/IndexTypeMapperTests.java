@@ -21,9 +21,10 @@ package org.elasticsearch.index.mapper.index;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IndexTypeMapperTests {
+public class IndexTypeMapperTests extends ElasticSearchTestCase {
 
     @Test
     public void simpleIndexMapperTests() throws Exception {

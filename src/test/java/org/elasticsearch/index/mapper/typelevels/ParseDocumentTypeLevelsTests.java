@@ -21,8 +21,9 @@ package org.elasticsearch.index.mapper.typelevels;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class ParseDocumentTypeLevelsTests {
+public class ParseDocumentTypeLevelsTests extends ElasticSearchTestCase {
 
     @Test
     public void testNoLevel() throws Exception {

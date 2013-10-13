@@ -20,6 +20,7 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 /**
  *
  */
-public class CompressedStringTests {
+public class CompressedStringTests extends ElasticSearchTestCase {
 
     @Test
     public void simpleTestsLZF() throws IOException {

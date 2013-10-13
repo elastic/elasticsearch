@@ -3,6 +3,8 @@
 
 include::setup.asciidoc[]
 
+include::api-conventions.asciidoc[]
+
 include::docs.asciidoc[]
 
 include::search.asciidoc[]
@@ -20,8 +22,6 @@ include::analysis.asciidoc[]
 include::modules.asciidoc[]
 
 include::index-modules.asciidoc[]
-
-include::common-options.asciidoc[]
 
 include::glossary.asciidoc[]
 

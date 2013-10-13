@@ -4,7 +4,7 @@
 [partintro]
 --
 ["float",id="cluster-nodes"]
-== Nodes
+== Node specification
 
 Most cluster level APIs allow to specify which nodes to execute on (for
 example, getting the node stats for a node). Nodes can be identified in
@@ -14,7 +14,7 @@ example, here are some sample executions of nodes info:
 
 [source,js]
 --------------------------------------------------
-# Local    
+# Local
 curl localhost:9200/_cluster/nodes/_local
 # Address
 curl localhost:9200/_cluster/nodes/10.0.0.3,10.0.0.4

@@ -1,6 +1,7 @@
 [[api-common-options]]
 = Common API Options
 
+[float]
 == Pretty Results
 
 When appending `?pretty=true` to any request made, the JSON returned
@@ -9,6 +10,7 @@ to set `format=yaml` which will cause the result to be returned in the
 (sometimes) more readable yaml format.
 
 
+[float]
 == Human readable output
 
 Statistics are returned in a format suitable for humans
@@ -20,11 +22,13 @@ being consumed by a monitoring tool, rather than intended for human
 consumption.  The default for the `human` flag is
 `false`. added[1.00.Beta,Previously defaulted to `true`]
 
+[float]
 == Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
 convention of using underscore casing.
 
+[float]
 == Boolean Values
 
 All REST APIs parameters (both request parameters and JSON body) support
@@ -32,11 +36,13 @@ providing boolean "false" as the values: `false`, `0`, `no` and `off`.
 All other values are considered "true". Note, this is not related to
 fields within a document indexed treated as boolean fields.
 
+[float]
 == Number Values
 
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
+[float]
 == Result Casing
 
 All REST APIs accept the `case` parameter. When set to `camelCase`, all
@@ -44,11 +50,13 @@ field names in the result will be returned in camel casing, otherwise,
 underscore casing will be used. Note, this does not apply to the source
 document indexed.
 
+[float]
 == JSONP
 
 All REST APIs accept a `callback` parameter resulting in a
 http://en.wikipedia.org/wiki/JSONP[JSONP] result.
 
+[float]
 == Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,

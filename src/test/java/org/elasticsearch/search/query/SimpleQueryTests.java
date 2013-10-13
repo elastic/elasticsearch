@@ -1598,4 +1598,23 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertNoFailures(response);
     }
 
+    @Test
+    public void testMultiFieldQueryString() {
+        client().prepareIndex("test", "s", "1").setSource("field1", "value1", "field2", "value2").setRefresh(true).get();
+        logger.info("regular");
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("value1").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:value1")).get(), 1);
+        logger.info("prefix");
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("value*").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:value*")).get(), 1);
+        logger.info("wildcard");
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("v?lue*").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:v?lue*")).get(), 1);
+        logger.info("fuzzy");
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("value~").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:value~")).get(), 1);
+        logger.info("regexp");
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("/value[01]/").field("field1").field("field2")).get(), 1);
+        assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:/value[01]/")).get(), 1);
+    }
 }

@@ -172,6 +172,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                 builder.field("name", clusterService.localNode().name());
                 builder.field("transport_address", clusterService.localNode().address().toString());
                 builder.endObject();
+                builder.endObject();
 
                 client.prepareIndex(riverIndexName, riverName.name(), "_status")
                         .setConsistencyLevel(WriteConsistencyLevel.ONE)

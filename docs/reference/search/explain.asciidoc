@@ -3,7 +3,10 @@
 
 The explain api computes a score explanation for a query and a specific
 document. This can give useful feedback whether a document matches or
-didn't match a specific query. 
+didn't match a specific query.
+
+The `index` and `type` parameters expect a single index and a single
+type respectively.
 
 [float]
 === Usage
@@ -61,45 +64,45 @@ This will yield the same result as the previous request.
 [horizontal]
 `fields`::
     Allows to control which fields to return as part of the
-    document explained (support `_source` for the full document). 
+    document explained (support `_source` for the full document).
 
-`routing`:: 
+`routing`::
     Controls the routing in the case the routing was used
     during indexing.
 
-`parent`:: 
-    Same effect as setting the routing parameter. 
+`parent`::
+    Same effect as setting the routing parameter.
 
-`preference`:: 
-    Controls on which shard the explain is executed. 
+`preference`::
+    Controls on which shard the explain is executed.
 
-`source`:: 
+`source`::
     Allows the data of the request to be put in the query
-    string of the url. 
+    string of the url.
 
-`q`:: 
-    The query string (maps to the query_string query). 
+`q`::
+    The query string (maps to the query_string query).
 
-`df`:: 
+`df`::
     The default field to use when no field prefix is defined within
-    the query. Defaults to _all field. 
+    the query. Defaults to _all field.
 
-`analyzer`:: 
+`analyzer`::
     The analyzer name to be used when analyzing the query
-    string. Defaults to the analyzer of the _all field. 
+    string. Defaults to the analyzer of the _all field.
 
-`analyze_wildcard`:: 
+`analyze_wildcard`::
     Should wildcard and prefix queries be analyzed or
-    not. Defaults to false. 
+    not. Defaults to false.
 
-`lowercase_expanded_terms`:: 
+`lowercase_expanded_terms`::
     Should terms be automatically lowercased
-    or not. Defaults to true. 
+    or not. Defaults to true.
 
-`lenient`:: 
+`lenient`::
     If set to true will cause format based failures (like
-    providing text to a numeric field) to be ignored. Defaults to false. 
+    providing text to a numeric field) to be ignored. Defaults to false.
 
-`default_operator`:: 
+`default_operator`::
     The default operator to be used, can be AND or
     OR. Defaults to OR.

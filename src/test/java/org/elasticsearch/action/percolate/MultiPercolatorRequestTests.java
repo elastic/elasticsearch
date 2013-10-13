@@ -22,16 +22,16 @@ import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class MultiPercolatorRequestTests {
+public class MultiPercolatorRequestTests extends ElasticSearchTestCase {
 
     @Test
     public void testParseBulkRequests() throws Exception {

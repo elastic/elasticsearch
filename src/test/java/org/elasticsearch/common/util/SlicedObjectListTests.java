@@ -18,16 +18,17 @@
  */
 package org.elasticsearch.common.util;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link SlicedObjectList}
  */
-public class SlicedObjectListTests {
+public class SlicedObjectListTests extends ElasticSearchTestCase {
 
     public class TestList extends SlicedObjectList<Double> {
         

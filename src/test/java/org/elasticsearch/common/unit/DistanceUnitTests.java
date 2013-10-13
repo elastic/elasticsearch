@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class DistanceUnitTests {
+public class DistanceUnitTests extends ElasticSearchTestCase {
 
     @Test
     public void testSimpleDistanceUnit() {

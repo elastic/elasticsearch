@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.path;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class PathMapperTests {
+public class PathMapperTests extends ElasticSearchTestCase {
 
     @Test
     public void testPathMapping() throws IOException {

@@ -19,20 +19,20 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
-
-import com.google.common.base.Charsets;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class BulkRequestTests {
+public class BulkRequestTests extends ElasticSearchTestCase {
 
     @Test
     public void testSimpleBulk1() throws Exception {

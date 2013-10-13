@@ -20,11 +20,8 @@
 package org.elasticsearch.index.mapper.parent;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class ParentMappingTests {
+public class ParentMappingTests extends ElasticSearchTestCase {
 
     @Test
     public void parentNotMapped() throws Exception {

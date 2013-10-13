@@ -22,6 +22,7 @@ package org.elasticsearch.index.search.geo;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class GeoDistanceTests {
+public class GeoDistanceTests extends ElasticSearchTestCase {
 
     @Test
     public void testDistanceCheck() {

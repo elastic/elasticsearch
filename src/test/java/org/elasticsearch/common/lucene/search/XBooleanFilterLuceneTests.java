@@ -13,6 +13,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,13 +26,14 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  * Tests ported from Lucene.
  */
-public class XBooleanFilterLuceneTests {
+public class XBooleanFilterLuceneTests extends ElasticSearchTestCase {
     
     private Directory directory;
     private AtomicReader reader;
 
     @Before
     public void setUp() throws Exception {
+        super.setUp();
         directory = new RAMDirectory();
         IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new WhitespaceAnalyzer(Lucene.VERSION)));
 
@@ -48,6 +50,7 @@ public class XBooleanFilterLuceneTests {
 
     @After
     public void tearDown() throws Exception {
+        super.tearDown();
         reader.close();
         directory.close();
     }

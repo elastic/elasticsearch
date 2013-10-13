@@ -29,6 +29,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleAllTests {
+public class SimpleAllTests extends ElasticSearchTestCase {
 
     @Test
     public void testAllEntriesRead() throws Exception {

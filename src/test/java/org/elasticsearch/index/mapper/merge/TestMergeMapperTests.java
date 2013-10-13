@@ -22,8 +22,9 @@ package org.elasticsearch.index.mapper.merge;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class TestMergeMapperTests {
+public class TestMergeMapperTests extends ElasticSearchTestCase {
 
     @Test
     public void test1Merge() throws Exception {

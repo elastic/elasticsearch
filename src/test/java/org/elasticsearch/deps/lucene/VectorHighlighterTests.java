@@ -29,6 +29,7 @@ import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class VectorHighlighterTests {
+public class VectorHighlighterTests extends ElasticSearchTestCase {
 
     @Test
     public void testVectorHighlighter() throws Exception {

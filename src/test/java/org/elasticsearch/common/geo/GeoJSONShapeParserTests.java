@@ -19,36 +19,27 @@
 
 package org.elasticsearch.common.geo;
 
-import static org.junit.Assert.assertEquals;
+import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.jts.JtsGeometry;
+import com.spatial4j.core.shape.jts.JtsPoint;
+import com.vividsolutions.jts.geom.*;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.junit.Test;
-
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.spatial4j.core.shape.jts.JtsPoint;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.MultiPoint;
-import com.vividsolutions.jts.geom.MultiPolygon;
-import com.vividsolutions.jts.geom.Point;
-import com.vividsolutions.jts.geom.Polygon;
-
-import static org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions.assertEquals;
 
 /**
  * Tests for {@link GeoJSONShapeParser}
  */
-public class GeoJSONShapeParserTests {
+public class GeoJSONShapeParserTests extends ElasticSearchTestCase {
 
     private final static GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 
@@ -259,7 +250,7 @@ public class GeoJSONShapeParserTests {
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoJson);
         parser.nextToken();
-        assertEquals(ShapeBuilder.parse(parser).build(), expected);
+        ElasticSearchGeoAssertions.assertEquals(ShapeBuilder.parse(parser).build(), expected);
     }
 
 }

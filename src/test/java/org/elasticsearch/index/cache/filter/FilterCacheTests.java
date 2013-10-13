@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class FilterCacheTests {
+public class FilterCacheTests extends ElasticSearchTestCase {
 
 
     @Test

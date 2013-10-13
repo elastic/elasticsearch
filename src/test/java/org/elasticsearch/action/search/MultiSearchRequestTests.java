@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,7 +29,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class MultiSearchRequestTests {
+public class MultiSearchRequestTests extends ElasticSearchTestCase {
 
     @Test
     public void simpleAdd() throws Exception {

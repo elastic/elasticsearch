@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class MultiFieldTests {
+public class MultiFieldTests extends ElasticSearchTestCase {
 
     @Test
     public void testMultiField() throws Exception {

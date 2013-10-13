@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SingleOrdinalsTests {
+public class SingleOrdinalsTests extends ElasticSearchTestCase {
 
     @Test
     public void testSvValues() throws IOException {

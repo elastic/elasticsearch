@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.overridetype;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class OverrideTypeMappingTests {
+public class OverrideTypeMappingTests extends ElasticSearchTestCase {
 
     @Test
     public void testOverrideType() throws Exception {

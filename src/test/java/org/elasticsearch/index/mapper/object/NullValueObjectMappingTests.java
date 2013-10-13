@@ -21,8 +21,9 @@ package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class NullValueObjectMappingTests {
+public class NullValueObjectMappingTests extends ElasticSearchTestCase {
 
     @Test
     public void testNullValueObject() throws IOException {

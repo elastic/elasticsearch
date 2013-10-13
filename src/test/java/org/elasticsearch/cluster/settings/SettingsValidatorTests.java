@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,7 +29,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class SettingsValidatorTests {
+public class SettingsValidatorTests extends ElasticSearchTestCase {
 
     @Test
     public void testValidators() throws Exception {

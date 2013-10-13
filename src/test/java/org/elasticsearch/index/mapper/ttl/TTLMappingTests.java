@@ -23,17 +23,18 @@ package org.elasticsearch.index.mapper.ttl;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TTLMappingTests {
+public class TTLMappingTests extends ElasticSearchTestCase {
     @Test
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();

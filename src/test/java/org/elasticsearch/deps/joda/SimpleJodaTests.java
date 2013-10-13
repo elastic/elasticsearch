@@ -22,6 +22,7 @@ package org.elasticsearch.deps.joda;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.*;
@@ -36,7 +37,7 @@ import static org.junit.Assert.fail;
 /**
  *
  */
-public class SimpleJodaTests {
+public class SimpleJodaTests extends ElasticSearchTestCase {
 
     @Test
     public void testMultiParsers() {

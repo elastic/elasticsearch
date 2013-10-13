@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.*;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Unit tests for {@link org.elasticsearch.common.io.Streams}.
  */
-public class StreamsTests {
+public class StreamsTests extends ElasticSearchTestCase {
 
     @Test
     public void testCopyFromInputStream() throws IOException {

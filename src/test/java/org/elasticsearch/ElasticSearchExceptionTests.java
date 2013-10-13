@@ -22,14 +22,14 @@ package org.elasticsearch;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ElasticSearchExceptionTests extends ElasticSearchTestCase {
+public class ElasticSearchExceptionTests extends ElasticsearchTestCase {
 
     @Test
     public void testStatus() {

@@ -23,13 +23,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 
 import java.util.Map;
 
 @Ignore("Not a test")
-public class RoutingAllocationTests extends ElasticSearchTestCase {
+public class RoutingAllocationTests extends ElasticsearchTestCase {
 
     public static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);

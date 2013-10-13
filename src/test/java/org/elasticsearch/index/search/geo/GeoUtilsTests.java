@@ -26,7 +26,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class GeoUtilsTests extends ElasticSearchTestCase {
+public class GeoUtilsTests extends ElasticsearchTestCase {
 
     /**
      * Test special values like inf, NaN and -0.0.

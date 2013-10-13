@@ -28,7 +28,7 @@ import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.hamcrest.Matchers.is;
 
-public class InternalNodeTests extends ElasticSearchTestCase {
+public class InternalNodeTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultPluginConfiguration() throws Exception {

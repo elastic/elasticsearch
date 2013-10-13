@@ -51,7 +51,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.test.ElasticSearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -61,7 +61,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CodecTests extends ElasticSearchLuceneTestCase {
+public class CodecTests extends ElasticsearchLuceneTestCase {
     
     @Override
     @Before

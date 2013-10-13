@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class BoostMappingTests extends ElasticSearchTestCase {
+public class BoostMappingTests extends ElasticsearchTestCase {
 
     @Test
     public void testDefaultMapping() throws Exception {

@@ -27,8 +27,8 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticSearchTestCase;
-import org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.List;
 /**
  * Tests for {@link GeoJSONShapeParser}
  */
-public class GeoJSONShapeParserTests extends ElasticSearchTestCase {
+public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
     private final static GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 
@@ -250,7 +250,7 @@ public class GeoJSONShapeParserTests extends ElasticSearchTestCase {
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoJson);
         parser.nextToken();
-        ElasticSearchGeoAssertions.assertEquals(ShapeBuilder.parse(parser).build(), expected);
+        ElasticsearchGeoAssertions.assertEquals(ShapeBuilder.parse(parser).build(), expected);
     }
 
 }

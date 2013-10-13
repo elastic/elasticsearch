@@ -74,8 +74,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -100,7 +100,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @Ignore
 @IntegrationTests
-public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
+public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
     
     public static final String INDEX_SEED_SETTING = "index.tests.seed";
     
@@ -108,7 +108,7 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
     
     private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
-    private static final TestCluster globalCluster = new TestCluster(SHARED_CLUSTER_SEED, TestCluster.clusterName("shared", ElasticSearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+    private static final TestCluster globalCluster = new TestCluster(SHARED_CLUSTER_SEED, TestCluster.clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
     
     private static TestCluster currentCluster;
     
@@ -633,7 +633,7 @@ public abstract class AbstractIntegrationTest extends ElasticSearchTestCase {
             };
         }
 
-        return new TestCluster(currentClusterSeed, numNodes, TestCluster.clusterName(scope.name(), ElasticSearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
+        return new TestCluster(currentClusterSeed, numNodes, TestCluster.clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
     }
     
     @Retention(RetentionPolicy.RUNTIME)

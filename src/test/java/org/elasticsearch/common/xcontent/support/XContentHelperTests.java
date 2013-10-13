@@ -20,7 +20,7 @@ package org.elasticsearch.common.xcontent.support;
 
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class XContentHelperTests extends ElasticSearchTestCase {
+public class XContentHelperTests extends ElasticsearchTestCase {
 
     Map<String, Object> getMap(Object... keyValues) {
         Map<String, Object> map = new HashMap<String, Object>();

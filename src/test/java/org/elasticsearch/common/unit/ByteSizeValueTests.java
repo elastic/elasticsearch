@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class ByteSizeValueTests extends ElasticSearchTestCase {
+public class ByteSizeValueTests extends ElasticsearchTestCase {
 
     @Test
     public void testActual() {

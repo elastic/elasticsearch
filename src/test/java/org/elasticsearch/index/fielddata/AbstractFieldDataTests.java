@@ -25,12 +25,12 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 // we might wanna cut this over to LuceneTestCase
-public abstract class AbstractFieldDataTests extends ElasticSearchTestCase {
+public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     protected IndexFieldDataService ifdService;
     protected IndexWriter writer;

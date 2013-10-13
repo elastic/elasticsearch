@@ -40,7 +40,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.Test;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class IndexQueryParserModuleTests extends ElasticSearchTestCase {
+public class IndexQueryParserModuleTests extends ElasticsearchTestCase {
 
     @Test
     public void testCustomInjection() {

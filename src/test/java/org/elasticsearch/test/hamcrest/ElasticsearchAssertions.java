@@ -43,7 +43,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -61,7 +61,7 @@ import static org.junit.Assert.fail;
 /**
  *
  */
-public class ElasticSearchAssertions {
+public class ElasticsearchAssertions {
 
     public static void assertAcked(PutMappingRequestBuilder builder) {
         assertAcked(builder.get());
@@ -236,15 +236,15 @@ public class ElasticSearchAssertions {
      * matchers
      */
     public static Matcher<SearchHit> hasId(final String id) {
-        return new ElasticSearchMatchers.SearchHitHasIdMatcher(id);
+        return new ElasticsearchMatchers.SearchHitHasIdMatcher(id);
     }
 
     public static Matcher<SearchHit> hasType(final String type) {
-        return new ElasticSearchMatchers.SearchHitHasTypeMatcher(type);
+        return new ElasticsearchMatchers.SearchHitHasTypeMatcher(type);
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {
-        return new ElasticSearchMatchers.SearchHitHasIndexMatcher(index);
+        return new ElasticsearchMatchers.SearchHitHasIndexMatcher(index);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
@@ -296,8 +296,8 @@ public class ElasticSearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assert Version.CURRENT.after(ElasticSearchTestCase.getPreviousVersion());
-        assertVersionSerializable(ElasticSearchTestCase.randomVersion(), streamable);
+        assert Version.CURRENT.after(ElasticsearchTestCase.getPreviousVersion());
+        assertVersionSerializable(ElasticsearchTestCase.randomVersion(), streamable);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {

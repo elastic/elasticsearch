@@ -24,7 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DiscoveryNodeFiltersTests extends ElasticSearchTestCase {
+public class DiscoveryNodeFiltersTests extends ElasticsearchTestCase {
 
     @Test
     public void nameMatch() {

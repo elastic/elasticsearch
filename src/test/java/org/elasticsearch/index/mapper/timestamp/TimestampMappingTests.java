@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class TimestampMappingTests extends ElasticSearchTestCase {
+public class TimestampMappingTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleDisabled() throws Exception {

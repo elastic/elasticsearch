@@ -36,7 +36,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
-import org.elasticsearch.test.ElasticSearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -47,7 +47,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class VersionsTests extends ElasticSearchLuceneTestCase {
+public class VersionsTests extends ElasticsearchLuceneTestCase {
     
     public static DirectoryReader reopen(DirectoryReader reader) throws IOException {
         return reopen(reader, true);

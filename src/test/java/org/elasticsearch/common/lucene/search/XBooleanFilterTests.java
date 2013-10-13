@@ -15,7 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +28,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class XBooleanFilterTests extends ElasticSearchTestCase {
+public class XBooleanFilterTests extends ElasticsearchTestCase {
 
     private Directory directory;
     private AtomicReader reader;

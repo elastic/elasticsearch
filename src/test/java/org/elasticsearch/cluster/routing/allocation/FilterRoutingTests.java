@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class FilterRoutingTests extends ElasticSearchTestCase {
+public class FilterRoutingTests extends ElasticsearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FilterRoutingTests.class);
 

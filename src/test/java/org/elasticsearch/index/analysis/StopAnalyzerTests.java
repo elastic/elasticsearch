@@ -30,12 +30,12 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
-public class StopAnalyzerTests extends ElasticSearchTokenStreamTestCase {
+public class StopAnalyzerTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testDefaultsCompoundAnalysis() throws Exception {

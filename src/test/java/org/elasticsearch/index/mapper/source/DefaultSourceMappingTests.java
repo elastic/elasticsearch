@@ -25,7 +25,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class DefaultSourceMappingTests extends ElasticSearchTestCase {
+public class DefaultSourceMappingTests extends ElasticsearchTestCase {
 
     @Test
     public void testNoFormat() throws Exception {

@@ -26,13 +26,13 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiPhrasePrefixQueryTests extends ElasticSearchTestCase {
+public class MultiPhrasePrefixQueryTests extends ElasticsearchTestCase {
 
     @Test
     public void simpleTests() throws Exception {

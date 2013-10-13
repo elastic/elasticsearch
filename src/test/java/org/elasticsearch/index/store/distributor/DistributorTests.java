@@ -21,7 +21,7 @@ package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.*;
 import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.File;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class DistributorTests extends ElasticSearchTestCase {
+public class DistributorTests extends ElasticsearchTestCase {
 
     @Test
     public void testLeastUsedDistributor() throws Exception {

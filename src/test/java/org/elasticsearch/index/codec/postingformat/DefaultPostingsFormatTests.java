@@ -32,7 +32,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.ElasticSearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * Simple smoke test for {@link ElasticSearch090PostingsFormat}
  */
-public class DefaultPostingsFormatTests extends ElasticSearchTestCase {
+public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
     private final class TestCodec extends Lucene45Codec {
 

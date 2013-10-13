@@ -22,7 +22,7 @@ package org.elasticsearch.node.internal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,7 +31,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalSettingsPerparerTests extends ElasticSearchTestCase {
+public class InternalSettingsPerparerTests extends ElasticsearchTestCase {
     @Before
     public void setupSystemProperties() {
         System.setProperty("es.node.zone", "foo");

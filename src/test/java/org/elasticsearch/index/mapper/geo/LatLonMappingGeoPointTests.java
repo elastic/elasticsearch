@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class LatLonMappingGeoPointTests extends ElasticSearchTestCase {
+public class LatLonMappingGeoPointTests extends ElasticsearchTestCase {
 
     @Test
     public void testNormalizeLatLonValuesDefault() throws Exception {

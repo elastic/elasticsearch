@@ -35,14 +35,14 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ByteTermAttribute;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Set;
 
-public class CompletionTokenStreamTest extends ElasticSearchTokenStreamTestCase {
+public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase {
 
     final XAnalyzingSuggester suggester = new XAnalyzingSuggester(new SimpleAnalyzer(TEST_VERSION_CURRENT));
 

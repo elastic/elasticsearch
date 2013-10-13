@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -46,7 +46,7 @@ public class SimpleIndicesBoostSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testIndicesBoost() throws Exception {
-        ElasticSearchAssertions.assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
 
         try {
             client().prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();

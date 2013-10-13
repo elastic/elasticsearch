@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperTestUtils;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class GenericStoreDynamicTemplateTests extends ElasticSearchTestCase {
+public class GenericStoreDynamicTemplateTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimple() throws Exception {

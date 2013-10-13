@@ -27,7 +27,7 @@ import org.junit.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisQuery;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

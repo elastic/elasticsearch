@@ -246,7 +246,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
                 builder.field(FieldStrings.START_OFFSET, currentStartOffset[i]);
                 builder.field(FieldStrings.END_OFFSET, currentEndOffset[i]);
             }
-            if (curTerms.hasPayloads() && (currentPayloads[i] != null)) {
+            if (curTerms.hasPayloads() && (currentPayloads[i].length() > 0)) {
                 builder.field(FieldStrings.PAYLOAD, currentPayloads[i]);
             }
             builder.endObject();

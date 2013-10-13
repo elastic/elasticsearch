@@ -27,7 +27,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 
 import java.io.IOException;
@@ -246,16 +245,14 @@ public final class TermVectorFields extends Fields {
                             }
                             if (hasPayloads) {
                                 int payloadLength = input.readVInt();
-                                if (payloadLength > 0) {
-                                    if (payloads[i] == null) {
-                                        payloads[i] = new BytesRef(payloadLength);
-                                    } else {
-                                        payloads[i].grow(payloadLength);
-                                    }
-                                    input.readBytes(payloads[i].bytes, 0, payloadLength);
-                                    payloads[i].length = payloadLength;
-                                    payloads[i].offset = 0;
+                                if (payloads[i] == null) {
+                                    payloads[i] = new BytesRef(payloadLength);
+                                } else {
+                                    payloads[i].grow(payloadLength);
                                 }
+                                input.readBytes(payloads[i].bytes, 0, payloadLength);
+                                payloads[i].length = payloadLength;
+                                payloads[i].offset = 0;
                             }
                         }
                     }

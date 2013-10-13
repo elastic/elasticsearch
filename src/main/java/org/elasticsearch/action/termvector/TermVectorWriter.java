@@ -149,7 +149,6 @@ final class TermVectorWriter {
     }
 
     private void writePayload(BytesRef payload) throws IOException {
-        assert (payload != null);
         if (payload != null) {
             output.writeVInt(payload.length);
             output.writeBytes(payload.bytes, payload.offset, payload.length);

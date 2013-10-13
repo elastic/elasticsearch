@@ -52,6 +52,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     response.toXContent(builder, request);
+                    builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);

@@ -50,7 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
 import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numNodes = 0)

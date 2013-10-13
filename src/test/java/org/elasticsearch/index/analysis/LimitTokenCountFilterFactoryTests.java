@@ -23,13 +23,13 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-public class LimitTokenCountFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
+public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {

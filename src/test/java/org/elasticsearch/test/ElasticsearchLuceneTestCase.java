@@ -21,16 +21,27 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({
         ReproduceInfoPrinter.class
 })
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
+@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
-public abstract class ElasticSearchTokenStreamTestCase extends BaseTokenStreamTestCase {
+@SuppressCodecs("Lucene3x")
+public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
 
+    private static final Codec DEFAULT_CODEC = Codec.getDefault();
+
+    /**
+     * Forcefully reset the default codec
+     */
+    public static void forceDefaultCodec() {
+        Codec.setDefault(DEFAULT_CODEC);
+    }
 }

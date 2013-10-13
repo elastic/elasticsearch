@@ -35,7 +35,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldDataFilterIntegrationTests extends AbstractIntegrationTest {
 

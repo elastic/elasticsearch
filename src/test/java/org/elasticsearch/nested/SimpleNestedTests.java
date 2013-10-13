@@ -40,7 +40,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,8 +48,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleNestedTests extends AbstractIntegrationTest {
@@ -70,7 +70,7 @@ public class SimpleNestedTests extends AbstractIntegrationTest {
                 endObject().
                 endObject().
                 endObject();
-        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", builder));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", builder));
         ensureGreen();
 
         // check on no data, see it works

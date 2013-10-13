@@ -26,16 +26,16 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions.assertMultiLineString;
-import static org.elasticsearch.test.hamcrest.ElasticSearchGeoAssertions.assertMultiPolygon;
+import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
+import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
 import static org.junit.Assert.assertEquals;
 /**
  * Tests for {@link ShapeBuilder}
  */
-public class ShapeBuilderTests extends ElasticSearchTestCase {
+public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testNewPoint() {

@@ -9,7 +9,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SameShardRoutingTests extends ElasticSearchTestCase {
+public class SameShardRoutingTests extends ElasticsearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 

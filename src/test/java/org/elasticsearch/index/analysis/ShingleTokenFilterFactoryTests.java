@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ThreadLeakScope(Scope.NONE)
-public class ShingleTokenFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
+public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     private static final String RESOURCE = "org/elasticsearch/index/analysis/shingle_analysis.json";
 

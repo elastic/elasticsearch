@@ -19,7 +19,7 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.Version.V_0_20_0;
@@ -27,7 +27,7 @@ import static org.elasticsearch.Version.V_0_90_0;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-public class VersionTests extends ElasticSearchTestCase {
+public class VersionTests extends ElasticsearchTestCase {
 
     @Test
     public void testVersions() throws Exception {

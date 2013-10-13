@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -50,7 +50,7 @@ public class IndexRequestBuilderTests extends AbstractIntegrationTest {
         };
         indexRandom(true, builders);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();
-        ElasticSearchAssertions.assertHitCount(searchResponse, builders.length);
+        ElasticsearchAssertions.assertHitCount(searchResponse, builders.length);
     }
     
     @Test(expected = IllegalArgumentException.class)

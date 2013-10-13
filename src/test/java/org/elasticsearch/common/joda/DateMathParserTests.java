@@ -1,6 +1,6 @@
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DateMathParserTests extends ElasticSearchTestCase {
+public class DateMathParserTests extends ElasticsearchTestCase {
 
     @Test
     public void dataMathTests() {

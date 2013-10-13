@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -28,7 +28,7 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTest
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class AddIncrementallyTests extends ElasticSearchTestCase {
+public class AddIncrementallyTests extends ElasticsearchTestCase {
     private final ESLogger logger = Loggers.getLogger(AddIncrementallyTests.class);
 
     @Test

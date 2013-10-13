@@ -40,7 +40,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryString;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**

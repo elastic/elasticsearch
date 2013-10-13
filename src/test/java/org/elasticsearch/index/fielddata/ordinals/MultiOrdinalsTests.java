@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class MultiOrdinalsTests extends ElasticSearchTestCase {
+public class MultiOrdinalsTests extends ElasticsearchTestCase {
 
     protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
         return this.creationMultiOrdinals(builder, ImmutableSettings.builder());

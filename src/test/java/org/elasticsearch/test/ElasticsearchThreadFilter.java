@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 
-public class ElasticSearchThreadFilter implements ThreadFilter {
+public class ElasticsearchThreadFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
         return true;

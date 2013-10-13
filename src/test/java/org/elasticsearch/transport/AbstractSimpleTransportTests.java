@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.junit.annotations.TestLogging;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public abstract class AbstractSimpleTransportTests extends ElasticSearchTestCase {
+public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase {
 
     protected ThreadPool threadPool;
 

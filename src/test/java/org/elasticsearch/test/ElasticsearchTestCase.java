@@ -44,11 +44,11 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticSearchThreadFilter.class})
+@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR) // timeout the suite after 1h and fail the test.
 @Listeners(LoggingListener.class)
-public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
+public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     
     protected final ESLogger logger = Loggers.getLogger(getClass());
 

@@ -7,7 +7,7 @@ import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -21,7 +21,7 @@ import java.util.Arrays;
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final ESLogger logger = Loggers.getLogger(ElasticSearchTestCase.class);
+    protected final ESLogger logger = Loggers.getLogger(ElasticsearchTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {

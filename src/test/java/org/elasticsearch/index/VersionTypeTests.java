@@ -20,12 +20,12 @@ package org.elasticsearch.index;
 
 
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class VersionTypeTests extends ElasticSearchTestCase {
+public class VersionTypeTests extends ElasticsearchTestCase {
     @Test
     public void testInternalVersionConflict() throws Exception {
 

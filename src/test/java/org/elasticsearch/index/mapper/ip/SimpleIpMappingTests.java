@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 
 /**
  *
  */
 @Ignore("No tests?")
-public class SimpleIpMappingTests extends ElasticSearchTestCase {
+public class SimpleIpMappingTests extends ElasticsearchTestCase {
 
     // No Longer enabled...
 //    @Test public void testAutoIpDetection() throws Exception {

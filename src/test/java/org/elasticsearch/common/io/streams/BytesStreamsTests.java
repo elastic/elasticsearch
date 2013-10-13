@@ -22,7 +22,7 @@ package org.elasticsearch.common.io.streams;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +33,7 @@ import static org.junit.Assume.assumeTrue;
 /**
  *
  */
-public class BytesStreamsTests extends ElasticSearchTestCase {
+public class BytesStreamsTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleStreams() throws Exception {

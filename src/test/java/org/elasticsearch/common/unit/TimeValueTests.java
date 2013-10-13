@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.PeriodType;
 import org.junit.Test;
 
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  *
  */
-public class TimeValueTests extends ElasticSearchTestCase {
+public class TimeValueTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimple() {

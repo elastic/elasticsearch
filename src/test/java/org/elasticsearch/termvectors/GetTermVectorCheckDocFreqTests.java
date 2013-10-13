@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -55,7 +55,7 @@ public class GetTermVectorCheckDocFreqTests extends AbstractIntegrationTest {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
                 ImmutableSettings.settingsBuilder()
                     .put("index.number_of_shards", 1)
                     .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")

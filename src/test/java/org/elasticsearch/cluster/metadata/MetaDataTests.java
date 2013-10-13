@@ -23,7 +23,7 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static com.google.common.collect.Sets.newHashSet;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class MetaDataTests extends ElasticSearchTestCase {
+public class MetaDataTests extends ElasticsearchTestCase {
 
     @Test
     public void convertWildcardsJustIndicesTests() {

@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class PreferPrimaryAllocationTests extends ElasticSearchTestCase {
+public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(PreferPrimaryAllocationTests.class);
 

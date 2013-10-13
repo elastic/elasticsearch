@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class JsonSettingsLoaderTests extends ElasticSearchTestCase {
+public class JsonSettingsLoaderTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleJsonSettings() throws Exception {

@@ -25,7 +25,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class AnalyzerMapperTests extends ElasticSearchTestCase {
+public class AnalyzerMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testAnalyzerMapping() throws Exception {

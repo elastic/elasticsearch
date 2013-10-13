@@ -12,8 +12,8 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class SimpleCountTests extends AbstractIntegrationTest {
 

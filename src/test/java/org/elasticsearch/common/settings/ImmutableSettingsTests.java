@@ -21,7 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.settings.bar.BarTestClass;
 import org.elasticsearch.common.settings.foo.FooTestClass;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class ImmutableSettingsTests extends ElasticSearchTestCase{
+public class ImmutableSettingsTests extends ElasticsearchTestCase{
 
     @Test
     public void testGetAsClass() {

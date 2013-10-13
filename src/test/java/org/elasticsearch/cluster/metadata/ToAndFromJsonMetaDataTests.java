@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class ToAndFromJsonMetaDataTests extends ElasticSearchTestCase {
+public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleJsonFromAndTo() throws IOException {

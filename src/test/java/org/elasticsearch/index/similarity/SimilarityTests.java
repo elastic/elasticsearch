@@ -33,7 +33,7 @@ import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class SimilarityTests extends ElasticSearchTestCase {
+public class SimilarityTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveDefaultSimilarities() {

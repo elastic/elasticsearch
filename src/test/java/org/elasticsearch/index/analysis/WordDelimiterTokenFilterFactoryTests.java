@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.StringReader;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
-public class WordDelimiterTokenFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
+public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {

@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.ElasticSearchTestCase;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -48,13 +48,13 @@ public class AssertingLocalTransport extends LocalTransport {
 
     @Override
     protected void handleParsedRespone(final TransportResponse response, final TransportResponseHandler handler) {
-        ElasticSearchAssertions.assertVersionSerializable(ElasticSearchTestCase.randomVersion(random), response);
+        ElasticsearchAssertions.assertVersionSerializable(ElasticsearchTestCase.randomVersion(random), response);
         super.handleParsedRespone(response, handler);
     }
     
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-        ElasticSearchAssertions.assertVersionSerializable(ElasticSearchTestCase.randomVersion(random), request);
+        ElasticsearchAssertions.assertVersionSerializable(ElasticsearchTestCase.randomVersion(random), request);
         super.sendRequest(node, requestId, action, request, options);
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 
-public class StopTokenFilterTests extends ElasticSearchTokenStreamTestCase {
+public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
 
     @Test(expected = ProvisionException.class)
     public void testPositionIncrementSetting() throws IOException {

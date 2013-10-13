@@ -34,7 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

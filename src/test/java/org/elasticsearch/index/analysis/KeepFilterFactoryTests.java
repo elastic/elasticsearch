@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,7 +33,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeepFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
+public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     private static final String RESOURCE = "org/elasticsearch/index/analysis/keep_analysis.json";
     

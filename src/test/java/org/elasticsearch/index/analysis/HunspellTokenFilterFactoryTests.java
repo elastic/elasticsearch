@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HunspellTokenFilterFactoryTests extends ElasticSearchTestCase {
+public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
 
     @Test
     public void testDedup() throws IOException {

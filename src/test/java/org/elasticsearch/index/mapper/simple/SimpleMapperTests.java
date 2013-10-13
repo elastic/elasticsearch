@@ -24,7 +24,7 @@ import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleMapperTests extends ElasticSearchTestCase {
+public class SimpleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleMapper() throws Exception {

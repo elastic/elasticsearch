@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link SlicedDoubleList}
  */
-public class SlicedDoubleListTests extends ElasticSearchTestCase {
+public class SlicedDoubleListTests extends ElasticsearchTestCase {
     
     @Test
     public void testCapacity() {

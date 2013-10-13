@@ -36,7 +36,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -425,7 +425,7 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
                          .endObject()
                      .endObject()
                 .endObject().endObject();
-        ElasticSearchAssertions.assertAcked(builder.addMapping("type1", mapping));
+        ElasticsearchAssertions.assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
         for (String line: Resources.readLines(SuggestSearchTests.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
@@ -683,7 +683,7 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
         Suggest suggest = searchSuggest(client(), "foobar",
                 termSuggestion("simple")
                         .size(10).minDocFreq(0).field("field1").suggestMode("always"));
-        ElasticSearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
+        ElasticsearchAssertions.assertSuggestionSize(suggest, 0, 3, "simple");
     }
 
     @Test // see #3469
@@ -736,8 +736,8 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
             .setSuggestText("tetsting sugestion")
             .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
             .get();
-        ElasticSearchAssertions.assertNoFailures(searchResponse);
-        ElasticSearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        ElasticsearchAssertions.assertSuggestion(searchResponse.getSuggest(), 0, 0, "did_you_mean", "testing suggestions");
     }
 
     @Test // see #3469
@@ -759,7 +759,7 @@ public class SuggestSearchTests extends AbstractIntegrationTest {
                         endObject().
                     endObject().
                 endObject();
-        ElasticSearchAssertions.assertAcked(prepareCreate("test").setSettings(settingsBuilder()
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")

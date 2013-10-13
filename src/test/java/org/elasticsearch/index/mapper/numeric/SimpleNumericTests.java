@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SimpleNumericTests extends ElasticSearchTestCase {
+public class SimpleNumericTests extends ElasticsearchTestCase {
 
     @Test
     public void testNumericDetectionEnabled() throws Exception {

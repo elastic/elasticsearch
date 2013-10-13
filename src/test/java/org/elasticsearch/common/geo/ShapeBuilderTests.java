@@ -7,12 +7,12 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 /**
  * Tests for {@link ShapeBuilder}
  */
-public class ShapeBuilderTests extends ElasticSearchTestCase {
+public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testNewPoint() {

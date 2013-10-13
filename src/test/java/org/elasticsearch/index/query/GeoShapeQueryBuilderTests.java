@@ -21,10 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-public class GeoShapeQueryBuilderTests extends ElasticSearchTestCase {
+public class GeoShapeQueryBuilderTests extends ElasticsearchTestCase {
 
     @Test // see #3878
     public void testThatXContentSerializationInsideOfArrayWorks() throws Exception {

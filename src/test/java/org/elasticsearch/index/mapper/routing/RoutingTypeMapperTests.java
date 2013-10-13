@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class RoutingTypeMapperTests extends ElasticSearchTestCase {
+public class RoutingTypeMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void simpleRoutingMapperTests() throws Exception {

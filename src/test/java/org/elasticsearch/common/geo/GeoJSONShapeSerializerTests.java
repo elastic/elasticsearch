@@ -6,7 +6,7 @@ import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * Tests for {@link GeoJSONShapeSerializer}
  */
-public class GeoJSONShapeSerializerTests extends ElasticSearchTestCase {
+public class GeoJSONShapeSerializerTests extends ElasticsearchTestCase {
 
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 

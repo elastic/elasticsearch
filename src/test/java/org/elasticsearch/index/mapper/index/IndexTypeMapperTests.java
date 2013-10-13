@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.test.ElasticSearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IndexTypeMapperTests extends ElasticSearchTestCase {
+public class IndexTypeMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void simpleIndexMapperTests() throws Exception {

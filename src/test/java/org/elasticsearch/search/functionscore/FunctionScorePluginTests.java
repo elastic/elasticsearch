@@ -33,7 +33,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.indexRequest;
@@ -87,7 +87,7 @@ public class FunctionScorePluginTests extends AbstractIntegrationTest {
                 searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value")).add(gfb))));
 
         SearchResponse sr = response.actionGet();
-        ElasticSearchAssertions.assertNoFailures(sr);
+        ElasticsearchAssertions.assertNoFailures(sr);
         SearchHits sh = sr.getHits();
 
         assertThat(sh.hits().length, equalTo(2));

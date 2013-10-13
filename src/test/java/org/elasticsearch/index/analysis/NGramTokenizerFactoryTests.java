@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NGramTokenizerFactoryTests extends ElasticSearchTokenStreamTestCase {
+public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testParseTokenChars() {

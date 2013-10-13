@@ -37,7 +37,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticSearchAssertions;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matcher;
 import org.junit.Test;
 
@@ -50,8 +50,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertHighlight;
-import static org.elasticsearch.test.hamcrest.ElasticSearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -178,7 +178,7 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
                         endObject().
                     endObject().
                 endObject();
-        ElasticSearchAssertions.assertAcked(prepareCreate("test").addMapping("test", builder).setSettings(
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("test", builder).setSettings(
                 ImmutableSettings.settingsBuilder()                .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")

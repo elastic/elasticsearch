@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ElasticSearchTokenStreamTestCase;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
-public class CommonGramsTokenFilterFactoryTests extends ElasticSearchTokenStreamTestCase {
+public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testDefault() throws IOException {

@@ -21,6 +21,7 @@ package org.elasticsearch.deps.joda;
 
 import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.joda.time.Chronology;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class TimeZoneRoundingTests {
+public class TimeZoneRoundingTests extends ElasticSearchTestCase {
 
     @Test
     public void testUTCMonthRounding() {

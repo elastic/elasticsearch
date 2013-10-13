@@ -28,19 +28,19 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.apache.lucene.index.DirectoryReader.listCommits;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * A set of tests for {@link org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy}.
  */
-public class SnapshotDeletionPolicyTests {
+public class SnapshotDeletionPolicyTests extends ElasticSearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -50,16 +50,17 @@ public class SnapshotDeletionPolicyTests {
 
     @Before
     public void setUp() throws Exception {
+        super.setUp();
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
-        // LUCENE 4 UPGRADE: Not sure about version.
-        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER)
+        indexWriter = new IndexWriter(dir, new IndexWriterConfig(TEST_VERSION_CURRENT, Lucene.STANDARD_ANALYZER)
                 .setIndexDeletionPolicy(deletionPolicy)
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
     }
 
     @After
     public void tearDown() throws Exception {
+        super.tearDown();
         indexWriter.close();
         dir.close();
     }

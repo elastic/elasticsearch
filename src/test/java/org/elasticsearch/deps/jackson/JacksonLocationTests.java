@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class JacksonLocationTests {
+public class JacksonLocationTests extends ElasticSearchTestCase {
 
     @Test
     public void testLocationExtraction() throws IOException {

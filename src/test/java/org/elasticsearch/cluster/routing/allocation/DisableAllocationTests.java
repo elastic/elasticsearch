@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDec
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
@@ -42,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DisableAllocationTests {
+public class DisableAllocationTests extends ElasticSearchTestCase {
 
     private final ESLogger logger = Loggers.getLogger(DisableAllocationTests.class);
 

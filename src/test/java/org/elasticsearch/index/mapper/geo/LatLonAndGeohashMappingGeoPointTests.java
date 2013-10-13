@@ -22,8 +22,9 @@ package org.elasticsearch.index.mapper.geo;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class LatLonAndGeohashMappingGeoPointTests {
+public class LatLonAndGeohashMappingGeoPointTests extends ElasticSearchTestCase {
 
     @Test
     public void testLatLonValues() throws Exception {

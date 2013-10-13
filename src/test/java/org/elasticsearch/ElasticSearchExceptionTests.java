@@ -19,17 +19,17 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ElasticSearchExceptionTests {
+public class ElasticSearchExceptionTests extends ElasticSearchTestCase {
 
     @Test
     public void testStatus() {

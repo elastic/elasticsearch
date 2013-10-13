@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.closeTo;
 
 /**
  */
-public class FieldLevelBoostTests {
+public class FieldLevelBoostTests extends ElasticSearchTestCase {
 
     @Test
     public void testFieldLevelBoost() throws Exception {

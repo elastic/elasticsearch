@@ -23,8 +23,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class AnalyzerMapperTests {
+public class AnalyzerMapperTests extends ElasticSearchTestCase {
 
     @Test
     public void testAnalyzerMapping() throws Exception {

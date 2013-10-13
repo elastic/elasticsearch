@@ -46,6 +46,7 @@ import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -58,7 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class IndexAliasesServiceTests {
+public class IndexAliasesServiceTests extends ElasticSearchTestCase {
     public static IndexAliasesService newIndexAliasesService() {
         return new IndexAliasesService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, newIndexQueryParserService());
     }

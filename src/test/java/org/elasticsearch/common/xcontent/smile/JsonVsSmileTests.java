@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class JsonVsSmileTests {
+public class JsonVsSmileTests extends ElasticSearchTestCase {
 
 //    @Test public void testBinarySmileField() throws Exception {
 //        JsonGenerator gen = new SmileFactory().createJsonGenerator(new ByteArrayOutputStream());

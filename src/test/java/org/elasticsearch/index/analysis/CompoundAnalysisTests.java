@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilt
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -48,7 +49,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class CompoundAnalysisTests {
+public class CompoundAnalysisTests extends ElasticSearchTestCase {
 
     @Test
     public void testDefaultsCompoundAnalysis() throws Exception {

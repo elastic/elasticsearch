@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -26,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link SlicedLongList}
  */
-public class SlicedLongListTests {
+public class SlicedLongListTests extends ElasticSearchTestCase {
 
     @Test
     public void testCapacity() {

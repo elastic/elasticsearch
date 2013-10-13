@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class CompressSourceMappingTests {
+public class CompressSourceMappingTests extends ElasticSearchTestCase {
 
     @Test
     public void testCompressDisabled() throws Exception {

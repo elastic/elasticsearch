@@ -19,28 +19,23 @@
 
 package org.elasticsearch.index.mapper.simple;
 
+import com.google.common.base.Charsets;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
-
-import com.google.common.base.Charsets;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class SimpleMapperTests {
+public class SimpleMapperTests extends ElasticSearchTestCase {
 
     @Test
     public void testSimpleMapper() throws Exception {
@@ -128,7 +123,7 @@ public class SimpleMapperTests {
         BytesReference json = new BytesArray("".getBytes(Charsets.UTF_8));
         try {
             docMapper.parse("person", "1", json).rootDoc();
-            assertThat("this point is never reached", false);
+            fail("this point is never reached");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
         }

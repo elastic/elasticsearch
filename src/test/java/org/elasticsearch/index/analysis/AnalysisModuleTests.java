@@ -43,6 +43,7 @@ import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -57,7 +58,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class AnalysisModuleTests {
+public class AnalysisModuleTests extends ElasticSearchTestCase {
 
     @Test
     public void testSimpleConfigurationJson() {

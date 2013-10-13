@@ -20,11 +20,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class UidTests {
+public class UidTests extends ElasticSearchTestCase {
     
     @Test
     public void testCreateAndSplitId() {

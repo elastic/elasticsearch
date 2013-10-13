@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,18 +24,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.apache.lucene.search.BooleanClause.Occur.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class XBooleanFilterTests {
+public class XBooleanFilterTests extends ElasticSearchTestCase {
 
     private Directory directory;
     private AtomicReader reader;
 
     @Before
     public void setup() throws Exception {
+        super.setUp();
         char[][] documentMatrix = new char[][] {
                 {'a', 'b', 'c', 'd', 'v'},
                 {'a', 'b', 'c', 'd', 'z'},
@@ -58,6 +59,7 @@ public class XBooleanFilterTests {
 
     @After
     public void tearDown() throws Exception {
+        super.tearDown();
         reader.close();
         directory.close();
     }

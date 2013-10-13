@@ -92,7 +92,7 @@ public class QuorumLocalGatewayTests extends AbstractIntegrationTest {
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+                ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
                 return !clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive();
             }
         }, 30, TimeUnit.SECONDS), equalTo(true));

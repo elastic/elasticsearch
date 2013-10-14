@@ -27,6 +27,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -46,8 +47,10 @@ import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -71,10 +74,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -189,7 +190,11 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     }
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog) {
-        return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), createMergeScheduler(),
+        return createEngine(indexSettingsService, store, translog, createMergeScheduler());
+    }
+
+    protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+        return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
                 new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
 
@@ -295,6 +300,74 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).getNumDocs(), equalTo(1));
         assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(2).isCompound(), equalTo(true));
+    }
+
+    @Test
+    public void testSegmentsWithMergeFlag() throws Exception {
+        MergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
+        final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<CountDownLatch>();
+        final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<CountDownLatch>();
+        mergeSchedulerProvider.addListener(new MergeSchedulerProvider.Listener() {
+            @Override
+            public void beforeMerge(OnGoingMerge merge) {
+                try {
+                    if (waitTillMerge.get() != null) {
+                        waitTillMerge.get().countDown();
+                    }
+                    if (waitForMerge.get() != null) {
+                        waitForMerge.get().await();
+                    }
+                } catch (InterruptedException e) {
+                    throw ExceptionsHelper.convertToRuntime(e);
+                }
+            }
+
+            @Override
+            public void afterMerge(OnGoingMerge merge) {
+            }
+        });
+
+        Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        engine.start();
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        engine.flush(new Engine.Flush());
+        assertThat(engine.segments().size(), equalTo(1));
+        index = new Engine.Index(null, newUid("2"), doc);
+        engine.index(index);
+        engine.flush(new Engine.Flush());
+        assertThat(engine.segments().size(), equalTo(2));
+        for (Segment segment : engine.segments()) {
+            assertThat(segment.getMergeId(), nullValue());
+        }
+        index = new Engine.Index(null, newUid("3"), doc);
+        engine.index(index);
+        engine.flush(new Engine.Flush());
+        assertThat(engine.segments().size(), equalTo(3));
+        for (Segment segment : engine.segments()) {
+            assertThat(segment.getMergeId(), nullValue());
+        }
+
+        waitTillMerge.set(new CountDownLatch(1));
+        waitForMerge.set(new CountDownLatch(1));
+        engine.optimize(new Engine.Optimize().maxNumSegments(1).waitForMerge(false));
+        waitTillMerge.get().await();
+
+        for (Segment segment : engine.segments()) {
+            assertThat(segment.getMergeId(), notNullValue());
+        }
+
+        waitForMerge.get().countDown();
+
+        // now, optimize and wait for merges, see that we have no merge flag
+        engine.optimize(new Engine.Optimize().maxNumSegments(1).waitForMerge(true));
+
+        for (Segment segment : engine.segments()) {
+            assertThat(segment.getMergeId(), nullValue());
+        }
+
+        engine.close();
     }
 
     @Test

@@ -20,6 +20,9 @@
 package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -30,6 +33,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -1830,6 +1834,67 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 )
         ).execute().actionGet();
         assertHitCount(searchResponse, 0l);
+    }
+
+    @Test
+    public void indexChildDocWithNoParentMapping() throws ElasticSearchException, IOException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child1").setSource(
+                jsonBuilder().startObject().startObject("type").endObject().endObject()
+        ).execute().actionGet();
+
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1", "_parent", "bla").execute().actionGet();
+        try {
+            client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+            fail();
+        } catch (ElasticSearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+        }
+        try {
+            client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+            fail();
+        } catch (ElasticSearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+        }
+
+        refresh();
+    }
+
+    @Test
+    public void testAddingParentToExistingMapping() throws ElasticSearchException, IOException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child").setSource("number", "type=integer")
+                .execute().actionGet();
+        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
+        Map<String, Object> mapping  = getMappingsResponse.getMappings().get("test").get("child").getSourceAsMap();
+        assertThat(mapping.size(), equalTo(1));
+        assertThat(mapping.get("properties"), notNullValue());
+
+        try {
+            // Adding _parent metadata field to existing mapping is prohibited:
+            client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                    .startObject("_parent").field("type", "parent").endObject()
+                    .endObject().endObject()).execute().actionGet();
+            fail();
+        } catch (MergeMappingException e) {
+            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field can't be added or updated]}"));
+        }
+
     }
 
 }

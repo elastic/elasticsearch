@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -222,17 +223,32 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if defaults, don't output
-        if ((postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))) {
+        if (!includeDefaults && customFieldDataSettings == null
+                && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))) {
             return builder;
         }
 
         builder.startObject(CONTENT_TYPE);
 
         if (postingsFormat != null) {
-            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
                 builder.field("postings_format", postingsFormat.name());
             }
+        } else if (includeDefaults) {
+            String format = defaultPostingFormat();
+            if (format == null) {
+                format = PostingsFormatService.DEFAULT_FORMAT;
+            }
+            builder.field("postings_format", format);
+        }
+
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
 
         builder.endObject();

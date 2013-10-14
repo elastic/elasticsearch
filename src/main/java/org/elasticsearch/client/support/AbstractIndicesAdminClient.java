@@ -72,6 +72,10 @@ import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -322,6 +326,21 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
+    public void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {
+        execute(GetFieldMappingsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetFieldMappingsRequestBuilder prepareGetFieldMappings(String... indices) {
+        return new GetFieldMappingsRequestBuilder(this, indices);
+    }
+
+    @Override
+    public ActionFuture<GetFieldMappingsResponse> getFieldMappings(GetFieldMappingsRequest request) {
+        return execute(GetFieldMappingsAction.INSTANCE, request);
+    }
+
+    @Override
     public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request) {
         return execute(PutMappingAction.INSTANCE, request);
     }
@@ -486,7 +505,8 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
         execute(GetIndexTemplatesAction.INSTANCE, request, listener);
     }
 
-    @Override @Deprecated
+    @Override
+    @Deprecated
     public GetIndexTemplatesRequestBuilder prepareGetTemplates(String name) {
         return new GetIndexTemplatesRequestBuilder(this, name);
     }

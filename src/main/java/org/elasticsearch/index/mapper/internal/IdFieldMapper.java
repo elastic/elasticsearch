@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -323,21 +324,46 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if all are defaults, no sense to write it at all
-        if (fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
-                fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && path == Defaults.PATH) {
+        if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored()
+                && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()
+                && path == Defaults.PATH
+                && customFieldDataSettings == null
+                && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
+                ) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
-        if (path != Defaults.PATH) {
+        if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
         }
+
+        if (postingsFormat != null) {
+            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
+                builder.field("postings_format", postingsFormat.name());
+            }
+        } else if (includeDefaults) {
+            String format = defaultPostingFormat();
+            if (format == null) {
+                format = PostingsFormatService.DEFAULT_FORMAT;
+            }
+            builder.field("postings_format", format);
+        }
+
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+        }
+
         builder.endObject();
         return builder;
     }

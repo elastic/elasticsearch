@@ -118,7 +118,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             boolean roundCeil = Defaults.ROUND_CEIL;
             if (context.indexSettings() != null) {
                 Settings settings = context.indexSettings();
-                roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
+                roundCeil = settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
             }
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             if (!locale.equals(dateTimeFormatter.locale())) {
@@ -301,11 +301,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lValue, lValue, true, true);
     }
-    
+
     public long parseToMilliseconds(Object value, @Nullable QueryParseContext context) {
         return parseToMilliseconds(value, context, false);
     }
-    
+
     public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
@@ -444,24 +444,34 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        if (precisionStep != Defaults.PRECISION_STEP) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         builder.field("format", dateTimeFormatter.format());
-        if (nullValue != null) {
+        if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        } else if (includeDefaults) {
+            builder.field("include_in_all", false);
         }
-        if (timeUnit != Defaults.TIME_UNIT) {
+
+        if (includeDefaults || timeUnit != Defaults.TIME_UNIT) {
             builder.field("numeric_resolution", timeUnit.name().toLowerCase(Locale.ROOT));
         }
         // only serialize locale if needed, ROOT is the default, so no need to serialize that case as well...
         if (dateTimeFormatter.locale() != null && dateTimeFormatter.locale() != Locale.ROOT) {
             builder.field("locale", dateTimeFormatter.locale());
+        } else if (includeDefaults) {
+            if (dateTimeFormatter.locale() == null) {
+                builder.field("locale", Locale.ROOT);
+            } else {
+                builder.field("locale", dateTimeFormatter.locale());
+            }
         }
     }
 

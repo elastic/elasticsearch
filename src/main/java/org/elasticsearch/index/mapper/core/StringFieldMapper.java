@@ -322,21 +322,31 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        if (nullValue != null) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        } else if (includeDefaults) {
+            builder.field("include_in_all", false);
         }
-        if (positionOffsetGap != Defaults.POSITION_OFFSET_GAP) {
+
+        if (includeDefaults || positionOffsetGap != Defaults.POSITION_OFFSET_GAP) {
             builder.field("position_offset_gap", positionOffsetGap);
         }
         if (searchQuotedAnalyzer != null && searchAnalyzer != searchQuotedAnalyzer) {
             builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
+        } else if (includeDefaults) {
+            if (searchQuotedAnalyzer == null) {
+                builder.field("search_quote_analyzer", "default");
+            } else {
+                builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
+            }
         }
-        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+        if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
     }

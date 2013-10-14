@@ -68,6 +68,8 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotAc
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
@@ -195,6 +197,7 @@ public class ActionModule extends AbstractModule {
         registerAction(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         registerAction(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
         registerAction(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
+        registerAction(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class);
         registerAction(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         registerAction(DeleteMappingAction.INSTANCE, TransportDeleteMappingAction.class);
         registerAction(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);

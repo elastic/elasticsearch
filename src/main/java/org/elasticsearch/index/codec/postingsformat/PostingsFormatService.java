@@ -35,14 +35,15 @@ import java.util.Map;
 /**
  * The {@link PostingsFormatService} provides access to
  * all configured {@link PostingsFormatProvider} instances by
- * {@link PostingsFormatProvider#name() name}. 
- * 
- * @see CodecService 
- * 
+ * {@link PostingsFormatProvider#name() name}.
+ *
+ * @see CodecService
  */
 public class PostingsFormatService extends AbstractIndexComponent {
 
     private final ImmutableMap<String, PostingsFormatProvider> providers;
+
+    public final static String DEFAULT_FORMAT = "default";
 
     public PostingsFormatService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);

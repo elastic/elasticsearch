@@ -59,6 +59,9 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -391,6 +394,21 @@ public interface IndicesAdminClient {
      * Explicitly optimize one or more indices into a the number of segments.
      */
     OptimizeRequestBuilder prepareOptimize(String... indices);
+
+    /**
+     * Get the mappings of specific fields
+     */
+    void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener);
+
+    /**
+     * Get the mappings of specific fields
+     */
+    GetFieldMappingsRequestBuilder prepareGetFieldMappings(String... indices);
+
+    /**
+     * Get the mappings of specific fields
+     */
+    ActionFuture<GetFieldMappingsResponse> getFieldMappings(GetFieldMappingsRequest request);
 
     /**
      * Add mapping definition for a type into one or more indices.

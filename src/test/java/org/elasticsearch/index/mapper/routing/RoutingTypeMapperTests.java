@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.routing;
 
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -31,7 +32,6 @@ import org.junit.Test;
 
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -59,9 +59,9 @@ public class RoutingTypeMapperTests extends ElasticsearchTestCase {
     public void testSetValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_routing")
-                    .field("store", "no")
-                    .field("index", "no")
-                    .field("path", "route")
+                .field("store", "no")
+                .field("index", "no")
+                .field("path", "route")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
@@ -78,7 +78,7 @@ public class RoutingTypeMapperTests extends ElasticsearchTestCase {
         DocumentMapper enabledMapper = MapperTestUtils.newParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        enabledMapper.routingFieldMapper().toXContent(builder, null).endObject();
+        enabledMapper.routingFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
         Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
         assertThat(serializedMap, hasKey("_routing"));

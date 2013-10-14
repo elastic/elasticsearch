@@ -231,22 +231,24 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if all are defaults, no sense to write it at all
-        if (fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+        if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (required != Defaults.REQUIRED) {
+        if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);
         }
-        if (path != Defaults.PATH) {
+        if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
         }
         builder.endObject();

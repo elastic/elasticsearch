@@ -324,6 +324,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
             builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
 
+
         builder.startObject("fields");
         if (defaultMapper != null) {
             defaultMapper.toXContent(builder, params);

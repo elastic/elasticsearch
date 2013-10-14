@@ -37,7 +37,7 @@ import java.util.List;
 /**
  *
  */
-public interface FieldMapper<T> {
+public interface FieldMapper<T> extends Mapper {
 
     public static class Names {
 

@@ -110,16 +110,18 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     }
 
     public void addPercolateQuery(String idAsString, BytesReference source) {
-        Query query = parsePercolatorDocument(idAsString, source);
+        Query newquery = parsePercolatorDocument(idAsString, source);
         HashedBytesRef id = new HashedBytesRef(new BytesRef(idAsString));
-        percolateQueries.put(id, query);
-        shardPercolateService.addedQuery(id, query);
+        Query previousQuery = percolateQueries.put(id, newquery);
+        shardPercolateService.addedQuery(id, previousQuery, newquery);
     }
 
     public void removePercolateQuery(String idAsString) {
         HashedBytesRef id =new HashedBytesRef(idAsString) ;
         Query query = percolateQueries.remove(id);
-        shardPercolateService.removedQuery(id, query);
+        if (query != null) {
+            shardPercolateService.removedQuery(id, query);
+        }
     }
 
     public long sizeInBytes() {
@@ -257,7 +259,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                     Map<HashedBytesRef, Query> queries = queryCollector.queries();
                     percolateQueries.putAll(queries);
                     for (Map.Entry<HashedBytesRef, Query> entry : queries.entrySet()) {
-                        shardPercolateService.addedQuery(entry.getKey(), entry.getValue());
+                        shardPercolateService.addedQuery(entry.getKey(), null, entry.getValue());
                     }
                 } finally {
                     searcher.release();

@@ -57,9 +57,12 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
         percolateMetric.inc(tookInNanos);
     }
 
-    public void addedQuery(HashedBytesRef id, Query query) {
+    public void addedQuery(HashedBytesRef id, Query previousQuery, Query newQuery) {
         numberOfQueries.inc();
-        memorySizeInBytes.inc(computeSizeInMemory(id, query));
+        if (previousQuery != null) {
+            memorySizeInBytes.dec(computeSizeInMemory(id, previousQuery));
+        }
+        memorySizeInBytes.inc(computeSizeInMemory(id, newQuery));
     }
 
     public void removedQuery(HashedBytesRef id, Query query) {

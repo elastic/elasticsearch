@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope=Scope.TEST)
+@ClusterScope(scope = Scope.TEST)
 public class TTLPercolatorTests extends AbstractIntegrationTest {
 
     private static final long PURGE_INTERVAL = 200;
@@ -38,15 +38,20 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
         client.admin().indices().prepareDelete().execute().actionGet();
         ensureGreen();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_percolator")
+        String precolatorMapping = XContentFactory.jsonBuilder().startObject().startObject("_percolator")
+                .startObject("_ttl").field("enabled", true).endObject()
+                .startObject("_timestamp").field("enabled", true).endObject()
+                .endObject().endObject().string();
+
+        String typeMapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_ttl").field("enabled", true).endObject()
                 .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
         client.admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("_percolator", mapping)
-                .addMapping("type1", mapping)
+                .addMapping("_percolator", precolatorMapping)
+                .addMapping("type1", typeMapping)
                 .execute().actionGet();
         ensureGreen();
 
@@ -70,12 +75,12 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
         PercolateResponse percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .field("field1", "value1")
-                .endObject()
-                .endObject()
-        ).execute().actionGet();
+                        .startObject()
+                        .startObject("doc")
+                        .field("field1", "value1")
+                        .endObject()
+                        .endObject()
+                ).execute().actionGet();
         assertNoFailures(percolateResponse);
         if (percolateResponse.getMatches().length == 0) {
             // OK, ttl + purgeInterval has passed (slow machine or many other tests were running at the same time
@@ -111,12 +116,12 @@ public class TTLPercolatorTests extends AbstractIntegrationTest {
         percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .field("field1", "value1")
-                .endObject()
-                .endObject()
-        ).execute().actionGet();
+                        .startObject()
+                        .startObject("doc")
+                        .field("field1", "value1")
+                        .endObject()
+                        .endObject()
+                ).execute().actionGet();
         assertNoFailures(percolateResponse);
         assertThat(percolateResponse.getMatches(), emptyArray());
     }

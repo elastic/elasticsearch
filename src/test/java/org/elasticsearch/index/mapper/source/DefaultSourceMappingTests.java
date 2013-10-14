@@ -150,14 +150,14 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
             // all is well
         }
     }
-    
+
     @Test
     public void testDefaultMappingAndWithMappingOverride() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
@@ -189,7 +189,7 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
         MapperService mapperService = MapperTestUtils.newMapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, defaultMapping, true);
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
         mapperService.merge("my_type", mapping, true);

@@ -51,10 +51,10 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(numNodes=0, scope=Scope.TEST)
+@ClusterScope(numNodes = 0, scope = Scope.TEST)
 public class SimpleRecoveryLocalGatewayTests extends AbstractIntegrationTest {
 
-    
+
     private ImmutableSettings.Builder settingsBuilder() {
         return ImmutableSettings.settingsBuilder().put("gateway.type", "local");
     }
@@ -237,7 +237,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractIntegrationTest {
             public boolean clearData(String nodeName) {
                 return firstNode.equals(nodeName);
             }
-            
+
         });
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -290,7 +290,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractIntegrationTest {
 
                     logger.info("--> add some metadata, additional type and template");
                     client.admin().indices().preparePutMapping("test").setType("type2")
-                            .setSource(jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().endObject().endObject())
+                            .setSource(jsonBuilder().startObject().startObject("type2").startObject("_source").field("enabled", false).endObject().endObject().endObject())
                             .execute().actionGet();
                     client.admin().indices().preparePutTemplate("template_1")
                             .setTemplate("te*")
@@ -303,9 +303,9 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractIntegrationTest {
                     client.admin().indices().prepareAliases().addAlias("test", "test_alias", FilterBuilders.termFilter("field", "value")).execute().actionGet();
                     logger.info("--> starting two nodes back, verifying we got the latest version");
                 }
-           
+
             }
-            
+
         });
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
@@ -333,7 +333,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractIntegrationTest {
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
-                
+
                 .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
 
         cluster().startNode(settings);

@@ -123,7 +123,7 @@ public class HasChildQueryParser implements QueryParser {
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child] No mapping for for type [" + childType + "]");
         }
-        if (childDocMapper.parentFieldMapper() == null) {
+        if (!childDocMapper.parentFieldMapper().active()) {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();

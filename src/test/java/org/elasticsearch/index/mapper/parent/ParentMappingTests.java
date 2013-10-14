@@ -24,8 +24,8 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -46,8 +46,8 @@ public class ParentMappingTests extends ElasticsearchTestCase {
                 .bytes()).type("type").id("1"));
 
         // no _parent mapping, used as a simple field
-        assertThat(doc.parent(), equalTo(null));
-        assertThat(doc.rootDoc().get("_parent"), equalTo("1122"));
+        assertThat(doc.parent(), nullValue());
+        assertThat(doc.rootDoc().get("_parent"), nullValue());
     }
 
     @Test

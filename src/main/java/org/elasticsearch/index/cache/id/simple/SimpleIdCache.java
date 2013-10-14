@@ -123,7 +123,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 BytesRef spare = new BytesRef();
                 for (String type : indexService.mapperService().types()) {
                     ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
-                    if (parentFieldMapper != null) {
+                    if (parentFieldMapper.active()) {
                         parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
                     }
                 }

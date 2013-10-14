@@ -36,6 +36,8 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -510,7 +512,7 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>>();
         List<CountDownLatch> latches = new ArrayList<CountDownLatch>();
         if (frequently()) {
-            logger.info("Index [{}] docs async: [{}]", list.size(), true);
+            logger.info("Index [{}] docs async: [{}] bulk: [{}]", list.size(), true, false);
             final CountDownLatch latch = new CountDownLatch(list.size());
             latches.add(latch);
             for (IndexRequestBuilder indexRequestBuilder : list) {
@@ -526,8 +528,8 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
                 }
             }
 
-        } else {
-            logger.info("Index [{}] docs async: [{}]", list.size(), false);
+        } else if (randomBoolean()) {
+            logger.info("Index [{}] docs async: [{}] bulk: [{}]", list.size(), false, false);
             for (IndexRequestBuilder indexRequestBuilder : list) {
                 indexRequestBuilder.execute().actionGet();
                 if (rarely()) {
@@ -540,6 +542,14 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
                     }
                 }
             }
+        } else {
+            logger.info("Index [{}] docs async: [{}] bulk: [{}]", list.size(), false, true);
+            BulkRequestBuilder bulkBuilder = client().prepareBulk();
+            for (IndexRequestBuilder indexRequestBuilder : list) {
+                bulkBuilder.add(indexRequestBuilder);
+            }
+            BulkResponse actionGet = bulkBuilder.execute().actionGet();
+            assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
         }
         for (CountDownLatch countDownLatch : latches) {
             countDownLatch.await();

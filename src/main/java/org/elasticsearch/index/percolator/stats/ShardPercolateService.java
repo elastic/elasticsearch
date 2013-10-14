@@ -58,9 +58,10 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
     }
 
     public void addedQuery(HashedBytesRef id, Query previousQuery, Query newQuery) {
-        numberOfQueries.inc();
         if (previousQuery != null) {
             memorySizeInBytes.dec(computeSizeInMemory(id, previousQuery));
+        } else {
+            numberOfQueries.inc();
         }
         memorySizeInBytes.inc(computeSizeInMemory(id, newQuery));
     }

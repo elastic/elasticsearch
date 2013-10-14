@@ -247,9 +247,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                     QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, indexFieldDataService);
                     searcher.searcher().search(query, queryCollector);
                     Map<HashedBytesRef, Query> queries = queryCollector.queries();
-                    percolateQueries.putAll(queries);
                     for (Map.Entry<HashedBytesRef, Query> entry : queries.entrySet()) {
-                        shardPercolateService.addedQuery(entry.getKey(), null, entry.getValue());
+                        Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
+                        shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
                     }
                 } finally {
                     searcher.release();

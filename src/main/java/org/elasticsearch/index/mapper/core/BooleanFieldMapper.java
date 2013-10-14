@@ -227,9 +227,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        if (nullValue != null) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+        if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
     }

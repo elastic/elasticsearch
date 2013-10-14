@@ -71,7 +71,7 @@ public class PostingFormats {
         buildInPostingFormatsX.put("memory", new PreBuiltPostingsFormatProvider.Factory("memory", PostingsFormat.forName("Memory")));
         // LUCENE UPGRADE: Need to change this to the relevant ones on a lucene upgrade
         buildInPostingFormatsX.put("pulsing", new PreBuiltPostingsFormatProvider.Factory("pulsing", PostingsFormat.forName("Pulsing41")));
-        buildInPostingFormatsX.put("default", new PreBuiltPostingsFormatProvider.Factory("default", defaultFormat));
+        buildInPostingFormatsX.put(PostingsFormatService.DEFAULT_FORMAT, new PreBuiltPostingsFormatProvider.Factory(PostingsFormatService.DEFAULT_FORMAT, defaultFormat));
 
         buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", wrapInBloom(PostingsFormat.forName("Pulsing41"))));
         buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene41"))));

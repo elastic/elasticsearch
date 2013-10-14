@@ -21,6 +21,8 @@ and warmers.
 == Mapping management:
 
 * <<indices-put-mapping>>
+* <<indices-get-mapping>>
+* <<indices-get-field-mapping>>
 * <<indices-delete-mapping>>
 * <<indices-types-exists>>
 
@@ -67,6 +69,8 @@ include::indices/open-close.asciidoc[]
 include::indices/put-mapping.asciidoc[]
 
 include::indices/get-mapping.asciidoc[]
+
+include::indices/get-field-mapping.asciidoc[]
 
 include::indices/types-exists.asciidoc[]
 

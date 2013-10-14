@@ -38,7 +38,7 @@ import java.util.List;
 /**
  *
  */
-public interface FieldMapper<T> {
+public interface FieldMapper<T> extends Mapper {
 
     public static final String DOC_VALUES_FORMAT = "doc_values_format";
 

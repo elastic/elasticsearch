@@ -33,7 +33,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -204,8 +206,10 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if defaults, don't output
-        if (customFieldDataSettings == null
+        if (!includeDefaults && customFieldDataSettings == null
                 && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
                 && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
             return builder;
@@ -214,19 +218,33 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         builder.startObject(CONTENT_TYPE);
 
         if (postingsFormat != null) {
-            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
                 builder.field("postings_format", postingsFormat.name());
             }
+        } else if (includeDefaults) {
+            String format = defaultPostingFormat();
+            if (format == null) {
+                format = PostingsFormatService.DEFAULT_FORMAT;
+            }
+            builder.field("postings_format", format);
         }
 
         if (docValuesFormat != null) {
-            if (!docValuesFormat.equals(defaultDocValuesFormat())) {
+            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
                 builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
             }
+        } else if (includeDefaults) {
+            String format = defaultDocValuesFormat();
+            if (format == null) {
+                format = DocValuesFormatService.DEFAULT_FORMAT;
+            }
+            builder.field(DOC_VALUES_FORMAT, format);
         }
 
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
 
         builder.endObject();

@@ -50,6 +50,7 @@ import org.elasticsearch.rest.action.admin.indices.exists.types.RestTypesExistsA
 import org.elasticsearch.rest.action.admin.indices.flush.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.gateway.snapshot.RestGatewaySnapshotAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.delete.RestDeleteMappingAction;
+import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
@@ -161,6 +162,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestPutMappingAction.class).asEagerSingleton();
         bind(RestDeleteMappingAction.class).asEagerSingleton();
         bind(RestGetMappingAction.class).asEagerSingleton();
+        bind(RestGetFieldMappingAction.class).asEagerSingleton();
 
         bind(RestGatewaySnapshotAction.class).asEagerSingleton();
 

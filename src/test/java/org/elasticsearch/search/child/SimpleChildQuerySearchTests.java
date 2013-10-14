@@ -20,6 +20,7 @@
 package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -1830,6 +1831,33 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
                 )
         ).execute().actionGet();
         assertHitCount(searchResponse, 0l);
+    }
+
+    @Test
+    public void indexChildDocWithNoParentMapping() throws ElasticSearchException, IOException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child1").setSource(jsonBuilder().startObject().startObject("type")
+                .endObject().endObject()).execute().actionGet();
+
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        try {
+            client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+            fail();
+        } catch (ElasticSearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+        }
+        try {
+            client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+            fail();
+        } catch (ElasticSearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+        }
     }
 
 }

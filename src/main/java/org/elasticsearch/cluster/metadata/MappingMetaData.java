@@ -258,6 +258,7 @@ public class MappingMetaData {
     private Id id;
     private Routing routing;
     private Timestamp timestamp;
+    private boolean hasParentMapping;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -265,6 +266,7 @@ public class MappingMetaData {
         this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
         this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
+        this.hasParentMapping = docMapper.parentFieldMapper() != null;
     }
 
     public MappingMetaData(CompressedString mapping) throws IOException {
@@ -372,6 +374,10 @@ public class MappingMetaData {
 
     public CompressedString source() {
         return this.source;
+    }
+
+    public boolean hasParentMapping() {
+        return hasParentMapping;
     }
 
     /**

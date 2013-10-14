@@ -13,25 +13,25 @@ goto:eof
 )
 "%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
 
-if errorlevel 1 (
-    set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
-    set SERVICE_ID=elasticsearch-service-x86
-    set ARCH=32-bit
-) else (
-    set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
-    set SERVICE_ID=elasticsearch-service-x64
-    set ARCH=64-bit
-)
+if errorlevel 1 goto x86
+set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
+set SERVICE_ID=elasticsearch-service-x64
+set ARCH=64-bit
+goto checkExe
 
+:x86
+set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
+set SERVICE_ID=elasticsearch-service-x86
+set ARCH=32-bit
+
+:checkExe
 if EXIST "%EXECUTABLE%" goto okExe
 echo elasticsearch-service-(x86|x64).exe was not found...
 
 :okExe
 set ES_VERSION=${project.version}
 
-if "%LOG_DIR%" == "" (
-set LOG_DIR=%ES_HOME%\logs
-)
+if "%LOG_DIR%" == "" set LOG_DIR=%ES_HOME%\logs
 
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
@@ -41,9 +41,7 @@ set SERVICE_ID=%1
 
 :checkServiceCmd
 
-if "%LOG_OPTS%" == "" (
-set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
-)
+if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
 
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
@@ -102,11 +100,11 @@ echo Using JAVA_HOME (%ARCH%):  "%JAVA_HOME%"
 rem Check JVM server dll first
 set JVM_DLL=%JAVA_HOME%\jre\bin\server\jvm.dll
 
-if exist %JVM_DLL% goto foundJVM
+if exist "%JVM_DLL%" goto foundJVM
 
 set JVM_DLL=%JAVA_HOME%\bin\client\jvm.dll
 
-if exist %JVM_DLL% (
+if exist "%JVM_DLL%" (
 echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
 ) else (
 echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Existing...
@@ -114,18 +112,11 @@ goto:eof
 )
 
 :foundJVM
-if "%ES_MIN_MEM%" == "" (
-set ES_MIN_MEM=256m
-)
+if "%ES_MIN_MEM%" == "" set ES_MIN_MEM=256m
+if "%ES_MAX_MEM%" == "" set ES_MAX_MEM=1g
 
-if "%ES_MAX_MEM%" == "" (
-set ES_MAX_MEM=1g
-)
-
-if NOT "%ES_HEAP_SIZE%" == "" (
-set ES_MIN_MEM=%ES_HEAP_SIZE%
-set ES_MAX_MEM=%ES_HEAP_SIZE%
-)
+if NOT "%ES_HEAP_SIZE%" == "" set ES_MIN_MEM=%ES_HEAP_SIZE%
+if NOT "%ES_HEAP_SIZE%" == "" set ES_MAX_MEM=%ES_HEAP_SIZE%
 
 call:convertxm %ES_MIN_MEM% JVM_XMS
 call:convertxm %ES_MAX_MEM% JVM_XMX
@@ -135,13 +126,9 @@ set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
 rem JAVA_OPTS might be empty so remove the spaces that might trip commons daemon
 set JAVA_OPTS=%JAVA_OPTS: =%
 
-if NOT "%ES_HEAP_NEWSIZE%" == "" (
-set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
-)
+if NOT "%ES_HEAP_NEWSIZE%" == "" set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
 
-if NOT "%ES_DIRECT_SIZE%" == "" (
-set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
-)
+if NOT "%ES_DIRECT_SIZE%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
 
 rem thread stack size
 set JVM_SS=256
@@ -170,21 +157,13 @@ REM The path to the heap dump location, note directory must exists and have enou
 REM space for a full heap dump.
 REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
-if "%DATA_DIR%" == "" (
-set DATA_DIR=%ES_HOME%\data
-)
+if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
-if "%WORK_DIR%" == "" (
-set WORK_DIR=%ES_HOME%
-)
+if "%WORK_DIR%" == "" set WORK_DIR=%ES_HOME%
 
-if "%CONF_DIR%" == "" (
-set CONF_DIR=%ES_HOME%\config
-)
+if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
-if "%CONF_FILE%" == "" (
-set CONF_FILE=%CONF_DIR%\elasticsearch.yml
-)
+if "%CONF_FILE%" == "" set CONF_FILE=%ES_HOME%\config\elasticsearch.yml
 
 set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/elasticsearch-%ES_VERSION%.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.work="%WORK_DIR%";-Des.default.path.conf="%CONF_DIR%"

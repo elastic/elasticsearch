@@ -63,4 +63,9 @@ public class Tuple<V1, V2> {
         result = 31 * result + (v2 != null ? v2.hashCode() : 0);
         return result;
     }
+
+    @Override
+    public String toString() {
+        return "Tuple [v1=" + v1 + ", v2=" + v2 + "]";
+    }
 }

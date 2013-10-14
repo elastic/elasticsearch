@@ -362,8 +362,12 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
         waitForMerge.get().countDown();
 
+        index = new Engine.Index(null, newUid("4"), doc);
+        engine.index(index);
+        engine.flush(new Engine.Flush());
+
         // now, optimize and wait for merges, see that we have no merge flag
-        engine.optimize(new Engine.Optimize().maxNumSegments(1).waitForMerge(true));
+        engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).waitForMerge(true));
 
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());

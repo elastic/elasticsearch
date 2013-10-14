@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 
@@ -42,22 +44,27 @@ public class SimpleGetMappingsTests extends AbstractIntegrationTest {
         assertThat(response.mappings().get("index").size(), equalTo(0));
     }
 
+
+    private XContentBuilder getMappingForType(String type) throws IOException {
+        return jsonBuilder().startObject().startObject(type).startObject("properties")
+                .startObject("field1").field("type", "string").endObject()
+                .endObject().endObject().endObject();
+    }
+
+
     @Test
     public void simpleGetMappings() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
-                .endObject().endObject();
         client().admin().indices().prepareCreate("indexa")
-                .addMapping("typeA", mapping)
-                .addMapping("typeB", mapping)
-                .addMapping("Atype", mapping)
-                .addMapping("Btype", mapping)
+                .addMapping("typeA", getMappingForType("typeA"))
+                .addMapping("typeB", getMappingForType("typeB"))
+                .addMapping("Atype", getMappingForType("Atype"))
+                .addMapping("Btype", getMappingForType("Btype"))
                 .execute().actionGet();
         client().admin().indices().prepareCreate("indexb")
-                .addMapping("typeA", mapping)
-                .addMapping("typeB", mapping)
-                .addMapping("Atype", mapping)
-                .addMapping("Btype", mapping)
+                .addMapping("typeA", getMappingForType("typeA"))
+                .addMapping("typeB", getMappingForType("typeB"))
+                .addMapping("Atype", getMappingForType("Atype"))
+                .addMapping("Btype", getMappingForType("Btype"))
                 .execute().actionGet();
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -132,4 +139,5 @@ public class SimpleGetMappingsTests extends AbstractIntegrationTest {
         assertThat(response.mappings().get("indexb").get("Atype"), notNullValue());
         assertThat(response.mappings().get("indexb").get("Btype"), notNullValue());
     }
+
 }

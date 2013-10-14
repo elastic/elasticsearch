@@ -119,7 +119,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
             assertTrue("wrong exception message " + e.getMessage(), e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
     }
-    
+
     @Test // see #3521
     public void testConstantScoreQuery() throws Exception {
         Random random = getRandom();
@@ -132,29 +132,29 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         for (SearchHit searchHit : hits) {
             assertThat(searchHit.getScore(), equalTo(1.0f));
         }
-        
+
         searchResponse = client().prepareSearch("test").setQuery(
                 QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
-                QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat()))).get();
+                        QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat()))).get();
         hits = searchResponse.getHits();
         assertThat(hits.totalHits(), equalTo(2l));
         assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
-        
+
         client().prepareSearch("test").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat())).get();
         hits = searchResponse.getHits();
         assertThat(hits.totalHits(), equalTo(2l));
         assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
-        
+
         searchResponse = client().prepareSearch("test").setQuery(
                 QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
-                QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat()))))).get();
+                        QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("field1", "quick")).boost(1.0f + (random.nextBoolean() ? 0.0f : random.nextFloat()))))).get();
         hits = searchResponse.getHits();
         assertThat(hits.totalHits(), equalTo(2l));
         assertThat(hits.getAt(0).score(), equalTo(hits.getAt(1).score()));
         for (SearchHit searchHit : hits) {
             assertThat(searchHit.getScore(), equalTo(1.0f));
         }
-        
+
         int num = atLeast(100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
         for (int i = 0; i < builders.length; i++) {
@@ -175,13 +175,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
             if (random.nextBoolean()) {
                 searchResponse = client().prepareSearch("test_1").setQuery(
                         QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
-                        QueryBuilders.constantScoreQuery(matchQuery).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat())))).setSize(num).get();
-                hits = searchResponse.getHits();    
+                                QueryBuilders.constantScoreQuery(matchQuery).boost(1.0f + (random.nextBoolean() ? 0.0f : random.nextFloat())))).setSize(num).get();
+                hits = searchResponse.getHits();
             } else {
                 FilterBuilder filter = FilterBuilders.queryFilter(matchQuery);
                 searchResponse = client().prepareSearch("test_1").setQuery(
                         QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
-                        QueryBuilders.constantScoreQuery(filter).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat())))).setSize(num).get();
+                                QueryBuilders.constantScoreQuery(filter).boost(1.0f + (random.nextBoolean() ? 0.0f : random.nextFloat())))).setSize(num).get();
                 hits = searchResponse.getHits();
             }
             assertThat(hits.totalHits(), equalTo(totalHits));
@@ -193,13 +193,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
             }
         }
     }
-    
+
     @Test // see #3521 
     public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
-            client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
+                client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
         );
         int iters = atLeast(100);
         for (int i = 0; i < iters; i++) {
@@ -208,15 +208,15 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                     .execute().actionGet();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-            
+
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(
                             QueryBuilders.constantScoreQuery(QueryBuilders.matchAllQuery())))
                     .execute().actionGet();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-            assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(Math.sqrt(2), 0.1));
-            assertThat((double)searchResponse.getHits().getAt(1).score(),closeTo(Math.sqrt(2), 0.1));
+            assertThat((double) searchResponse.getHits().getAt(0).score(), closeTo(Math.sqrt(2), 0.1));
+            assertThat((double) searchResponse.getHits().getAt(1).score(), closeTo(Math.sqrt(2), 0.1));
         }
     }
 
@@ -881,7 +881,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         float boost = 10.0f;
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
-            client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
+                client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -891,7 +891,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
-        assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
+        assertThat((double) searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
 
         searchResponse = client().prepareSearch()
                 .setQuery(queryString("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false))
@@ -900,9 +900,9 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
-        assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
+        assertThat((double) searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
     }
-    
+
     @Test
     public void testSpecialRangeSyntaxInQueryString() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -957,10 +957,10 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testEmptyTermsFilter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", 
+        assertAcked(prepareCreate("test").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("term").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
+                        .startObject("term").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
@@ -982,19 +982,19 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", 
+        assertAcked(prepareCreate("lookup").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
-                    .startObject("other").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
-        assertAcked(prepareCreate("lookup2").addMapping("type", 
+                        .startObject("terms").field("type", "string").endObject()
+                        .startObject("other").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup2").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("arr").startObject("properties").startObject("term").field("type", "string")
-                    .endObject().endObject().endObject().endObject().endObject().endObject()));
-        assertAcked(prepareCreate("test").addMapping("type", 
+                        .startObject("arr").startObject("properties").startObject("term").field("type", "string")
+                        .endObject().endObject().endObject().endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("term").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
+                        .startObject("term").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
         client().prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();
@@ -1201,7 +1201,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testNumericTermsAndRanges() throws Exception {
-                client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("num_byte").field("type", "byte").endObject()
                         .startObject("num_short").field("type", "short").endObject()
@@ -1330,7 +1330,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testNumericRangeFilter_2826() throws Exception {
-                client().admin().indices().prepareCreate("test").setSettings(
+        client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
@@ -1407,7 +1407,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test // see #2926
     public void testMustNot() throws ElasticSearchException, IOException {
-                client().admin().indices().prepareCreate("test").setSettings(
+        client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 0)
@@ -1581,41 +1581,41 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                         .put("index.number_of_replicas", 0)
         ).addMapping("s", jsonBuilder()
                 .startObject()
-                    .startObject("s")
-                        .startObject("_routing")
-                            .field("required", true)
-                            .field("path", "bs")
-                        .endObject()
-                        .startObject("properties")
-                            .startObject("online")
-                                .field("type", "boolean")
-                            .endObject()
-                            .startObject("ts")
-                                .field("type", "date")
-                                .field("ignore_malformed", false)
-                                .field("format", "dateOptionalTime")
-                            .endObject()
-                            .startObject("bs")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("s")
+                .startObject("_routing")
+                .field("required", true)
+                .field("path", "bs")
+                .endObject()
+                .startObject("properties")
+                .startObject("online")
+                .field("type", "boolean")
+                .endObject()
+                .startObject("ts")
+                .field("type", "date")
+                .field("ignore_malformed", false)
+                .field("format", "dateOptionalTime")
+                .endObject()
+                .startObject("bs")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
                 .endObject())
                 .addMapping("bs", jsonBuilder()
                         .startObject()
-                            .startObject("s")
-                                .startObject("properties")
-                                    .startObject("online")
-                                        .field("type", "boolean")
-                                    .endObject()
-                                    .startObject("ts")
-                                        .field("type", "date")
-                                        .field("ignore_malformed", false)
-                                        .field("format", "dateOptionalTime")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+                        .startObject("bs")
+                        .startObject("properties")
+                        .startObject("online")
+                        .field("type", "boolean")
+                        .endObject()
+                        .startObject("ts")
+                        .field("type", "date")
+                        .field("ignore_malformed", false)
+                        .field("format", "dateOptionalTime")
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endObject())
                 .execute().actionGet();
         ensureGreen();
@@ -1689,7 +1689,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertHitCount(client().prepareSearch("test").setQuery(queryString("/value[01]/").field("field1").field("field2")).get(), 1);
         assertHitCount(client().prepareSearch("test").setQuery(queryString("field\\*:/value[01]/")).get(), 1);
     }
-    
+
     // see #3881 - for extensive description of the issue
     @Test
     public void testMatchQueryWithSynonyms() throws IOException {
@@ -1700,18 +1700,18 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
-                                .put("index.analysis.analyzer.search.tokenizer", "standard")
+                .put("index.analysis.analyzer.search.tokenizer", "standard")
 
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        
+
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
                 .startObject("properties")
                 .startObject("text")
-                        .field("type", "string")
-                        .field("index_analyzer", "index")
-                        .field("search_analyzer", "search")
+                .field("type", "string")
+                .field("index_analyzer", "index")
+                .field("search_analyzer", "search")
                 .endObject()
                 .endObject()
                 .endObject().endObject();
@@ -1728,7 +1728,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertHitCount(searchResponse, 1);
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "fast").operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        
+
         client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
                 .field("text", "fast brown fox")
                 .endObject())
@@ -1739,7 +1739,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "quick brown").operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
-    
+
     @Test
     public void testMatchQueryWithStackedStems() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
@@ -1753,13 +1753,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porterStem", "unique_stem")
                 .put("index.analysis.filter.unique_stem.type", "unique")
                 .put("index.analysis.filter.unique_stem.only_on_same_position", true));
-        
+
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
                 .startObject("properties")
                 .startObject("text")
-                        .field("type", "string")
-                        .field("index_analyzer", "index")
-                        .field("search_analyzer", "search")
+                .field("type", "string")
+                .field("index_analyzer", "index")
+                .field("search_analyzer", "search")
                 .endObject()
                 .endObject()
                 .endObject().endObject();
@@ -1772,7 +1772,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "fox runs").operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        
+
         client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
                 .field("text", "run fox run")
                 .endObject())
@@ -1781,7 +1781,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "fox runs").operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
-    
+
     @Test
     public void testQueryStringWithSynonyms() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
@@ -1791,18 +1791,18 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
-                                .put("index.analysis.analyzer.search.tokenizer", "standard")
+                .put("index.analysis.analyzer.search.tokenizer", "standard")
 
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        
+
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
                 .startObject("properties")
                 .startObject("text")
-                        .field("type", "string")
-                        .field("index_analyzer", "index")
-                        .field("search_analyzer", "search")
+                .field("type", "string")
+                .field("index_analyzer", "index")
+                .field("search_analyzer", "search")
                 .endObject()
                 .endObject()
                 .endObject().endObject();
@@ -1819,7 +1819,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertHitCount(searchResponse, 1);
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("fast").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        
+
         client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
                 .field("text", "fast brown fox")
                 .endObject())

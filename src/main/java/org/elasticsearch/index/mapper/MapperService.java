@@ -81,7 +81,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String percolatorMappingSource;
+    private volatile String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -151,7 +151,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         }
 
-        String percolatorMappingLocation = componentSettings.get("percolator_mapping_location");
+        String percolatorMappingLocation = componentSettings.get("default_percolator_mapping_location");
         URL percolatorMappingUrl = null;
         if (percolatorMappingLocation != null) {
             try {
@@ -161,19 +161,19 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 try {
                     percolatorMappingUrl = new File(percolatorMappingLocation).toURI().toURL();
                 } catch (MalformedURLException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve percolator mapping location [" + defaultMappingLocation + "]");
+                    throw new FailedToResolveConfigException("Failed to resolve default percolator mapping location [" + percolatorMappingLocation + "]");
                 }
             }
         }
         if (percolatorMappingUrl != null) {
             try {
-                percolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
+                defaultPercolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default percolator mapping source from [" + percolatorMappingUrl + "]", e);
             }
         } else {
-            percolatorMappingSource = "{\n" +
-                    "    \"_percolator\":{\n" +
+            defaultPercolatorMappingSource = "{\n" +
+                    "    \"_default_\":{\n" +
                     "        \"_id\" : {\"index\": \"not_analyzed\"}," +
                     "        \"properties\" : {\n" +
                     "            \"query\" : {\n" +
@@ -188,7 +188,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}], default percolator mapping: location[{}], loaded_from[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, percolatorMappingLocation, percolatorMappingUrl);
         } else if (logger.isTraceEnabled()) {
-            logger.trace("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}], default percolator mapping: location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource, percolatorMappingLocation, percolatorMappingUrl, percolatorMappingSource);
+            logger.trace("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}], default percolator mapping: location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource, percolatorMappingLocation, percolatorMappingUrl, defaultPercolatorMappingSource);
         }
     }
 
@@ -364,7 +364,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
         if (PercolatorService.Constants.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = percolatorMappingSource;
+            defaultMappingSource = defaultPercolatorMappingSource;
         } else {
             defaultMappingSource = this.defaultMappingSource;
         }

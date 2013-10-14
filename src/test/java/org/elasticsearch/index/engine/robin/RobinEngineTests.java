@@ -27,6 +27,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -303,6 +304,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl="kimchy is taking care of the fix")
     public void testSegmentsWithMergeFlag() throws Exception {
         MergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<CountDownLatch>();

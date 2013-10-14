@@ -228,8 +228,8 @@ public class GetActionTests extends AbstractIntegrationTest {
     public void getFieldsWithDifferentTypes() throws Exception {
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type").startObject("_source").field("enabled", true).endObject().endObject().endObject())
-                .addMapping("type2", jsonBuilder().startObject().startObject("type")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", true).endObject().endObject().endObject())
+                .addMapping("type2", jsonBuilder().startObject().startObject("type2")
                         .startObject("_source").field("enabled", false).endObject()
                         .startObject("properties")
                         .startObject("str").field("type", "string").field("store", "yes").endObject()
@@ -397,12 +397,12 @@ public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithExclude() throws Exception {
-                String index = "test";
+        String index = "test";
         String type = "type1";
 
         String mapping = jsonBuilder()
                 .startObject()
-                .startObject("source_excludes")
+                .startObject(type)
                 .startObject("_source")
                 .array("excludes", "excluded")
                 .endObject()
@@ -432,12 +432,12 @@ public class GetActionTests extends AbstractIntegrationTest {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithInclude() throws Exception {
-                String index = "test";
+        String index = "test";
         String type = "type1";
 
         String mapping = jsonBuilder()
                 .startObject()
-                .startObject("source_excludes")
+                .startObject(type)
                 .startObject("_source")
                 .array("includes", "included")
                 .endObject()
@@ -468,12 +468,12 @@ public class GetActionTests extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFields() throws Exception {
-                String index = "test";
+        String index = "test";
         String type = "type1";
 
         String mapping = jsonBuilder()
                 .startObject()
-                .startObject("source_excludes")
+                .startObject(type)
                 .startObject("_source")
                 .array("includes", "included")
                 .array("exlcudes", "excluded")
@@ -552,7 +552,8 @@ public class GetActionTests extends AbstractIntegrationTest {
         try {
             client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
             assert false;
-        } catch (VersionConflictEngineException e) {}
+        } catch (VersionConflictEngineException e) {
+        }
 
         // From Lucene index:
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -571,7 +572,8 @@ public class GetActionTests extends AbstractIntegrationTest {
         try {
             client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
             assert false;
-        } catch (VersionConflictEngineException e) {}
+        } catch (VersionConflictEngineException e) {
+        }
 
         logger.info("--> index doc 1 again, so increasing the version");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
@@ -587,7 +589,8 @@ public class GetActionTests extends AbstractIntegrationTest {
         try {
             client().prepareGet("test", "type1", "1").setVersion(1).execute().actionGet();
             assert false;
-        } catch (VersionConflictEngineException e) {}
+        } catch (VersionConflictEngineException e) {
+        }
 
         response = client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -606,7 +609,8 @@ public class GetActionTests extends AbstractIntegrationTest {
         try {
             client().prepareGet("test", "type1", "1").setVersion(1).setRealtime(false).execute().actionGet();
             assert false;
-        } catch (VersionConflictEngineException e) {}
+        } catch (VersionConflictEngineException e) {
+        }
 
         response = client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
         assertThat(response.isExists(), equalTo(true));

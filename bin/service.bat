@@ -13,36 +13,36 @@ goto:eof
 )
 "%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
 
-if errorlevel 1 (
-    set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
+if not errorlevel 0 (
+    set EXECUTABLE="%ES_HOME%\bin\elasticsearch-service-x86.exe"
     set SERVICE_ID=elasticsearch-service-x86
     set ARCH=32-bit
 ) else (
-    set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
+    set EXECUTABLE="%ES_HOME%\bin\elasticsearch-service-x64.exe"
     set SERVICE_ID=elasticsearch-service-x64
     set ARCH=64-bit
 )
 
-if EXIST "%EXECUTABLE%" goto okExe
+if EXIST %EXECUTABLE% goto okExe
 echo elasticsearch-service-(x86|x64).exe was not found...
 
 :okExe
 set ES_VERSION=${project.version}
 
 if "%LOG_DIR%" == "" (
-set LOG_DIR=%ES_HOME%\logs
+set LOG_DIR="%ES_HOME%\logs"
 )
 
-if "x%1x" == "xx" goto displayUsage
+if "%~1" == "" goto displayUsage
 set SERVICE_CMD=%1
 shift
-if "x%1x" == "xx" goto checkServiceCmd
+if "%~1" == "" goto checkServiceCmd
 set SERVICE_ID=%1
 
 :checkServiceCmd
 
 if "%LOG_OPTS%" == "" (
-set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
+set LOG_OPTS=--LogPath %LOG_DIR% --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
 )
 
 if /i %SERVICE_CMD% == install goto doInstall
@@ -58,7 +58,7 @@ echo Usage: service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
 goto:eof
 
 :doStart
-"%EXECUTABLE%" //ES//%SERVICE_ID% %LOG_OPTS%
+%EXECUTABLE% //ES//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto started
 echo Failed starting '%SERVICE_ID%' service
 goto:eof
@@ -67,7 +67,7 @@ echo The service '%SERVICE_ID%' has been started
 goto:eof
 
 :doStop
-"%EXECUTABLE%" //SS//%SERVICE_ID% %LOG_OPTS%
+%EXECUTABLE% //SS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto stopped
 echo Failed stopping '%SERVICE_ID%' service
 goto:eof
@@ -76,8 +76,8 @@ echo The service '%SERVICE_ID%' has been stopped
 goto:eof
 
 :doManagment
-set EXECUTABLE_MGR=%ES_HOME%\bin\elasticsearch-service-mgr.exe
-"%EXECUTABLE_MGR%" //ES//%SERVICE_ID%
+set EXECUTABLE_MGR="%ES_HOME%\bin\elasticsearch-service-mgr.exe"
+%EXECUTABLE_MGR% //ES//%SERVICE_ID%
 if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
 goto:eof
@@ -87,7 +87,7 @@ goto:eof
 
 :doRemove
 rem Remove the service
-"%EXECUTABLE%" //DS//%SERVICE_ID% %LOG_OPTS%
+%EXECUTABLE% //DS//%SERVICE_ID% %LOG_OPTS%
 if not errorlevel 1 goto removed
 echo Failed removing '%SERVICE_ID%' service
 goto:eof
@@ -171,23 +171,23 @@ REM space for a full heap dump.
 REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
 if "%DATA_DIR%" == "" (
-set DATA_DIR=%ES_HOME%\data
+set DATA_DIR="%ES_HOME%\data"
 )
 
 if "%WORK_DIR%" == "" (
-set WORK_DIR=%ES_HOME%
+set WORK_DIR="%ES_HOME%"
 )
 
 if "%CONF_DIR%" == "" (
-set CONF_DIR=%ES_HOME%\config
+set CONF_DIR="%ES_HOME%\config"
 )
 
 if "%CONF_FILE%" == "" (
 set CONF_FILE=%CONF_DIR%\elasticsearch.yml
 )
 
-set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/elasticsearch-%ES_VERSION%.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.work="%WORK_DIR%";-Des.default.path.conf="%CONF_DIR%"
+set ES_CLASSPATH="%ES_CLASSPATH%";"%ES_HOME%/lib/elasticsearch-%ES_VERSION%.jar";"%ES_HOME%/lib/*";"%ES_HOME%/lib/sigar/*"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config=%CONF_FILE%;-Des.default.path.home="%ES_HOME%";-Des.default.path.logs=%LOG_DIR%;-Des.default.path.data=%DATA_DIR%;-Des.default.path.work=%WORK_DIR%;-Des.default.path.conf=%CONF_DIR%
 
 set JVM_OPTS=%JAVA_OPTS: =;%
 
@@ -196,7 +196,7 @@ set JVM_ES_JAVA_OPTS=%ES_JAVA_OPTS: =#%
 set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
 )
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --StartClass org.elasticsearch.bootstrap.ElasticSearch --StopClass org.elasticsearch.bootstrap.ElasticSearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
+%EXECUTABLE% //IS//%SERVICE_ID% --StartClass org.elasticsearch.bootstrap.ElasticSearch --StopClass org.elasticsearch.bootstrap.ElasticSearch --StartMethod main --StopMethod close --Classpath %ES_CLASSPATH% --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
 
 
 if not errorlevel 1 goto installed

@@ -32,16 +32,18 @@ import java.util.Map;
 
 /**
  * Service for looking up configured {@link SimilarityProvider} implementations by name.
- *
+ * <p/>
  * The service instantiates the Providers through their Factories using configuration
  * values found with the {@link SimilarityModule#SIMILARITY_SETTINGS_PREFIX} prefix.
  */
 public class SimilarityLookupService extends AbstractIndexComponent {
 
+    public final static String DEFAULT_SIMILARITY = "default";
+
     private final ImmutableMap<String, SimilarityProvider> similarities;
 
     public SimilarityLookupService(Index index, Settings indexSettings) {
-        this (index, indexSettings, ImmutableMap.<String, SimilarityProvider.Factory>of());
+        this(index, indexSettings, ImmutableMap.<String, SimilarityProvider.Factory>of());
     }
 
     @Inject

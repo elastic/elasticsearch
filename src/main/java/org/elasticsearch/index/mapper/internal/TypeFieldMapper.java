@@ -194,15 +194,17 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if all are defaults, no sense to write it at all
-        if (fieldType.stored() == Defaults.FIELD_TYPE.stored() && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()) {
+        if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored() && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
         builder.endObject();

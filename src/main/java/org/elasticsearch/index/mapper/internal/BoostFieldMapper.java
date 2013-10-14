@@ -123,7 +123,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Float nullValue,
-            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, Defaults.IGNORE_MALFORMED,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
@@ -284,28 +284,33 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // all are defaults, don't write it at all
-        if (name().equals(Defaults.NAME) && nullValue == null &&
-				fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+        if (!includeDefaults && name().equals(Defaults.NAME) && nullValue == null &&
+                fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(contentType());
-        if (!name().equals(Defaults.NAME)) {
+        if (includeDefaults || !name().equals(Defaults.NAME)) {
             builder.field("name", name());
         }
-        if (nullValue != null) {
+        if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
-		}
-        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+        }
+        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
             builder.field("index", fieldType.indexed());
         }
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+
         }
         builder.endObject();
         return builder;

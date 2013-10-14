@@ -152,7 +152,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider, docValuesProvider);
         }
     }
-    
+
     private static final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
         if (treeLevels > 0 || precisionInMeters >= 0) {
             return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
@@ -161,7 +161,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         return defaultLevels;
     }
 
-    
+
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
@@ -220,7 +220,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     public void parse(ParseContext context) throws IOException {
         try {
             ShapeBuilder shape = ShapeBuilder.parse(context.parser());
-            if(shape == null) {
+            if (shape == null) {
                 return;
             }
             Field[] fields = defaultStrategy.createIndexableFields(shape.build());
@@ -245,24 +245,24 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
 
         // TODO: Come up with a better way to get the name, maybe pass it from builder
         if (defaultStrategy.getGrid() instanceof GeohashPrefixTree) {
             // Don't emit the tree name since GeohashPrefixTree is the default
             // Only emit the tree levels if it isn't the default value
-            if (defaultStrategy.getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
+            if (includeDefaults || defaultStrategy.getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
                 builder.field(Names.TREE_LEVELS, defaultStrategy.getGrid().getMaxLevels());
             }
         } else {
             builder.field(Names.TREE, Names.TREE_QUADTREE);
-            if (defaultStrategy.getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
+            if (includeDefaults || defaultStrategy.getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
                 builder.field(Names.TREE_LEVELS, defaultStrategy.getGrid().getMaxLevels());
             }
         }
 
-        if (defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
+        if (includeDefaults || defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
             builder.field(Names.DISTANCE_ERROR_PCT, defaultStrategy.getDistErrPct());
         }
     }

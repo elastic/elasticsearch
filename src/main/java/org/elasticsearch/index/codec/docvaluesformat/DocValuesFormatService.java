@@ -36,13 +36,14 @@ import java.util.Map;
  * The {@link DocValuesFormatService} provides access to
  * all configured {@link DocValuesFormatProvider} instances by
  * {@link DocValuesFormatProvider#name() name}.
- * 
+ *
  * @see CodecService
- * 
  */
 public class DocValuesFormatService extends AbstractIndexComponent {
 
     private final ImmutableMap<String, DocValuesFormatProvider> providers;
+
+    public final static String DEFAULT_FORMAT = "default";
 
     public DocValuesFormatService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);

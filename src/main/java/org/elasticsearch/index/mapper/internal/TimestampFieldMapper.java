@@ -224,32 +224,37 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if all are defaults, no sense to write it at all
-        if (fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && customFieldDataSettings == null &&
+        if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && customFieldDataSettings == null &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (enabledState != Defaults.ENABLED) {
+        if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
         if (enabledState.enabled) {
-            if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
                 builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
             }
-            if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
                 builder.field("store", fieldType.stored());
             }
-            if (path != Defaults.PATH) {
+            if (includeDefaults || path != Defaults.PATH) {
                 builder.field("path", path);
             }
-            if (!dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
+            if (includeDefaults || !dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
                 builder.field("format", dateTimeFormatter.format());
             }
             if (customFieldDataSettings != null) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+            } else if (includeDefaults) {
+                builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
             }
+
         }
         builder.endObject();
         return builder;

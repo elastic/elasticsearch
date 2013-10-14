@@ -221,15 +221,17 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if all are defaults, no sense to write it at all
-        if (enabledState == Defaults.ENABLED_STATE && defaultTTL == Defaults.DEFAULT) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && defaultTTL == Defaults.DEFAULT) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (enabledState != Defaults.ENABLED_STATE) {
+        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (defaultTTL != Defaults.DEFAULT && enabledState.enabled) {
+        if (includeDefaults || defaultTTL != Defaults.DEFAULT && enabledState.enabled) {
             builder.field("default", defaultTTL);
         }
         builder.endObject();

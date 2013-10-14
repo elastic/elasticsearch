@@ -39,11 +39,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -54,7 +57,7 @@ import java.util.Map;
 /**
  *
  */
-public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
+public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -350,9 +353,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     /** Parse the field value and populate <code>fields</code>. */
     protected abstract void parseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
-    /**
-     * Derived classes can override it to specify that boost value is set by derived classes.
-     */
+    /** Derived classes can override it to specify that boost value is set by derived classes. */
     protected boolean customBoost() {
         return false;
     }
@@ -550,68 +551,103 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
-        doXContentBody(builder);
-        builder.endObject();
-        return builder;
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        doXContentBody(builder, includeDefaults, params);
+        return builder.endObject();
     }
 
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+
         builder.field("type", contentType());
-        if (!names.name().equals(names.indexNameClean())) {
+        if (includeDefaults || !names.name().equals(names.indexNameClean())) {
             builder.field("index_name", names.indexNameClean());
         }
 
-        if (boost != 1.0f) {
+        if (includeDefaults || boost != 1.0f) {
             builder.field("boost", boost);
         }
 
         FieldType defaultFieldType = defaultFieldType();
-        if (fieldType.indexed() != defaultFieldType.indexed() ||
+        if (includeDefaults || fieldType.indexed() != defaultFieldType.indexed() ||
                 fieldType.tokenized() != defaultFieldType.tokenized()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
-        if (fieldType.stored() != defaultFieldType.stored()) {
+        if (includeDefaults || fieldType.stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
+        if (includeDefaults || fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
             builder.field("term_vector", termVectorOptionsToString(fieldType));
         }
-        if (fieldType.omitNorms() != defaultFieldType.omitNorms()) {
+        if (includeDefaults || fieldType.omitNorms() != defaultFieldType.omitNorms()) {
             builder.field("omit_norms", fieldType.omitNorms());
         }
-        if (fieldType.indexOptions() != defaultFieldType.indexOptions()) {
+        if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions()) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
 
-        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
-            // same analyzers, output it once
-            builder.field("analyzer", indexAnalyzer.name());
-        } else {
-            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
+        if (indexAnalyzer == null && searchAnalyzer == null) {
+            if (includeDefaults) {
+                builder.field("analyzer", "default");
+            }
+        } else if (indexAnalyzer == null) {
+            // searchAnalyzer != null
+            if (includeDefaults || (!searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default"))) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
+        } else if (searchAnalyzer == null) {
+            // indexAnalyzer != null
+            if (includeDefaults || (!indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default"))) {
                 builder.field("index_analyzer", indexAnalyzer.name());
             }
-            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default")) {
+        } else if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
+            // indexAnalyzer == searchAnalyzer
+            if (includeDefaults || (!indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default"))) {
+                builder.field("analyzer", indexAnalyzer.name());
+            }
+        } else {
+            // both are there but different
+            if (includeDefaults || (!indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default"))) {
+                builder.field("index_analyzer", indexAnalyzer.name());
+            }
+            if (includeDefaults || (!searchAnalyzer.name().startsWith("_") && !searchAnalyzer.name().equals("default"))) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
         }
+
         if (postingsFormat != null) {
-            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
                 builder.field("postings_format", postingsFormat.name());
             }
+        } else if (includeDefaults) {
+            String format = defaultPostingFormat();
+            if (format == null) {
+                format = PostingsFormatService.DEFAULT_FORMAT;
+            }
+            builder.field("postings_format", format);
         }
 
         if (docValuesFormat != null) {
-            if (!docValuesFormat.name().equals(defaultDocValuesFormat())) {
+            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
                 builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
             }
+        } else if (includeDefaults) {
+            String format = defaultDocValuesFormat();
+            if (format == null) {
+                format = DocValuesFormatService.DEFAULT_FORMAT;
+            }
+            builder.field(DOC_VALUES_FORMAT, format);
         }
 
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
+        } else if (includeDefaults) {
+            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
     }
 

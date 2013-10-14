@@ -182,26 +182,34 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     }
 
-    /** Utility method to convert a long to a doc values field using {@link NumericUtils} encoding. */
+    /**
+     * Utility method to convert a long to a doc values field using {@link NumericUtils} encoding.
+     */
     protected final Field toDocValues(long l) {
         final BytesRef bytes = new BytesRef();
         NumericUtils.longToPrefixCoded(l, 0, bytes);
         return new SortedSetDocValuesField(names().indexName(), bytes);
     }
 
-    /** Utility method to convert an int to a doc values field using {@link NumericUtils} encoding. */
+    /**
+     * Utility method to convert an int to a doc values field using {@link NumericUtils} encoding.
+     */
     protected final Field toDocValues(int i) {
         final BytesRef bytes = new BytesRef();
         NumericUtils.intToPrefixCoded(i, 0, bytes);
         return new SortedSetDocValuesField(names().indexName(), bytes);
     }
 
-    /** Utility method to convert a float to a doc values field using {@link NumericUtils} encoding. */
+    /**
+     * Utility method to convert a float to a doc values field using {@link NumericUtils} encoding.
+     */
     protected final Field toDocValues(float f) {
         return toDocValues(NumericUtils.floatToSortableInt(f));
     }
 
-    /** Utility method to convert a double to a doc values field using {@link NumericUtils} encoding. */
+    /**
+     * Utility method to convert a double to a doc values field using {@link NumericUtils} encoding.
+     */
     protected final Field toDocValues(double d) {
         return toDocValues(NumericUtils.doubleToSortableLong(d));
     }
@@ -318,9 +326,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        if (ignoreMalformed.explicit()) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
     }

@@ -200,23 +200,24 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(names.name());
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
-        if (!names.name().equals(names.indexNameClean())) {
+        if (includeDefaults || !names.name().equals(names.indexNameClean())) {
             builder.field("index_name", names.indexNameClean());
         }
         if (compress != null) {
             builder.field("compress", compress);
+        } else if (includeDefaults) {
+            builder.field("compress", false);
         }
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
+        } else if (includeDefaults) {
+            builder.field("compress_threshold", -1);
         }
-        if (fieldType.stored() != defaultFieldType().stored()) {
+        if (includeDefaults || fieldType.stored() != defaultFieldType().stored()) {
             builder.field("store", fieldType.stored());
         }
-        builder.endObject();
-        return builder;
     }
 
     @Override

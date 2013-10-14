@@ -84,7 +84,7 @@ This policy has the following settings:
 
 For normal merging, this policy first computes a "budget" of how many
 segments are allowed to be in the index. If the index is over-budget,
-then the policy sorts segments by decreasing size (pro-rating by percent
+then the policy sorts segments by decreasing size (proportionally considering percent
 deletes), and then finds the least-cost merge. Merge cost is measured by
 a combination of the "skew" of the merge (size of largest seg divided by
 smallest seg), total merge size and pct deletes reclaimed, so that

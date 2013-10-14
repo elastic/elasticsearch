@@ -130,6 +130,13 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         this.typeAsBytes = new BytesRef(type);
     }
 
+    public ParentFieldMapper() {
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null);
+        type = null;
+        typeAsBytes = null;
+    }
+
     public String type() {
         return type;
     }
@@ -164,6 +171,10 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
+        if (!active()) {
+            return null;
+        }
+        
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
@@ -248,7 +259,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
         List<String> types = new ArrayList<String>(context.mapperService().types().size());
         for (DocumentMapper documentMapper : context.mapperService()) {
-            if (documentMapper.parentFieldMapper() == null) {
+            if (!documentMapper.parentFieldMapper().active()) {
                 types.add(documentMapper.type());
             }
         }
@@ -279,7 +290,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
         List<String> types = new ArrayList<String>(context.mapperService().types().size());
         for (DocumentMapper documentMapper : context.mapperService()) {
-            if (documentMapper.parentFieldMapper() == null) {
+            if (!documentMapper.parentFieldMapper().active()) {
                 types.add(documentMapper.type());
             }
         }
@@ -314,6 +325,10 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (!active()) {
+            return builder;
+        }
+
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
         builder.endObject();
@@ -322,6 +337,21 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        ParentFieldMapper other = (ParentFieldMapper) mergeWith;
+        if (active() == other.active()) {
+            return;
+        }
+
+        if (active() != other.active() || !type.equals(other.type)) {
+            mergeContext.addConflict("The _parent field can't be added or updated");
+        }
     }
+
+    /**
+     * @return Whether the _parent field is actually used.
+     */
+    public boolean active() {
+        return type != null;
+    }
+
 }

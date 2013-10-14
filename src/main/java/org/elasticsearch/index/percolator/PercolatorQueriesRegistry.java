@@ -24,6 +24,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -53,6 +54,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final IndexFieldDataService indexFieldDataService;
 
     private final ShardIndexingService indexingService;
+    private final ShardPercolateService shardPercolateService;
 
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
@@ -64,7 +66,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
                                      ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService,
-                                     IndexCache indexCache, IndexFieldDataService indexFieldDataService) {
+                                     IndexCache indexCache, IndexFieldDataService indexFieldDataService, ShardPercolateService shardPercolateService) {
         super(shardId, indexSettings);
         this.queryParserService = queryParserService;
         this.mapperService = mapperService;
@@ -72,6 +74,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         this.indexingService = indexingService;
         this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
+        this.shardPercolateService = shardPercolateService;
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
@@ -108,11 +111,15 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
     public void addPercolateQuery(String idAsString, BytesReference source) {
         Query query = parsePercolatorDocument(idAsString, source);
-        percolateQueries.put(new HashedBytesRef(new BytesRef(idAsString)), query);
+        HashedBytesRef id = new HashedBytesRef(new BytesRef(idAsString));
+        percolateQueries.put(id, query);
+        shardPercolateService.addedQuery(id, query);
     }
 
     public void removePercolateQuery(String idAsString) {
-        percolateQueries.remove(new HashedBytesRef(idAsString));
+        HashedBytesRef id =new HashedBytesRef(idAsString) ;
+        Query query = percolateQueries.remove(id);
+        shardPercolateService.removedQuery(id, query);
     }
 
     public long sizeInBytes() {
@@ -245,9 +252,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                                     new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.Constants.TYPE_NAME))
                             )
                     );
-                    QueriesLoaderCollector queries = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, indexFieldDataService);
-                    searcher.searcher().search(query, queries);
-                    percolateQueries.putAll(queries.queries());
+                    QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, indexFieldDataService);
+                    searcher.searcher().search(query, queryCollector);
+                    Map<HashedBytesRef, Query> queries = queryCollector.queries();
+                    percolateQueries.putAll(queries);
+                    for (Map.Entry<HashedBytesRef, Query> entry : queries.entrySet()) {
+                        shardPercolateService.addedQuery(entry.getKey(), entry.getValue());
+                    }
                 } finally {
                     searcher.release();
                 }

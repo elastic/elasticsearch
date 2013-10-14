@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.percolator.stats;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,16 +37,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShardPercolateService extends AbstractIndexShardComponent {
 
-    private final PercolatorQueriesRegistry registry;
-
     @Inject
-    public ShardPercolateService(ShardId shardId, @IndexSettings Settings indexSettings, PercolatorQueriesRegistry registry) {
+    public ShardPercolateService(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        this.registry = registry;
     }
 
     private final MeanMetric percolateMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
+
+    private final CounterMetric numberOfQueries = new CounterMetric();
+    private final CounterMetric memorySizeInBytes = new CounterMetric();
 
     public void prePercolate() {
         currentMetric.inc();
@@ -55,8 +57,24 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
         percolateMetric.inc(tookInNanos);
     }
 
+    public void addedQuery(HashedBytesRef id, Query query) {
+        numberOfQueries.inc();
+        memorySizeInBytes.inc(computeSizeInMemory(id, query));
+    }
+
+    public void removedQuery(HashedBytesRef id, Query query) {
+        numberOfQueries.dec();
+        memorySizeInBytes.dec(computeSizeInMemory(id, query));
+    }
+
     public PercolateStats stats() {
-        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count(), registry.sizeInBytes(), registry.percolateQueries().size());
+        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count(), memorySizeInBytes.count(), numberOfQueries.count());
+    }
+
+    static long computeSizeInMemory(HashedBytesRef id, Query query) {
+        long size = (3 * RamUsageEstimator.NUM_BYTES_INT) + RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + id.bytes.bytes.length;
+        size += RamUsageEstimator.sizeOf(query);
+        return size;
     }
 
 }

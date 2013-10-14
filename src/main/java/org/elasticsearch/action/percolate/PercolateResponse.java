@@ -177,12 +177,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         for (Match match : matches) {
             match.writeTo(out);
         }
-        if (facets != null) {
-            out.writeBoolean(true);
-            facets.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalStreamable(facets);
     }
 
     public static class Match implements Streamable {

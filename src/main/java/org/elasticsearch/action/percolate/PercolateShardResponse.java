@@ -182,12 +182,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
                 entry.getValue().writeTo(out);
             }
         }
-        if (facets != null) {
-            out.writeBoolean(true);
-            facets.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalStreamable(facets);
     }
 
     private void buildFacets(PercolateContext context) {

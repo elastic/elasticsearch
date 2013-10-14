@@ -79,11 +79,6 @@ network :
     host : 10.0.0.4
 --------------------------------------------------
 
-*elasticsearch* configuration files can be found under `ES_HOME/config`
-folder. The folder comes with two files, the `elasticsearch.yml` for
-configuring ElasticSearch different <<modules,modules>>, and `logging.yml` 
-for configuring the ElasticSearch logging.
-
 
 [float]
 [[paths]]

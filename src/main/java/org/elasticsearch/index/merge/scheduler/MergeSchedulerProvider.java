@@ -23,12 +23,14 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -40,8 +42,27 @@ public abstract class MergeSchedulerProvider<T extends MergeScheduler> extends A
         void onFailedMerge(MergePolicy.MergeException e);
     }
 
+    /**
+     * Listener for events before/after single merges. Called on the merge thread.
+     */
+    public static interface Listener {
+
+        /**
+         * A callback before a merge is going to execute. Note, any logic here will block the merge
+         * till its done.
+         */
+        void beforeMerge(OnGoingMerge merge);
+
+        /**
+         * A callback after a merge is going to execute. Note, any logic here will block the merge
+         * thread.
+         */
+        void afterMerge(OnGoingMerge merge);
+    }
+
     private final ThreadPool threadPool;
     private final CopyOnWriteArrayList<FailureListener> failureListeners = new CopyOnWriteArrayList<FailureListener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
     private final boolean notifyOnMergeFailure;
 
@@ -53,6 +74,14 @@ public abstract class MergeSchedulerProvider<T extends MergeScheduler> extends A
 
     public void addFailureListener(FailureListener listener) {
         failureListeners.add(listener);
+    }
+
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(Listener listener) {
+        listeners.remove(listener);
     }
 
     protected void failedMerge(final MergePolicy.MergeException e) {
@@ -69,7 +98,21 @@ public abstract class MergeSchedulerProvider<T extends MergeScheduler> extends A
         }
     }
 
+    protected void beforeMerge(OnGoingMerge merge) {
+        for (Listener listener : listeners) {
+            listener.beforeMerge(merge);
+        }
+    }
+
+    protected void afterMerge(OnGoingMerge merge) {
+        for (Listener listener : listeners) {
+            listener.afterMerge(merge);
+        }
+    }
+
     public abstract T newMergeScheduler();
 
     public abstract MergeStats stats();
+
+    public abstract Set<OnGoingMerge> onGoingMerges();
 }

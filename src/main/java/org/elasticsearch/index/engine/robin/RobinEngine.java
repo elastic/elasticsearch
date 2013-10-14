@@ -55,6 +55,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -900,7 +901,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             } finally {
                 rwl.readLock().unlock();
             }
-            
+
         } finally {
             flushLock.unlock();
             flushing.decrementAndGet();
@@ -1181,6 +1182,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
             });
 
+            // fill in the merges flag
+            Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
+            for (OnGoingMerge onGoingMerge : onGoingMerges) {
+                for (SegmentInfoPerCommit segmentInfoPerCommit : onGoingMerge.getMergedSegments()) {
+                    for (Segment segment : segmentsArr) {
+                        if (segment.getName().equals(segmentInfoPerCommit.info.name)) {
+                            segment.mergeId = onGoingMerge.getId();
+                            break;
+                        }
+                    }
+                }
+            }
+
             return Arrays.asList(segmentsArr);
         } finally {
             rwl.readLock().unlock();
@@ -1284,7 +1298,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
-    /** Returns whether a leaf reader comes from a merge (versus flush or addIndexes). */
+    /**
+     * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
+     */
     private static boolean isMergedSegment(AtomicReader reader) {
         // We expect leaves to be segment readers
         final Map<String, String> diagnostics = ((SegmentReader) reader).getSegmentInfo().info.getDiagnostics();
@@ -1332,7 +1348,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         assert isMergedSegment(reader);
                         final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
                         final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
-                        warmer.warm(context);
+                        if (warmer != null) warmer.warm(context);
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
                         if (!closed) {

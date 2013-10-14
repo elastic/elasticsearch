@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,6 +64,14 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
         return mergeStats;
     }
 
+    @Override
+    public Set<OnGoingMerge> onGoingMerges() {
+        for (CustomSerialMergeScheduler scheduler : schedulers) {
+            return scheduler.onGoingMerges();
+        }
+        return ImmutableSet.of();
+    }
+
     public static class CustomSerialMergeScheduler extends TrackingSerialMergeScheduler {
 
         private final SerialMergeSchedulerProvider provider;
@@ -86,6 +96,18 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
         public void close() {
             super.close();
             provider.schedulers.remove(this);
+        }
+
+        @Override
+        protected void beforeMerge(OnGoingMerge merge) {
+            super.beforeMerge(merge);
+            provider.beforeMerge(merge);
+        }
+
+        @Override
+        protected void afterMerge(OnGoingMerge merge) {
+            super.afterMerge(merge);
+            provider.afterMerge(merge);
         }
     }
 }

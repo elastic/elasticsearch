@@ -135,6 +135,9 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
                         if (segment.isCompound() != null) {
                             builder.field(Fields.COMPOUND, segment.isCompound());
                         }
+                        if (segment.getMergeId() != null) {
+                            builder.field(Fields.MERGE_ID, segment.getMergeId());
+                        }
                         builder.endObject();
                     }
                     builder.endObject();
@@ -173,5 +176,6 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
         static final XContentBuilderString SEARCH = new XContentBuilderString("search");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
         static final XContentBuilderString COMPOUND = new XContentBuilderString("compound");
+        static final XContentBuilderString MERGE_ID = new XContentBuilderString("merge_id");
     }
 }

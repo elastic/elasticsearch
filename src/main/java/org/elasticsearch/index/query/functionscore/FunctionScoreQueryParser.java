@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -53,6 +55,18 @@ public class FunctionScoreQueryParser implements QueryParser {
     @Override
     public String[] names() {
         return new String[] { NAME, Strings.toCamelCase(NAME) };
+    }
+    
+    private static final ImmutableMap<String, CombineFunction> combineFunctionsMap;
+
+    static {
+        CombineFunction[] values = CombineFunction.values();
+        Builder<String, CombineFunction> combineFunctionMapBuilder = ImmutableMap.<String, CombineFunction>builder();
+        for (CombineFunction combineFunction : values) {
+            combineFunctionMapBuilder.put(combineFunction.getName(), combineFunction);
+        }
+        combineFunctionMapBuilder.put("mult", CombineFunction.MULT); // for bw compat
+        combineFunctionsMap = combineFunctionMapBuilder.build();
     }
 
     @Override
@@ -179,11 +193,10 @@ public class FunctionScoreQueryParser implements QueryParser {
 
     private CombineFunction parseBoostMode(QueryParseContext parseContext, XContentParser parser) throws IOException {
         String boostMode = parser.text();
-        for (CombineFunction cf : CombineFunction.values()) {
-            if (cf.getName().equals(boostMode)) {
-                return cf;
-            }
+        CombineFunction cf = combineFunctionsMap.get(boostMode);
+        if (cf == null) {
+            throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
         }
-        throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
+        return cf;
     }
 }

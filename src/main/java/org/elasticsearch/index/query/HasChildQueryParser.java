@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
@@ -131,6 +132,9 @@ public class HasChildQueryParser implements QueryParser {
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
+
+        // wrap the query with type query
+        innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
         Query query;

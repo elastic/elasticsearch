@@ -1772,4 +1772,64 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    // Relates to bug: https://github.com/elasticsearch/elasticsearch/issues/3818
+    public void testHasChildQueryOnlyReturnsSingleChildType() {
+        client().admin().indices().prepareCreate("grandissue")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                )
+                .addMapping("grandparent", "name", "type=string")
+                .addMapping("parent", "_parent", "type=grandparent")
+                .addMapping("child_type_one", "_parent", "type=parent")
+                .addMapping("child_type_two", "_parent", "type=parent")
+                .execute().actionGet();
+
+        client().prepareIndex("grandissue", "grandparent", "1").setSource("name", "Grandpa").execute().actionGet();
+        client().prepareIndex("grandissue", "parent", "2").setParent("1").setSource("name", "Dana").execute().actionGet();
+        client().prepareIndex("grandissue", "child_type_one", "3").setParent("2").setRouting("1")
+                .setSource("name", "William")
+                .execute().actionGet();
+        client().prepareIndex("grandissue", "child_type_two", "4").setParent("2").setRouting("1")
+                .setSource("name", "Kate")
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("grandissue").execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("grandissue").setQuery(
+                boolQuery().must(
+                        hasChildQuery(
+                                "parent",
+                                boolQuery().must(
+                                        hasChildQuery(
+                                                "child_type_one",
+                                                boolQuery().must(
+                                                        queryString("name:William*").analyzeWildcard(true)
+                                                )
+                                        )
+                                )
+                        )
+                )
+        ).execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("grandissue").setQuery(
+                boolQuery().must(
+                        hasChildQuery(
+                                "parent",
+                                boolQuery().must(
+                                        hasChildQuery(
+                                                "child_type_two",
+                                                boolQuery().must(
+                                                        queryString("name:William*").analyzeWildcard(true)
+                                                )
+                                        )
+                                )
+                        )
+                )
+        ).execute().actionGet();
+        assertHitCount(searchResponse, 0l);
+    }
+
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -51,6 +52,11 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  * @see PutMappingResponse
  */
 public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequest> {
+
+    private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
+            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
+            "_size", "_timestamp", "_ttl"
+    );
 
     private String[] indices;
 
@@ -125,6 +131,9 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
+     *
+     * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
+     * mapping fields will automatically be put on the top level mapping object.
      */
     public PutMappingRequest source(Object... source) {
         return source(buildFromSimplifiedDef(type, source));
@@ -137,9 +146,31 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
             if (type != null) {
                 builder.startObject(type);
             }
+
+            for (int i = 0; i < source.length; i++) {
+                String fieldName = source[i++].toString();
+                if (RESERVED_FIELDS.contains(fieldName)) {
+                    builder.startObject(fieldName);
+                    String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                    for (String s : s1) {
+                        String[] s2 = Strings.split(s, "=");
+                        if (s2.length != 2) {
+                            throw new ElasticSearchIllegalArgumentException("malformed " + s);
+                        }
+                        builder.field(s2[0], s2[1]);
+                    }
+                    builder.endObject();
+                }
+            }
+
             builder.startObject("properties");
             for (int i = 0; i < source.length; i++) {
-                builder.startObject(source[i++].toString());
+                String fieldName = source[i++].toString();
+                if (RESERVED_FIELDS.contains(fieldName)) {
+                    continue;
+                }
+
+                builder.startObject(fieldName);
                 String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");

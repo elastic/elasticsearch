@@ -1763,4 +1763,35 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("quick brown").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 2);
     }
+
+    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3898
+    public void testCustomWordDelimiterQueryString() {
+        client().admin().indices().prepareCreate("test")
+                .setSettings("analysis.analyzer.my_analyzer.type", "custom",
+                        "analysis.analyzer.my_analyzer.tokenizer", "whitespace",
+                        "analysis.analyzer.my_analyzer.filter", "custom_word_delimiter",
+                        "analysis.filter.custom_word_delimiter.type", "word_delimiter",
+                        "analysis.filter.custom_word_delimiter.generate_word_parts", "true",
+                        "analysis.filter.custom_word_delimiter.generate_number_parts", "false",
+                        "analysis.filter.custom_word_delimiter.catenate_numbers", "true",
+                        "analysis.filter.custom_word_delimiter.catenate_words", "false",
+                        "analysis.filter.custom_word_delimiter.split_on_case_change", "false",
+                        "analysis.filter.custom_word_delimiter.split_on_numerics", "false",
+                        "analysis.filter.custom_word_delimiter.stem_english_possessive", "false")
+                .addMapping("type1", "field1", "type=string,analyzer=my_analyzer", "field2", "type=string,analyzer=my_analyzer")
+                .get();
+
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "foo bar baz", "field2", "not needed").get();
+        refresh();
+
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .setQuery(
+                        QueryBuilders.queryString("foo.baz").useDisMax(false).defaultOperator(QueryStringQueryBuilder.Operator.AND)
+                                .field("field1").field("field2")).get();
+
+        assertHitCount(response, 1l);
+    }
 }

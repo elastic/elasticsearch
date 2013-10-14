@@ -182,7 +182,7 @@ public class MapperQueryParser extends QueryParser {
             } else {
                 List<BooleanClause> clauses = new ArrayList<BooleanClause>();
                 for (String mField : fields) {
-                    Query q = getFieldQuerySingle(mField, queryText, true);
+                    Query q = getFieldQuerySingle(mField, queryText, quoted);
                     if (q != null) {
                         applyBoost(mField, q);
                         clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));

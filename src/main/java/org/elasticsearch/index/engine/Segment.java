@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,6 +39,7 @@ public class Segment implements Streamable {
     public int delDocCount = -1;
     public String version = null;
     public Boolean compound = null;
+    public String mergeId;
 
     Segment() {
     }
@@ -88,6 +90,15 @@ public class Segment implements Streamable {
         return compound;
     }
 
+    /**
+     * If set, a string representing that the segment is part of a merge, with the value representing the
+     * group of segments that represent this merge.
+     */
+    @Nullable
+    public String getMergeId() {
+        return this.mergeId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -122,6 +133,9 @@ public class Segment implements Streamable {
         sizeInBytes = in.readLong();
         version = in.readOptionalString();
         compound = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_0_90_6)) {
+            mergeId = in.readOptionalString();
+        }
     }
 
     @Override
@@ -134,5 +148,8 @@ public class Segment implements Streamable {
         out.writeLong(sizeInBytes);
         out.writeOptionalString(version);
         out.writeOptionalBoolean(compound);
+        if (out.getVersion().onOrAfter(Version.V_0_90_6)) {
+            out.writeOptionalString(mergeId);
+        }
     }
 }

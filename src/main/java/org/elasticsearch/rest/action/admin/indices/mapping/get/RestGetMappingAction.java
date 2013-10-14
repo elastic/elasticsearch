@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +59,6 @@ public class RestGetMappingAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         boolean local = request.paramAsBooleanOptional("local", false);
-
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types).local(local);
         client.admin().indices().getMappings(getMappingsRequest, new ActionListener<GetMappingsResponse>() {

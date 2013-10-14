@@ -41,6 +41,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -145,7 +146,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings,
                              Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
-              similarity, fieldDataSettings, indexSettings);
+                similarity, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -256,50 +257,78 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
+        if (!includeDefaults && enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
                 indexAnalyzer == null && searchAnalyzer == null && customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (enabled != Defaults.ENABLED) {
+        if (includeDefaults || enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
-        if (autoBoost != false) {
+        if (includeDefaults || autoBoost != false) {
             builder.field("auto_boost", autoBoost);
         }
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
+        if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
             builder.field("store_term_vector", fieldType.storeTermVectors());
         }
-        if (fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
+        if (includeDefaults || fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
             builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
         }
-        if (fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
+        if (includeDefaults || fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
             builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
         }
-        if (fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
+        if (includeDefaults || fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
             builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
         }
-        if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
-            // same analyzers, output it once
-            builder.field("analyzer", indexAnalyzer.name());
-        } else {
-            if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+
+
+        if (indexAnalyzer == null && searchAnalyzer == null) {
+            if (includeDefaults) {
+                builder.field("analyzer", "default");
+            }
+        } else if (indexAnalyzer == null) {
+            // searchAnalyzer != null
+            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
+                builder.field("search_analyzer", searchAnalyzer.name());
+            }
+        } else if (searchAnalyzer == null) {
+            // indexAnalyzer != null
+            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
                 builder.field("index_analyzer", indexAnalyzer.name());
             }
-            if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+        } else if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
+            // indexAnalyzer == searchAnalyzer
+            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
+                builder.field("analyzer", indexAnalyzer.name());
+            }
+        } else {
+            // both are there but different
+            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
+                builder.field("index_analyzer", indexAnalyzer.name());
+            }
+            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
         }
+
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
+        } else if (includeDefaults) {
+            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
+
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
+
         builder.endObject();
         return builder;
     }

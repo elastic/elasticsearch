@@ -59,9 +59,7 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.*;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -398,11 +396,35 @@ public interface IndicesAdminClient {
      */
     OptimizeRequestBuilder prepareOptimize(String... indices);
 
+    /**
+     * Get the complete mappings of one or more types
+     */
     void getMappings(GetMappingsRequest request, ActionListener<GetMappingsResponse> listener);
 
+    /**
+     * Get the complete mappings of one or more types
+     */
     ActionFuture<GetMappingsResponse> getMappings(GetMappingsRequest request);
 
+    /**
+     * Get the complete mappings of one or more types
+     */
     GetMappingsRequestBuilder prepareGetMappings(String... indices);
+
+    /**
+     * Get the mappings of specific fields
+     */
+    void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener);
+
+    /**
+     * Get the mappings of specific fields
+     */
+    GetFieldMappingsRequestBuilder prepareGetFieldMappings(String... indices);
+
+    /**
+     * Get the mappings of specific fields
+     */
+    ActionFuture<GetFieldMappingsResponse> getFieldMappings(GetFieldMappingsRequest request);
 
     /**
      * Add mapping definition for a type into one or more indices.

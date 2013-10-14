@@ -195,19 +195,25 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // if all defaults, no need to write it at all
-        if (fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE) {
+        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType().stored() != Defaults.FIELD_TYPE.stored() && enabledState.enabled) {
+        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored() && enabledState.enabled) {
             builder.field("store", fieldType().stored());
         }
-        if (enabledState != Defaults.ENABLED_STATE) {
+        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
+
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+
         }
         builder.endObject();
         return builder;

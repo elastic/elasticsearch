@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -169,11 +170,25 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat())) {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
+        if (!includeDefaults && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
             return builder;
         }
+
         builder.startObject(CONTENT_TYPE);
-        builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
+        if (docValuesFormat != null) {
+            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
+                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
+            }
+        } else {
+            String format = defaultDocValuesFormat();
+            if (format == null) {
+                format = DocValuesFormatService.DEFAULT_FORMAT;
+            }
+            builder.field(DOC_VALUES_FORMAT, format);
+        }
+
         builder.endObject();
         return builder;
     }

@@ -370,29 +370,42 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes == null && excludes == null) {
+        if (!includeDefaults && enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes == null && excludes == null) {
             return builder;
         }
         builder.startObject(contentType());
-        if (enabled != Defaults.ENABLED) {
+        if (includeDefaults || enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
-        if (!Objects.equal(format, Defaults.FORMAT)) {
+        if (includeDefaults || !Objects.equal(format, Defaults.FORMAT)) {
             builder.field("format", format);
         }
         if (compress != null) {
             builder.field("compress", compress);
+        } else if (includeDefaults) {
+            builder.field("compress", false);
         }
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
+        } else if (includeDefaults) {
+            builder.field("compress_threshold", -1);
         }
+
         if (includes != null) {
             builder.field("includes", includes);
+        } else if (includeDefaults) {
+            builder.field("includes", Strings.EMPTY_ARRAY);
         }
+
         if (excludes != null) {
             builder.field("excludes", excludes);
+        } else if (includeDefaults) {
+            builder.field("excludes", Strings.EMPTY_ARRAY);
         }
+
         builder.endObject();
         return builder;
     }

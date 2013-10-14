@@ -22,7 +22,6 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -46,7 +45,7 @@ public class SimilarityService extends AbstractIndexComponent {
     }
 
     public SimilarityService(Index index, Settings settings) {
-        this (index, settings, new SimilarityLookupService(index, settings), null);
+        this(index, settings, new SimilarityLookupService(index, settings), null);
     }
 
     @Inject
@@ -56,7 +55,7 @@ public class SimilarityService extends AbstractIndexComponent {
         this.similarityLookupService = similarityLookupService;
         this.mapperService = mapperService;
 
-        Similarity defaultSimilarity = similarityLookupService.similarity("default").get();
+        Similarity defaultSimilarity = similarityLookupService.similarity(SimilarityLookupService.DEFAULT_SIMILARITY).get();
         // Expert users can configure the base type as being different to default, but out-of-box we use default.
         Similarity baseSimilarity = (similarityLookupService.similarity("base") != null) ? similarityLookupService.similarity("base").get() :
                 defaultSimilarity;

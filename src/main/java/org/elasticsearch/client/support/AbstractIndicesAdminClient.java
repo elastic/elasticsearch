@@ -72,10 +72,7 @@ import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.*;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -335,6 +332,11 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
+    public void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {
+        execute(GetFieldMappingsAction.INSTANCE, request, listener);
+    }
+
+    @Override
     public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
         return new GetMappingsRequestBuilder(this, indices);
     }
@@ -342,6 +344,16 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public ActionFuture<GetMappingsResponse> getMappings(GetMappingsRequest request) {
         return execute(GetMappingsAction.INSTANCE, request);
+    }
+
+    @Override
+    public GetFieldMappingsRequestBuilder prepareGetFieldMappings(String... indices) {
+        return new GetFieldMappingsRequestBuilder(this, indices);
+    }
+
+    @Override
+    public ActionFuture<GetFieldMappingsResponse> getFieldMappings(GetFieldMappingsRequest request) {
+        return execute(GetFieldMappingsAction.INSTANCE, request);
     }
 
     @Override

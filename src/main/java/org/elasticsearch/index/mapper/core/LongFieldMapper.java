@@ -340,16 +340,19 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder) throws IOException {
-        super.doXContentBody(builder);
-        if (precisionStep != Defaults.PRECISION_STEP) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
-        if (nullValue != null) {
+        if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
+        } else if (includeDefaults) {
+            builder.field("include_in_all", false);
         }
     }
 

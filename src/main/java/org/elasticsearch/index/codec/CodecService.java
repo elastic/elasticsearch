@@ -38,7 +38,7 @@ import org.elasticsearch.index.settings.IndexSettings;
  * codec layer that allows to use use-case specific file formats &
  * data-structures per field. ElasticSearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
- * 
+ *
  * @see PostingsFormatService
  * @see DocValuesFormatService
  */
@@ -48,6 +48,8 @@ public class CodecService extends AbstractIndexComponent {
     private final DocValuesFormatService docValuesFormatService;
     private final MapperService mapperService;
     private final ImmutableMap<String, Codec> codecs;
+
+    public final static String DEFAULT_CODEC = "default";
 
     public CodecService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -66,9 +68,11 @@ public class CodecService extends AbstractIndexComponent {
         this.mapperService = mapperService;
         MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put("default", Codec.getDefault());
+            codecs.put(DEFAULT_CODEC, Codec.getDefault());
         } else {
-            codecs.put("default", new PerFieldMappingPostingFormatCodec(mapperService, postingsFormatService.get("default").get(), docValuesFormatService.get("default").get(), logger));
+            codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(mapperService,
+                    postingsFormatService.get(PostingsFormatService.DEFAULT_FORMAT).get(),
+                    docValuesFormatService.get(DocValuesFormatService.DEFAULT_FORMAT).get(), logger));
         }
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));

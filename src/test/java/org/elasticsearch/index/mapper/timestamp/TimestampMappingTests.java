@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.timestamp;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -34,7 +35,6 @@ import org.junit.Test;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -128,7 +128,7 @@ public class TimestampMappingTests extends ElasticsearchTestCase {
         DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
 
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        mapper.timestampFieldMapper().toXContent(builder, null);
+        mapper.timestampFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         assertThat(builder.string(), is(String.format(Locale.ROOT, "{\"%s\":{}}", TimestampFieldMapper.NAME)));
@@ -142,7 +142,7 @@ public class TimestampMappingTests extends ElasticsearchTestCase {
         DocumentMapper enabledMapper = MapperTestUtils.newParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        enabledMapper.timestampFieldMapper().toXContent(builder, null).endObject();
+        enabledMapper.timestampFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
         Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
         assertThat(serializedMap, hasKey("_timestamp"));

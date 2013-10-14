@@ -27,7 +27,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -182,11 +181,11 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         return new SnapshotDeletionPolicy(createIndexDeletionPolicy());
     }
 
-    protected MergePolicyProvider createMergePolicy() {
+    protected MergePolicyProvider<?> createMergePolicy() {
         return new LogByteSizeMergePolicyProvider(store, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS));
     }
 
-    protected MergeSchedulerProvider createMergeScheduler() {
+    protected MergeSchedulerProvider<?> createMergeScheduler() {
         return new SerialMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
     }
 
@@ -194,7 +193,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         return createEngine(indexSettingsService, store, translog, createMergeScheduler());
     }
 
-    protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+    protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider<?> mergeSchedulerProvider) {
         return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
                 new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
@@ -304,9 +303,8 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl="kimchy is taking care of the fix")
     public void testSegmentsWithMergeFlag() throws Exception {
-        MergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
+        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
         final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<CountDownLatch>();
         final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<CountDownLatch>();
         mergeSchedulerProvider.addListener(new MergeSchedulerProvider.Listener() {

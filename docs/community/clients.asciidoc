@@ -5,9 +5,7 @@
 [[community-perl]]
 === Perl
 
-* http://github.com/clintongormley/ElasticSearch.pm[ElasticSearch.pm]:
-  Perl client.
-
+See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/current/index.html[official Elasticsearch Perl client].
 
 [[community-python]]
 === Python

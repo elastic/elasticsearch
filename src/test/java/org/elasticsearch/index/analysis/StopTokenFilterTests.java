@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -66,7 +67,6 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo bar")));
         assertThat(create, instanceOf(StopFilter.class));
         assertThat(((StopFilter)create).getEnablePositionIncrements(), equalTo(true));
-
     }
 
     @Test
@@ -80,7 +80,18 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo bar")));
         assertThat(create, instanceOf(StopFilter.class));
         assertThat(((StopFilter)create).getEnablePositionIncrements(), equalTo(false));
-
     }
 
+    @Test
+    public void testThatSuggestStopFilterWorks() throws Exception {
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put("index.analysis.filter.my_stop.type", "stop")
+                .put("index.analysis.filter.my_stop.remove_trailing", false)
+                .build();
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
+        assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
+        TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo an")));
+        assertThat(create, instanceOf(SuggestStopFilter.class));
+    }
 }

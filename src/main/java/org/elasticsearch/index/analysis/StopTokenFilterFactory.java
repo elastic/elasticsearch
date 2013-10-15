@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
@@ -45,11 +46,13 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean ignoreCase;
 
     private final boolean enablePositionIncrements;
+    private final boolean removeTrailing;
 
     @Inject
     public StopTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
+        this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version, ignoreCase);
         this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
         if (!enablePositionIncrements && version.onOrAfter(Version.LUCENE_44)) {
@@ -60,9 +63,13 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        StopFilter filter = new StopFilter(version, tokenStream, stopWords);
-        filter.setEnablePositionIncrements(enablePositionIncrements);
-        return filter;
+        if (removeTrailing) {
+            StopFilter filter = new StopFilter(version, tokenStream, stopWords);
+            filter.setEnablePositionIncrements(enablePositionIncrements);
+            return filter;
+        } else {
+            return new SuggestStopFilter(tokenStream, stopWords);
+        }
     }
 
     public Set<?> stopWords() {

@@ -578,6 +578,35 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    public void testThatSuggestStopFilterWorks() throws Exception {
+        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+                .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .put("index.analysis.filter.suggest_stop_filter.type", "stop")
+                .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
+
+        createIndexAndMappingAndSettings(settingsBuilder, "simple", "stoptest", true, true, true);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().field(FIELD, "Feed trolls").endObject()
+        ).get();
+
+        client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder()
+                .startObject().field(FIELD, "Feed the trolls").endObject()
+        ).get();
+
+        refresh();
+
+        assertSuggestions("feed t", "Feed the trolls", "Feed trolls");
+        assertSuggestions("feed th", "Feed the trolls");
+        assertSuggestions("feed the", "Feed the trolls");
+        // stop word complete, gets ignored on query time, makes it "feed" only
+        assertSuggestions("feed the ", "Feed the trolls", "Feed trolls");
+        // stopword gets removed, but position increment kicks in, which doesnt work for the prefix suggester
+        assertSuggestions("feed the t");
+    }
+
     @Test(expected = MapperParsingException.class)
     public void testThatIndexingInvalidFieldsInCompletionFieldResultsInException() throws Exception {
         createIndexAndMapping();

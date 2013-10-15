@@ -177,7 +177,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper());
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
             this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
-            // don't add parent field, by default its "null"
+            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper());
         }
 
         public Builder meta(ImmutableMap<String, Object> meta) {
@@ -306,7 +306,7 @@ public class DocumentMapper implements ToXContent {
 
         this.typeFilter = typeMapper().termFilter(type, null);
 
-        if (rootMapper(ParentFieldMapper.class) != null) {
+        if (rootMapper(ParentFieldMapper.class).active()) {
             // mark the routing field mapper as required
             rootMapper(RoutingFieldMapper.class).markAsRequired();
         }
@@ -631,8 +631,12 @@ public class DocumentMapper implements ToXContent {
 
     public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
         MergeContext mergeContext = new MergeContext(this, mergeFlags);
-        rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);
+        if (rootMappers.size() != mergeWith.rootMappers.size()) {
+            mergeContext.addConflict("Adding root mapper for type isn't allowed");
+            return new MergeResult(mergeContext.buildConflicts());
+        }
 
+        rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);
         for (Map.Entry<Class<? extends RootMapper>, RootMapper> entry : rootMappers.entrySet()) {
             // root mappers included in root object will get merge in the rootObjectMapper
             if (entry.getValue().includeInObject()) {

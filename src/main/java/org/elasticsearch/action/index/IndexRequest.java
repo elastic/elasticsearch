@@ -579,7 +579,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                 throw new RoutingMissingException(index, type, id);
             }
 
-            if (parent != null && !mappingMd.hasParentMapping()) {
+            if (parent != null && !mappingMd.hasParentField()) {
                 throw new ElasticSearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
             }
         } else {

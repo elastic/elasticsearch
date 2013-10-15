@@ -99,11 +99,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
         @Override
         public TimestampFieldMapper build(BuilderContext context) {
-            boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
+            boolean roundCeil = Defaults.ROUND_CEIL;
             if (context.indexSettings() != null) {
-                parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
+                Settings settings = context.indexSettings();
+                roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
             }
-            return new TimestampFieldMapper(fieldType, enabledState, path, dateTimeFormatter, parseUpperInclusive,
+            return new TimestampFieldMapper(fieldType, enabledState, path, dateTimeFormatter, roundCeil,
                     ignoreMalformed(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
@@ -136,18 +137,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public TimestampFieldMapper() {
         this(new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
-                Defaults.PARSE_UPPER_INCLUSIVE, Defaults.IGNORE_MALFORMED, null, null, null, ImmutableSettings.EMPTY);
+                Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, EnabledAttributeMapper enabledState, String path,
-                                   FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive,
+                                   FormatDateTimeFormatter dateTimeFormatter, boolean roundCeil,
                                    Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider,
                                    DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings,
                                    Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.BOOST, fieldType,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                parseUpperInclusive, ignoreMalformed, postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
+                roundCeil, ignoreMalformed, postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
         this.path = path;
     }

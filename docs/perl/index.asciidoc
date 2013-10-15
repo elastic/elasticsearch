@@ -3,8 +3,9 @@
 == Overview
 
 Elasticsearch.pm is the official Perl API for Elasticsearch. The full
-documentation is available on https://metacpan.org/module/Elasticsearch
-and it can be installed with:
+documentation is available on https://metacpan.org/module/Elasticsearch.
+
+It can be installed with:
 
 [source,sh]
 ------------------------------------

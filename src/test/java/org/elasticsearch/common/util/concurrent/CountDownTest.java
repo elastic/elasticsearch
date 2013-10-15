@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.test.ElasticSearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -32,22 +33,27 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class CountDownTest extends ElasticSearchTestCase {
 
-    @Test
+    @Test @Repeat(iterations = 1000)
     public void testConcurrent() throws InterruptedException {
         final AtomicInteger count = new AtomicInteger(0);
-        final CountDown countDown = new CountDown(atLeast(10000));
+        final CountDown countDown = new CountDown(atLeast(10));
         Thread[] threads = new Thread[atLeast(3)];
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread() {
-                
+
                 public void run() {
                     try {
                         latch.await();
                     } catch (InterruptedException e) {
                         throw new RuntimeException();
                     }
-                    while (!countDown.isCountedDown()) {
+                    while (true) {
+                        if(frequently()) {
+                            if (countDown.isCountedDown()) {
+                                break;
+                            }
+                        }
                         if (countDown.countDown()) {
                             count.incrementAndGet();
                             break;
@@ -60,11 +66,18 @@ public class CountDownTest extends ElasticSearchTestCase {
         latch.countDown();
         Thread.yield();
         if (rarely()) {
-            countDown.fastForward();
+            if (countDown.fastForward()) {
+                count.incrementAndGet();
+            }
+            assertThat(countDown.isCountedDown(), equalTo(true));
+            assertThat(countDown.fastForward(), equalTo(false));
+
         }
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
+
+        for (Thread thread : threads) {
+            thread.join();
         }
+        assertThat(countDown.isCountedDown(), equalTo(true));
         assertThat(count.get(), Matchers.equalTo(1));
     }
     
@@ -83,6 +96,7 @@ public class CountDownTest extends ElasticSearchTestCase {
             if (rarely()) {
                 assertThat(countDown.fastForward(), equalTo(true));
                 assertThat(countDown.isCountedDown(), equalTo(true));
+                assertThat(countDown.fastForward(), equalTo(false));
             }
             assertThat(atLeast, greaterThan(0));
         }

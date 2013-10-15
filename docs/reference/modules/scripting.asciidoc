@@ -41,6 +41,34 @@ a script placed under `config/scripts/group1/group2/test.py` will be
 named `group1_group2_test`.
 
 [float]
+=== Disabling dynamic scripts
+
+We recommend running Elasticsearch behind an application or proxy,
+which protects Elasticsearch from the outside world. If users are
+allowed to run dynamic scripts (even in a search request), then they
+have the same access to your box as the user that Elasticsearch is
+running as.
+
+First, you should not run Elasticsearch as the `root` user, as this
+would allow a script to access or do *anything* on your server, without
+limitations. Second, you should not expose Elasticsearch directly to
+users, but instead have a proxy application inbetween.  If you *do*
+intend to expose Elasticsearch directly to your users, then you have
+to decide whether you trust them enough to run scripts on your box or
+not. If not, then even if you have a proxy which only allows `GET`
+requests, you should disable dynamic scripting by adding the following
+setting to the `config/elasticsearch.yml` file on every node:
+
+[source,yaml]
+-----------------------------------
+script.disable_dynamic: true
+-----------------------------------
+
+This will still allow execution of named scripts provided in the config, or
+_native_ Java scripts registered through plugins, however it will prevent
+users from running arbitrary scripts via the API.
+
+[float]
 === Native (Java) Scripts
 
 Even though `mvel` is pretty fast, allow to register native Java based

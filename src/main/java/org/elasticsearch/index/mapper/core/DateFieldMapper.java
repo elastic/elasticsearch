@@ -81,7 +81,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public static final String NULL_VALUE = null;
 
         public static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
-        public static final boolean PARSE_UPPER_INCLUSIVE = true;
+        public static final boolean ROUND_CEIL = true;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, DateFieldMapper> {
@@ -118,16 +118,17 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            boolean parseUpperInclusive = Defaults.PARSE_UPPER_INCLUSIVE;
+            boolean roundCeil = Defaults.ROUND_CEIL;
             if (context.indexSettings() != null) {
-                parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
+                Settings settings = context.indexSettings();
+                roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
             }
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             if (!locale.equals(dateTimeFormatter.locale())) {
                 dateTimeFormatter = new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale);
             }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, boost, fieldType, nullValue, timeUnit, parseUpperInclusive, ignoreMalformed(context),
+                    precisionStep, boost, fieldType, nullValue, timeUnit, roundCeil, ignoreMalformed(context),
                     postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -184,7 +185,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     protected final FormatDateTimeFormatter dateTimeFormatter;
 
-    private final boolean parseUpperInclusive;
+    // Triggers rounding up of the upper bound for range queries and filters if
+    // set to true.
+    // Rounding up a date here has the following meaning: If a date is not
+    // defined with full precision, for example, no milliseconds given, the date
+    // will be filled up to the next larger date with that precision.
+    // Example: An upper bound given as "2000-01-01", will be converted to
+    // "2000-01-01T23.59.59.999"
+    private final boolean roundCeil;
 
     private final DateMathParser dateMathParser;
 
@@ -193,7 +201,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected final TimeUnit timeUnit;
 
     protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, float boost, FieldType fieldType,
-                              String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed,
+                              String nullValue, TimeUnit timeUnit, boolean roundCeil, Explicit<Boolean> ignoreMalformed,
                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
                               @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(names, precisionStep, boost, fieldType, ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
@@ -203,7 +211,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
         this.timeUnit = timeUnit;
-        this.parseUpperInclusive = parseUpperInclusive;
+        this.roundCeil = roundCeil;
         this.dateMathParser = new DateMathParser(dateTimeFormatter, timeUnit);
     }
 
@@ -305,7 +313,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     
     public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        return includeUpper ? dateMathParser.parseUpperInclusive(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
+        return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
     }
 
     @Override
@@ -319,7 +327,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper && parseUpperInclusive),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
                 includeLower, includeUpper);
     }
 
@@ -327,7 +335,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper && parseUpperInclusive),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
                 includeLower, includeUpper);
     }
 
@@ -335,7 +343,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData<?>) fieldData.getForField(this),
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper && parseUpperInclusive),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper),
                 includeLower, includeUpper);
     }
 

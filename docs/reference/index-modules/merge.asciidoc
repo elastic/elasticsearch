@@ -36,44 +36,53 @@ over-merge (i.e., cascade merges).
 
 This policy has the following settings:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`index.merge.policy.expunge_deletes_allowed` |When expungeDeletes is
-called, we only merge away a segment if its delete percentage is over
-this threshold. Default is `10`.
+`index.merge.policy.expunge_deletes_allowed`::
 
-|`index.merge.policy.floor_segment` |Segments smaller than this are
-"rounded up" to this size, i.e. treated as equal (floor) size for merge
-selection. This is to prevent frequent flushing of tiny segments from
-allowing a long tail in the index. Default is `2mb`.
+	When expungeDeletes is called, we only merge away a segment if its delete
+	percentage is over this threshold. Default is `10`.
 
-|`index.merge.policy.max_merge_at_once` |Maximum number of segments to
-be merged at a time during "normal" merging. Default is `10`.
+`index.merge.policy.floor_segment`::
 
-|`index.merge.policy.max_merge_at_once_explicit` |Maximum number of
-segments to be merged at a time, during optimize or expungeDeletes.
-Default is `30`.
+	Segments smaller than this are "rounded up" to this size, i.e. treated as
+	equal (floor) size for merge selection. This is to prevent frequent
+	flushing of tiny segments from allowing a long tail in the index. Default
+	is `2mb`.
 
-|`index.merge.policy.max_merged_segment` |Maximum sized segment to
-produce during normal merging (not explicit optimize). This setting is
-approximate: the estimate of the merged segment size is made by summing
-sizes of to-be-merged segments (compensating for percent deleted docs).
-Default is `5gb`.
+`index.merge.policy.max_merge_at_once`::
 
-|`index.merge.policy.segments_per_tier` |Sets the allowed number of
-segments per tier. Smaller values mean more merging but fewer segments.
-Default is `10`. Note, this value needs to be >= then the
-`max_merge_at_once_` otherwise you'll force too many merges to occur.
+	Maximum number of segments to be merged at a time during "normal" merging.
+	Default is `10`.
 
-|`index.reclaim_deletes_weight` |Controls how aggressively merges that
-reclaim more deletions are favored. Higher values favor selecting merges
-that reclaim deletions. A value of `0.0` means deletions don't impact
-merge selection. Defaults to `2.0`.
+`index.merge.policy.max_merge_at_once_explicit`::
 
-|`index.compound_format` |Should the index be stored in compound format
-or not. Defaults to `false`.
-|=======================================================================
+	Maximum number of segments to be merged at a time, during optimize or
+	expungeDeletes. Default is `30`.
+
+`index.merge.policy.max_merged_segment`::
+
+	Maximum sized segment to produce during normal merging (not explicit
+	optimize). This setting is approximate: the estimate of the merged segment
+	size is made by summing sizes of to-be-merged segments (compensating for
+	percent deleted docs). Default is `5gb`.
+
+`index.merge.policy.segments_per_tier`::
+
+	Sets the allowed number of segments per tier. Smaller values mean more
+	merging but fewer segments. Default is `10`. Note, this value needs to be
+	>= then the `max_merge_at_once_` otherwise you'll force too many merges to
+	occur.
+
+`index.reclaim_deletes_weight`::
+
+	Controls how aggressively merges that reclaim more deletions are favored.
+	Higher values favor selecting merges that reclaim deletions. A value of
+	`0.0` means deletions don't impact merge selection. Defaults to `2.0`.
+
+`index.compound_format`::
+
+	Should the index be stored in compound format or not. Defaults to `false`.
+	See <<index-compound-format,`index.compound_format`>> in
+	<<index-modules-settings>>.
 
 For normal merging, this policy first computes a "budget" of how many
 segments are allowed by be in the index. If the index is over-budget,

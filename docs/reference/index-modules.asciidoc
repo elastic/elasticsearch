@@ -15,16 +15,28 @@ all the relevant modules settings can be provided when creating an index
 There are specific index level settings that are not associated with any
 specific module. These include:
 
-`index.compound_format`::
+[[index-compound-format]]`index.compound_format`::
 
-	Should the compound file format be used (boolean
-	setting). If not set, controlled by the actually store used, this is
-	because the compound format was created to reduce the number of open
-	file handles when using file based storage. By default, it is set to
-	`false` for better performance (really applicable for file system based
-	index storage), but, requires adapting the max open file handles.
+	Should the compound file format be used (boolean setting).
+	The compound format was created to reduce the number of open
+	file handles when using file based storage. However, by default it is set
+	to `false` as the non-compound format gives better performance. It is important
+	that OS is configured to give Elasticsearch ``enough'' file handles.
+    See <<file-descriptors>>.
++
+Alternatively, `compound_format` can be set to a number between `0` and
+`1`, where `0` means `false`, `1` means `true` and a number inbetween
+represents a percentage: if the merged segment is less than this
+percentage of the total index, then it is written in compound format,
+otherwise it is written in non-compound format.  added[0.90.2]
 
-`index.term_index_interval`:: 
+[[index-compound-on-flush]]`index.compound_on_flush`::
+
+    Should a new segment (create by indexing, not by merging) be written
+    in compound format or non-compound format? Defaults to `true`.
+    This is a dynamic setting.
+
+`index.term_index_interval`::
 
 	Set the interval between indexed terms.
 	Large values cause less memory to be used by a reader / searcher, but
@@ -32,7 +44,7 @@ specific module. These include:
 	by a reader / searcher, and speed random-access to terms. Defaults to
 	`128`.
 
-`index.term_index_divisor`:: 
+`index.term_index_divisor`::
 	Subsamples which indexed terms are loaded
 	into RAM. This has the same effect as `index.term_index_interval` except
 	that setting must be done at indexing time while this setting can be set

@@ -27,7 +27,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertThat(parser.parse("now+1m-1s", 0), equalTo(TimeUnit.MINUTES.toMillis(1) - TimeUnit.SECONDS.toMillis(1)));
 
         assertThat(parser.parse("now+1m+1s/m", 0), equalTo(TimeUnit.MINUTES.toMillis(1)));
-        assertThat(parser.parseUpperInclusive("now+1m+1s/m", 0), equalTo(TimeUnit.MINUTES.toMillis(2)));
+        assertThat(parser.parseRoundCeil("now+1m+1s/m", 0), equalTo(TimeUnit.MINUTES.toMillis(2)));
         
         assertThat(parser.parse("now+4y", 0), equalTo(TimeUnit.DAYS.toMillis(4*365 + 1)));
     }
@@ -42,6 +42,6 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         
         assertThat(parser.parse("2013-01-01||+1y", 0), equalTo(parser.parse("2013-01-01", 0) + TimeUnit.DAYS.toMillis(365)));
         assertThat(parser.parse("2013-03-03||/y", 0), equalTo(parser.parse("2013-01-01", 0)));
-        assertThat(parser.parseUpperInclusive("2013-03-03||/y", 0), equalTo(parser.parse("2014-01-01", 0)));
+        assertThat(parser.parseRoundCeil("2013-03-03||/y", 0), equalTo(parser.parse("2014-01-01", 0)));
     }
 }

@@ -39,6 +39,10 @@ Note, when doing `range` type searches, and the upper value is
 inclusive, the rounding will properly be rounded to the ceiling instead
 of flooring it.
 
+To change this behavior, set 
+`"mapping.date.round_ceil": false`.
+
+
 [float]
 [[built-in]]
 === Built In Formats

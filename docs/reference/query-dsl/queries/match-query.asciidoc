@@ -225,3 +225,9 @@ comes to just analyze and run that text as a query behavior (which is
 usually what a text search box does). Also, the `phrase_prefix` type can
 provide a great "as you type" behavior to automatically load search
 results.
+
+[float]
+==== Other options
+
+* `lenient` - If set to true will cause format based failures (like
+providing text to a numeric field) to be ignored. Defaults to false.

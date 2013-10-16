@@ -155,9 +155,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             }
             hls.add(fields);
         }
-        if (in.readBoolean()) {
-            facets = InternalFacets.readFacets(in);
-        }
+        facets = InternalFacets.readOptionalFacets(in);
     }
 
     @Override

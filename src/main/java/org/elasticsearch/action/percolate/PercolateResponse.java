@@ -163,9 +163,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             matches[i] = new Match();
             matches[i].readFrom(in);
         }
-        if (in.readBoolean()) {
-            facets = InternalFacets.readFacets(in);
-        }
+        facets = InternalFacets.readOptionalFacets(in);
     }
 
     @Override

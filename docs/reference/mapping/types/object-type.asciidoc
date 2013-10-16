@@ -126,7 +126,8 @@ stored and they are always indexed.
 Date fields are special since they are represented as a `string`. Date
 fields are detected if they can be parsed as a date when they are first
 introduced into the system. The set of date formats that are tested
-against can be configured using the `date_formats` and explained later.
+against can be configured using the `dynamic_date_formats` on the root object,
+which is explained later.
 
 Note, once a field has been added, *its type can not change*. For
 example, if we added age and its value is a number, then it can't be

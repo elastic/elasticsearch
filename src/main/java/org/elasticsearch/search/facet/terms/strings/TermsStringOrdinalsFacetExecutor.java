@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.IntArrays;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -115,7 +114,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
             while (queue.size() > 0) {
                 ReaderAggregator agg = queue.top();
-                BytesRef value = agg.values.makeSafe(agg.current); // we need to makeSafe it, since we end up pushing it... (can we get around this?)
+                BytesRef value = agg.copyCurrent(); // we need to makeSafe it, since we end up pushing it... (can we get around this?)
                 int count = 0;
                 do {
                     count += agg.counts.get(agg.position);
@@ -155,7 +154,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();
-            BytesRef value = agg.values.makeSafe(agg.current); // we need to makeSafe it, since we end up pushing it... (can we work around that?)
+            BytesRef value = agg.copyCurrent(); // we need to makeSafe it, since we end up pushing it... (can we work around that?)
             int count = 0;
             do {
                 count += agg.counts.get(agg.position);
@@ -211,12 +210,13 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            Iter iter = ordinals.getIter(doc);
-            long ord = iter.next();
-            current.onOrdinal(doc, ord);
-            while ((ord = iter.next()) != 0) {
-                current.onOrdinal(doc, ord);
+            final int length = ordinals.setDocument(doc);
+            int missing = 1;
+            for (int i = 0; i < length; i++) {
+                current.onOrdinal(doc, ordinals.nextOrd());
+                missing = 0;
             }
+            current.incrementMissing(missing);
         }
 
         @Override
@@ -237,13 +237,14 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
     public static final class ReaderAggregator {
 
+        private final long maxOrd;
+
         final BytesValues.WithOrdinals values;
         final IntArray counts;
-
         long position = 0;
         BytesRef current;
         int total;
-        private final long maxOrd;
+
 
         public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit, CacheRecycler cacheRecycler) {
             this.values = values;
@@ -256,12 +257,21 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             total++;
         }
 
+        final void incrementMissing(int numMissing) {
+            counts.increment(0, numMissing);
+            total += numMissing;
+        }
+
         public boolean nextPosition() {
             if (++position >= maxOrd) {
                 return false;
             }
             current = values.getValueByOrd(position);
             return true;
+        }
+
+        public BytesRef copyCurrent() {
+            return values.copyShared();
         }
     }
 

@@ -102,29 +102,14 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
                 if (value >= entry.getFrom() && value < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
-                    if (valueValues.isMultiValued()) {
-                        for (DoubleValues.Iter iter = valueValues.getIter(docId); iter.hasNext(); ) {
-                            double valueValue = iter.next();
-                            entry.total += valueValue;
-                            if (valueValue < entry.min) {
-                                entry.min = valueValue;
-                            }
-                            if (valueValue > entry.max) {
-                                entry.max = valueValue;
-                            }
-                            entry.totalCount++;
-                        }
-                    } else if (valueValues.hasValue(docId)) {
-                        double valueValue = valueValues.getValue(docId);
-                        entry.totalCount++;
+                    int seek = valueValues.setDocument(docId);
+                    for (int i = 0; i < seek; i++) {
+                        double valueValue = valueValues.nextValue();
                         entry.total += valueValue;
-                        if (valueValue < entry.min) {
-                            entry.min = valueValue;
-                        }
-                        if (valueValue > entry.max) {
-                            entry.max = valueValue;
-                        }
+                        entry.min = Math.min(entry.min, valueValue);
+                        entry.max = Math.max(entry.max, valueValue);
                     }
+                    entry.totalCount+=seek;
                 }
             }
         }

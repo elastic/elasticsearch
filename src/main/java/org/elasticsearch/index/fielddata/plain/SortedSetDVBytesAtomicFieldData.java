@@ -24,7 +24,14 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 
-public class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
+/**
+ * An {@link AtomicFieldData} implementation that uses Lucene {@link org.apache.lucene.index.SortedSetDocValues}.
+ */
+public final class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
+
+    /* NOTE: This class inherits the methods getBytesValues() and getHashedBytesValues()
+     * from SortedSetDVAtomicFieldData. This can cause confusion since the are
+     * part of the interface this class implements.*/
 
     SortedSetDVBytesAtomicFieldData(AtomicReader reader, String field) {
         super(reader, field);
@@ -39,5 +46,4 @@ public class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFieldData 
     public Strings getScriptValues() {
         return new ScriptDocValues.Strings(getBytesValues());
     }
-
 }

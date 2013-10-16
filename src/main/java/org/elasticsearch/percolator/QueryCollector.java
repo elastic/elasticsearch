@@ -152,7 +152,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.hash = values.getValueHashed(doc, spare.bytes);
+            spare.reset(values.getValue(doc), values.currentValueHash());
             Query query = queries.get(spare);
             if (query == null) {
                 // log???
@@ -169,7 +169,7 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     if (!limit || counter < size) {
-                        matches.add(values.makeSafe(spare.bytes));
+                        matches.add(values.copyShared());
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());
                             hls.add(context.hitContext().hit().getHighlightFields());
@@ -210,7 +210,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.hash = values.getValueHashed(doc, spare.bytes);
+            spare.reset(values.getValue(doc), values.currentValueHash());
             Query query = queries.get(spare);
             if (query == null) {
                 // log???
@@ -273,7 +273,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.hash = values.getValueHashed(doc, spare.bytes);
+            spare.reset(values.getValue(doc), values.currentValueHash());
             Query query = queries.get(spare);
             if (query == null) {
                 // log???
@@ -289,7 +289,7 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     if (!limit || counter < size) {
-                        matches.add(values.makeSafe(spare.bytes));
+                        matches.add(values.copyShared());
                         scores.add(scorer.score());
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());
@@ -338,7 +338,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.hash = values.getValueHashed(doc, spare.bytes);
+            spare.reset(values.getValue(doc), values.currentValueHash());
             Query query = queries.get(spare);
             if (query == null) {
                 // log???

@@ -82,21 +82,12 @@ public class GeoPolygonFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!values.hasValue(doc)) {
-                return false;
-            }
-
-            if (values.isMultiValued()) {
-                GeoPointValues.Iter iter = values.getIter(doc);
-                while (iter.hasNext()) {
-                    GeoPoint point = iter.next();
-                    if (pointInPolygon(points, point.lat(), point.lon())) {
-                        return true;
-                    }
+            final int length = values.setDocument(doc);
+            for (int i = 0; i < length; i++) {
+                GeoPoint point = values.nextValue();
+                if (pointInPolygon(points, point.lat(), point.lon())) {
+                    return true;
                 }
-            } else {
-                GeoPoint point = values.getValue(doc);
-                return pointInPolygon(points, point.lat(), point.lon());
             }
             return false;
         }

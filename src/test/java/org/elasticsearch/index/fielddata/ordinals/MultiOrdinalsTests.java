@@ -124,7 +124,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                     for (int i = 0; i < array.length; i++) {
                         array[i] = docOrds.get(i);
                     }
-                    assertIter(docs.getIter(docId), array);
+                    assertIter(docs, docId, array);
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
                     assertThat(docs.getOrd(i), equalTo(0L));
@@ -215,12 +215,11 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         assertEquals(docs, ordinalPlan);
     }
 
-    protected static void assertIter(Ordinals.Docs.Iter iter, long... expectedOrdinals) {
+    protected static void assertIter(Ordinals.Docs docs, int docId, long... expectedOrdinals) {
+        assertThat(docs.setDocument(docId), equalTo(expectedOrdinals.length));
         for (long expectedOrdinal : expectedOrdinals) {
-            assertThat(iter.next(), equalTo(expectedOrdinal));
+            assertThat(docs.nextOrd(), equalTo(expectedOrdinal));
         }
-        assertThat(iter.next(), equalTo(0L)); // Last one should always be 0
-        assertThat(iter.next(), equalTo(0L)); // Just checking it stays 0
     }
 
     @Test
@@ -284,7 +283,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
             assertThat(ref.offset, equalTo(0));
             long[] ords = ordinalPlan[doc];
             assertThat(ref, equalTo(new LongsRef(ords, 0, ords.length)));
-            assertIter(docs.getIter(doc), ords);
+            assertIter(docs, doc, ords);
         }
     }
 

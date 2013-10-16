@@ -25,7 +25,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
@@ -78,16 +77,6 @@ public class MultiOrdinals implements Ordinals {
     }
 
     @Override
-    public boolean hasSingleArrayBackingStorage() {
-        return false;
-    }
-
-    @Override
-    public Object getBackingStorage() {
-        return null;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         return endOffsets.ramBytesUsed() + ords.ramBytesUsed();
     }
@@ -123,14 +112,15 @@ public class MultiOrdinals implements Ordinals {
         private final MonotonicAppendingLongBuffer endOffsets;
         private final AppendingPackedLongBuffer ords;
         private final LongsRef longsScratch;
-        private final MultiIter iter;
+        private long offset;
+        private long limit;
+        private long currentOrd;
 
         MultiDocs(MultiOrdinals ordinals) {
             this.ordinals = ordinals;
             this.endOffsets = ordinals.endOffsets;
             this.ords = ordinals.ords;
             this.longsScratch = new LongsRef(16);
-            this.iter = new MultiIter(ords);
         }
 
         @Override
@@ -163,9 +153,9 @@ public class MultiOrdinals implements Ordinals {
             final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
             if (startOffset == endOffset) {
-                return 0L; // ord for missing values
+                return currentOrd = 0L; // ord for missing values
             } else {
-                return 1L + ords.get(startOffset);
+                return currentOrd = 1L + ords.get(startOffset);
             }
         }
 
@@ -186,34 +176,23 @@ public class MultiOrdinals implements Ordinals {
         }
 
         @Override
-        public Iter getIter(int docId) {
-            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
-            final long endOffset = endOffsets.get(docId);
-            iter.offset = startOffset;
-            iter.endOffset = endOffset;
-            return iter;
-        }
-
-    }
-
-    static class MultiIter implements Iter {
-
-        final AppendingPackedLongBuffer ordinals;
-        long offset, endOffset;
-
-        MultiIter(AppendingPackedLongBuffer ordinals) {
-            this.ordinals = ordinals;
+        public long nextOrd() {
+            assert offset < limit;
+            return currentOrd = 1L + ords.get(offset++);
         }
 
         @Override
-        public long next() {
-            if (offset >= endOffset) {
-                return 0L;
-            } else {
-                return 1L + ordinals.get(offset++);
-            }
+        public int setDocument(int docId) {
+            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
+            final long endOffset = endOffsets.get(docId);
+            offset = startOffset;
+            limit = endOffset;
+            return (int) (endOffset - startOffset);
         }
 
+        @Override
+        public long currentOrd() {
+            return currentOrd;
+        }
     }
-
 }

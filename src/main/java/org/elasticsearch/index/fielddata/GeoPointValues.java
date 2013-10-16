@@ -23,13 +23,35 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.geo.GeoPoint;
 
 /**
+ * A state-full lightweight per document set of {@link GeoPoint} values.
+ * To iterate over values in a document use the following pattern:
+ * <pre>
+ *   GeoPointValues values = ..;
+ *   final int numValues = values.setDocId(docId);
+ *   for (int i = 0; i < numValues; i++) {
+ *       GeoPoint value = values.nextValue();
+ *       // process value
+ *   }
+ * </pre>
  */
 public abstract class GeoPointValues {
 
+    /**
+     * An empty {@link GeoPointValues instance}
+     */
     public static final GeoPointValues EMPTY = new Empty();
     
     private final boolean multiValued;
 
+    protected int docId = -1;
+
+    /**
+     * Creates a new {@link GeoPointValues} instance
+     * @param multiValued <code>true</code> iff this instance is multivalued. Otherwise <code>false</code>.
+     */
+    protected GeoPointValues(boolean multiValued) {
+        this.multiValued = multiValued;
+    }
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -38,100 +60,93 @@ public abstract class GeoPointValues {
     }
 
     /**
-     * Is there a value for this doc?
+     * Returns <code>true</code> if the given document ID has a value in this. Otherwise <code>false</code>.
      */
     public abstract boolean hasValue(int docId);
 
+    /**
+     * Returns a value for the given document id. If the document
+     * has more than one value the returned value is one of the values
+     * associated with the document.
+     *
+     * Note: the {@link GeoPoint} might be shared across invocations.
+     *
+     * @param docId the documents id.
+     * @return a value for the given document id.
+     */
     public abstract GeoPoint getValue(int docId);
 
-    public abstract GeoPoint getValueSafe(int docId);
-
-    public abstract Iter getIter(int docId);
-
-    public abstract Iter getIterSafe(int docId);
-    
-    protected GeoPointValues(boolean multiValued) {
-        this.multiValued = multiValued;
+    /**
+     * Sets iteration to the specified docID and returns the number of
+     * values for this document ID,
+     * @param docId document ID
+     *
+     * @see #nextValue()
+     */
+    public int setDocument(int docId) {
+        this.docId = docId;
+        return hasValue(docId) ? 1 : 0;
+    }
+    /**
+     * Returns the next value for the current docID set to {@link #setDocument(int)}.
+     * This method should only be called <tt>N</tt> times where <tt>N</tt> is the number
+     * returned from {@link #setDocument(int)}. If called more than <tt>N</tt> times the behavior
+     * is undefined.
+     *
+     * Note: the returned {@link GeoPoint} might be shared across invocations.
+     *
+     * @return the next value for the current docID set to {@link #setDocument(int)}.
+     */
+    public GeoPoint nextValue() {
+        assert docId != -1;
+        return getValue(docId);
     }
 
-    public GeoPoint getValueMissing(int docId, GeoPoint defaultGeoPoint) {
+    /**
+     * Returns a value for the given document id or the given missing value if
+     * {@link #hasValue(int)} returns <code>false</code> ie. the document has no
+     * value associated with it.
+     *
+     * @param docId        the documents id.
+     * @param missingValue the missing value
+     * @return a value for the given document id or the given missing value if
+     *         {@link #hasValue(int)} returns <code>false</code> ie. the document has no
+     *         value associated with it.
+     */
+    public GeoPoint getValueMissing(int docId, GeoPoint missingValue) {
         if (hasValue(docId)) {
             return getValue(docId);
         } 
-        return defaultGeoPoint;
+        return missingValue;
     }
 
-
-    public static interface Iter {
-
-        boolean hasNext();
-
-        GeoPoint next();
-
-        static class Empty implements Iter {
-
-            public static final Empty INSTANCE = new Empty();
-
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public GeoPoint next() {
-                throw new ElasticSearchIllegalStateException();
-            }
-        }
-
-        static class Single implements Iter {
-
-            public GeoPoint value;
-            public boolean done;
-
-            public Single reset(GeoPoint value) {
-                this.value = value;
-                this.done = false;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return !done;
-            }
-
-            @Override
-            public GeoPoint next() {
-                assert !done;
-                done = true;
-                return value;
-            }
-        }
-    }
-
-    static class Empty extends GeoPointValues {
+    /**
+     * An empty {@link GeoPointValues} implementation
+     */
+    private static final class Empty extends GeoPointValues {
         protected Empty() {
             super(false);
         }
 
+        @Override
         public boolean hasValue(int docId) {
             return false;
         }
 
-        public GeoPoint getValueSafe(int docId) {
-            return getValue(docId);
-        }
-
-        public Iter getIterSafe(int docId) {
-            return getIter(docId);
-        }
-
-
+        @Override
         public GeoPoint getValue(int docId) {
             return null;
         }
 
-        public Iter getIter(int docId) {
-            return Iter.Empty.INSTANCE;
+        @Override
+        public int setDocument(int docId) {
+            return 0;
         }
+
+        @Override
+        public GeoPoint nextValue() {
+            throw new ElasticSearchIllegalStateException("Empty GeoPointValues has no next value");
+        }
+
     }
 }

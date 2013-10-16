@@ -155,6 +155,7 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
             @Override
             public final long getValueByOrd(long ord) {
+                assert ord != Ordinals.MISSING_ORDINAL;
                 return (long) values.get(ord);
             }
         }
@@ -170,6 +171,7 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
             @Override
             public double getValueByOrd(long ord) {
+                assert ord != Ordinals.MISSING_ORDINAL;
                 return values.get(ord);
             }
         }
@@ -322,7 +324,7 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
             return new DoubleValues(values);
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
+        static final class LongValues extends DenseLongValues {
 
             private final BigDoubleArrayList values;
 
@@ -336,9 +338,16 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
                 return (long) values.get(docId);
             }
 
+            @Override
+            public long nextValue() {
+                return (long) values.get(docId);
+            }
+            
+            
+
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
+        static final class DoubleValues extends DenseDoubleValues {
 
             private final BigDoubleArrayList values;
 
@@ -351,7 +360,12 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
             public double getValue(int docId) {
                 return values.get(docId);
             }
-
+            
+            @Override
+            public double nextValue() {
+                return values.get(docId);
+            }
+            
         }
     }
 }

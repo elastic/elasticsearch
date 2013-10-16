@@ -165,7 +165,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 }
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     final long ord = ordinals.getOrd(i);
-                    if (ord > 0) {
+                    if (ord != Ordinals.MISSING_ORDINAL) {
                         sValues.set(i, values.get(ord - 1) - minValue);
                     }
                 }

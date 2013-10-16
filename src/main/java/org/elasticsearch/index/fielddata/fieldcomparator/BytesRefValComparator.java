@@ -25,6 +25,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.FilterBytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
@@ -61,22 +62,21 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        BytesRef val2 = docTerms.getValue(doc);
-        if (val2 == null) {
-            val2 = missingValue;
-        }
+        int length = docTerms.setDocument(doc); // safes one hasValue lookup
+        BytesRef val2 = length == 0 ? missingValue : docTerms.nextValue();
         return compareValues(bottom, val2);
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        if (!docTerms.hasValue(doc)) {
+        int length = docTerms.setDocument(doc); // safes one hasValue lookup
+        if (length == 0) {
             values[slot] = missingValue;
         } else {
             if (values[slot] == null || values[slot] == missingValue) {
                 values[slot] = new BytesRef();
             }
-            docTerms.getValueScratch(doc, values[slot]);
+            values[slot].copyBytes(docTerms.nextValue());
         }
     }
 
@@ -114,39 +114,14 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public int compareDocToValue(int doc, BytesRef value) {
-        return docTerms.getValue(doc).compareTo(value);
+        final int length = docTerms.setDocument(doc); // safes one hasValue lookup
+        return  (length == 0 ? missingValue : docTerms.nextValue()).compareTo(value);
     }
 
-    public static class FilteredByteValues extends BytesValues {
-
-        protected final BytesValues delegate;
-
-        public FilteredByteValues(BytesValues delegate) {
-            super(delegate.isMultiValued());
-            this.delegate = delegate;
-        }
-
-        public boolean hasValue(int docId) {
-            return delegate.hasValue(docId);
-        }
-
-        public BytesRef makeSafe(BytesRef bytes) {
-            return delegate.makeSafe(bytes);
-        }
-
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            return delegate.getValueScratch(docId, ret);
-        }
-
-        public Iter getIter(int docId) {
-            return delegate.getIter(docId);
-        }
-
-    }
-
-    private static final class MultiValuedBytesWrapper extends FilteredByteValues {
+    private static final class MultiValuedBytesWrapper extends FilterBytesValues {
 
         private final SortMode sortMode;
+        private int numValues;
 
         public MultiValuedBytesWrapper(BytesValues delegate, SortMode sortMode) {
             super(delegate);
@@ -154,40 +129,47 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
         }
 
         @Override
-        public BytesRef getValueScratch(int docId, BytesRef relevantVal) {
-            BytesValues.Iter iter = delegate.getIter(docId);
-            if (!iter.hasNext()) {
-                relevantVal.length = 0;
-                return relevantVal;
+        public BytesRef getValue(int docId) {
+            numValues = delegate.setDocument(docId);
+            scratch.length = 0;
+            if (numValues == 0) {
+                scratch.length = 0;
+                return scratch;
             }
+            return nextValue();
+        }
 
-            BytesRef currentVal = iter.next();
+        public int setDocument(int docId) {
+            // either 0 or 1
+            return Math.min(1, (numValues = delegate.setDocument(docId)));
+        }
+
+        public BytesRef nextValue() {
+            BytesRef currentVal = delegate.nextValue();
             // We MUST allocate a new byte[] since relevantVal might have been filled by reference by a PagedBytes instance
             // meaning that the BytesRef.bytes are shared and shouldn't be overwritten. We can't use the bytes of the iterator
             // either because they will be overwritten by subsequent calls in the current thread
-            relevantVal.bytes = new byte[ArrayUtil.oversize(currentVal.length, RamUsageEstimator.NUM_BYTES_BYTE)];
-            relevantVal.offset = 0;
-            relevantVal.length = 0;
-            relevantVal.append(currentVal);
-            while (true) {
-                int cmp = currentVal.compareTo(relevantVal);
+            scratch.bytes = new byte[ArrayUtil.oversize(currentVal.length, RamUsageEstimator.NUM_BYTES_BYTE)];
+            scratch.offset = 0;
+            scratch.length = currentVal.length;
+            System.arraycopy(currentVal.bytes, currentVal.offset, scratch.bytes, 0, currentVal.length);
+            for (int i = 1; i < numValues; i++) {
+                currentVal = delegate.nextValue();
                 if (sortMode == SortMode.MAX) {
-                    if (cmp > 0) {
-                        relevantVal.length = 0;
-                        relevantVal.append(currentVal);
+                    if (currentVal.compareTo(scratch) > 0) {
+                        scratch.grow(currentVal.length);
+                        scratch.length = currentVal.length;
+                        System.arraycopy(currentVal.bytes, currentVal.offset, scratch.bytes, 0, currentVal.length);
                     }
                 } else {
-                    if (cmp < 0) {
-                        relevantVal.length = 0;
-                        relevantVal.append(currentVal);
+                    if (currentVal.compareTo(scratch) < 0) {
+                        scratch.grow(currentVal.length);
+                        scratch.length = currentVal.length;
+                        System.arraycopy(currentVal.bytes, currentVal.offset, scratch.bytes, 0, currentVal.length);
                     }
                 }
-                if (!iter.hasNext()) {
-                    break;
-                }
-                currentVal = iter.next();
             }
-            return relevantVal;
+            return scratch;
         }
 
     }

@@ -126,39 +126,24 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     }
 
     static void loadAllTerms(SearchContext context, IndexFieldData indexFieldData, HashedAggregator aggregator) {
+
         for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
             int maxDoc = readerContext.reader().maxDoc();
             if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
                 BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
                 Ordinals.Docs ordinals = values.ordinals();
                 // 0 = docs with no value for field, so start from 1 instead
-                for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
                     BytesRef value = values.getValueByOrd(ord);
                     aggregator.addValue(value, value.hashCode(), values);
                 }
             } else {
                 BytesValues values = indexFieldData.load(readerContext).getBytesValues();
-                // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
-                if (values.isMultiValued()) {
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        if (!values.hasValue(docId)) {
-                            continue;
-                        }
-
-                        BytesValues.Iter iter = values.getIter(docId);
-                        while (iter.hasNext()) {
-                            aggregator.addValue(iter.next(), iter.hash(), values);
-                        }
-                    }
-                } else {
-                    BytesRef spare = new BytesRef();
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        if (!values.hasValue(docId)) {
-                            continue;
-                        }
-
-                        int hash = values.getValueHashed(docId, spare);
-                        aggregator.addValue(spare, hash, values);
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    final int size = values.setDocument(docId);
+                    for (int i = 0; i < size; i++) {
+                        final BytesRef value = values.nextValue();
+                        aggregator.addValue(value, values.currentValueHash(), values);
                     }
                 }
             }

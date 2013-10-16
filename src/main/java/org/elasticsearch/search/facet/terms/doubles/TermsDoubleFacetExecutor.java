@@ -78,7 +78,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 if (values instanceof DoubleValues.WithOrdinals) {
                     DoubleValues.WithOrdinals valuesWithOrds = (DoubleValues.WithOrdinals) values;
                     Ordinals.Docs ordinals = valuesWithOrds.ordinals();
-                    for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                    for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
                         facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
                     }
                 } else {
@@ -88,10 +88,10 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                             if (!values.hasValue(docId)) {
                                 continue;
                             }
-
-                            DoubleValues.Iter iter = values.getIter(docId);
-                            while (iter.hasNext()) {
-                                facets.v().putIfAbsent(iter.next(), 0);
+                            int numValues = values.setDocument(docId);
+                            DoubleIntOpenHashMap map = facets.v();
+                            for (int i = 0; i < numValues; i++) {
+                                map.putIfAbsent(values.nextValue(), 0);
                             }
                         }
                     } else {

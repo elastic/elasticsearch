@@ -188,7 +188,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         @Override
         public int compareDocToValue(int doc, BytesRef value) {
             final long ord = getOrd(doc);
-            final BytesRef docValue = ord == 0 ? missingValue : termsIndex.getValueByOrd(ord);
+            final BytesRef docValue = ord == Ordinals.MISSING_ORDINAL ? missingValue : termsIndex.getValueByOrd(ord);
             return compareValues(docValue, value);
         }
 
@@ -200,7 +200,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         public int compareBottom(int doc) {
             assert bottomSlot != -1;
             final long docOrd = getOrd(doc);
-            final long comparableOrd = docOrd == 0 ? missingOrd : docOrd << 2;
+            final long comparableOrd = docOrd == Ordinals.MISSING_ORDINAL ? missingOrd : docOrd << 2;
             return LongValuesComparator.compare(bottomOrd, comparableOrd);
         }
 
@@ -213,7 +213,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         @Override
         public void copy(int slot, int doc) {
             final long ord = getOrd(doc);
-            if (ord == 0) {
+            if (ord == Ordinals.MISSING_ORDINAL) {
                 ords[slot] = missingOrd;
                 values[slot] = missingValue;
             } else {
@@ -222,7 +222,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
                 if (values[slot] == null || values[slot] == missingValue) {
                     values[slot] = new BytesRef();
                 }
-                termsIndex.getValueScratchByOrd(ord, values[slot]);
+                values[slot].copyBytes(termsIndex.getValueByOrd(ord));
             }
             readerGen[slot] = currentReaderGen;
         }
@@ -274,7 +274,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         termsIndex = indexFieldData.load(context).getBytesValues();
         assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
         if (missingValue == null) {
-            missingOrd = 0;
+            missingOrd = Ordinals.MISSING_ORDINAL;
         } else {
             missingOrd = ordInCurrentReader(termsIndex, missingValue);
             assert consistentInsertedOrd(termsIndex, missingOrd, missingValue);
@@ -304,7 +304,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         final BytesRef bottomValue = values[bottomSlot];
 
         if (bottomValue == null) {
-            bottomOrd = 0;
+            bottomOrd = Ordinals.MISSING_ORDINAL;
         } else if (currentReaderGen == readerGen[bottomSlot]) {
             bottomOrd = ords[bottomSlot];
         } else {
@@ -336,7 +336,8 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     }
 
     final protected static long binarySearch(BytesValues.WithOrdinals a, BytesRef key, long low, long high) {
-        assert a.getValueByOrd(high) == null | a.getValueByOrd(high) != null; // make sure we actually can get these values
+        assert low != Ordinals.MISSING_ORDINAL;
+        assert high == Ordinals.MISSING_ORDINAL || (a.getValueByOrd(high) == null | a.getValueByOrd(high) != null); // make sure we actually can get these values
         assert low == high + 1 || a.getValueByOrd(low) == null | a.getValueByOrd(low) != null;
         while (low <= high) {
             long mid = (low + high) >>> 1;
@@ -358,57 +359,17 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         return -(low + 1);
     }
 
-    static BytesRef getRelevantValue(BytesValues.WithOrdinals readerValues, int docId, SortMode sortMode) {
-        BytesValues.Iter iter = readerValues.getIter(docId);
-        if (!iter.hasNext()) {
-            return null;
-        }
-
-        BytesRef currentVal = iter.next();
-        BytesRef relevantVal = currentVal;
-        while (true) {
-            int cmp = currentVal.compareTo(relevantVal);
-            if (sortMode == SortMode.MAX) {
-                if (cmp > 0) {
-                    relevantVal = currentVal;
-                }
-            } else {
-                if (cmp < 0) {
-                    relevantVal = currentVal;
-                }
-            }
-            if (!iter.hasNext()) {
-                break;
-            }
-            currentVal = iter.next();
-        }
-        return relevantVal;
-    }
-
     static long getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
-        Ordinals.Docs.Iter iter = readerOrds.getIter(docId);
-        long currentVal = iter.next();
-        if (currentVal == 0) {
-            return 0;
+        int length = readerOrds.setDocument(docId);
+        long relevantVal = sortMode.startLong();
+        long result = 0;
+        assert sortMode == SortMode.MAX || sortMode == SortMode.MIN;
+        for (int i = 0; i < length; i++) {
+            result = relevantVal = sortMode.apply(readerOrds.nextOrd(), relevantVal);
         }
-
-        long relevantVal = currentVal;
-        while (true) {
-            if (sortMode == SortMode.MAX) {
-                if (currentVal > relevantVal) {
-                    relevantVal = currentVal;
-                }
-            } else {
-                if (currentVal < relevantVal) {
-                    relevantVal = currentVal;
-                }
-            }
-            currentVal = iter.next();
-            if (currentVal == 0) {
-                break;
-            }
-        }
-        return relevantVal;
+        assert result >= 0;
+        assert result <= readerOrds.getMaxOrd();
+        return result;
         // Enable this when the api can tell us that the ords per doc are ordered
         /*if (reversed) {
             IntArrayRef ref = readerOrds.getOrds(docId);

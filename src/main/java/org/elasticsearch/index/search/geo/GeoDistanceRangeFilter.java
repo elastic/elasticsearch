@@ -195,32 +195,17 @@ public class GeoDistanceRangeFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!values.hasValue(doc)) {
-                return false;
-            }
-
-            if (values.isMultiValued()) {
-                GeoPointValues.Iter iter = values.getIter(doc);
-                while (iter.hasNext()) {
-                    GeoPoint point = iter.next();
-                    if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
-                        double d = fixedSourceDistance.calculate(point.lat(), point.lon());
-                        if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            } else {
-                GeoPoint point = values.getValue(doc);
+            final int length = values.setDocument(doc);
+            for (int i = 0; i < length; i++) {
+                GeoPoint point = values.nextValue();
                 if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
                     double d = fixedSourceDistance.calculate(point.lat(), point.lon());
                     if (d >= inclusiveLowerPoint && d <= inclusiveUpperPoint) {
                         return true;
                     }
                 }
-                return false;
             }
+            return false;
         }
     }
 }

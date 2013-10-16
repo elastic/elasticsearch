@@ -20,6 +20,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
+import org.elasticsearch.index.fielddata.FilterLongValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 
@@ -77,7 +78,7 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
         return compare(bottom, missingValue);
     }
 
-    private static final class MultiValueWrapper extends LongValues.Filtered {
+    private static final class MultiValueWrapper extends FilterLongValues {
 
         private final SortMode sortMode;
 
@@ -88,40 +89,14 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
 
         @Override
         public long getValueMissing(int docId, long missing) {
-            LongValues.Iter iter = delegate.getIter(docId);
-            if (!iter.hasNext()) {
-                return missing;
+            final int numValues = delegate.setDocument(docId);
+            long relevantVal = sortMode.startLong();
+            long result = missing;
+            for (int i = 0; i < numValues; i++) {
+                result = relevantVal = sortMode.apply(relevantVal, delegate.nextValue());
             }
+            return sortMode.reduce(result, numValues);
 
-            long currentVal = iter.next();
-            long relevantVal = currentVal;
-            int counter = 1;
-            while (iter.hasNext()) {
-                currentVal = iter.next();
-                switch (sortMode) {
-                    case SUM:
-                        relevantVal += currentVal;
-                        break;
-                    case AVG:
-                        relevantVal += currentVal;
-                        counter++;
-                        break;
-                    case MAX:
-                        if (currentVal > relevantVal) {
-                            relevantVal = currentVal;
-                        }
-                        break;
-                    case MIN:
-                        if (currentVal < relevantVal) {
-                            relevantVal = currentVal;
-                        }
-                }
-            }
-            if (sortMode == SortMode.AVG) {
-                return relevantVal / counter;
-            } else {
-                return relevantVal;
-            }
             // If we have a method on readerValues that tells if the values emitted by Iter or ArrayRef are sorted per
             // document that we can do this or something similar:
             // (This is already possible, if values are loaded from index, but we just need a method that tells us this

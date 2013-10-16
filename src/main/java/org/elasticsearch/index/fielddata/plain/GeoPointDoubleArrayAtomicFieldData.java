@@ -147,111 +147,39 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final Ordinals.Docs ordinals;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final ValuesIter valuesIter;
-            private final SafeValuesIter safeValuesIter;
 
             GeoPointValuesWithOrdinals(BigDoubleArrayList lon, BigDoubleArrayList lat, Ordinals.Docs ordinals) {
                 super(ordinals.isMultiValued());
                 this.lon = lon;
                 this.lat = lat;
                 this.ordinals = ordinals;
-                this.valuesIter = new ValuesIter(lon, lat);
-                this.safeValuesIter = new SafeValuesIter(lon, lat);
             }
 
             @Override
             public boolean hasValue(int docId) {
-                return ordinals.getOrd(docId) != 0;
+                return ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL;
             }
 
             @Override
             public GeoPoint getValue(int docId) {
                 long ord = ordinals.getOrd(docId);
-                if (ord == 0L) {
+                if (ord == Ordinals.MISSING_ORDINAL) {
                     return null;
                 }
                 return scratch.reset(lat.get(ord), lon.get(ord));
             }
 
             @Override
-            public GeoPoint getValueSafe(int docId) {
-                long ord = ordinals.getOrd(docId);
-                if (ord == 0L) {
-                    return null;
-                }
-                return new GeoPoint(lat.get(ord), lon.get(ord));
+            public GeoPoint nextValue() {
+                final long ord = ordinals.nextOrd();
+                assert ord > 0;
+                return scratch.reset(lat.get(ord), lon.get(ord));
             }
 
             @Override
-            public Iter getIter(int docId) {
-                return valuesIter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public Iter getIterSafe(int docId) {
-                return safeValuesIter.reset(ordinals.getIter(docId));
-            }
-
-
-            static class ValuesIter implements Iter {
-
-                private final BigDoubleArrayList lon, lat;
-                private final GeoPoint scratch = new GeoPoint();
-
-                private Ordinals.Docs.Iter ordsIter;
-                private long ord;
-
-                ValuesIter(BigDoubleArrayList lon, BigDoubleArrayList lat) {
-                    this.lon = lon;
-                    this.lat = lat;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                public GeoPoint next() {
-                    scratch.reset(lat.get(ord), lon.get(ord));
-                    ord = ordsIter.next();
-                    return scratch;
-                }
-            }
-
-            static class SafeValuesIter implements Iter {
-
-                private final BigDoubleArrayList lon, lat;
-
-                private Ordinals.Docs.Iter ordsIter;
-                private long ord;
-
-                SafeValuesIter(BigDoubleArrayList lon, BigDoubleArrayList lat) {
-                    this.lon = lon;
-                    this.lat = lat;
-                }
-
-                public SafeValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public GeoPoint next() {
-                    GeoPoint value = new GeoPoint(lat.get(ord), lon.get(ord));
-                    ord = ordsIter.next();
-                    return value;
-                }
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return ordinals.setDocument(docId);
             }
         }
     }
@@ -307,9 +235,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final BigDoubleArrayList lon;
             private final BigDoubleArrayList lat;
             private final FixedBitSet set;
-
             private final GeoPoint scratch = new GeoPoint();
-            private final Iter.Single iter = new Iter.Single();
 
 
             GeoPointValuesSingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, FixedBitSet set) {
@@ -330,33 +256,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
                     return scratch.reset(lat.get(docId), lon.get(docId));
                 } else {
                     return null;
-                }
-            }
-
-            @Override
-            public GeoPoint getValueSafe(int docId) {
-                if (set.get(docId)) {
-                    return new GeoPoint(lat.get(docId), lon.get(docId));
-                } else {
-                    return null;
-                }
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                if (set.get(docId)) {
-                    return iter.reset(scratch.reset(lat.get(docId), lon.get(docId)));
-                } else {
-                    return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public Iter getIterSafe(int docId) {
-                if (set.get(docId)) {
-                    return iter.reset(new GeoPoint(lat.get(docId), lon.get(docId)));
-                } else {
-                    return Iter.Empty.INSTANCE;
                 }
             }
         }
@@ -412,7 +311,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final BigDoubleArrayList lat;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final Iter.Single iter = new Iter.Single();
 
 
             GeoPointValuesSingle(BigDoubleArrayList lon, BigDoubleArrayList lat) {
@@ -429,21 +327,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             @Override
             public GeoPoint getValue(int docId) {
                 return scratch.reset(lat.get(docId), lon.get(docId));
-            }
-
-            @Override
-            public GeoPoint getValueSafe(int docId) {
-                return new GeoPoint(lat.get(docId), lon.get(docId));
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(scratch.reset(lat.get(docId), lon.get(docId)));
-            }
-
-            @Override
-            public Iter getIterSafe(int docId) {
-                return iter.reset(new GeoPoint(lat.get(docId), lon.get(docId)));
             }
         }
     }

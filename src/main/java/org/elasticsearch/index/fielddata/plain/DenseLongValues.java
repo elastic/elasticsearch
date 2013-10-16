@@ -16,35 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.facet;
+package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.LongValues;
 
 /**
- * Simple Facet aggregator base class for {@link DoubleValues}
+ * Package private base class for dense long values.
  */
-public abstract class DoubleFacetAggregatorBase {
-    private int total;
-    private int missing;
+abstract class DenseLongValues extends LongValues {
 
-    public void onDoc(int docId, DoubleValues values) {
-        int numValues = values.setDocument(docId);
-        int tempMissing = 1;
-        for (int i = 0; i < numValues; i++) {
-            tempMissing = 0;
-            onValue(docId, values.nextValue());
-            total++;
-        }
-        missing += tempMissing;
+    protected DenseLongValues(boolean multiValued) {
+        super(multiValued);
     }
 
-    protected abstract void onValue(int docId, double next);
-
-    public final int total() {
-        return total;
+    @Override
+    public final boolean hasValue(int docId) {
+        return true;
     }
 
-    public final int missing() {
-        return missing;
+    public final long getValueMissing(int docId, long missingValue) {
+        assert hasValue(docId);
+        assert !isMultiValued();
+        return getValue(docId);
+    }
+
+    @Override
+    public int setDocument(int docId) {
+        this.docId = docId;
+        return 1;
     }
 }

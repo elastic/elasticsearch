@@ -5,13 +5,12 @@
 [[community-perl]]
 === Perl
 
-See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/current/index.html[official Elasticsearch Perl client].
+See the http://www.elasticsearch.org/guide/en/elasticsearch/client/perl-api/current/index.html[official Elasticsearch Perl client].
 
 [[community-python]]
 === Python
 
-* http://github.com/aparo/pyes[pyes]:
-  Python client.
+See the http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/current/index.html[official Elasticsearch Python client].
 
 * http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
   Python client.
@@ -27,6 +26,9 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/php-api/curre
 
 * http://intridea.github.io/surfiki-refine-elasticsearch/[Surfiki Refine]:
   Python Map-Reduce engine targeting Elasticsearch indices.
+
+* http://github.com/aparo/pyes[pyes]:
+  Python client.
 
 
 [[community-ruby]]

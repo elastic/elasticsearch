@@ -17,14 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.index.fielddata.plain;
+
+import org.elasticsearch.index.fielddata.DoubleValues;
 
 /**
+ * Package private base class for dense long values.
  */
-public interface AtomicNumericFieldData extends AtomicFieldData<ScriptDocValues> {
+abstract class DenseDoubleValues extends DoubleValues {
 
-    public abstract LongValues getLongValues();
 
-    public abstract DoubleValues getDoubleValues();
+    protected DenseDoubleValues(boolean multiValued) {
+        super(multiValued);
+    }
+
+    @Override
+    public final boolean hasValue(int docId) {
+        return true;
+    }
+
+    public final double getValueMissing(int docId, double missingValue) {
+        assert hasValue(docId);
+        assert !isMultiValued();
+        return getValue(docId);
+    }
 
 }

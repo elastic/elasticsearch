@@ -16,15 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.fielddata.plain;
 
-package org.elasticsearch.index.fielddata;
+import org.elasticsearch.index.fielddata.LongValues;
 
 /**
+ * Package private base class for dense long values.
  */
-public interface AtomicNumericFieldData extends AtomicFieldData<ScriptDocValues> {
+abstract class DenseLongValues extends LongValues {
 
-    public abstract LongValues getLongValues();
+    protected DenseLongValues(boolean multiValued) {
+        super(multiValued);
+    }
 
-    public abstract DoubleValues getDoubleValues();
+    @Override
+    public final boolean hasValue(int docId) {
+        return true;
+    }
 
+    public final long getValueMissing(int docId, long missingValue) {
+        assert hasValue(docId);
+        assert !isMultiValued();
+        return getValue(docId);
+    }
+
+    @Override
+    public int setDocument(int docId) {
+        this.docId = docId;
+        return 1;
+    }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.LongsRef;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 
 /**
  */
@@ -34,16 +35,6 @@ public class EmptyOrdinals implements Ordinals {
     @Override
     public long getMemorySizeInBytes() {
         return 0;
-    }
-
-    @Override
-    public boolean hasSingleArrayBackingStorage() {
-        return false;
-    }
-
-    @Override
-    public Object getBackingStorage() {
-        return null;
     }
 
     @Override
@@ -72,7 +63,6 @@ public class EmptyOrdinals implements Ordinals {
     }
 
     public static class Docs implements Ordinals.Docs {
-
         private final EmptyOrdinals parent;
         public static final LongsRef EMPTY_LONGS_REF = new LongsRef();
 
@@ -116,9 +106,18 @@ public class EmptyOrdinals implements Ordinals {
         }
 
         @Override
-        public Iter getIter(int docId) {
-            return EmptyIter.INSTANCE;
+        public long nextOrd() {
+            throw new ElasticSearchIllegalStateException("Empty ordinals has no nextOrd");
         }
 
+        @Override
+        public int setDocument(int docId) {
+            return 0;
+        }
+
+        @Override
+        public long currentOrd() {
+            return 0;
+        }
     }
 }

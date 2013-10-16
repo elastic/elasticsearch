@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 /**
  * {@link AtomicNumericFieldData} implementation which stores data in packed arrays to save memory.
  */
-public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData {
+public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFieldData {
 
     public static PackedArrayAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);
@@ -154,7 +154,8 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
 
             @Override
             public long getValueByOrd(long ord) {
-                return ord == 0 ? 0L : values.get(ord - 1);
+                assert ord != Ordinals.MISSING_ORDINAL;
+                return values.get(ord - 1);
             }
         }
 
@@ -169,7 +170,8 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
 
             @Override
             public double getValueByOrd(long ord) {
-                return ord == 0 ? 0L : values.get(ord - 1);
+                assert ord != Ordinals.MISSING_ORDINAL;
+                return values.get(ord - 1);
             }
 
 
@@ -333,7 +335,7 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             return new DoubleValues(values, minValue);
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
+        static class LongValues extends DenseLongValues {
 
             private final PackedInts.Mutable values;
             private final long minValue;
@@ -349,9 +351,15 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
                 return minValue + values.get(docId);
             }
 
+            @Override
+            public long nextValue() {
+                return minValue + values.get(docId);
+            }
+            
+
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
+        static class DoubleValues extends DenseDoubleValues {
 
             private final PackedInts.Mutable values;
             private final long minValue;
@@ -364,6 +372,11 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
 
             @Override
             public double getValue(int docId) {
+                return minValue + values.get(docId);
+            }
+            
+            @Override
+            public double nextValue() {
                 return minValue + values.get(docId);
             }
 

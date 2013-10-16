@@ -26,15 +26,8 @@ import org.apache.lucene.util.LongsRef;
  */
 public interface Ordinals {
 
-    /**
-     * Are the ordinals backed by a single ordinals array?
-     */
-    boolean hasSingleArrayBackingStorage();
-
-    /**
-     * Returns the backing storage for this ordinals.
-     */
-    Object getBackingStorage();
+    static final long MISSING_ORDINAL = 0;
+    static final long MIN_ORDINAL = 1;
 
     /**
      * The memory size this ordinals take.
@@ -52,13 +45,13 @@ public interface Ordinals {
     int getNumDocs();
 
     /**
-     * The number of ordinals, excluding the "0" ordinal indicating a missing value.
+     * The number of ordinals, excluding the {@link #MISSING_ORDINAL} ordinal indicating a missing value.
      */
     long getNumOrds();
 
     /**
      * Returns total unique ord count; this includes +1 for
-     * the null ord (always 0).
+     * the  {@link #MISSING_ORDINAL}  ord (always  {@value #MISSING_ORDINAL} ).
      */
     long getMaxOrd();
 
@@ -72,6 +65,16 @@ public interface Ordinals {
      * is that this gets created for each "iteration" over ordinals.
      * <p/>
      * <p>A value of 0 ordinal when iterating indicated "no" value.</p>
+     * To iterate of a set of ordinals for a given document use {@link #setDocument(int)} and {@link #nextOrd()} as
+     * show in the example below:
+     * <pre>
+     *   Ordinals.Docs docs = ...;
+     *   final int len = docs.setDocId(docId);
+     *   for (int i = 0; i < len; i++) {
+     *       final long ord = docs.nextOrd();
+     *       // process ord
+     *   }
+     * </pre>
      */
     interface Docs {
 
@@ -113,51 +116,35 @@ public interface Ordinals {
          */
         LongsRef getOrds(int docId);
 
-        /**
-         * Returns an iterator of the ordinals that match the docId, with an
-         * empty iterator for a doc with no ordinals.
-         */
-        Iter getIter(int docId);
-
 
         /**
-         * An iterator over ordinals values.
+         * Returns the next ordinal for the current docID set to {@link #setDocument(int)}.
+         * This method should only be called <tt>N</tt> times where <tt>N</tt> is the number
+         * returned from {@link #setDocument(int)}. If called more than <tt>N</tt> times the behavior
+         * is undefined.
+         *
+         * Note: This method will never return <tt>0</tt>.
+         *
+         * @return the next ordinal for the current docID set to {@link #setDocument(int)}.
          */
-        interface Iter {
+        long nextOrd();
 
-            /**
-             * Gets the next ordinal. Returning 0 if the iteration is exhausted.
-             */
-            long next();
-        }
 
-        static class EmptyIter implements Iter {
+        /**
+         * Sets iteration to the specified docID and returns the number of
+         * ordinals for this document ID,
+         * @param docId document ID
+         *
+         * @see #nextOrd()
+         */
+        int setDocument(int docId);
 
-            public static EmptyIter INSTANCE = new EmptyIter();
 
-            @Override
-            public long next() {
-                return 0;
-            }
-        }
-
-        static class SingleValueIter implements Iter {
-
-            private long value;
-
-            public SingleValueIter reset(long value) {
-                this.value = value;
-                return this;
-            }
-
-            @Override
-            public long next() {
-                long actual = value;
-                value = 0;
-                return actual;
-            }
-        }
-
+        /**
+         * Returns the current ordinal in the iteration
+         * @return the current ordinal in the iteration
+         */
+        long currentOrd();
     }
 
 }

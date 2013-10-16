@@ -45,19 +45,6 @@ public class SinglePackedOrdinals implements Ordinals {
     }
 
     @Override
-    public boolean hasSingleArrayBackingStorage() {
-        return reader.hasArray();
-    }
-
-    @Override
-    public Object getBackingStorage() {
-        if (reader.hasArray()) {
-            return reader.getArray();
-        }
-        return reader;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
             size = RamUsageEstimator.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
@@ -96,7 +83,7 @@ public class SinglePackedOrdinals implements Ordinals {
         private final PackedInts.Reader reader;
 
         private final LongsRef longsScratch = new LongsRef(1);
-        private final SingleValueIter iter = new SingleValueIter();
+        private long currentOrdinal;
 
         public Docs(SinglePackedOrdinals parent, PackedInts.Reader reader) {
             this.parent = parent;
@@ -130,26 +117,34 @@ public class SinglePackedOrdinals implements Ordinals {
 
         @Override
         public long getOrd(int docId) {
-            return reader.get(docId);
+            return currentOrdinal = reader.get(docId);
         }
 
         @Override
         public LongsRef getOrds(int docId) {
             final long ordinal = reader.get(docId);
-            if (ordinal == 0) {
-                longsScratch.length = 0;
-            } else {
-                longsScratch.offset = 0;
-                longsScratch.length = 1;
-                longsScratch.longs[0] = ordinal;
-            }
+            longsScratch.offset = 0;
+            longsScratch.length = (int)Math.min(currentOrdinal, 1);
+            longsScratch.longs[0] = currentOrdinal = ordinal;
             return longsScratch;
         }
 
         @Override
-        public Iter getIter(int docId) {
-            return iter.reset((int) reader.get(docId));
+        public long nextOrd() {
+            assert currentOrdinal > 0;
+            return currentOrdinal;
         }
 
+        @Override
+        public int setDocument(int docId) {
+            currentOrdinal = reader.get(docId);
+            // either this is > 1 or 0 - in any case it prevents a branch!
+            return (int)Math.min(currentOrdinal, 1);
+        }
+
+        @Override
+        public long currentOrd() {
+            return currentOrdinal;
+        }
     }
 }

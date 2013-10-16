@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.SlicedDoubleList;
 import org.elasticsearch.common.util.SlicedLongList;
 import org.elasticsearch.common.util.SlicedObjectList;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
@@ -102,33 +101,29 @@ public abstract class ScriptDocValues {
             return this.values;
         }
 
-        public Iter getBytesIter() {
-            return values.getIter(docId);
-        }
-
         public BytesRef getBytesValue() {
             return values.getValue(docId);
         }
 
         public String getValue() {
-            final BytesRef value = values.getValue(docId);
-            if (value != null) {
-                UnicodeUtil.UTF8toUTF16(value, spare);
-                return spare.toString();
+            String value = null;
+            if (values.setDocument(docId) > 0) {
+                UnicodeUtil.UTF8toUTF16(values.nextValue(), spare);
+                value = spare.toString();
             }
-            return null;
+            return value;
         }
 
         public List<String> getValues() {
             if (!listLoaded) {
+                final int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                Iter iter = values.getIter(docId);
-                while (iter.hasNext()) {
-                    BytesRef next = iter.next();
-                    list.grow(list.length + 1);
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    BytesRef next = values.nextValue();
                     UnicodeUtil.UTF8toUTF16(next, spare);
-                    list.values[list.length++] = spare.toString();
+                    list.values[i] = spare.toString();
                 }
                 listLoaded = true;
             }
@@ -158,22 +153,18 @@ public abstract class ScriptDocValues {
             return !values.hasValue(docId);
         }
 
-        public LongValues.Iter getIter() {
-            return values.getIter(docId);
-        }
-
         public long getValue() {
             return values.getValue(docId);
         }
 
         public List<Long> getValues() {
             if (!listLoaded) {
-                final LongValues.Iter iter = values.getIter(docId);
+                final int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                while (iter.hasNext()) {
-                    list.grow(list.length + 1);
-                    list.values[list.length++] = iter.next();
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    list.values[i] = values.nextValue();
                 }
                 listLoaded = true;
             }
@@ -207,9 +198,6 @@ public abstract class ScriptDocValues {
             return !values.hasValue(docId);
         }
 
-        public DoubleValues.Iter getIter() {
-            return values.getIter(docId);
-        }
 
         public double getValue() {
             return values.getValue(docId);
@@ -217,12 +205,12 @@ public abstract class ScriptDocValues {
 
         public List<Double> getValues() {
             if (!listLoaded) {
-                final DoubleValues.Iter iter = values.getIter(docId);
+                int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                while (iter.hasNext()) {
-                    list.grow(list.length + 1);
-                    list.values[list.length++] = iter.next();
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    list.values[i] = values.nextValue();
                 }
                 listLoaded = true;
             }
@@ -291,19 +279,18 @@ public abstract class ScriptDocValues {
 
         public List<GeoPoint> getValues() {
             if (!listLoaded) {
-                GeoPointValues.Iter iter = values.getIter(docId);
+                int numValues = values.setDocument(docId);
                 list.offset = 0;
-                list.length = 0;
-                while (iter.hasNext()) {
-                    int index = list.length;
-                    list.grow(index + 1);
-                    GeoPoint next = iter.next();
-                    GeoPoint point = list.values[index];
+                list.grow(numValues);
+                list.length = numValues;
+                for (int i = 0; i < numValues; i++) {
+                    GeoPoint next = values.nextValue();
+                    GeoPoint point = list.values[i];
                     if (point == null) {
-                        point = list.values[index] = new GeoPoint();
+                        point = list.values[i] = new GeoPoint();
                     }
                     point.reset(next.lat(), next.lon());
-                    list.values[list.length++] = point;
+                    list.values[i] = point;
                 }
                 listLoaded = true;
             }

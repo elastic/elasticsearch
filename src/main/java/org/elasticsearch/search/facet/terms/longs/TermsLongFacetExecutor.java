@@ -77,20 +77,17 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                 if (values instanceof LongValues.WithOrdinals) {
                     LongValues.WithOrdinals valuesWithOrds = (LongValues.WithOrdinals) values;
                     Ordinals.Docs ordinals = valuesWithOrds.ordinals();
-                    for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                    for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
                         facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
                     }
                 } else {
                     // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
                     if (values.isMultiValued()) {
                         for (int docId = 0; docId < maxDoc; docId++) {
-                            if (!values.hasValue(docId)) {
-                                continue;
-                            }
-
-                            LongValues.Iter iter = values.getIter(docId);
-                            while (iter.hasNext()) {
-                                facets.v().putIfAbsent(iter.next(), 0);
+                            final int numValues = values.setDocument(docId);
+                            final LongIntOpenHashMap v = facets.v();
+                            for (int i = 0; i < numValues; i++) {
+                                v.putIfAbsent(values.nextValue(), 0);
                             }
                         }
                     } else {

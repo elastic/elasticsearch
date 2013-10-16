@@ -19,7 +19,6 @@
 package org.elasticsearch.search.facet;
 
 import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.DoubleValues.Iter;
 
 /**
  * Simple Facet aggregator base class for {@link DoubleValues}
@@ -29,15 +28,14 @@ public abstract class DoubleFacetAggregatorBase {
     private int missing;
 
     public void onDoc(int docId, DoubleValues values) {
-        if (values.hasValue(docId)) {
-            final Iter iter = values.getIter(docId);
-            while(iter.hasNext()) {
-                onValue(docId, iter.next());
-                total++;
-            }
-        } else {
-            missing++;
+        int numValues = values.setDocument(docId);
+        int tempMissing = 1;
+        for (int i = 0; i < numValues; i++) {
+            tempMissing = 0;
+            onValue(docId, values.nextValue());
+            total++;
         }
+        missing += tempMissing;
     }
 
     protected abstract void onValue(int docId, double next);

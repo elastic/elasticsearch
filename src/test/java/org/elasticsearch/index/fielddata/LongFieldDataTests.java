@@ -335,8 +335,9 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
 
             set.clear();
-            for (LongValues.Iter iter = data.getIter(i); iter.hasNext(); ) {
-                set.add(iter.next());
+            int numValues = data.setDocument(i);
+            for (int j = 0; j < numValues; j++) {
+                set.add(data.nextValue());
             }
             assertThat(set, equalTo(v));
 
@@ -349,8 +350,9 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
                 }
             }
             doubleSet.clear();
-            for (DoubleValues.Iter iter = doubleData.getIter(i); iter.hasNext(); ) {
-                doubleSet.add(iter.next());
+            numValues = doubleData.setDocument(i);
+            for (int j = 0; j < numValues; j++) {
+                doubleSet.add(doubleData.nextValue());
             }
             assertThat(doubleSet, equalTo(doubleV));
         }

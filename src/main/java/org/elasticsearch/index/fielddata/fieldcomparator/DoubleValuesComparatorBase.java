@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.FilterDoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
 import java.io.IOException;
@@ -70,7 +71,7 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
         return Double.compare(left, right);
     }
 
-    static final class MultiValueWrapper extends DoubleValues.Filtered {
+    static final class MultiValueWrapper extends FilterDoubleValues {
 
         private final SortMode sortMode;
 
@@ -81,42 +82,15 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
 
         @Override
         public double getValueMissing(int docId, double missing) {
-            DoubleValues.Iter iter = delegate.getIter(docId);
-            if (!iter.hasNext()) {
+            int numValues = delegate.setDocument(docId);
+            if (numValues == 0) {
                 return missing;
             }
-
-            double currentVal = iter.next();
-            double relevantVal = currentVal;
-            int counter = 1;
-            while (iter.hasNext()) {
-                currentVal = iter.next();
-                int cmp = Double.compare(currentVal, relevantVal);
-                switch (sortMode) {
-                    case SUM:
-                        relevantVal += currentVal;
-                        break;
-                    case AVG:
-                        relevantVal += currentVal;
-                        counter++;
-                        break;
-                    case MIN:
-                        if (cmp < 0) {
-                            relevantVal = currentVal;
-                        }
-                        break;
-                    case MAX:
-                        if (cmp > 0) {
-                            relevantVal = currentVal;
-                        }
-                        break;
-                }
+            double relevantVal = sortMode.startDouble();
+            for (int i = 0; i < numValues; i++) {
+                relevantVal = sortMode.apply(relevantVal, delegate.nextValue());
             }
-            if (sortMode == SortMode.AVG) {
-                return relevantVal / counter;
-            } else {
-                return relevantVal;
-            }
+            return sortMode.reduce(relevantVal, numValues);
         }
 
     }

@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  */
-public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
+public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFieldData {
 
     public static FloatArrayAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);
@@ -153,6 +153,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
             @Override
             public long getValueByOrd(long ord) {
+                assert ord != Ordinals.MISSING_ORDINAL;
                 return (long) values.get(ord);
             }
         }
@@ -323,7 +324,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
+        static class LongValues extends DenseLongValues {
 
             private final BigFloatArrayList values;
 
@@ -336,10 +337,16 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             public long getValue(int docId) {
                 return (long) values.get(docId);
             }
+            
+            @Override
+            public long nextValue() {
+                return (long) values.get(docId);
+            }
+            
 
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
+        static class DoubleValues extends DenseDoubleValues {
 
             private final BigFloatArrayList values;
 
@@ -352,6 +359,12 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             public double getValue(int docId) {
                 return (double) values.get(docId);
             }
+            
+            @Override
+            public double nextValue() {
+                return values.get(docId);
+            }
+            
         }
     }
 }

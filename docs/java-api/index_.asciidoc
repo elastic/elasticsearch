@@ -182,7 +182,6 @@ you percolator that have matched:
 --------------------------------------------------
 IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
         .setSource(json)
-        .setPercolate("*")
         .execute()
         .actionGet();
 

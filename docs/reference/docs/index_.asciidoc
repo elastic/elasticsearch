@@ -287,40 +287,6 @@ More information can be found on the
 <<mapping-ttl-field,_ttl mapping page>>.
 
 [float]
-[[percolate]]
-=== Percolate
-
-<<search-percolate,Percolation>> can be performed
-at index time by passing the `percolate` parameter. Setting it to `*`
-will cause all percolation queries registered against the index to be
-checked against the provided document, for example:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test/type1/1?percolate=* -d '{
-    "field1" : "value1"
-}'
---------------------------------------------------
-
-To filter out which percolator queries will be executed, pass the query
-string syntax to the `percolate` parameter:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test/type1/1?percolate=color:green -d '{
-    "field1" : "value1",
-    "field2" : "value2"
-}'
---------------------------------------------------
-
-*NOTE:* In a distributed cluster, percolation during the index operation
-is performed on the primary shard, as soon as the index operation
-completes. The operation executes on the primary while the replicas are
-updating, concurrently. Percolation during the index operation somewhat
-cuts down on parsing overhead, as the parse tree for the document is
-simply re-used for percolation.
-
-[float]
 [[index-distributed]]
 === Distributed
 

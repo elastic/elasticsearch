@@ -103,13 +103,6 @@ Each bulk item can include the routing value using the
 index / delete operation based on the `_routing` mapping.
 
 [float]
-[[percolator]]
-=== Percolator
-
-Each bulk index action can include a percolate value using the
-`_percolate`/`percolate` field.
-
-[float]
 [[bulk-parent]]
 === Parent
 

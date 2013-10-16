@@ -14,7 +14,7 @@ documentation before reading this guide.
 QueryBuilder qb = termQuery("content", "amazing");
 
 //Index the query = register it in the percolator
-client.prepareIndex("_percolator", "myIndexName", "myDesignatedQueryName")
+client.prepareIndex("myIndexName", "_percolator", "myDesignatedQueryName")
     .setSource(jsonBuilder()
         .startObject()
             .field("query", qb) // Register the query
@@ -38,10 +38,12 @@ docBuilder.field("content", "This is amazing!");
 docBuilder.endObject(); //End of the doc field
 docBuilder.endObject(); //End of the JSON root object
 //Percolate
-PercolateResponse response = 
-    client.preparePercolate("myIndexName", "myDocumentType").setSource(docBuilder).execute().actionGet();
+PercolateResponse response = client.preparePercolate()
+                        .setIndices("myIndexName")
+                        .setDocumentType("myDocumentType")
+                        .setSource(docBuilder).execute().actionGet();
 //Iterate over the results
-for(String result : response) {
+for(PercolateResponse.Match match : response) {
     //Handle the result which is the name of
     //the query in the percolator
 }

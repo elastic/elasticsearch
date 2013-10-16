@@ -5,7 +5,7 @@
 --
 
 Most search APIs are <<search-multi-index-type,multi-index&#44; multi-type>>, with the
-exception of the <<search-explain>> and <<search-percolate>> endpoints.
+exception of the <<search-explain>> endpoints.
 
 [float]
 [[search-routing]]

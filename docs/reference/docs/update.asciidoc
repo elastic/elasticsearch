@@ -157,9 +157,6 @@ including:
 
 `consistency`:: The write consistency of the index/delete operation.
 
-`percolate`::   Enables percolation and filters out which percolator
-                queries will be executed.
-
 `refresh`::     Refresh the index immediately after the operation occurs,
                 so that the updated document appears in search results 
                 immediately.

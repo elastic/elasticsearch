@@ -95,22 +95,9 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!values.hasValue(doc)) {
-                return false;
-            }
-
-            if (values.isMultiValued()) {
-                GeoPointValues.Iter iter = values.getIter(doc);
-                while (iter.hasNext()) {
-                    GeoPoint point = iter.next();
-                    if (((topLeft.lon() <= point.lon() || bottomRight.lon() >= point.lon())) &&
-                            (topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat())) {
-                        return true;
-                    }
-                }
-            } else {
-                GeoPoint point = values.getValue(doc);
-
+            final int length = values.setDocument(doc);
+            for (int i = 0; i < length; i++) {
+                GeoPoint point = values.nextValue();
                 if (((topLeft.lon() <= point.lon() || bottomRight.lon() >= point.lon())) &&
                         (topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat())) {
                     return true;
@@ -139,21 +126,9 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!values.hasValue(doc)) {
-                return false;
-            }
-
-            if (values.isMultiValued()) {
-                GeoPointValues.Iter iter = values.getIter(doc);
-                while (iter.hasNext()) {
-                    GeoPoint point = iter.next();
-                    if (topLeft.lon() <= point.lon() && bottomRight.lon() >= point.lon()
-                            && topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat()) {
-                        return true;
-                    }
-                }
-            } else {
-                GeoPoint point = values.getValue(doc);
+            final int length = values.setDocument(doc);
+            for (int i = 0; i < length; i++) {
+                GeoPoint point = values.nextValue();
                 if (topLeft.lon() <= point.lon() && bottomRight.lon() >= point.lon()
                         && topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat()) {
                     return true;

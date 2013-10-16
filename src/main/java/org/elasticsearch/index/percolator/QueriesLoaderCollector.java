@@ -51,24 +51,24 @@ final class QueriesLoaderCollector extends Collector {
     @Override
     public void collect(int doc) throws IOException {
         // the _source is the query
-        BytesRef id = idValues.getValue(doc);
-        if (id == null) {
-            return;
-        }
-        fieldsVisitor.reset();
-        reader.document(doc, fieldsVisitor);
 
-        try {
-            // id is only used for logging, if we fail we log the id in the catch statement
-            final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
-            if (parseQuery != null) {
-                queries.put(new HashedBytesRef(idValues.makeSafe(id)), parseQuery);
-            } else {
-                logger.warn("failed to add query [{}] - parser returned null", id);
+        if (idValues.setDocument(doc) > 0) {
+            BytesRef id = idValues.nextValue();
+            fieldsVisitor.reset();
+            reader.document(doc, fieldsVisitor);
+
+            try {
+                // id is only used for logging, if we fail we log the id in the catch statement
+                final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
+                if (parseQuery != null) {
+                    queries.put(new HashedBytesRef(idValues.copyShared()), parseQuery);
+                } else {
+                    logger.warn("failed to add query [{}] - parser returned null", id);
+                }
+
+            } catch (Exception e) {
+                logger.warn("failed to add query [{}]", e, id.utf8ToString());
             }
-
-        } catch (Exception e) {
-            logger.warn("failed to add query [{}]", e, id.utf8ToString());
         }
     }
 

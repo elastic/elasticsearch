@@ -41,6 +41,7 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
     protected final GeoDistance geoDistance;
     protected final GeoDistance.FixedSourceDistance fixedSourceDistance;
     protected final SortMode sortMode;
+    private static final Double MISSING_VALUE = Double.MAX_VALUE;
 
     private final double[] values;
     private double bottom;
@@ -71,39 +72,19 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
 
     @Override
     public int compare(int slot1, int slot2) {
-        final double v1 = values[slot1];
-        final double v2 = values[slot2];
-        if (v1 > v2) {
-            return 1;
-        } else if (v1 < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return Double.compare(values[slot1], values[slot2]);
     }
 
     @Override
     public int compareBottom(int doc) {
         final double v2 = geoDistanceValues.computeDistance(doc);
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return Double.compare(bottom, v2);
     }
 
     @Override
     public int compareDocToValue(int doc, Double distance2) throws IOException {
         double distance1 = geoDistanceValues.computeDistance(doc);
-        if (distance1 < distance2) {
-            return -1;
-        } else if (distance1 == distance2) {
-            return 0;
-        } else {
-            return 1;
-        }
+        return Double.compare(distance1, distance2);
     }
 
     @Override
@@ -133,12 +114,12 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
 
     @Override
     public void missing(int slot) {
-        values[slot] = Double.MAX_VALUE;
+        values[slot] = MISSING_VALUE;
     }
 
     @Override
     public int compareBottomMissing() {
-        return Double.compare(bottom, Double.MAX_VALUE);
+        return Double.compare(bottom, MISSING_VALUE);
     }
 
     // Computes the distance based on geo points.
@@ -170,7 +151,7 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
             GeoPoint geoPoint = readerValues.getValue(doc);
             if (geoPoint == null) {
                 // is this true? push this to the "end"
-                return Double.MAX_VALUE;
+                return MISSING_VALUE;
             } else {
                 return fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
             }
@@ -189,42 +170,15 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
 
         @Override
         public double computeDistance(int doc) {
-            GeoPointValues.Iter iter = readerValues.getIter(doc);
-            if (!iter.hasNext()) {
-                return Double.MAX_VALUE;
+            final int length = readerValues.setDocument(doc);
+            double distance = sortMode.startDouble();
+            double result = MISSING_VALUE;
+            for (int i = 0; i < length; i++) {
+                GeoPoint point = readerValues.nextValue();
+                result = distance = sortMode.apply(distance, fixedSourceDistance.calculate(point.lat(), point.lon()));
             }
-
-            GeoPoint point = iter.next();
-            double distance = fixedSourceDistance.calculate(point.lat(), point.lon());
-            int counter = 1;
-            while (iter.hasNext()) {
-                point = iter.next();
-                double newDistance = fixedSourceDistance.calculate(point.lat(), point.lon());
-                switch (sortMode) {
-                    case MIN:
-                        if (distance > newDistance) {
-                            distance = newDistance;
-                        }
-                        break;
-                    case MAX:
-                        if (distance < newDistance) {
-                            distance = newDistance;
-                        }
-                        break;
-                    case AVG:
-                        distance += newDistance;
-                        counter++;
-                        break;
-                }
-            }
-
-            if (sortMode == SortMode.AVG && counter > 1) {
-                return distance / counter;
-            } else {
-                return distance;
-            }
+            return sortMode.reduce(result, length);
         }
-
     }
 
 }

@@ -39,16 +39,6 @@ public class DocIdOrdinals implements Ordinals {
     }
 
     @Override
-    public boolean hasSingleArrayBackingStorage() {
-        return false;
-    }
-
-    @Override
-    public Object getBackingStorage() {
-        return null;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         return RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
@@ -82,7 +72,8 @@ public class DocIdOrdinals implements Ordinals {
 
         private final DocIdOrdinals parent;
         private final LongsRef longsScratch = new LongsRef(new long[1], 0, 1);
-        private final SingleValueIter iter = new SingleValueIter();
+        private int docId = -1;
+        private long currentOrdinal = -1;
 
         public Docs(DocIdOrdinals parent) {
             this.parent = parent;
@@ -115,18 +106,32 @@ public class DocIdOrdinals implements Ordinals {
 
         @Override
         public long getOrd(int docId) {
-            return docId + 1;
+            return currentOrdinal = docId + 1;
         }
 
         @Override
         public LongsRef getOrds(int docId) {
-            longsScratch.longs[0] = docId + 1;
+            longsScratch.longs[0] = currentOrdinal = docId + 1;
             return longsScratch;
         }
 
         @Override
-        public Iter getIter(int docId) {
-            return iter.reset(docId + 1);
+        public long nextOrd() {
+            assert docId >= 0;
+            currentOrdinal = docId + 1;
+            docId = -1;
+            return currentOrdinal;
+        }
+
+        @Override
+        public int setDocument(int docId) {
+            this.docId = docId;
+            return 1;
+        }
+
+        @Override
+        public long currentOrd() {
+            return currentOrdinal;
         }
     }
 }

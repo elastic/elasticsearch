@@ -27,15 +27,14 @@ import org.apache.lucene.util.English;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.*;
 import java.util.Map.Entry;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DuelFieldDataTests extends AbstractFieldDataTests {
 
@@ -349,50 +348,55 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
     }
 
 
-    private static void duelFieldDataBytes(Random random, AtomicReaderContext context, IndexFieldData left, IndexFieldData right, Preprocessor pre) throws Exception {
-        AtomicFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
-        AtomicFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
+    private static void duelFieldDataBytes(Random random, AtomicReaderContext context, IndexFieldData<?> left, IndexFieldData<?> right, Preprocessor pre) throws Exception {
+        AtomicFieldData<?> leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
+        AtomicFieldData<?> rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
         assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
 
         int numDocs = leftData.getNumDocs();
         BytesValues leftBytesValues = random.nextBoolean() ? leftData.getBytesValues() : leftData.getHashedBytesValues();
         BytesValues rightBytesValues = random.nextBoolean() ? rightData.getBytesValues() : rightData.getHashedBytesValues();
+        BytesRef leftSpare = new BytesRef();
+        BytesRef rightSpare = new BytesRef();
         for (int i = 0; i < numDocs; i++) {
             assertThat(leftBytesValues.hasValue(i), equalTo(rightBytesValues.hasValue(i)));
             if (leftBytesValues.hasValue(i)) {
                 assertThat(pre.toString(leftBytesValues.getValue(i)), equalTo(pre.toString(rightBytesValues.getValue(i))));
-
             } else {
-                assertThat(leftBytesValues.getValue(i), nullValue());
-                assertThat(rightBytesValues.getValue(i), nullValue());
+                assertThat(leftBytesValues.getValue(i), equalTo(new BytesRef()));
+                assertThat(rightBytesValues.getValue(i), equalTo(new BytesRef()));
             }
-
-            boolean hasValue = leftBytesValues.hasValue(i);
-            Iter leftIter = leftBytesValues.getIter(i);
-            Iter rightIter = rightBytesValues.getIter(i);
-            assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
-            assertThat(leftIter.hasNext(), equalTo(hasValue));
-
-            while (leftIter.hasNext()) {
-                assertThat(hasValue, equalTo(true));
-                assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
-                BytesRef rightBytes = rightIter.next();
-                BytesRef leftBytes = leftIter.next();
-
-                assertThat(pre.toString(leftBytes), equalTo(pre.toString(rightBytes)));
-                if (rightBytes.equals(leftBytes)) {
-                    assertThat(leftIter.hash(), equalTo(rightIter.hash()));// call twice
-                    assertThat(leftIter.hash(), equalTo(rightIter.hash()));
-                    assertThat(leftIter.hash(), equalTo(rightBytes.hashCode()));
-                    assertThat(rightIter.hash(), equalTo(leftBytes.hashCode()));
+            
+            
+            int numValues = 0;
+            if (leftBytesValues.hasValue(i)) {
+                assertThat(rightBytesValues.hasValue(i), equalTo(true));
+                assertThat(leftBytesValues.setDocument(i), Matchers.greaterThanOrEqualTo(1));
+                assertThat(rightBytesValues.setDocument(i),  Matchers.greaterThanOrEqualTo(1));
+            } else { 
+                assertThat(rightBytesValues.hasValue(i), equalTo(false));
+                assertThat(leftBytesValues.setDocument(i), equalTo(0));
+                assertThat(rightBytesValues.setDocument(i), equalTo(0));
+            }
+            
+            assertThat((numValues = leftBytesValues.setDocument(i)), equalTo(rightBytesValues.setDocument(i)));
+            for (int j = 0; j < numValues; j++) {
+                rightSpare.copyBytes(rightBytesValues.nextValue());
+                leftSpare.copyBytes(leftBytesValues.nextValue());
+                assertThat(rightSpare.hashCode(), equalTo(rightBytesValues.currentValueHash()));
+                assertThat(leftSpare.hashCode(), equalTo(leftBytesValues.currentValueHash()));
+                pre.toString(rightSpare);
+                pre.toString(leftSpare);
+                assertThat(pre.toString(leftSpare), equalTo(pre.toString(rightSpare)));
+                if (leftSpare.equals(rightSpare)) {
+                    assertThat(leftBytesValues.currentValueHash(), equalTo(rightBytesValues.currentValueHash()));
                 }
             }
-            assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
         }
     }
 
 
-    private static void duelFieldDataDouble(Random random, AtomicReaderContext context, IndexNumericFieldData left, IndexNumericFieldData right) throws Exception {
+    private static void duelFieldDataDouble(Random random, AtomicReaderContext context, IndexNumericFieldData<?> left, IndexNumericFieldData<?> right) throws Exception {
         AtomicNumericFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicNumericFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
@@ -405,27 +409,16 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             assertThat(leftDoubleValues.hasValue(i), equalTo(rightDoubleValues.hasValue(i)));
             if (leftDoubleValues.hasValue(i)) {
                 assertThat(leftDoubleValues.getValue(i), equalTo(rightDoubleValues.getValue(i)));
-
             } else {
                 assertThat(leftDoubleValues.getValue(i), equalTo(0d));
                 assertThat(rightDoubleValues.getValue(i), equalTo(0d));
             }
 
-            boolean hasValue = leftDoubleValues.hasValue(i);
-            DoubleValues.Iter leftIter = leftDoubleValues.getIter(i);
-            DoubleValues.Iter rightIter = rightDoubleValues.getIter(i);
-            assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
-            assertThat(leftIter.hasNext(), equalTo(hasValue));
-
-            while (leftIter.hasNext()) {
-                assertThat(hasValue, equalTo(true));
-                assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
-                double rightValue = rightIter.next();
-                double leftValue = leftIter.next();
-
-                assertThat(leftValue, equalTo(rightValue));
+            int numValues = 0;
+            assertThat((numValues = leftDoubleValues.setDocument(i)), equalTo(rightDoubleValues.setDocument(i)));
+            for (int j = 0; j < numValues; j++) {
+                assertThat(leftDoubleValues.nextValue(), equalTo(rightDoubleValues.nextValue()));
             }
-            assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
         }
     }
 
@@ -436,33 +429,23 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
 
         int numDocs = leftData.getNumDocs();
-        LongValues leftDoubleValues = leftData.getLongValues();
-        LongValues rightDoubleValues = rightData.getLongValues();
+        LongValues leftLongValues = leftData.getLongValues();
+        LongValues rightLongValues = rightData.getLongValues();
         for (int i = 0; i < numDocs; i++) {
-            assertThat(leftDoubleValues.hasValue(i), equalTo(rightDoubleValues.hasValue(i)));
-            if (leftDoubleValues.hasValue(i)) {
-                assertThat(leftDoubleValues.getValue(i), equalTo(rightDoubleValues.getValue(i)));
+            assertThat(leftLongValues.hasValue(i), equalTo(rightLongValues.hasValue(i)));
+            if (leftLongValues.hasValue(i)) {
+                assertThat(leftLongValues.getValue(i), equalTo(rightLongValues.getValue(i)));
 
             } else {
-                assertThat(leftDoubleValues.getValue(i), equalTo(0l));
-                assertThat(rightDoubleValues.getValue(i), equalTo(0l));
+                assertThat(leftLongValues.getValue(i), equalTo(0l));
+                assertThat(rightLongValues.getValue(i), equalTo(0l));
             }
 
-            boolean hasValue = leftDoubleValues.hasValue(i);
-            LongValues.Iter leftIter = leftDoubleValues.getIter(i);
-            LongValues.Iter rightIter = rightDoubleValues.getIter(i);
-            assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
-            assertThat(leftIter.hasNext(), equalTo(hasValue));
-
-            while (leftIter.hasNext()) {
-                assertThat(hasValue, equalTo(true));
-                assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
-                long rightValue = rightIter.next();
-                long leftValue = leftIter.next();
-
-                assertThat(leftValue, equalTo(rightValue));
+            int numValues = 0;
+            assertThat((numValues = leftLongValues.setDocument(i)), equalTo(rightLongValues.setDocument(i)));
+            for (int j = 0; j < numValues; j++) {
+                assertThat(leftLongValues.nextValue(), equalTo(rightLongValues.nextValue()));
             }
-            assertThat(leftIter.hasNext(), equalTo(rightIter.hasNext()));
         }
     }
 
@@ -476,6 +459,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     private static class ToDoublePreprocessor extends Preprocessor {
         public String toString(BytesRef ref) {
+            assert ref.length > 0;
             return Double.toString(Double.parseDouble(super.toString(ref)));
         }
     }
@@ -486,3 +470,4 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
     }
 
 }
+

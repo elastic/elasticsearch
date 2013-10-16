@@ -90,27 +90,19 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
 
         return new BytesValues(false) {
 
-            final BytesValues.Iter.Single iter = new BytesValues.Iter.Single();
-            final BytesRef spare = new BytesRef();
-
             @Override
             public boolean hasValue(int docId) {
                 return docsWithField.get(docId);
             }
 
             @Override
-            public BytesRef getValueScratch(int docId, BytesRef ret) {
-                values.get(docId, ret);
-                return ret;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                if (!docsWithField.get(docId)) {
-                    return BytesValues.Iter.Empty.INSTANCE;
+            public BytesRef getValue(int docId) {
+                if (docsWithField.get(docId)) {
+                    values.get(docId, scratch);
+                    return scratch;
                 }
-                values.get(docId, spare);
-                return iter.reset(spare, -1L);
+                scratch.length = 0;
+                return scratch;
             }
 
         };

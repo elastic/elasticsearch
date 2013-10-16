@@ -22,7 +22,6 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
 
 /**
  */
@@ -41,41 +40,30 @@ public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> im
             }
 
             @Override
-            public BytesRef getValueScratch(int docId, BytesRef ret) {
+            public BytesRef getValue(int docId) {
                 GeoPoint value = values.getValue(docId);
                 if (value != null) {
-                    ret.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
+                    scratch.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
                 } else {
-                    ret.length = 0;
+                    scratch.length = 0;
+                    return scratch;
                 }
-                return ret;
+                return scratch;
             }
 
             @Override
-            public Iter getIter(int docId) {
-                final GeoPointValues.Iter iter = values.getIter(docId);
-                return new BytesValues.Iter() {
-                    private final BytesRef spare = new BytesRef();
-
-                    @Override
-                    public boolean hasNext() {
-                        return iter.hasNext();
-                    }
-
-                    @Override
-                    public BytesRef next() {
-                        GeoPoint value  = iter.next();
-                        spare.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
-                        return spare;
-                    }
-
-                    @Override
-                    public int hash() {
-                        return spare.hashCode();
-                    }
-
-                };
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return values.setDocument(docId);
             }
+
+            @Override
+            public BytesRef nextValue() {
+                GeoPoint value = values.nextValue();
+                scratch.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
+                return scratch;
+            }
+
         };
     }
 

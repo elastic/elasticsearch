@@ -715,8 +715,12 @@ public class PercolatorService extends AbstractComponent {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
                     BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues();
-                    spare.hash = values.getValueHashed(scoreDoc.doc - atomicReaderContext.docBase, spare.bytes);
-                    matches.add(values.makeSafe(spare.bytes));
+                    final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
+                    assert values.hasValue(localDocId);
+                    spare.bytes = values.getValue(localDocId);
+
+                    spare.hash = values.currentValueHash();
+                    matches.add(values.copyShared());
                     if (hls != null) {
                         Query query = context.percolateQueries().get(spare);
                         context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));

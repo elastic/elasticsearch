@@ -113,67 +113,46 @@ abstract class SortedSetDVAtomicFieldData {
         }
     }
 
-    static abstract class AbstractSortedSetValues extends BytesValues.WithOrdinals {
+    static class SortedSetValues extends BytesValues.WithOrdinals {
 
         protected final SortedSetDocValues values;
-        protected BytesValues.Iter.Multi iter;
 
-        AbstractSortedSetValues(AtomicReader reader, String field, SortedSetDocValues values) {
+        SortedSetValues(AtomicReader reader, String field, SortedSetDocValues values) {
             super(new SortedSetDocs(new SortedSetOrdinals(reader, field, values.getValueCount()), values));
             this.values = values;
         }
 
         @Override
-        public BytesRef getValueScratchByOrd(long ord, BytesRef ret) {
-            if (ord == 0) {
-                ret.length = 0;
-                return ret;
-            }
-            values.lookupOrd(ord - 1, ret);
-            return ret;
+        public BytesRef getValueByOrd(long ord) {
+            assert ord != Ordinals.MISSING_ORDINAL;
+            values.lookupOrd(ord - 1, scratch);
+            return scratch;
         }
 
         @Override
-        public Iter getIter(int docId) {
-            return iter.reset(ordinals.getIter(docId));
+        public BytesRef nextValue() {
+            values.lookupOrd(ordinals.nextOrd()-1, scratch);
+            return scratch;
         }
-
     }
 
-    static class SortedSetValues extends AbstractSortedSetValues {
-
-        SortedSetValues(AtomicReader reader, String field, SortedSetDocValues values) {
-            super(reader, field, values);
-            this.iter = new Iter.Multi(this);
-        }
-
-    }
-
-    static class SortedSetHashedValues extends AbstractSortedSetValues {
+    static final class SortedSetHashedValues extends SortedSetValues {
 
         private final IntArray hashes;
 
         SortedSetHashedValues(AtomicReader reader, String field, SortedSetDocValues values, IntArray hashes) {
             super(reader, field, values);
             this.hashes = hashes;
-            this.iter = new Iter.Multi(this) {
-                @Override
-                public int hash() {
-                    return SortedSetHashedValues.this.hashes.get(ord);
-                }
-            };
         }
 
         @Override
-        public int getValueHashed(int docId, BytesRef spare) {
-            long ord = ordinals.getOrd(docId);
-            getValueScratchByOrd(ord, spare);
-            return hashes.get(ord);
+        public int currentValueHash() {
+            assert ordinals.currentOrd() >= 0;
+            return hashes.get(ordinals.currentOrd());
         }
-
     }
 
-    static class SortedSetOrdinals implements Ordinals {
+    static final class SortedSetOrdinals implements Ordinals {
 
         // We don't store SortedSetDocValues as a member because Ordinals must be thread-safe
         private final AtomicReader reader;
@@ -185,16 +164,6 @@ abstract class SortedSetDVAtomicFieldData {
             this.reader = reader;
             this.field = field;
             this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean hasSingleArrayBackingStorage() {
-            return false;
-        }
-
-        @Override
-        public Object getBackingStorage() {
-            return null;
         }
 
         @Override
@@ -237,7 +206,8 @@ abstract class SortedSetDVAtomicFieldData {
         private final SortedSetOrdinals ordinals;
         private final SortedSetDocValues values;
         private final LongsRef longScratch;
-        private final LongsIter iter = new LongsIter();
+        private int ordIndex = Integer.MAX_VALUE;
+        private long currentOrdinal = -1;
 
         SortedSetDocs(SortedSetOrdinals ordinals, SortedSetDocValues values) {
             this.ordinals = ordinals;
@@ -273,7 +243,7 @@ abstract class SortedSetDVAtomicFieldData {
         @Override
         public long getOrd(int docId) {
             values.setDocument(docId);
-            return 1 + values.nextOrd();
+            return currentOrdinal = 1 + values.nextOrd();
         }
 
         @Override
@@ -289,34 +259,23 @@ abstract class SortedSetDVAtomicFieldData {
         }
 
         @Override
-        public Iter getIter(int docId) {
-            // For now, we consume all ords and pass them to the iter instead of doing it in a streaming way because Lucene's
-            // SORTED_SET doc values are cached per thread, you can't have a fully independent instance
-            iter.reset(getOrds(docId));
-            return iter;
+        public long nextOrd() {
+            assert ordIndex < longScratch.length;
+            return currentOrdinal = longScratch.longs[ordIndex++];
         }
-
-    }
-
-    static class LongsIter implements Ordinals.Docs.Iter {
-
-        private LongsRef ords;
-        private int i;
 
         @Override
-        public long next() {
-            if (i == ords.length) {
-                return 0L;
-            }
-            return ords.longs[i++];
+        public int setDocument(int docId) {
+            // For now, we consume all ords and pass them to the iter instead of doing it in a streaming way because Lucene's
+            // SORTED_SET doc values are cached per thread, you can't have a fully independent instance
+            final LongsRef ords = getOrds(docId);
+            ordIndex = 0;
+            return ords.length;
         }
 
-        public void reset(LongsRef ords) {
-            this.ords = ords;
-            assert ords.offset == 0;
-            i = 0;
+        @Override
+        public long currentOrd() {
+            return currentOrdinal;
         }
-
     }
-
 }

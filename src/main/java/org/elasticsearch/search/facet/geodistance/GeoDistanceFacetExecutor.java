@@ -26,7 +26,6 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.GeoPointValues.Iter;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -106,9 +105,9 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
         }
         
         public void onDoc(int docId, GeoPointValues values) {
-            final Iter iter = values.getIter(docId);
-            while(iter.hasNext()) {
-                final GeoPoint next = iter.next();
+            final int length = values.setDocument(docId);
+            for (int i = 0; i < length; i++) {
+                final GeoPoint next = values.nextValue();
                 double distance = fixedSourceDistance.calculate(next.getLat(), next.getLon());
                 for (GeoDistanceFacet.Entry entry : entries) {
                     if (entry.foundInDoc) {

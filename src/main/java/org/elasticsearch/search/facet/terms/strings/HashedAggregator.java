@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
@@ -44,15 +43,15 @@ public class HashedAggregator {
     }
 
     public void onDoc(int docId, BytesValues values) {
-        if (values.hasValue(docId)) {
-            final Iter iter = values.getIter(docId);
-            while (iter.hasNext()) {
-                onValue(docId, iter.next(), iter.hash(), values);
-                total++;
-            }
-        } else {
-            missing++;
+        final int length = values.setDocument(docId);
+        int pendingMissing = 1;
+        total += length;
+        for (int i = 0; i < length; i++) {
+            final BytesRef value = values.nextValue();
+            onValue(docId, value, values.currentValueHash(), values);
+            pendingMissing = 0;
         }
+        missing += pendingMissing;
     }
 
     public void addValue(BytesRef value, int hashCode, BytesValues values) {
@@ -232,9 +231,7 @@ public class HashedAggregator {
     }
 
     private static final class AssertingHashCount implements HashCount { // simple
-        // implemenation
-        // for
-        // assertions
+        // implementation for assertions
         private final ObjectIntOpenHashMap<HashedBytesRef> valuesAndCount = new ObjectIntOpenHashMap<HashedBytesRef>();
         private HashedBytesRef spare = new HashedBytesRef();
 
@@ -244,7 +241,7 @@ public class HashedAggregator {
             assert adjustedValue >= 1;
             if (adjustedValue == 1) { // only if we added the spare we create a
                 // new instance
-                spare.bytes = values.makeSafe(spare.bytes);
+                spare.bytes = BytesRef.deepCopyOf(value);
                 spare = new HashedBytesRef();
                 return true;
             }
@@ -268,9 +265,8 @@ public class HashedAggregator {
         @Override
         public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
             if (!valuesAndCount.containsKey(spare.reset(value, hashCode))) {
-                valuesAndCount.addTo(spare.reset(value, hashCode), 0);
-                spare.bytes = values.makeSafe(spare.bytes);
-                spare = new HashedBytesRef();
+                valuesAndCount.addTo(spare.reset(BytesRef.deepCopyOf(value), hashCode), 0);
+                spare = new HashedBytesRef(); // reset the reference since we just added to the hash
                 return true;
             }
             return false;

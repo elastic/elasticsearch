@@ -76,7 +76,7 @@ public final class HashedScriptAggregator extends HashedAggregator {
                 script.setNextDocId(docId);
                 // LUCENE 4 UPGRADE: needs optimization -- maybe a CharSequence
                 // does the job here?
-                // we only creat that string if we really need
+                // we only create that string if we really need
                 script.setNextVar("term", spare.toString());
                 Object scriptValue = script.run();
                 if (scriptValue == null) {
@@ -87,8 +87,6 @@ public final class HashedScriptAggregator extends HashedAggregator {
                         return;
                     }
                 } else {
-                    // LUCENE 4 UPGRADE: should be possible to convert directly
-                    // to BR
                     scriptSpare.copyChars(scriptValue.toString());
                     hashCode = scriptSpare.hashCode();
                     super.onValue(docId, scriptSpare, hashCode, values);

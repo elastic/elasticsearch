@@ -24,14 +24,34 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
+ * A state-full lightweight per document set of <code>long</code> values.
+ *
+ * To iterate over values in a document use the following pattern:
+ * <pre>
+ *   LongValues values = ..;
+ *   final int numValues = values.setDocId(docId);
+ *   for (int i = 0; i < numValues; i++) {
+ *       long value = values.nextValue();
+ *       // process value
+ *   }
+ * </pre>
+ *
  */
 public abstract class LongValues {
 
+    /**
+     * An empty {@link LongValues instance}
+     */
     public static final LongValues EMPTY = new Empty();
+
     private final boolean multiValued;
-    protected final Iter.Single iter = new Iter.Single();
 
+    protected int docId;
 
+    /**
+     * Creates a new {@link LongValues} instance
+     * @param multiValued <code>true</code> iff this instance is multivalued. Otherwise <code>false</code>.
+     */
     protected LongValues(boolean multiValued) {
         this.multiValued = multiValued;
     }
@@ -44,12 +64,30 @@ public abstract class LongValues {
     }
 
     /**
-     * Is there a value for this doc?
+     * Returns <code>true</code> if the given document ID has a value in this. Otherwise <code>false</code>.
      */
     public abstract boolean hasValue(int docId);
 
+    /**
+     * Returns a value for the given document id. If the document
+     * has more than one value the returned value is one of the values
+     * associated with the document.
+     * @param docId the documents id.
+     * @return a value for the given document id.
+     */
     public abstract long getValue(int docId);
 
+    /**
+     * Returns a value for the given document id or the given missing value if
+     * {@link #hasValue(int)} returns <code>false</code> ie. the document has no
+     * value associated with it.
+     *
+     * @param docId        the documents id.
+     * @param missingValue the missing value
+     * @return a value for the given document id or the given missing value if
+     *         {@link #hasValue(int)} returns <code>false</code> ie. the document has no
+     *         value associated with it.
+     */
     public long getValueMissing(int docId, long missingValue) {
         if (hasValue(docId)) {
             return getValue(docId);
@@ -57,162 +95,85 @@ public abstract class LongValues {
         return missingValue;
     }
 
-    public Iter getIter(int docId) {
-        assert !isMultiValued();
-        if (hasValue(docId)) {
-            return iter.reset(getValue(docId));
-        } else {
-            return Iter.Empty.INSTANCE;
-        }
+    /**
+     * Sets iteration to the specified docID and returns the number of
+     * values for this document ID,
+     * @param docId document ID
+     *
+     * @see #nextValue()
+     */
+    public int setDocument(int docId) {
+        this.docId = docId;
+        return hasValue(docId) ?  1 : 0;
     }
 
-
-    public static abstract class Dense extends LongValues {
-
-
-        protected Dense(boolean multiValued) {
-            super(multiValued);
-        }
-
-        @Override
-        public final boolean hasValue(int docId) {
-            return true;
-        }
-
-        public final long getValueMissing(int docId, long missingValue) {
-            assert hasValue(docId);
-            assert !isMultiValued();
-            return getValue(docId);
-        }
-
-        public final Iter getIter(int docId) {
-            assert hasValue(docId);
-            assert !isMultiValued();
-            return iter.reset(getValue(docId));
-        }
-
+    /**
+     * Returns the next value for the current docID set to {@link #setDocument(int)}.
+     * This method should only be called <tt>N</tt> times where <tt>N</tt> is the number
+     * returned from {@link #setDocument(int)}. If called more than <tt>N</tt> times the behavior
+     * is undefined.
+     *
+     * @return the next value for the current docID set to {@link #setDocument(int)}.
+     */
+    public long nextValue() {
+        return getValue(docId);
     }
 
+    /**
+     * Ordinal based {@link LongValues}.
+     */
     public static abstract class WithOrdinals extends LongValues {
 
         protected final Docs ordinals;
-        private final Iter.Multi iter;
 
         protected WithOrdinals(Ordinals.Docs ordinals) {
             super(ordinals.isMultiValued());
             this.ordinals = ordinals;
-            iter = new Iter.Multi(this);
         }
 
+        /**
+         * Returns the associated ordinals instance.
+         * @return the associated ordinals instance.
+         */
         public Docs ordinals() {
             return this.ordinals;
         }
 
+        /**
+         * Returns the value for the given ordinal.
+         * @param ord the ordinal to lookup.
+         * @return a long value associated with the given ordinal.
+         */
+        public abstract long getValueByOrd(long ord);
+
         @Override
         public final boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
+            return ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL;
         }
 
         @Override
         public final long getValue(int docId) {
-            return getValueByOrd(ordinals.getOrd(docId));
-        }
-
-        public abstract long getValueByOrd(long ord);
-
-        @Override
-        public final Iter getIter(int docId) {
-            return iter.reset(ordinals.getIter(docId));
+            long ord = ordinals.getOrd(docId);
+            if (ord == Ordinals.MISSING_ORDINAL) {
+                return 0l;
+            }
+            return getValueByOrd(ord);
         }
 
         @Override
-        public final long getValueMissing(int docId, long missingValue) {
-            final long ord = ordinals.getOrd(docId);
-            if (ord == 0) {
-                return missingValue;
-            } else {
-                return getValueByOrd(ord);
-            }
+        public int setDocument(int docId) {
+            this.docId = docId;
+            return ordinals.setDocument(docId);
         }
 
-    }
-
-    public static interface Iter {
-
-        boolean hasNext();
-
-        long next();
-
-        public static class Empty implements Iter {
-
-            public static final Empty INSTANCE = new Empty();
-
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public long next() {
-                throw new ElasticSearchIllegalStateException();
-            }
-        }
-
-        static class Single implements Iter {
-
-            public long value;
-            public boolean done;
-
-            public Single reset(long value) {
-                this.value = value;
-                this.done = false;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return !done;
-            }
-
-            @Override
-            public long next() {
-                assert !done;
-                done = true;
-                return value;
-            }
-        }
-
-        static class Multi implements Iter {
-
-            private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
-            private long ord;
-            private WithOrdinals values;
-
-            public Multi(WithOrdinals values) {
-                this.values = values;
-            }
-
-            public Multi reset(Ordinals.Docs.Iter ordsIter) {
-                this.ordsIter = ordsIter;
-                this.ord = ordsIter.next();
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return ord != 0;
-            }
-
-            @Override
-            public long next() {
-                long value = values.getValueByOrd(ord);
-                ord = ordsIter.next();
-                return value;
-            }
+        @Override
+        public long nextValue() {
+            return getValueByOrd(ordinals.nextOrd());
         }
     }
 
-    static class Empty extends LongValues {
+  
+    private static final class Empty extends LongValues {
 
         public Empty() {
             super(false);
@@ -228,34 +189,16 @@ public abstract class LongValues {
             // conforms with all other impls when there is no value
             return 0;
         }
-
+        
         @Override
-        public Iter getIter(int docId) {
-            return Iter.Empty.INSTANCE;
+        public int setDocument(int docId) {
+            return 0;
+        }
+        
+        @Override
+        public long nextValue() {
+            throw new ElasticSearchIllegalStateException("Empty LongValues has no next value");
         }
 
     }
-
-    public static class Filtered extends LongValues {
-
-        protected final LongValues delegate;
-
-        public Filtered(LongValues delegate) {
-            super(delegate.isMultiValued());
-            this.delegate = delegate;
-        }
-
-        public boolean hasValue(int docId) {
-            return delegate.hasValue(docId);
-        }
-
-        public long getValue(int docId) {
-            return delegate.getValue(docId);
-        }
-
-        public Iter getIter(int docId) {
-            return delegate.getIter(docId);
-        }
-    }
-
 }

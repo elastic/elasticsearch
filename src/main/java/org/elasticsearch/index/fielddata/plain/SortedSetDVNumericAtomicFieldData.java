@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldData implements AtomicNumericFieldData {
 
@@ -53,9 +54,7 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
         return new LongValues.WithOrdinals(values.ordinals()) {
             @Override
             public long getValueByOrd(long ord) {
-                if (ord == 0L) {
-                    return 0L;
-                }
+                assert ord != Ordinals.MISSING_ORDINAL;
                 return numericType.toLong(values.getValueByOrd(ord));
             }
         };
@@ -67,9 +66,7 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
         return new DoubleValues.WithOrdinals(values.ordinals()) {
             @Override
             public double getValueByOrd(long ord) {
-                if (ord == 0L) {
-                    return 0d;
-                }
+                assert ord != Ordinals.MISSING_ORDINAL;
                 return numericType.toDouble(values.getValueByOrd(ord));
             }
         };
@@ -79,52 +76,23 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
     public BytesValues.WithOrdinals getBytesValues() {
         final BytesValues.WithOrdinals values = super.getBytesValues();
         return new BytesValues.WithOrdinals(values.ordinals()) {
-
-            BytesRef spare = new BytesRef(16);
-            Iter inIter;
-            Iter iter = new Iter() {
-
-                BytesRef current = null;
-
-                @Override
-                public boolean hasNext() {
-                    return inIter.hasNext();
-                }
-
-                @Override
-                public BytesRef next() {
-                    return current = convert(inIter.next());
-                }
-
-                @Override
-                public int hash() {
-                    return current.hashCode();
-                }
-
-            };
-
-            private BytesRef convert(BytesRef spare) {
-                if (spare.length == 0) {
-                    return spare;
+            final BytesRef spare = new BytesRef(16);
+            private BytesRef convert(BytesRef input, BytesRef output) {
+                if (input.length == 0) {
+                    return input;
                 }
                 if (numericType.isFloatingPoint()) {
-                    return new BytesRef(Double.toString(numericType.toDouble(spare)));
+                    output.copyChars(Double.toString(numericType.toDouble(input)));
                 } else {
-                    return new BytesRef(Long.toString(numericType.toLong(spare)));
+                    output.copyChars(Long.toString(numericType.toLong(input)));
                 }
+                return output;
             }
 
             @Override
-            public BytesRef getValueScratchByOrd(long ord, BytesRef ret) {
-                return convert(values.getValueScratchByOrd(ord, spare));
+            public BytesRef getValueByOrd(long ord) {
+                return convert(values.getValueByOrd(ord), scratch);
             }
-
-            @Override
-            public Iter getIter(int docId) {
-                inIter = values.getIter(docId);
-                return iter;
-            }
-
         };
     }
 

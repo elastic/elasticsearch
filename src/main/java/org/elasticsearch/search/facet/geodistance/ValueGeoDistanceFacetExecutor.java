@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -28,6 +26,8 @@ import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -73,9 +73,9 @@ public class ValueGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
         protected void collectGeoPoint(GeoDistanceFacet.Entry entry, int docId, double distance) {
             entry.foundInDoc = true;
             entry.count++;
-            DoubleValues.Iter iter = valueValues.getIter(docId);
-            while(iter.hasNext()) {
-                double value = iter.next();
+            int seek = valueValues.setDocument(docId);
+            for (int i = 0; i < seek; i++) {
+                double value = valueValues.nextValue();
                 entry.totalCount++;
                 entry.total += value;
                 if (value < entry.min) {

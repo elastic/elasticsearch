@@ -31,10 +31,6 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
         this.isFloat = isFloat;
     }
 
-    public abstract LongValues getLongValues();
-
-    public abstract DoubleValues getDoubleValues();
-
 
     @Override
     public ScriptDocValues getScriptValues() {
@@ -50,45 +46,31 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
         if (isFloat) {
             final DoubleValues values = getDoubleValues();
             return new BytesValues(values.isMultiValued()) {
-
                 @Override
                 public boolean hasValue(int docId) {
                     return values.hasValue(docId);
                 }
 
                 @Override
-                public BytesRef getValueScratch(int docId, BytesRef ret) {
+                public BytesRef getValue(int docId) {
                     if (values.hasValue(docId)) {
-                        ret.copyChars(Double.toString(values.getValue(docId)));
+                        scratch.copyChars(Double.toString(values.getValue(docId)));
                     } else {
-                        ret.length = 0;
+                        scratch.length = 0;
                     }
-                    return ret;
+                    return scratch;
+                }
+                
+                @Override
+                public int setDocument(int docId) {
+                    this.docId = docId;
+                    return values.setDocument(docId);
                 }
 
                 @Override
-                public Iter getIter(int docId) {
-                    final DoubleValues.Iter iter = values.getIter(docId);
-                    return new BytesValues.Iter() {
-                        private final BytesRef spare = new BytesRef();
-
-                        @Override
-                        public boolean hasNext() {
-                            return iter.hasNext();
-                        }
-
-                        @Override
-                        public BytesRef next() {
-                            spare.copyChars(Double.toString(iter.next()));
-                            return spare;
-                        }
-
-                        @Override
-                        public int hash() {
-                            return spare.hashCode();
-                        }
-
-                    };
+                public BytesRef nextValue() {
+                    scratch.copyChars(Double.toString(values.nextValue()));
+                    return scratch;
                 }
             };
         } else {
@@ -101,38 +83,25 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
                 }
 
                 @Override
-                public BytesRef getValueScratch(int docId, BytesRef ret) {
+                public BytesRef getValue(int docId) {
                     if (values.hasValue(docId)) {
-                        ret.copyChars(Long.toString(values.getValue(docId)));
+                        scratch.copyChars(Long.toString(values.getValue(docId)));
                     } else {
-                        ret.length = 0;
+                        scratch.length = 0;
                     }
-                    return ret;
+                    return scratch;
                 }
 
                 @Override
-                public Iter getIter(int docId) {
-                    final LongValues.Iter iter = values.getIter(docId);
-                    return new BytesValues.Iter() {
-                        private final BytesRef spare = new BytesRef();
+                public int setDocument(int docId) {
+                    this.docId = docId;
+                    return values.setDocument(docId);
+                }
 
-                        @Override
-                        public boolean hasNext() {
-                            return iter.hasNext();
-                        }
-
-                        @Override
-                        public BytesRef next() {
-                            spare.copyChars(Long.toString(iter.next()));
-                            return spare;
-                        }
-
-                        @Override
-                        public int hash() {
-                            return spare.hashCode();
-                        }
-
-                    };
+                @Override
+                public BytesRef nextValue() {
+                    scratch.copyChars(Long.toString(values.nextValue()));
+                    return scratch;
                 }
             };
         }
@@ -142,5 +111,4 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
     public BytesValues getHashedBytesValues() {
         return getBytesValues();
     }
-
 }

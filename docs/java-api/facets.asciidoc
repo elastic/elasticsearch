@@ -62,7 +62,7 @@ import org.elasticsearch.search.facet.terms.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-TermsFacet f = (TermsFacet) sr.facets().facetsAsMap().get("f");
+TermsFacet f = (TermsFacet) sr.getFacets().facetsAsMap().get("f");
 
 f.getTotalCount();      // Total terms doc count
 f.getOtherCount();      // Not shown terms doc count
@@ -110,7 +110,7 @@ import org.elasticsearch.search.facet.range.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-RangeFacet f = (RangeFacet) sr.facets().facetsAsMap().get("f");
+RangeFacet f = (RangeFacet) sr.getFacets().facetsAsMap().get("f");
 
 // For each entry
 for (RangeFacet.Entry entry : f) {
@@ -157,7 +157,7 @@ import org.elasticsearch.search.facet.histogram.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-HistogramFacet f = (HistogramFacet) sr.facets().facetsAsMap().get("f");
+HistogramFacet f = (HistogramFacet) sr.getFacets().facetsAsMap().get("f");
 
 // For each entry
 for (HistogramFacet.Entry entry : f) {
@@ -200,7 +200,7 @@ import org.elasticsearch.search.facet.datehistogram.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-DateHistogramFacet f = (DateHistogramFacet) sr.facets().facetsAsMap().get("f");
+DateHistogramFacet f = (DateHistogramFacet) sr.getFacets().facetsAsMap().get("f");
 
 // For each entry
 for (DateHistogramFacet.Entry entry : f) {
@@ -247,7 +247,7 @@ import org.elasticsearch.search.facet.filter.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-FilterFacet f = (FilterFacet) sr.facets().facetsAsMap().get("f");
+FilterFacet f = (FilterFacet) sr.getFacets().facetsAsMap().get("f");
 
 f.getCount();   // Number of docs that matched
 --------------------------------------------------
@@ -284,7 +284,7 @@ import org.elasticsearch.search.facet.query.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-QueryFacet f = (QueryFacet) sr.facets().facetsAsMap().get("f");
+QueryFacet f = (QueryFacet) sr.getFacets().facetsAsMap().get("f");
 
 f.getCount();   // Number of docs that matched
 --------------------------------------------------
@@ -324,7 +324,7 @@ import org.elasticsearch.search.facet.statistical.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-StatisticalFacet f = (StatisticalFacet) sr.facets().facetsAsMap().get("f");
+StatisticalFacet f = (StatisticalFacet) sr.getFacets().facetsAsMap().get("f");
 
 f.getCount();           // Doc count
 f.getMin();             // Min value
@@ -369,7 +369,7 @@ import org.elasticsearch.search.facet.termsstats.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-TermsStatsFacet f = (TermsStatsFacet) sr.facets().facetsAsMap().get("f");
+TermsStatsFacet f = (TermsStatsFacet) sr.getFacets().facetsAsMap().get("f");
 f.getTotalCount();      // Total terms doc count
 f.getOtherCount();      // Not shown terms doc count
 f.getMissingCount();    // Without term doc count
@@ -423,7 +423,7 @@ import org.elasticsearch.search.facet.geodistance.*;
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-GeoDistanceFacet f = (GeoDistanceFacet) sr.facets().facetsAsMap().get("f");
+GeoDistanceFacet f = (GeoDistanceFacet) sr.getFacets().facetsAsMap().get("f");
 
 // For each entry
 for (GeoDistanceFacet.Entry entry : f) {

@@ -80,6 +80,9 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/cu
 
 * https://github.com/printercu/elastics[elastics]: Simple tiny client that just works
 
+* https://github.com/roundscope/ember-data-elasticsearch-kit[ember-data-elasticsearch-kit]:
+  An ember-data kit for both pushing and querying objects to ElasticSearch cluster
+
 
 [[community-dotnet]]
 === .Net

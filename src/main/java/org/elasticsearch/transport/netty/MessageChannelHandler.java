@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
@@ -249,7 +250,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    class RequestHandler implements Runnable {
+    class RequestHandler extends AbstractRunnable {
         private final TransportRequestHandler handler;
         private final TransportRequest request;
         private final NettyTransportChannel transportChannel;
@@ -278,6 +279,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     }
                 }
             }
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return handler.isForceExecution();
         }
     }
 }

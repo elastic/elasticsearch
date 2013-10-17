@@ -29,4 +29,9 @@ public interface TransportRequestHandler<T extends TransportRequest> {
     void messageReceived(T request, TransportChannel channel) throws Exception;
 
     String executor();
+
+    /**
+     * See {@link org.elasticsearch.common.util.concurrent.AbstractRunnable#isForceExecution()}.
+     */
+    boolean isForceExecution();
 }

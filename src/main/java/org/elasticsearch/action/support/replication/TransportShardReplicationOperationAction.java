@@ -234,6 +234,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return executor;
         }
 
+        // we must never reject on because of thread pool capacity on replicas
+        @Override
+        public boolean isForceExecution() {
+            return true;
+        }
+
         @Override
         public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
             shardOperationOnReplica(request);

@@ -56,7 +56,7 @@ curl -X POST "http://localhost:9200/articles/_search?pretty=true" -d '
 '
 --------------------------------------------------
 
-This request will return articles `Two` and `Three (because
+This request will return articles `Two` and `Three` (because
 they match our query), as well as the `tags` facet:
 
 [source,js]

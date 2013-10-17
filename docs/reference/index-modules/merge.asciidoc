@@ -211,5 +211,5 @@ to perform the merge operation. Defaults to
 ==== SerialMergeScheduler
 
 A merge scheduler that simply does each merge sequentially using the
-calling thread (blocking the operations that triggered the merge, the
+calling thread (blocking the operations that triggered the merge or the
 index operation).

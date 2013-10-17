@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.*;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
@@ -186,7 +188,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return this.threadPool;
     }
 
-   protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
+    protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
         try {
             transportServiceAdapter.received(data.length);
             StreamInput stream = new BytesStreamInput(data, false);
@@ -232,7 +234,35 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             }
             final TransportRequest request = handler.newInstance();
             request.readFrom(stream);
-            handler.messageReceived(request, transportChannel);
+            if (handler.executor() == ThreadPool.Names.SAME) {
+                //noinspection unchecked
+                handler.messageReceived(request, transportChannel);
+            } else {
+                threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            //noinspection unchecked
+                            handler.messageReceived(request, transportChannel);
+                        } catch (Throwable e) {
+                            if (lifecycleState() == Lifecycle.State.STARTED) {
+                                // we can only send a response transport is started....
+                                try {
+                                    transportChannel.sendResponse(e);
+                                } catch (Throwable e1) {
+                                    logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                                    logger.warn("Actual Exception", e);
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return handler.isForceExecution();
+                    }
+                });
+            }
         } catch (Throwable e) {
             try {
                 transportChannel.sendResponse(e);
@@ -254,7 +284,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
         handleParsedRespone(response, handler);
     }
-    
+
     protected void handleParsedRespone(final TransportResponse response, final TransportResponseHandler handler) {
         threadPool.executor(handler.executor()).execute(new Runnable() {
             @SuppressWarnings({"unchecked"})

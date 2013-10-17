@@ -99,7 +99,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         void onFailure(Throwable e);
     }
 
-    class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
+    class AllocateDangledRequestHandler extends BaseTransportRequestHandler<AllocateDangledRequest> {
 
         public static final String ACTION = "/gateway/local/allocate_dangled";
 

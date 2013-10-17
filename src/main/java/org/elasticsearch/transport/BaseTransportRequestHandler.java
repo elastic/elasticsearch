@@ -24,4 +24,11 @@ package org.elasticsearch.transport;
  */
 public abstract class BaseTransportRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
+    /**
+     * Default force execution to false.
+     */
+    @Override
+    public boolean isForceExecution() {
+        return false;
+    }
 }

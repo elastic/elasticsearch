@@ -193,9 +193,9 @@ supported, with the default being the `ConcurrentMergeScheduler`.
 ==== ConcurrentMergeScheduler
 
 A merge scheduler that runs merges using a separated thread, until the
-maximum number of threads at which when a merge is needed, the thread(s)
+maximum number of threads is reached, at which, when a merge is needed, the thread(s)
 that are updating the index will pause until one or more merges
-completes.
+complete(s).
 
 The scheduler supports the following settings:
 

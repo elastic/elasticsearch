@@ -27,14 +27,14 @@ required. If the field in question is stored (has `store` set to `yes`
 in the mapping), it will be used, otherwise, the actual `_source` will
 be loaded and the relevant field will be extracted from it.
 
-If `term_vector` information is provided by setting `term_vector` to 
-`with_positions_offsets` in the mapping then the fast vector 
+If `term_vector` information is provided by setting `term_vector` to
+`with_positions_offsets` in the mapping then the fast vector
 highlighter will be used instead of the plain highlighter.  The fast vector highlighter:
 
 * Is faster especially for large fields (> `1MB`)
-* Can be customized with `boundary_chars`, `boundary_max_scan`, and 
+* Can be customized with `boundary_chars`, `boundary_max_scan`, and
  `fragment_offset` (see below)
-* Requires setting `term_vector` to `with_positions_offsets` which 
+* Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
 
 Here is an example of setting the `content` field to allow for
@@ -142,6 +142,30 @@ order by score:
 }
 --------------------------------------------------
 
+If the `number_of_fragments` value is set to 0 then no fragments are
+produced, instead the whole content of the field is returned, and of
+course it is highlighted. This can be very handy if short texts (like
+document title or address) need to be highlighted but no fragmentation
+is required. Note that `fragment_size` is ignored in this case.
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "fields" : {
+            "_all" : {},
+            "bio.title" : {"number_of_fragments" : 0}
+        }
+    }
+}
+--------------------------------------------------
+
+When using `fast-vector-highlighter` one can use `fragment_offset`
+parameter to control the margin to start highlighting from.
+
+==== Highlight query
+
 It is also possible to highlight against a query other than the search
 query by setting `highlight_query`.  This is especially useful if you
 use a rescore query because those are not taken into account by
@@ -212,28 +236,6 @@ query and the rescore query in `highlight_query`.
 Note the score of text fragment in this case is calculated by Lucene
 highlighting framework. For implementation details you can check
 `ScoreOrderFragmentsBuilder.java` class.
-
-If the `number_of_fragments` value is set to 0 then no fragments are
-produced, instead the whole content of the field is returned, and of
-course it is highlighted. This can be very handy if short texts (like
-document title or address) need to be highlighted but no fragmentation
-is required. Note that `fragment_size` is ignored in this case.
-
-[source,js]
---------------------------------------------------
-{
-    "query" : {...},
-    "highlight" : {
-        "fields" : {
-            "_all" : {},
-            "bio.title" : {"number_of_fragments" : 0}
-        }
-    }
-}
---------------------------------------------------
-
-When using `fast-vector-highlighter` one can use `fragment_offset`
-parameter to control the margin to start highlighting from.
 
 [[highlighting-settings]]
 ==== Global Settings

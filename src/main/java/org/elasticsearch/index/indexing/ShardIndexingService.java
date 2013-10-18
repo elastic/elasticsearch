@@ -123,11 +123,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postCreate(Engine.Create create) {
         long took = create.endTime() - create.startTime();
+        long now = System.currentTimeMillis();
         totalStats.indexMetric.inc(took);
         totalStats.indexCurrent.dec();
+        totalStats.indexLastTimestamp = now;
         StatsHolder typeStats = typeStats(create.type());
         typeStats.indexMetric.inc(took);
         typeStats.indexCurrent.dec();
+        typeStats.indexLastTimestamp = now;
         slowLog.postCreate(create, took);
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
@@ -165,11 +168,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postIndex(Engine.Index index) {
         long took = index.endTime() - index.startTime();
+        long now = System.currentTimeMillis();
         totalStats.indexMetric.inc(took);
         totalStats.indexCurrent.dec();
+        totalStats.indexLastTimestamp = now;
         StatsHolder typeStats = typeStats(index.type());
         typeStats.indexMetric.inc(took);
         typeStats.indexCurrent.dec();
+        typeStats.indexLastTimestamp = now;
         slowLog.postIndex(index, took);
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
@@ -214,9 +220,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         long took = delete.endTime() - delete.startTime();
         totalStats.deleteMetric.inc(took);
         totalStats.deleteCurrent.dec();
+        totalStats.deleteLastTimestamp = delete.endTime();
         StatsHolder typeStats = typeStats(delete.type());
         typeStats.deleteMetric.inc(took);
         typeStats.deleteCurrent.dec();
+        typeStats.deleteLastTimestamp = delete.endTime();
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 try {
@@ -285,11 +293,13 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final MeanMetric deleteMetric = new MeanMetric();
         public final CounterMetric indexCurrent = new CounterMetric();
         public final CounterMetric deleteCurrent = new CounterMetric();
+        public long indexLastTimestamp = 0;
+        public long deleteLastTimestamp = 0;
 
         public IndexingStats.Stats stats() {
             return new IndexingStats.Stats(
-                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
-                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count());
+                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexLastTimestamp, 
+                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(), deleteLastTimestamp);
         }
 
         public long totalCurrent() {
@@ -302,3 +312,4 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 }
+

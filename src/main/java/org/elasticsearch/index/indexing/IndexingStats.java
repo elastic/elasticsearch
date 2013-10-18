@@ -40,33 +40,38 @@ public class IndexingStats implements Streamable, ToXContent {
 
         private long indexCount;
         private long indexTimeInMillis;
+        private long indexLastTimestamp;
         private long indexCurrent;
 
         private long deleteCount;
         private long deleteTimeInMillis;
+        private long deleteLastTimestamp;
         private long deleteCurrent;
 
         Stats() {
 
         }
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long deleteCount, long deleteTimeInMillis, long deleteCurrent) {
+        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexLastTime, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long deleteLastTime) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
+            this.indexLastTimestamp = indexLastTime;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
+            this.deleteLastTimestamp = deleteLastTime;
         }
 
         public void add(Stats stats) {
             indexCount += stats.indexCount;
             indexTimeInMillis += stats.indexTimeInMillis;
             indexCurrent += stats.indexCurrent;
-
+            indexLastTimestamp = stats.indexLastTimestamp;
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
             deleteCurrent += stats.deleteCurrent;
+            deleteLastTimestamp = stats.deleteLastTimestamp;
         }
 
         public long getIndexCount() {
@@ -81,6 +86,14 @@ public class IndexingStats implements Streamable, ToXContent {
             return indexTimeInMillis;
         }
 
+        public TimeValue getLastIndexTime() {
+            return new TimeValue(indexLastTimestamp); 
+        }
+
+        public long getIndexLastTimestamp() {
+            return indexLastTimestamp;
+        }
+        
         public long getIndexCurrent() {
             return indexCurrent;
         }
@@ -89,6 +102,14 @@ public class IndexingStats implements Streamable, ToXContent {
             return deleteCount;
         }
 
+        public TimeValue getDeleteLastTime() {
+            return new TimeValue(deleteLastTimestamp);
+        }
+        
+        public long getLastDeleteTimestamp() {
+            return deleteLastTimestamp;
+        }        
+        
         public TimeValue getDeleteTime() {
             return new TimeValue(deleteTimeInMillis);
         }
@@ -112,10 +133,12 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
-
+            //indexLastTimestamp = in.readVLong();
+            
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
+            //deleteLastTimestamp = in.readVLong();
         }
 
         @Override
@@ -123,10 +146,12 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
+            //out.writeVLong(indexLastTimestamp); 
 
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
+            //out.writeVLong(deleteLastTimestamp);
         }
 
         @Override
@@ -134,10 +159,12 @@ public class IndexingStats implements Streamable, ToXContent {
             builder.field(Fields.INDEX_TOTAL, indexCount);
             builder.timeValueField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, indexTimeInMillis);
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
+            builder.field(Fields.INDEX_LAST_TIME_IN_MILLIS, indexLastTimestamp);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
+            builder.field(Fields.DELETE_LAST_TIME_IN_MILLIS, deleteLastTimestamp);
 
             return builder;
         }
@@ -213,11 +240,13 @@ public class IndexingStats implements Streamable, ToXContent {
         static final XContentBuilderString INDEX_TOTAL = new XContentBuilderString("index_total");
         static final XContentBuilderString INDEX_TIME = new XContentBuilderString("index_time");
         static final XContentBuilderString INDEX_TIME_IN_MILLIS = new XContentBuilderString("index_time_in_millis");
+        static final XContentBuilderString INDEX_LAST_TIME_IN_MILLIS = new XContentBuilderString("last_index_timestamp");
         static final XContentBuilderString INDEX_CURRENT = new XContentBuilderString("index_current");
         static final XContentBuilderString DELETE_TOTAL = new XContentBuilderString("delete_total");
         static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
         static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");
         static final XContentBuilderString DELETE_CURRENT = new XContentBuilderString("delete_current");
+        static final XContentBuilderString DELETE_LAST_TIME_IN_MILLIS = new XContentBuilderString("last_delete_timestamp");
     }
 
     public static IndexingStats readIndexingStats(StreamInput in) throws IOException {
@@ -253,3 +282,4 @@ public class IndexingStats implements Streamable, ToXContent {
         }
     }
 }
+

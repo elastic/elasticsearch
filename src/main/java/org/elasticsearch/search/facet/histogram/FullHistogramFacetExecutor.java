@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -41,16 +41,16 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
 
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
-    final long interval;
+    final double interval;
 
-    final Recycler.V<LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
+    final Recycler.V<DoubleObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
-    public FullHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public FullHistogramFacetExecutor(IndexNumericFieldData indexFieldData, double interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
 
-        this.entries = context.cacheRecycler().longObjectMap(-1);
+        this.entries = context.cacheRecycler().doubleObjectMap(-1);
     }
 
     @Override
@@ -72,7 +72,7 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
         return new InternalFullHistogramFacet(facetName, comparatorType, fullEntries);
     }
 
-    public static long bucket(double value, long interval) {
+    public static double bucket(double value, double interval) {
         return (((long) (value / interval)) * interval);
     }
 
@@ -102,17 +102,17 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
 
     public final static class HistogramProc extends DoubleFacetAggregatorBase {
 
-        final long interval;
-        final LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries;
+        final double interval;
+        final DoubleObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-        public HistogramProc(long interval, LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries) {
+        public HistogramProc(double interval, DoubleObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries) {
             this.interval = interval;
             this.entries = entries;
         }
 
         @Override
         public void onValue(int docId, double value) {
-            long bucket = bucket(value, interval);
+            double bucket = bucket(value, interval);
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
             if (entry == null) {
                 entry = new InternalFullHistogramFacet.FullEntry(bucket, 1, value, value, 1, value);

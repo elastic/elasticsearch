@@ -68,7 +68,7 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         String valueScript = null;
         String scriptLang = null;
         Map<String, Object> params = null;
-        long interval = 0;
+        double interval = 0;
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
         XContentParser.Token token;
         String fieldName = null;
@@ -87,7 +87,7 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
                 } else if ("value_field".equals(fieldName) || "valueField".equals(fieldName)) {
                     valueField = parser.text();
                 } else if ("interval".equals(fieldName)) {
-                    interval = parser.longValue();
+                    interval = parser.doubleValue();
                 } else if ("time_interval".equals(fieldName) || "timeInterval".equals(fieldName)) {
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
                 } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {

@@ -37,6 +37,7 @@ public class CacheRecycler extends AbstractComponent {
     public final Recycler<DoubleObjectOpenHashMap> doubleObjectMap;
     public final Recycler<LongObjectOpenHashMap> longObjectMap;
     public final Recycler<LongLongOpenHashMap> longLongMap;
+    public final Recycler<DoubleLongOpenHashMap> doubleLongMap;
     public final Recycler<IntIntOpenHashMap> intIntMap;
     public final Recycler<FloatIntOpenHashMap> floatIntMap;
     public final Recycler<DoubleIntOpenHashMap> doubleIntMap;
@@ -51,6 +52,7 @@ public class CacheRecycler extends AbstractComponent {
         doubleObjectMap.close();
         longObjectMap.close();
         longLongMap.close();
+        doubleLongMap.close();
         intIntMap.close();
         floatIntMap.close();
         doubleIntMap.close();
@@ -119,6 +121,17 @@ public class CacheRecycler extends AbstractComponent {
 
             @Override
             public void clear(LongLongOpenHashMap value) {
+                value.clear();
+            }
+        });
+        doubleLongMap = build(type, limit, smartSize, new Recycler.C<DoubleLongOpenHashMap>() {
+            @Override
+            public DoubleLongOpenHashMap newInstance(int sizing) {
+                return new DoubleLongOpenHashMap(size(sizing));
+            }
+
+            @Override
+            public void clear(DoubleLongOpenHashMap value) {
                 value.clear();
             }
         });
@@ -219,6 +232,10 @@ public class CacheRecycler extends AbstractComponent {
 
     public Recycler.V<LongLongOpenHashMap> longLongMap(int sizing) {
         return longLongMap.obtain(sizing);
+    }
+
+    public Recycler.V<DoubleLongOpenHashMap> doubleLongMap(int sizing) {
+        return doubleLongMap.obtain(sizing);
     }
 
     public Recycler.V<IntIntOpenHashMap> intIntMap(int sizing) {

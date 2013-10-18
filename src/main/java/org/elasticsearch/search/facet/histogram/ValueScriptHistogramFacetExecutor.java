@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
@@ -45,17 +45,17 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
     final SearchScript valueScript;
-    final long interval;
+    final double interval;
 
-    final Recycler.V<LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
+    final Recycler.V<DoubleObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
-    public ValueScriptHistogramFacetExecutor(IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueScriptHistogramFacetExecutor(IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, double interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
 
-        this.entries = context.cacheRecycler().longObjectMap(-1);
+        this.entries = context.cacheRecycler().doubleObjectMap(-1);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
         return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
     }
 
-    public static long bucket(double value, long interval) {
+    public static double bucket(double value, double interval) {
         return (((long) (value / interval)) * interval);
     }
 
@@ -115,13 +115,13 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
 
     public static class HistogramProc extends DoubleFacetAggregatorBase {
 
-        private final long interval;
+        private final double interval;
 
         private final SearchScript valueScript;
 
-        final LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries;
+        final DoubleObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries;
 
-        public HistogramProc(long interval, SearchScript valueScript, LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries) {
+        public HistogramProc(double interval, SearchScript valueScript, DoubleObjectOpenHashMap<InternalFullHistogramFacet.FullEntry> entries) {
             this.interval = interval;
             this.valueScript = valueScript;
             this.entries = entries;
@@ -130,7 +130,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
         @Override
         public void onValue(int docId, double value) {
             valueScript.setNextDocId(docId);
-            long bucket = bucket(value, interval);
+            double bucket = bucket(value, interval);
             double scriptValue = valueScript.runAsDouble();
 
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
+import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -62,14 +62,14 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
     public static class FullEntry implements Entry {
-        long key;
+        double key;
         long count;
         long totalCount;
         double total;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
 
-        public FullEntry(long key, long count, double min, double max, long totalCount, double total) {
+        public FullEntry(double key, long count, double min, double max, long totalCount, double total) {
             this.key = key;
             this.count = count;
             this.min = min;
@@ -79,7 +79,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         }
 
         @Override
-        public long getKey() {
+        public double getKey() {
             return key;
         }
 
@@ -151,7 +151,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             return internalFacet;
         }
 
-        Recycler.V<LongObjectOpenHashMap<FullEntry>> map = context.cacheRecycler().longObjectMap(-1);
+        Recycler.V<DoubleObjectOpenHashMap<FullEntry>> map = context.cacheRecycler().doubleObjectMap(-1);
 
         for (Facet facet : facets) {
             InternalFullHistogramFacet histoFacet = (InternalFullHistogramFacet) facet;
@@ -241,7 +241,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         int size = in.readVInt();
         entries = new ArrayList<FullEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new FullEntry(in.readLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble()));
+            entries.add(new FullEntry(in.readDouble(), in.readVLong(), in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble()));
         }
     }
 
@@ -251,7 +251,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.size());
         for (FullEntry entry : entries) {
-            out.writeLong(entry.key);
+            out.writeDouble(entry.key);
             out.writeVLong(entry.count);
             out.writeDouble(entry.min);
             out.writeDouble(entry.max);

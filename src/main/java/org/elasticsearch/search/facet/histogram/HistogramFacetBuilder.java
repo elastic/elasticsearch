@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class HistogramFacetBuilder extends FacetBuilder {
     private String keyFieldName;
     private String valueFieldName;
-    private long interval = -1;
+    private double interval = -1;
     private HistogramFacet.ComparatorType comparatorType;
 
     /**
@@ -76,7 +76,7 @@ public class HistogramFacetBuilder extends FacetBuilder {
     /**
      * The interval used to control the bucket "size" where each key value of a hit will fall into.
      */
-    public HistogramFacetBuilder interval(long interval) {
+    public HistogramFacetBuilder interval(double interval) {
         this.interval = interval;
         return this;
     }

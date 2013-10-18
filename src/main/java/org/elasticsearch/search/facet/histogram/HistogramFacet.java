@@ -145,7 +145,7 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
         /**
          * The key value of the histogram.
          */
-        long getKey();
+        double getKey();
 
         /**
          * The number of hits that fall within that key "range" or "interval".

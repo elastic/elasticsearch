@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import com.carrotsearch.hppc.LongLongOpenHashMap;
+import com.carrotsearch.hppc.DoubleLongOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -39,16 +39,16 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
 
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
-    final long interval;
+    final double interval;
 
-    final Recycler.V<LongLongOpenHashMap> counts;
+    final Recycler.V<DoubleLongOpenHashMap> counts;
 
-    public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, double interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
 
-        this.counts = context.cacheRecycler().longLongMap(-1);
+        this.counts = context.cacheRecycler().doubleLongMap(-1);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
     public InternalFacet buildFacet(String facetName) {
         InternalCountHistogramFacet.CountEntry[] entries = new InternalCountHistogramFacet.CountEntry[counts.v().size()];
         final boolean[] states = counts.v().allocated;
-        final long[] keys = counts.v().keys;
+        final double[] keys = counts.v().keys;
         final long[] values = counts.v().values;
         int entryIndex = 0;
         for (int i = 0; i < states.length; i++) {
@@ -72,7 +72,7 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
         return new InternalCountHistogramFacet(facetName, comparatorType, entries);
     }
 
-    public static long bucket(double value, long interval) {
+    public static double bucket(double value, double interval) {
         return (((long) (value / interval)) * interval);
     }
 
@@ -102,21 +102,21 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
 
     public final static class HistogramProc extends DoubleFacetAggregatorBase {
 
-        private final long interval;
-        private final LongLongOpenHashMap counts;
+        private final double interval;
+        private final DoubleLongOpenHashMap counts;
 
-        public HistogramProc(long interval, LongLongOpenHashMap counts) {
+        public HistogramProc(double interval, DoubleLongOpenHashMap counts) {
             this.interval = interval;
             this.counts = counts;
         }
 
         @Override
         public void onValue(int docId, double value) {
-            long bucket = bucket(value, interval);
+            double bucket = bucket(value, interval);
             counts.addTo(bucket, 1);
         }
 
-        public LongLongOpenHashMap counts() {
+        public DoubleLongOpenHashMap counts() {
             return counts;
         }
     }

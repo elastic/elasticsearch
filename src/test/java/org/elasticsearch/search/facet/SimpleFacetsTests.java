@@ -513,7 +513,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
                     .startObject("fielddata").field("format", "fst").field("loading", randomBoolean() ? "eager" : "lazy").startObject("filter")
                     .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
                     .endObject()
-                    // only 1 or 2 digits 
+                    // only 1 or 2 digits
                  .endObject()
                   .startObject("filtered_mv")
                     .field("type", "string")
@@ -1468,12 +1468,81 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             HistogramFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(100l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(100d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(1l));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(200l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(200d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
-            assertThat(facet.getEntries().get(2).getKey(), equalTo(300l));
+            assertThat(facet.getEntries().get(2).getKey(), equalTo(300d));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(1l));
+        }
+    }
+
+    @Test
+    public void testHistogramIntervalDouble() throws Exception {
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "double").endObject()
+                .endObject().endObject().endObject().string();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1.1)
+                .endObject()).execute().actionGet();
+        flushAndRefresh();
+
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1.2)
+                .endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1.3)
+                .endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < numberOfRuns(); i++) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addFacet(histogramFacet("stats1").field("num").valueField("num").interval(0.25))
+                    .addFacet(histogramFacet("stats2").field("num").interval(0.25))
+                    .execute().actionGet();
+
+            if (searchResponse.getFailedShards() > 0) {
+                logger.warn("Failed shards:");
+                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                    logger.warn("-> {}", shardSearchFailure);
+                }
+            }
+            assertThat(searchResponse.getFailedShards(), equalTo(0));
+
+            HistogramFacet facet;
+
+            facet = searchResponse.getFacets().facet("stats1");
+            assertThat(facet.getName(), equalTo("stats1"));
+            assertThat(facet.getEntries().size(), equalTo(2));
+            assertThat(facet.getEntries().get(0).getKey(), closeTo(1.0, 0.000001));
+            assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(0).getMin(), closeTo(1.1, 0.000001));
+            assertThat(facet.getEntries().get(0).getMax(), closeTo(1.2, 0.000001));
+            assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(0).getTotal(), closeTo(2.3, 0.000001));
+            assertThat(facet.getEntries().get(0).getMean(), closeTo(1.15, 0.000001));
+            assertThat(facet.getEntries().get(1).getKey(), closeTo(1.25, 0.000001));
+            assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
+            assertThat(facet.getEntries().get(1).getMin(), closeTo(1.3, 0.000001));
+            assertThat(facet.getEntries().get(1).getMax(), closeTo(1.3, 0.000001));
+            assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(1l));
+            assertThat(facet.getEntries().get(1).getTotal(), closeTo(1.3, 0.000001));
+            assertThat(facet.getEntries().get(1).getMean(), closeTo(1.3, 0.000001));
+
+            facet = searchResponse.getFacets().facet("stats2");
+            assertThat(facet.getName(), equalTo("stats2"));
+            assertThat(facet.getEntries().size(), equalTo(2));
+            assertThat(facet.getEntries().get(0).getKey(), closeTo(1.0, 0.000001));
+            assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
+            assertThat(facet.getEntries().get(1).getKey(), closeTo(1.25, 0.000001));
+            assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
         }
     }
 
@@ -1535,14 +1604,14 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             facet = searchResponse.getFacets().facet("stats1");
             assertThat(facet.getName(), equalTo("stats1"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getMin(), closeTo(1055d, 0.000001));
             assertThat(facet.getEntries().get(0).getMax(), closeTo(1065d, 0.000001));
             assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotal(), equalTo(2120d));
             assertThat(facet.getEntries().get(0).getMean(), equalTo(1060d));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getMin(), closeTo(1175d, 0.000001));
             assertThat(facet.getEntries().get(1).getMax(), closeTo(1175d, 0.000001));
@@ -1553,17 +1622,17 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             facet = searchResponse.getFacets().facet("stats2");
             assertThat(facet.getName(), equalTo("stats2"));
             assertThat(facet.getEntries().size(), equalTo(3));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(10l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(10d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(3l));
             assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(3l));
             assertThat(facet.getEntries().get(0).getTotal(), equalTo(45d));
             assertThat(facet.getEntries().get(0).getMean(), equalTo(15d));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(20l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(20d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(2l));
             assertThat(facet.getEntries().get(1).getTotal(), equalTo(48d));
             assertThat(facet.getEntries().get(1).getMean(), equalTo(24d));
-            assertThat(facet.getEntries().get(2).getKey(), equalTo(30l));
+            assertThat(facet.getEntries().get(2).getKey(), equalTo(30d));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(2).getTotalCount(), equalTo(1l));
             assertThat(facet.getEntries().get(2).getTotal(), equalTo(31d));
@@ -1572,12 +1641,12 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             facet = searchResponse.getFacets().facet("stats3");
             assertThat(facet.getName(), equalTo("stats3"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(4l));
             assertThat(facet.getEntries().get(0).getTotal(), equalTo(82d));
             assertThat(facet.getEntries().get(0).getMean(), equalTo(20.5d));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(2l));
             assertThat(facet.getEntries().get(1).getTotal(), equalTo(42d));
@@ -1586,12 +1655,12 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             facet = searchResponse.getFacets().facet("stats4");
             assertThat(facet.getName(), equalTo("stats4"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(0l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(0d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotal(), equalTo(2120d));
             assertThat(facet.getEntries().get(0).getMean(), equalTo(1060d));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(2l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(2d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotal(), equalTo(1175d));
@@ -1600,20 +1669,20 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             facet = searchResponse.getFacets().facet("stats5");
             assertThat(facet.getName(), equalTo("stats5"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(0l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(0d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(TimeValue.timeValueMinutes(2).millis()));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo((double)TimeValue.timeValueMinutes(2).millis()));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
 
             facet = searchResponse.getFacets().facet("stats6");
             assertThat(facet.getName(), equalTo("stats6"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotal(), equalTo(2120d));
             assertThat(facet.getEntries().get(0).getMean(), equalTo(1060d));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotal(), equalTo(1175d));
@@ -1622,20 +1691,20 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             facet = searchResponse.getFacets().facet("stats7");
             assertThat(facet.getName(), equalTo("stats7"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
 
             facet = searchResponse.getFacets().facet("stats8");
             assertThat(facet.getName(), equalTo("stats8"));
             assertThat(facet.getEntries().size(), equalTo(2));
-            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000l));
+            assertThat(facet.getEntries().get(0).getKey(), equalTo(1000d));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotalCount(), equalTo(2l));
             assertThat(facet.getEntries().get(0).getTotal(), equalTo(2d));
             assertThat(facet.getEntries().get(0).getMean(), equalTo(1d));
-            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100l));
+            assertThat(facet.getEntries().get(1).getKey(), equalTo(1100d));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotalCount(), equalTo(1l));
             assertThat(facet.getEntries().get(1).getTotal(), equalTo(1d));
@@ -1932,7 +2001,7 @@ public class SimpleFacetsTests extends AbstractIntegrationTest {
             assertThat(facet.getEntries().size(), equalTo(1));
             assertThat(facet.getEntries().get(0).getTime(), equalTo(utcTimeInMillis("2009-01-01")));
 
-            // check date_histogram on a long field containing date in seconds - we use a factor. 
+            // check date_histogram on a long field containing date in seconds - we use a factor.
             facet = searchResponse.getFacets().facet("stats8");
             assertThat(facet.getName(), equalTo("stats8"));
             assertThat(facet.getEntries().size(), equalTo(2));

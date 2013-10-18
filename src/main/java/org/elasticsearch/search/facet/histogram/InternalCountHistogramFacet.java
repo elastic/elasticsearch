@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram;
 
-import com.carrotsearch.hppc.LongLongOpenHashMap;
+import com.carrotsearch.hppc.DoubleLongOpenHashMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -63,16 +63,16 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
      * A histogram entry representing a single entry within the result of a histogram facet.
      */
     public static class CountEntry implements Entry {
-        private final long key;
+        private final double key;
         private final long count;
 
-        public CountEntry(long key, long count) {
+        public CountEntry(double key, long count) {
             this.key = key;
             this.count = count;
         }
 
         @Override
-        public long getKey() {
+        public double getKey() {
             return key;
         }
 
@@ -139,7 +139,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
             return facets.get(0);
         }
 
-        Recycler.V<LongLongOpenHashMap> counts = context.cacheRecycler().longLongMap(-1);
+        Recycler.V<DoubleLongOpenHashMap> counts = context.cacheRecycler().doubleLongMap(-1);
         for (Facet facet : facets) {
             InternalCountHistogramFacet histoFacet = (InternalCountHistogramFacet) facet;
             for (Entry entry : histoFacet.entries) {
@@ -147,7 +147,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
             }
         }
         final boolean[] states = counts.v().allocated;
-        final long[] keys = counts.v().keys;
+        final double[] keys = counts.v().keys;
         final long[] values = counts.v().values;
         CountEntry[] entries = new CountEntry[counts.v().size()];
         int entryIndex = 0;
@@ -199,7 +199,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         int size = in.readVInt();
         entries = new CountEntry[size];
         for (int i = 0; i < size; i++) {
-            entries[i] = new CountEntry(in.readLong(), in.readVLong());
+            entries[i] = new CountEntry(in.readDouble(), in.readVLong());
         }
     }
 
@@ -209,7 +209,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.length);
         for (CountEntry entry : entries) {
-            out.writeLong(entry.getKey());
+            out.writeDouble(entry.getKey());
             out.writeVLong(entry.getCount());
         }
     }

@@ -37,7 +37,7 @@ public class HistogramScriptFacetBuilder extends FacetBuilder {
     private String keyScript;
     private String valueScript;
     private Map<String, Object> params;
-    private long interval = -1;
+    private double interval = -1;
     private HistogramFacet.ComparatorType comparatorType;
 
     public HistogramScriptFacetBuilder(String name) {
@@ -67,7 +67,7 @@ public class HistogramScriptFacetBuilder extends FacetBuilder {
         return this;
     }
 
-    public HistogramScriptFacetBuilder interval(long interval) {
+    public HistogramScriptFacetBuilder interval(double interval) {
         this.interval = interval;
         return this;
     }

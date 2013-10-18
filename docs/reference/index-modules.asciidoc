@@ -34,7 +34,7 @@ otherwise it is written in non-compound format.  added[0.90.2]
 
     Should a new segment (create by indexing, not by merging) be written
     in compound format or non-compound format? Defaults to `true`.
-    added[0.90.4]. This is a dynamic setting. added[0.90.6,Previously not dynamic]
+    added[0.90.4]. This is a dynamic setting. coming[0.90.6,Previously not dynamic]
 
 `index.term_index_interval`::
 

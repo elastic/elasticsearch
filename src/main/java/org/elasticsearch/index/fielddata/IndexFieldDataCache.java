@@ -24,7 +24,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -52,7 +51,7 @@ public interface IndexFieldDataCache {
      */
     void clear(String fieldName);
 
-    void clear(IndexReader reader);
+    void clear(Object coreCacheKey);
 
     interface Listener {
 
@@ -134,13 +133,13 @@ public interface IndexFieldDataCache {
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            cache.invalidate(new Key(reader.getCoreCacheKey()));
+        public void clear(Object coreCacheKey) {
+            cache.invalidate(new Key(coreCacheKey));
         }
 
         @Override
-        public void onClose(SegmentReader owner) {
-            cache.invalidate(new Key(owner.getCoreCacheKey()));
+        public void onClose(Object coreCacheKey) {
+            cache.invalidate(new Key(coreCacheKey));
         }
 
         static class Key {

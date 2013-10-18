@@ -23,7 +23,6 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -105,19 +104,19 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public void onClose(SegmentReader owner) {
-        clear(owner);
+    public void onClose(Object coreKey) {
+        clear(coreKey);
     }
 
     @Override
-    public void clear(IndexReader reader) {
+    public void clear(Object coreCacheKey) {
         // we add the seen reader before we add the first cache entry for this reader
         // so, if we don't see it here, its won't be in the cache
-        Boolean removed = seenReaders.remove(reader.getCoreCacheKey());
+        Boolean removed = seenReaders.remove(coreCacheKey);
         if (removed == null) {
             return;
         }
-        indicesFilterCache.addReaderKeyToClean(reader.getCoreCacheKey());
+        indicesFilterCache.addReaderKeyToClean(coreCacheKey);
     }
 
     @Override

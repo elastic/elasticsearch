@@ -21,7 +21,6 @@ package org.elasticsearch.indices.fielddata.cache;
 
 import com.google.common.cache.*;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -169,8 +168,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public void onClose(SegmentReader owner) {
-            cache.invalidate(new Key(this, owner.getCoreCacheKey()));
+        public void onClose(Object coreKey) {
+            cache.invalidate(new Key(this, coreKey));
         }
 
         @Override
@@ -194,8 +193,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            cache.invalidate(new Key(this, reader.getCoreCacheKey()));
+        public void clear(Object coreCacheKey) {
+            cache.invalidate(new Key(this, coreCacheKey));
         }
     }
 

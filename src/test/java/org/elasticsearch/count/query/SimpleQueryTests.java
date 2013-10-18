@@ -694,19 +694,19 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
 
     @Test
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", 
+        assertAcked(prepareCreate("lookup").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
-                    .startObject("other").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
-        assertAcked(prepareCreate("lookup2").addMapping("type", 
+                        .startObject("terms").field("type", "string").endObject()
+                        .startObject("other").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup2").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
-        assertAcked(prepareCreate("test").addMapping("type", 
+                        .startObject("arr").startObject("properties").startObject("term").field("type", "string")
+                        .endObject().endObject().endObject().endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
+                        .startObject("term").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
         client().prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();

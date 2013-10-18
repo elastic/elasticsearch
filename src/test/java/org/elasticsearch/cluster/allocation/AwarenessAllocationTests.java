@@ -179,5 +179,52 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
+        
+        String noZoneNode = cluster().startNode();
+        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        client().admin().cluster().prepareReroute().get();
+        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForActiveShards(10).setWaitForRelocatingShards(0).execute().actionGet();
+
+        assertThat(health.isTimedOut(), equalTo(false));
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+
+        counts = new ObjectIntOpenHashMap<String>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                }
+            }
+        }
+        
+        assertThat(counts.get(A_0), equalTo(5));
+        assertThat(counts.get(B_0), equalTo(3));
+        assertThat(counts.get(B_1), equalTo(2));
+        assertThat(counts.containsKey(noZoneNode), equalTo(false));
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put("cluster.routing.allocation.awareness.attributes", "").build()).get();
+        
+        
+        client().admin().cluster().prepareReroute().get();
+        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForActiveShards(10).setWaitForRelocatingShards(0).execute().actionGet();
+
+        assertThat(health.isTimedOut(), equalTo(false));
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+
+        counts = new ObjectIntOpenHashMap<String>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                }
+            }
+        }
+        
+        assertThat(counts.get(A_0), equalTo(3));
+        assertThat(counts.get(B_0), equalTo(3));
+        assertThat(counts.get(B_1), equalTo(2));
+        assertThat(counts.get(noZoneNode), equalTo(2));
     }
 }

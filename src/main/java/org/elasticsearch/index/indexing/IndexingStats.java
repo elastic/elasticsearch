@@ -67,11 +67,11 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount += stats.indexCount;
             indexTimeInMillis += stats.indexTimeInMillis;
             indexCurrent += stats.indexCurrent;
-            indexLastTimestamp = stats.indexLastTimestamp;
+            indexLastTimestamp = Math.max(indexLastTimestamp, stats.indexLastTimestamp);
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
             deleteCurrent += stats.deleteCurrent;
-            deleteLastTimestamp = stats.deleteLastTimestamp;
+            deleteLastTimestamp = Math.max(deleteLastTimestamp, stats.deleteLastTimestamp);
         }
 
         public long getIndexCount() {

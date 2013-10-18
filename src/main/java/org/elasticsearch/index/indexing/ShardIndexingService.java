@@ -218,13 +218,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postDelete(Engine.Delete delete) {
         long took = delete.endTime() - delete.startTime();
+        long now = System.currentTimeMillis();
         totalStats.deleteMetric.inc(took);
         totalStats.deleteCurrent.dec();
-        totalStats.deleteLastTimestamp = delete.endTime();
+        totalStats.deleteLastTimestamp = now;
         StatsHolder typeStats = typeStats(delete.type());
         typeStats.deleteMetric.inc(took);
         typeStats.deleteCurrent.dec();
-        typeStats.deleteLastTimestamp = delete.endTime();
+        typeStats.deleteLastTimestamp = now;
         if (listeners != null) {
             for (IndexingOperationListener listener : listeners) {
                 try {

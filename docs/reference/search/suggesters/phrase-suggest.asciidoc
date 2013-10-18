@@ -226,7 +226,7 @@ The direct generators support the following parameters:
     and 2. Any other value result in an bad request error being thrown.
     Defaults to 2.
 
-`prefix_length`::
+`prefix_len`::
     The number of minimal prefix characters that must
     match in order be a candidate suggestions. Defaults to 1. Increasing
     this number improves spellcheck performance. Usually misspellings don't

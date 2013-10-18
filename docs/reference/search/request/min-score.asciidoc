@@ -1,7 +1,8 @@
 [[search-request-min-score]]
 === min_score
 
-Allows to filter out documents based on a minimum score:
+Exclude documents which have a `_score` less than the minimum specified
+in `min_score`:
 
 [source,js]
 --------------------------------------------------
@@ -14,4 +15,4 @@ Allows to filter out documents based on a minimum score:
 --------------------------------------------------
 
 Note, most times, this does not make much sense, but is provided for
-advance use cases.
+advanced use cases.

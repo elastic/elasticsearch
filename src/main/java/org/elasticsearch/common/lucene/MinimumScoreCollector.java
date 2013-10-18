@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.Scorer;
@@ -54,7 +53,7 @@ public class MinimumScoreCollector extends Collector {
 
     @Override
     public void collect(int doc) throws IOException {
-        if (scorer.score() > minimumScore) {
+        if (scorer.score() >= minimumScore) {
             collector.collect(doc);
         }
     }

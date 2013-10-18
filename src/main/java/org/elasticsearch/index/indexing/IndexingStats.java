@@ -133,12 +133,12 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
-            //indexLastTimestamp = in.readVLong();
+            indexLastTimestamp = in.readVLong();
             
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
-            //deleteLastTimestamp = in.readVLong();
+            deleteLastTimestamp = in.readVLong();
         }
 
         @Override
@@ -146,12 +146,12 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
-            //out.writeVLong(indexLastTimestamp); 
+            out.writeVLong(indexLastTimestamp); 
 
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
-            //out.writeVLong(deleteLastTimestamp);
+            out.writeVLong(deleteLastTimestamp);
         }
 
         @Override

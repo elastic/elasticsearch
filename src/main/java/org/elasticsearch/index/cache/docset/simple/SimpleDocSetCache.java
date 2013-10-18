@@ -48,8 +48,8 @@ public class SimpleDocSetCache extends AbstractIndexComponent implements DocSetC
     }
 
     @Override
-    public void onClose(SegmentReader owner) {
-        cache.remove(owner.getCoreCacheKey());
+    public void onClose(Object coreCacheKey) {
+        cache.remove(coreCacheKey);
     }
 
     @Override

@@ -990,11 +990,11 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                     .endObject().endObject().endObject()));
         assertAcked(prepareCreate("lookup2").addMapping("type", 
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
-                    .endObject().endObject().endObject()));
+                    .startObject("arr").startObject("properties").startObject("term").field("type", "string")
+                    .endObject().endObject().endObject().endObject().endObject().endObject()));
         assertAcked(prepareCreate("test").addMapping("type", 
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("terms").field("type", "string").endObject()
+                    .startObject("term").field("type", "string").endObject()
                     .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();

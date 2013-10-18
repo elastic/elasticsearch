@@ -1486,7 +1486,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(hasChildQuery("child", matchAllQuery()).scoreType("sum"))
-                .setMinScore(2) // Score needs to be above 2.0!
+                .setMinScore(3) // Score needs to be 3 or above!
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getFailedShards(), equalTo(0));

@@ -33,6 +33,8 @@ set ES_VERSION=${project.version}
 
 if "%LOG_DIR%" == "" set LOG_DIR=%ES_HOME%\logs
 
+if "%ES_STARTUP_MODE%" == "" set ES_STARTUP_MODE=manual
+
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
 shift
@@ -175,7 +177,7 @@ set JVM_ES_JAVA_OPTS=%ES_JAVA_OPTS: =#%
 set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
 )
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --StartClass org.elasticsearch.bootstrap.ElasticSearch --StopClass org.elasticsearch.bootstrap.ElasticSearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup=%ES_STARTUP_MODE% --StartClass org.elasticsearch.bootstrap.ElasticSearch --StopClass org.elasticsearch.bootstrap.ElasticSearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
 
 
 if not errorlevel 1 goto installed

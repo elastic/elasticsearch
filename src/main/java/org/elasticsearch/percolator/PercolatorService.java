@@ -188,16 +188,11 @@ public class PercolatorService extends AbstractComponent {
             // TODO: This means percolation does not support nested docs...
             // So look into: ByteBufferDirectory
             for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-                if (!field.fieldType().indexed()) {
+                if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
                     continue;
                 }
-                // no need to index the UID field
-                if (field.name().equals(UidFieldMapper.NAME)) {
-                    continue;
-                }
-                TokenStream tokenStream;
                 try {
-                    tokenStream = field.tokenStream(parsedDocument.analyzer());
+                    TokenStream tokenStream = field.tokenStream(parsedDocument.analyzer());
                     if (tokenStream != null) {
                         memoryIndex.addField(field.name(), tokenStream, field.boost());
                     }
@@ -393,6 +388,8 @@ public class PercolatorService extends AbstractComponent {
             for (PercolateShardResponse shardResponse : shardResults) {
                 finalCount += shardResponse.count();
             }
+
+            assert !shardResults.isEmpty();
             if (shardResults.get(0).facets() != null) {
                 InternalFacets reducedFacets = reduceFacets(shardResults);
                 return new ReduceResult(finalCount, reducedFacets);
@@ -484,6 +481,8 @@ public class PercolatorService extends AbstractComponent {
                     }
                 }
             }
+
+            assert !shardResults.isEmpty();
             if (shardResults.get(0).facets() != null) {
                 InternalFacets reducedFacets = reduceFacets(shardResults);
                 return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets);
@@ -681,6 +680,7 @@ public class PercolatorService extends AbstractComponent {
                 }
             }
 
+            assert !shardResults.isEmpty();
             if (shardResults.get(0).facets() != null) {
                 InternalFacets reducedFacets = reduceFacets(shardResults);
                 return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets);
@@ -747,20 +747,19 @@ public class PercolatorService extends AbstractComponent {
         FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
 
-        if (!percolateCollector.facetCollectors.isEmpty()) {
-            for (Collector queryCollector : percolateCollector.facetCollectors) {
-                if (queryCollector instanceof XCollector) {
-                    ((XCollector) queryCollector).postCollection();
-                }
+        for (Collector queryCollector : percolateCollector.facetCollectors) {
+            if (queryCollector instanceof XCollector) {
+                ((XCollector) queryCollector).postCollection();
             }
         }
-
         if (context.facets() != null) {
             facetPhase.execute(context);
         }
     }
 
     public final static class ReduceResult {
+
+        private static PercolateResponse.Match[] EMPTY = new PercolateResponse.Match[0];
 
         private final long count;
         private final PercolateResponse.Match[] matches;
@@ -780,13 +779,13 @@ public class PercolatorService extends AbstractComponent {
 
         public ReduceResult(long count, InternalFacets reducedFacets) {
             this.count = count;
-            this.matches = new PercolateResponse.Match[0];
+            this.matches = EMPTY;
             this.reducedFacets = reducedFacets;
         }
 
         public ReduceResult(long count) {
             this.count = count;
-            this.matches = new PercolateResponse.Match[0];
+            this.matches = EMPTY;
             this.reducedFacets = null;
         }
 

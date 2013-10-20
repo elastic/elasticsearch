@@ -219,14 +219,17 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public boolean release() throws ElasticSearchException {
-        engineSearcher.release();
-        if (docEngineSearcher != null) {
-            IndexReader indexReader = docEngineSearcher.reader();
-            fieldDataService.clear(indexReader);
-            indexService.cache().clear(indexReader);
-            return docEngineSearcher.release();
-        } else {
-            return false;
+        try {
+            if (docEngineSearcher != null) {
+                IndexReader indexReader = docEngineSearcher.reader();
+                fieldDataService.clear(indexReader);
+                indexService.cache().clear(indexReader);
+                return docEngineSearcher.release();
+            } else {
+                return false;
+            }
+        } finally {
+            engineSearcher.release();
         }
     }
 
@@ -237,9 +240,9 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchContext parsedQuery(ParsedQuery query) {
-        parsedQuery = query;
+        this.parsedQuery = query;
         this.query = query.query();
-        queryRewritten = false;
+        this.queryRewritten = false;
         return this;
     }
 

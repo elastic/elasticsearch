@@ -44,7 +44,7 @@ public class PercolatorFacetsTests extends AbstractIntegrationTest {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
-        int numQueries = 10 + randomInt(250);
+        int numQueries = atLeast(250);
         int numUniqueQueries = randomInt(numQueries / 2);
         String[] values = new String[numUniqueQueries];
         for (int i = 0; i < values.length; i++) {

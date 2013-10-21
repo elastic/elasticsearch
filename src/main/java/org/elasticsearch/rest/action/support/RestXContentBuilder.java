@@ -21,10 +21,6 @@ package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedStreamInput;
-import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestRequest;
@@ -75,70 +71,10 @@ public class RestXContentBuilder {
      * Directly writes the source to the output builder
      */
     public static void directSource(BytesReference source, XContentBuilder rawBuilder, ToXContent.Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
-        if (compressor != null) {
-            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
-            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
-            compressedStreamInput.resetToBufferStart();
-            if (contentType == rawBuilder.contentType()) {
-                Streams.copy(compressedStreamInput, rawBuilder.stream());
-            } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
-                try {
-                    parser.nextToken();
-                    rawBuilder.copyCurrentStructure(parser);
-                } finally {
-                    parser.close();
-                }
-            }
-        } else {
-            XContentType contentType = XContentFactory.xContentType(source);
-            if (contentType == rawBuilder.contentType()) {
-                source.writeTo(rawBuilder.stream());
-            } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
-                try {
-                    parser.nextToken();
-                    rawBuilder.copyCurrentStructure(parser);
-                } finally {
-                    parser.close();
-                }
-            }
-        }
+        XContentHelper.writeDirect(source, rawBuilder, params);
     }
 
     public static void restDocumentSource(BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
-        if (compressor != null) {
-            CompressedStreamInput compressedStreamInput = compressor.streamInput(source.streamInput());
-            XContentType contentType = XContentFactory.xContentType(compressedStreamInput);
-            compressedStreamInput.resetToBufferStart();
-            if (contentType == builder.contentType()) {
-                builder.rawField("_source", compressedStreamInput);
-            } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(compressedStreamInput);
-                try {
-                    parser.nextToken();
-                    builder.field("_source");
-                    builder.copyCurrentStructure(parser);
-                } finally {
-                    parser.close();
-                }
-            }
-        } else {
-            XContentType contentType = XContentFactory.xContentType(source);
-            if (contentType == builder.contentType()) {
-                builder.rawField("_source", source);
-            } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(source);
-                try {
-                    parser.nextToken();
-                    builder.field("_source");
-                    builder.copyCurrentStructure(parser);
-                } finally {
-                    parser.close();
-                }
-            }
-        }
+        XContentHelper.writeRawField("_source", source, builder, params);
     }
 }

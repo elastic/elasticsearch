@@ -38,9 +38,9 @@ status is controlled by the worst index status.
 
 One of the main benefits of the API is the ability to wait until the
 cluster reaches a certain high water-mark health level. For example, the
-following will wait till the cluster reaches the `yellow` level for 50
-seconds (if it reaches the `green` or `yellow` status beforehand, it
-will return):
+following will wait for 50 seconds for the cluster to reach the `yellow`
+level (if it reaches the `green` or `yellow` status before 50 seconds elapse,
+it will return at that point):
 
 [source,js]
 --------------------------------------------------

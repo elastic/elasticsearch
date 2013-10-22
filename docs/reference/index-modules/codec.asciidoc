@@ -2,8 +2,8 @@
 == Codec module
 
 Codecs define how documents are written to disk and read from disk. The
-postings format is the part of the codec that responsible for reading
-and writing the term dictionary, postings lists and positions, payloads
+postings format is the part of the codec that is responsible for reading
+and writing the term dictionary, postings lists and positions, as well as the payloads
 and offsets stored in the postings list. The doc values format is
 responsible for reading column-stride storage for a field and is typically
 used for sorting or faceting. When a field doesn't have doc values enabled,

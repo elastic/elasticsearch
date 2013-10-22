@@ -5,7 +5,7 @@
 [[shard-allocation-filtering]]
 === Shard Allocation Filtering
 
-Allow to control allocation if indices on nodes based on include/exclude
+Allows to control the allocation of indices on nodes based on include/exclude
 filters. The filters can be set both on the index level and on the
 cluster level. Lets start with an example of setting it on the cluster
 level:

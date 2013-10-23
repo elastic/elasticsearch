@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -126,9 +127,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final ByteSizeValue tcpReceiveBufferSize;
     final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
 
-    final int connectionsPerNodeLow;
-    final int connectionsPerNodeMed;
-    final int connectionsPerNodeHigh;
+    final int connectionsPerNodeRecovery;
+    final int connectionsPerNodeBulk;
+    final int connectionsPerNodeReg;
+    final int connectionsPerNodeState;
     final int connectionsPerNodePing;
 
     final ByteSizeValue maxCumulationBufferCapacity;
@@ -183,10 +185,22 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
-        this.connectionsPerNodeLow = componentSettings.getAsInt("connections_per_node.low", settings.getAsInt("transport.connections_per_node.low", 2));
-        this.connectionsPerNodeMed = componentSettings.getAsInt("connections_per_node.med", settings.getAsInt("transport.connections_per_node.med", 6));
-        this.connectionsPerNodeHigh = componentSettings.getAsInt("connections_per_node.high", settings.getAsInt("transport.connections_per_node.high", 1));
+        this.connectionsPerNodeRecovery = componentSettings.getAsInt("connections_per_node.recovery", settings.getAsInt("transport.connections_per_node.recovery", 2));
+        this.connectionsPerNodeBulk = componentSettings.getAsInt("connections_per_node.bulk", settings.getAsInt("transport.connections_per_node.bulk", 3));
+        this.connectionsPerNodeReg = componentSettings.getAsInt("connections_per_node.reg", settings.getAsInt("transport.connections_per_node.reg", 6));
+        this.connectionsPerNodeState = componentSettings.getAsInt("connections_per_node.high", settings.getAsInt("transport.connections_per_node.state", 1));
         this.connectionsPerNodePing = componentSettings.getAsInt("connections_per_node.ping", settings.getAsInt("transport.connections_per_node.ping", 1));
+
+        // we want to have at least 1 for reg/state/ping
+        if (this.connectionsPerNodeReg == 0) {
+            throw new ElasticSearchIllegalArgumentException("can't set [connection_per_node.reg] to 0");
+        }
+        if (this.connectionsPerNodePing == 0) {
+            throw new ElasticSearchIllegalArgumentException("can't set [connection_per_node.ping] to 0");
+        }
+        if (this.connectionsPerNodeState == 0) {
+            throw new ElasticSearchIllegalArgumentException("can't set [connection_per_node.state] to 0");
+        }
 
         this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
         this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
@@ -207,8 +221,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
-        logger.debug("using worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}/{}], receive_predictor[{}->{}]",
-                workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeLow, connectionsPerNodeMed, connectionsPerNodeHigh, connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
+        logger.debug("using worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
+                workerCount, port, bindHost, publishHost, compress, connectTimeout, connectionsPerNodeRecovery, connectionsPerNodeBulk, connectionsPerNodeReg, connectionsPerNodeState, connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
     }
 
     public Settings settings() {
@@ -603,7 +617,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     if (light) {
                         nodeChannels = connectToChannelsLight(node);
                     } else {
-                        nodeChannels = new NodeChannels(new Channel[connectionsPerNodeLow], new Channel[connectionsPerNodeMed], new Channel[connectionsPerNodeHigh], new Channel[connectionsPerNodePing]);
+                        nodeChannels = new NodeChannels(new Channel[connectionsPerNodeRecovery], new Channel[connectionsPerNodeBulk], new Channel[connectionsPerNodeReg], new Channel[connectionsPerNodeState], new Channel[connectionsPerNodePing]);
                         try {
                             connectToChannels(nodeChannels, node);
                         } catch (Exception e) {
@@ -646,54 +660,67 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         Channel[] channels = new Channel[1];
         channels[0] = connect.getChannel();
         channels[0].getCloseFuture().addListener(new ChannelCloseListener(node));
-        return new NodeChannels(channels, channels, channels, channels);
+        return new NodeChannels(channels, channels, channels, channels, channels);
     }
 
     private void connectToChannels(NodeChannels nodeChannels, DiscoveryNode node) {
-        ChannelFuture[] connectLow = new ChannelFuture[nodeChannels.low.length];
-        ChannelFuture[] connectMed = new ChannelFuture[nodeChannels.med.length];
-        ChannelFuture[] connectHigh = new ChannelFuture[nodeChannels.high.length];
+        ChannelFuture[] connectRecovery = new ChannelFuture[nodeChannels.recovery.length];
+        ChannelFuture[] connectBulk = new ChannelFuture[nodeChannels.bulk.length];
+        ChannelFuture[] connectReg = new ChannelFuture[nodeChannels.reg.length];
+        ChannelFuture[] connectState = new ChannelFuture[nodeChannels.state.length];
         ChannelFuture[] connectPing = new ChannelFuture[nodeChannels.ping.length];
         InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
-        for (int i = 0; i < connectLow.length; i++) {
-            connectLow[i] = clientBootstrap.connect(address);
+        for (int i = 0; i < connectRecovery.length; i++) {
+            connectRecovery[i] = clientBootstrap.connect(address);
         }
-        for (int i = 0; i < connectMed.length; i++) {
-            connectMed[i] = clientBootstrap.connect(address);
+        for (int i = 0; i < connectBulk.length; i++) {
+            connectBulk[i] = clientBootstrap.connect(address);
         }
-        for (int i = 0; i < connectHigh.length; i++) {
-            connectHigh[i] = clientBootstrap.connect(address);
+        for (int i = 0; i < connectReg.length; i++) {
+            connectReg[i] = clientBootstrap.connect(address);
+        }
+        for (int i = 0; i < connectState.length; i++) {
+            connectState[i] = clientBootstrap.connect(address);
         }
         for (int i = 0; i < connectPing.length; i++) {
             connectPing[i] = clientBootstrap.connect(address);
         }
 
         try {
-            for (int i = 0; i < connectLow.length; i++) {
-                connectLow[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                if (!connectLow[i].isSuccess()) {
-                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectLow[i].getCause());
+            for (int i = 0; i < connectRecovery.length; i++) {
+                connectRecovery[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                if (!connectRecovery[i].isSuccess()) {
+                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectRecovery[i].getCause());
                 }
-                nodeChannels.low[i] = connectLow[i].getChannel();
-                nodeChannels.low[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+                nodeChannels.recovery[i] = connectRecovery[i].getChannel();
+                nodeChannels.recovery[i].getCloseFuture().addListener(new ChannelCloseListener(node));
             }
 
-            for (int i = 0; i < connectMed.length; i++) {
-                connectMed[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                if (!connectMed[i].isSuccess()) {
-                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectMed[i].getCause());
+            for (int i = 0; i < connectBulk.length; i++) {
+                connectBulk[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                if (!connectBulk[i].isSuccess()) {
+                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectBulk[i].getCause());
                 }
-                nodeChannels.med[i] = connectMed[i].getChannel();
-                nodeChannels.med[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+                nodeChannels.bulk[i] = connectBulk[i].getChannel();
+                nodeChannels.bulk[i].getCloseFuture().addListener(new ChannelCloseListener(node));
             }
 
-            for (int i = 0; i < connectHigh.length; i++) {
-                connectHigh[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                if (!connectHigh[i].isSuccess()) {
-                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectHigh[i].getCause());
+            for (int i = 0; i < connectReg.length; i++) {
+                connectReg[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                if (!connectReg[i].isSuccess()) {
+                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectReg[i].getCause());
                 }
-                nodeChannels.high[i] = connectHigh[i].getChannel();
-                nodeChannels.high[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+                nodeChannels.reg[i] = connectReg[i].getChannel();
+                nodeChannels.reg[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+            }
+
+            for (int i = 0; i < connectState.length; i++) {
+                connectState[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                if (!connectState[i].isSuccess()) {
+                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectState[i].getCause());
+                }
+                nodeChannels.state[i] = connectState[i].getChannel();
+                nodeChannels.state[i].getCloseFuture().addListener(new ChannelCloseListener(node));
             }
 
             for (int i = 0; i < connectPing.length; i++) {
@@ -705,37 +732,19 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 nodeChannels.ping[i].getCloseFuture().addListener(new ChannelCloseListener(node));
             }
 
-            if (nodeChannels.low.length == 0) {
-                if (nodeChannels.med.length > 0) {
-                    nodeChannels.low = nodeChannels.med;
+            if (nodeChannels.recovery.length == 0) {
+                if (nodeChannels.bulk.length > 0) {
+                    nodeChannels.recovery = nodeChannels.bulk;
                 } else {
-                    nodeChannels.low = nodeChannels.high;
+                    nodeChannels.recovery = nodeChannels.reg;
                 }
             }
-            if (nodeChannels.med.length == 0) {
-                if (nodeChannels.high.length > 0) {
-                    nodeChannels.med = nodeChannels.high;
-                } else {
-                    nodeChannels.med = nodeChannels.low;
-                }
-            }
-            if (nodeChannels.high.length == 0) {
-                if (nodeChannels.med.length > 0) {
-                    nodeChannels.high = nodeChannels.med;
-                } else {
-                    nodeChannels.high = nodeChannels.low;
-                }
-            }
-            if (nodeChannels.ping.length == 0) {
-                if (nodeChannels.high.length > 0) {
-                    nodeChannels.ping = nodeChannels.high;
-                } else {
-                    nodeChannels.ping = nodeChannels.med;
-                }
+            if (nodeChannels.bulk.length == 0) {
+                nodeChannels.bulk = nodeChannels.reg;
             }
         } catch (RuntimeException e) {
             // clean the futures
-            for (ChannelFuture future : ImmutableList.<ChannelFuture>builder().add(connectLow).add(connectMed).add(connectHigh).build()) {
+            for (ChannelFuture future : ImmutableList.<ChannelFuture>builder().add(connectRecovery).add(connectBulk).add(connectReg).add(connectState).add(connectPing).build()) {
                 future.cancel();
                 if (future.getChannel() != null && future.getChannel().isOpen()) {
                     try {
@@ -843,24 +852,27 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static class NodeChannels {
 
-        private Channel[] low;
-        private final AtomicInteger lowCounter = new AtomicInteger();
-        private Channel[] med;
-        private final AtomicInteger medCounter = new AtomicInteger();
-        private Channel[] high;
-        private final AtomicInteger highCounter = new AtomicInteger();
+        private Channel[] recovery;
+        private final AtomicInteger recoveryCounter = new AtomicInteger();
+        private Channel[] bulk;
+        private final AtomicInteger bulkCounter = new AtomicInteger();
+        private Channel[] reg;
+        private final AtomicInteger regCounter = new AtomicInteger();
+        private Channel[] state;
+        private final AtomicInteger stateCounter = new AtomicInteger();
         private Channel[] ping;
         private final AtomicInteger pingCounter = new AtomicInteger();
 
-        public NodeChannels(Channel[] low, Channel[] med, Channel[] high, Channel[] ping) {
-            this.low = low;
-            this.med = med;
-            this.high = high;
+        public NodeChannels(Channel[] recovery, Channel[] bulk, Channel[] reg, Channel[] state, Channel[] ping) {
+            this.recovery = recovery;
+            this.bulk = bulk;
+            this.reg = reg;
+            this.state = state;
             this.ping = ping;
         }
 
         public boolean hasChannel(Channel channel) {
-            return hasChannel(channel, low) || hasChannel(channel, med) || hasChannel(channel, high) || hasChannel(channel, ping);
+            return hasChannel(channel, recovery) || hasChannel(channel, bulk) || hasChannel(channel, reg) || hasChannel(channel, state) || hasChannel(channel, ping);
         }
 
         private boolean hasChannel(Channel channel, Channel[] channels) {
@@ -873,22 +885,27 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         public Channel channel(TransportRequestOptions.Type type) {
-            if (type == TransportRequestOptions.Type.MED) {
-                return med[Math.abs(medCounter.incrementAndGet()) % med.length];
-            } else if (type == TransportRequestOptions.Type.HIGH) {
-                return high[Math.abs(highCounter.incrementAndGet()) % high.length];
+            if (type == TransportRequestOptions.Type.REG) {
+                return reg[Math.abs(regCounter.incrementAndGet()) % reg.length];
+            } else if (type == TransportRequestOptions.Type.STATE) {
+                return state[Math.abs(stateCounter.incrementAndGet()) % state.length];
             } else if (type == TransportRequestOptions.Type.PING) {
                 return ping[Math.abs(pingCounter.incrementAndGet()) % ping.length];
+            } else if (type == TransportRequestOptions.Type.BULK) {
+                return bulk[Math.abs(bulkCounter.incrementAndGet()) % bulk.length];
+            } else if (type == TransportRequestOptions.Type.RECOVERY) {
+                return recovery[Math.abs(recoveryCounter.incrementAndGet()) % recovery.length];
             } else {
-                return low[Math.abs(lowCounter.incrementAndGet()) % low.length];
+                throw new ElasticSearchIllegalArgumentException("no type channel for [" + type + "]");
             }
         }
 
         public synchronized void close() {
             List<ChannelFuture> futures = new ArrayList<ChannelFuture>();
-            closeChannelsAndWait(low, futures);
-            closeChannelsAndWait(med, futures);
-            closeChannelsAndWait(high, futures);
+            closeChannelsAndWait(recovery, futures);
+            closeChannelsAndWait(bulk, futures);
+            closeChannelsAndWait(reg, futures);
+            closeChannelsAndWait(state, futures);
             closeChannelsAndWait(ping, futures);
             for (ChannelFuture future : futures) {
                 future.awaitUninterruptibly();

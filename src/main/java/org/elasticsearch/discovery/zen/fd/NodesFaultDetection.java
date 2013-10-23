@@ -200,7 +200,7 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!running) {
                 return;
             }
-            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withPingType().withTimeout(pingRetryTimeout),
+            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
@@ -248,7 +248,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                 } else {
                                     // resend the request, not reschedule, rely on send timeout
                                     transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()),
-                                            options().withPingType().withTimeout(pingRetryTimeout), this);
+                                            options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout), this);
                                 }
                             }
                         }

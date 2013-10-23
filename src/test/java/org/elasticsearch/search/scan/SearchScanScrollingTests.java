@@ -32,14 +32,15 @@ import java.util.Set;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchScanScrollingTests extends AbstractIntegrationTest {
-    
+
     public void testRandomized() throws Exception {
-        testScroll(between(1, 4), atLeast(100), between(1, 300), getRandom().nextBoolean());
+        testScroll(between(1, 4), atLeast(100), between(1, 300), getRandom().nextBoolean(), getRandom().nextBoolean());
     }
 
-    private void testScroll(int numberOfShards, long numberOfDocs, int size, boolean unbalanced) throws Exception {
+    private void testScroll(int numberOfShards, long numberOfDocs, int size, boolean unbalanced, boolean trackScores) throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).get();
         ensureGreen();
 
@@ -72,10 +73,11 @@ public class SearchScanScrollingTests extends AbstractIntegrationTest {
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .setScroll(TimeValue.timeValueMinutes(2))
+                .setTrackScores(trackScores)
                 .execute().actionGet();
         try {
             assertHitCount(searchResponse, numberOfDocs);
-    
+
             // start scrolling, until we get not results
             while (true) {
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
@@ -84,12 +86,17 @@ public class SearchScanScrollingTests extends AbstractIntegrationTest {
                 for (SearchHit hit : searchResponse.getHits()) {
                     assertThat(hit.id() + "should not exist in the result set", ids.contains(hit.id()), equalTo(false));
                     ids.add(hit.id());
+                    if (trackScores) {
+                        assertThat(hit.getScore(), greaterThan(0.0f));
+                    } else {
+                        assertThat(hit.getScore(), equalTo(0.0f));
+                    }
                 }
                 if (searchResponse.getHits().hits().length == 0) {
                     break;
                 }
             }
-    
+
             assertThat(expectedIds, equalTo(ids));
         } finally {
             clearScroll(searchResponse.getScrollId());

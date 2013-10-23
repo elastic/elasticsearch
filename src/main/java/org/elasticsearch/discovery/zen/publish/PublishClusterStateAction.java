@@ -80,7 +80,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
-        publish(clusterState, new AckClusterStatePublishResponseHandler(clusterState.nodes().size()-1, ackListener));
+        publish(clusterState, new AckClusterStatePublishResponseHandler(clusterState.nodes().size() - 1, ackListener));
     }
 
     private void publish(ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
@@ -112,7 +112,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 }
             }
             try {
-                TransportRequestOptions options = TransportRequestOptions.options().withHighType().withCompress(false);
+                TransportRequestOptions options = TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withCompress(false);
                 // no need to put a timeout on the options here, because we want the response to eventually be received
                 // and not log an error if it arrives after the timeout
                 transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,

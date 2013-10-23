@@ -311,7 +311,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(node, NodesInfoAction.NAME,
                             Requests.nodesInfoRequest("_local"),
-                            TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
+                            TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override
                                 public NodesInfoResponse newInstance() {
@@ -378,7 +378,7 @@ public class TransportClientNodesService extends AbstractComponent {
                             transportService.sendRequest(listedNode, ClusterStateAction.NAME,
                                     Requests.clusterStateRequest()
                                             .filterAll().filterNodes(false).local(true),
-                                    TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
+                                    TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override

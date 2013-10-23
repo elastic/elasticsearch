@@ -87,7 +87,7 @@ public class BenchmarkNettyLargeMessages {
                 public void run() {
                     for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                         BenchmarkMessageRequest message = new BenchmarkMessageRequest(1, payload);
-                        transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withLowType(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
+                        transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withType(TransportRequestOptions.Type.BULK), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                             @Override
                             public BenchmarkMessageResponse newInstance() {
                                 return new BenchmarkMessageResponse();
@@ -119,7 +119,7 @@ public class BenchmarkNettyLargeMessages {
                 for (int i = 0; i < 1; i++) {
                     BenchmarkMessageRequest message = new BenchmarkMessageRequest(2, BytesRef.EMPTY_BYTES);
                     long start = System.currentTimeMillis();
-                    transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
+                    transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withType(TransportRequestOptions.Type.STATE), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                         @Override
                         public BenchmarkMessageResponse newInstance() {
                             return new BenchmarkMessageResponse();

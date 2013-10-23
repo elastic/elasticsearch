@@ -108,6 +108,8 @@ Defaults to `false`.
 
 |`geohash_precision` |Sets the geohash precision, defaults to 12.
 
+|`geohash_prefix` |If this option is set to `true`, not only the geohash but also all it's parent cells (true prefixes) will be indexed as well. Defaults to `false`.
+
 |`validate` |Set to `true` to reject geo points with invalid latitude or
 longitude (default is `false`) *Note*: Validation only works when
 normalization has been disabled.

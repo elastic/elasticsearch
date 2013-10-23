@@ -10,7 +10,12 @@ this cell.
 
 To get this filter work all prefixes of a geohash need to be indexed. In
 example a geohash `u30` needs to be decomposed into three terms: `u30`,
-`u3` and `u`. This decomposition must be enabled in the mapping of the
+`u3` and `u`. The number of terms that will be index in this case depends
+on the `geohash_precision` set in the `geo_point` mapping. This option can
+be set to an absolute geohash length or a distance value defining the size
+of the smallest cell.
+
+This decomposition must be enabled in the mapping of the
 `geo_point` field that's going to be filtered by setting the
 `geohash_prefix` option:
 
@@ -23,7 +28,8 @@ example a geohash `u30` needs to be decomposed into three terms: `u30`,
                 "pin": {
                     "type": "geo_point",
                     "geohash": true,
-                    "geohash_prefix": true
+                    "geohash_prefix": true,
+                    "geohash_precision": 10
                 }
             }
         }

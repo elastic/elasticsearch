@@ -1,9 +1,9 @@
 [[analysis-standard-analyzer]]
 === Standard Analyzer
 
-An analyzer of type `standard` that is built of using
+An analyzer of type `standard` is built using the
 <<analysis-standard-tokenizer,Standard
-Tokenizer>>, with
+Tokenizer>> with the
 <<analysis-standard-tokenfilter,Standard
 Token Filter>>,
 <<analysis-lowercase-tokenfilter,Lower

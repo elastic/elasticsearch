@@ -753,9 +753,10 @@ public class SearchSourceBuilder implements ToXContent {
                 builder.endObject();
             }
             builder.endArray();
-            if (trackScores) {
-                builder.field("track_scores", trackScores);
-            }
+        }
+
+        if (trackScores) {
+            builder.field("track_scores", trackScores);
         }
 
         if (indexBoost != null) {

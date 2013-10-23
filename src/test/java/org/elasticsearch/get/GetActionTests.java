@@ -60,7 +60,7 @@ public class GetActionTests extends AbstractIntegrationTest {
         response = client().prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
-        
+
         logger.info("--> realtime get 1 (no type)");
         response = client().prepareGet("test", null, "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -200,8 +200,8 @@ public class GetActionTests extends AbstractIntegrationTest {
     public void getFieldsWithDifferentTypes() throws Exception {
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type").startObject("_source").field("enabled", true).endObject().endObject().endObject())
-                .addMapping("type2", jsonBuilder().startObject().startObject("type")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", true).endObject().endObject().endObject())
+                .addMapping("type2", jsonBuilder().startObject().startObject("type2")
                         .startObject("_source").field("enabled", false).endObject()
                         .startObject("properties")
                         .startObject("str").field("type", "string").field("store", "yes").endObject()
@@ -374,13 +374,13 @@ public class GetActionTests extends AbstractIntegrationTest {
 
         String mapping = jsonBuilder()
                 .startObject()
-                    .startObject("source_excludes")
-                        .startObject("_source")
-                            .array("excludes", "excluded")
-                        .endObject()
-                    .endObject()
+                .startObject(type)
+                .startObject("_source")
+                .array("excludes", "excluded")
                 .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .string();
 
         client().admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
@@ -408,14 +408,14 @@ public class GetActionTests extends AbstractIntegrationTest {
         String type = "type1";
 
         String mapping = jsonBuilder()
-            .startObject()
-                .startObject("source_excludes")
-                    .startObject("_source")
-                        .array("includes", "included")
-                    .endObject()
+                .startObject()
+                .startObject(type)
+                .startObject("_source")
+                .array("includes", "included")
                 .endObject()
-            .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .string();
 
         client().admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
@@ -443,15 +443,15 @@ public class GetActionTests extends AbstractIntegrationTest {
         String type = "type1";
 
         String mapping = jsonBuilder()
-            .startObject()
-                .startObject("source_excludes")
-                    .startObject("_source")
-                        .array("includes", "included")
-                        .array("exlcudes", "excluded")
-                    .endObject()
+                .startObject()
+                .startObject(type)
+                .startObject("_source")
+                .array("includes", "included")
+                .array("exlcudes", "excluded")
                 .endObject()
-            .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .string();
 
         client().admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
@@ -463,7 +463,7 @@ public class GetActionTests extends AbstractIntegrationTest {
                         .field("field", "1", "2")
                         .field("included", "should be seen")
                         .field("excluded", "should not be seen")
-                    .endObject())
+                        .endObject())
                 .execute().actionGet();
 
         GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
@@ -476,6 +476,7 @@ public class GetActionTests extends AbstractIntegrationTest {
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
         assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
         assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
+
     }
 
 }

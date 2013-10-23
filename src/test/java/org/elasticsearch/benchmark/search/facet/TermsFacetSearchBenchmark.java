@@ -99,7 +99,41 @@ public class TermsFacetSearchBenchmark {
 
         Thread.sleep(10000);
         try {
-            client.admin().indices().create(createIndexRequest("test")).actionGet();
+            client.admin().indices().create(createIndexRequest("test").mapping("type1", jsonBuilder()
+              .startObject()
+                .startObject("type1")
+                  .startObject("properties")
+                    .startObject("s_value_dv")
+                      .field("type", "string")
+                      .field("index", "no")
+                      .startObject("fielddata")
+                        .field("format", "doc_values")
+                      .endObject()
+                    .endObject()
+                    .startObject("sm_value_dv")
+                      .field("type", "string")
+                      .field("index", "no")
+                      .startObject("fielddata")
+                        .field("format", "doc_values")
+                      .endObject()
+                    .endObject()
+                    .startObject("l_value_dv")
+                      .field("type", "long")
+                      .field("index", "no")
+                      .startObject("fielddata")
+                        .field("format", "doc_values")
+                      .endObject()
+                    .endObject()
+                    .startObject("lm_value_dv")
+                      .field("type", "long")
+                      .field("index", "no")
+                      .startObject("fielddata")
+                        .field("format", "doc_values")
+                      .endObject()
+                    .endObject()
+                  .endObject()
+                .endObject()
+              .endObject())).actionGet();
 
             StopWatch stopWatch = new StopWatch().start();
 
@@ -114,20 +148,28 @@ public class TermsFacetSearchBenchmark {
 
                     XContentBuilder builder = jsonBuilder().startObject();
                     builder.field("id", Integer.toString(counter));
-                    builder.field("s_value", sValues[counter % sValues.length]);
-                    builder.field("l_value", lValues[counter % lValues.length]);
+                    final String sValue = sValues[counter % sValues.length];
+                    final long lValue = lValues[counter % lValues.length];
+                    builder.field("s_value", sValue);
+                    builder.field("l_value", lValue);
+                    builder.field("s_value_dv", sValue);
+                    builder.field("l_value_dv", lValue);
 
-                    builder.startArray("sm_value");
-                    for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
-                        builder.value(sValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                    for (String field : new String[] {"sm_value", "sm_value_dv"}) {
+                        builder.startArray(field);
+                        for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
+                            builder.value(sValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                        }
+                        builder.endArray();
                     }
-                    builder.endArray();
 
-                    builder.startArray("lm_value");
-                    for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
-                        builder.value(lValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                    for (String field : new String[] {"lm_value", "lm_value_dv"}) {
+                        builder.startArray(field);
+                        for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
+                            builder.value(lValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                        }
+                        builder.endArray();
                     }
-                    builder.endArray();
 
                     builder.endObject();
 
@@ -158,17 +200,28 @@ public class TermsFacetSearchBenchmark {
 
         List<StatsResult> stats = Lists.newArrayList();
         stats.add(terms("terms_s", "s_value", null));
+        stats.add(terms("terms_s_dv", "s_value_dv", null));
         stats.add(terms("terms_map_s", "s_value", "map"));
+        stats.add(terms("terms_map_s_dv", "s_value_dv", "map"));
         stats.add(terms("terms_l", "l_value", null));
+        stats.add(terms("terms_l_dv", "l_value_dv", null));
         stats.add(terms("terms_map_l", "l_value", "map"));
+        stats.add(terms("terms_map_l_dv", "l_value_dv", "map"));
         stats.add(terms("terms_sm", "sm_value", null));
+        stats.add(terms("terms_sm_dv", "sm_value_dv", null));
         stats.add(terms("terms_map_sm", "sm_value", "map"));
+        stats.add(terms("terms_map_sm_dv", "sm_value_dv", "map"));
         stats.add(terms("terms_lm", "lm_value", null));
+        stats.add(terms("terms_lm_dv", "lm_value_dv", null));
         stats.add(terms("terms_map_lm", "lm_value", "map"));
+        stats.add(terms("terms_map_lm_dv", "lm_value_dv", "map"));
 
         stats.add(termsStats("terms_stats_s_l", "s_value", "l_value", null));
+        stats.add(termsStats("terms_stats_s_l_dv", "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_s_lm", "s_value", "lm_value", null));
+        stats.add(termsStats("terms_stats_s_lm_dv", "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_sm_l", "sm_value", "l_value", null));
+        stats.add(termsStats("terms_stats_sm_l_dv", "sm_value_dv", "l_value_dv", null));
 
         System.out.println("------------------ SUMMARY -------------------------------");
         System.out.format("%25s%10s%10s\n", "name", "took", "millis");

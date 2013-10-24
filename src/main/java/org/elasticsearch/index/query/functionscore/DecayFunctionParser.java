@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -282,6 +283,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         public void setNextReader(AtomicReaderContext context) {
             geoPointValues = fieldData.load(context).getGeoPointValues();
+            if (geoPointValues.isMultiValued()) {
+                throw new ElasticSearchException("Field " + fieldData.getFieldNames().fullName() + " is multy valued. Cannot compute decay for more than one value.");
+            }
         }
 
         @Override
@@ -324,6 +328,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         public void setNextReader(AtomicReaderContext context) {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
+            if (doubleValues.isMultiValued()) {
+                throw new ElasticSearchException("Field " + fieldData.getFieldNames().fullName() + "is multy valued. Cannot compute decay for more than one value.");
+            }
         }
 
         @Override

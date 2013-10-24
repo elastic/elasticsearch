@@ -18,32 +18,70 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.io.IOException;
+
+import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+
 /**
- * Interface that allows to mark action requests that support acknowledgements.
+ * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public interface AcknowledgedRequest<T extends ActionRequest<T>> {
+public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> extends MasterNodeOperationRequest<T> {
 
+    protected TimeValue timeout = timeValueSeconds(10);
+
+    protected AcknowledgedRequest() {
+    }
     /**
      * Allows to set the timeout
      * @param timeout timeout as a string (e.g. 1s)
      * @return the request itself
      */
-    T timeout(String timeout);
+    public final T timeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout);
+        return (T)this;
+    }
 
     /**
      * Allows to set the timeout
      * @param timeout timeout as a {@link TimeValue}
      * @return the request itself
      */
-    T timeout(TimeValue timeout);
+    public final T timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return (T) this;
+    }
 
     /**
      * Returns the current timeout
      * @return the current timeout as a {@link TimeValue}
      */
-    TimeValue timeout();
+    public final TimeValue timeout() {
+        return  timeout;
+    }
+
+    /**
+     * Reads the timeout value if on or after the specified min version or if the version is <code>null</code>.
+     */
+    protected void readTimeout(StreamInput in, Version minVersion) throws IOException {
+        if (minVersion == null || in.getVersion().onOrAfter(minVersion)) {
+            timeout = readTimeValue(in);
+        }
+    }
+
+    /**
+     * writes the timeout value if on or after the specified min version or if the version is <code>null</code>.
+     */
+    protected void writeTimeout(StreamOutput out, Version minVersion) throws IOException {
+        if (minVersion == null || out.getVersion().onOrAfter(minVersion)) {
+            timeout.writeTo(out);
+        }
+    }
+
 }

@@ -142,7 +142,7 @@ order by score:
 }
 --------------------------------------------------
 
-If the `number_of_fragments` value is set to 0 then no fragments are
+If the `number_of_fragments` value is set to `0` then no fragments are
 produced, instead the whole content of the field is returned, and of
 course it is highlighted. This can be very handy if short texts (like
 document title or address) need to be highlighted but no fragmentation
@@ -164,10 +164,11 @@ is required. Note that `fragment_size` is ignored in this case.
 When using `fast-vector-highlighter` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
-coming[0.90.6]
-It is also possible to ask Elasticsearch to return a fragment from the
-beginning of the field in the case where there are no matches by setting
-`no_match_size` to something greater than 0.  The default is 0.
+In the case where there is no matching fragment to highlight, the default is
+to not return anything. Instead, we can return a snippet of text from the
+beginning of the field by setting `no_match_size` (default `0`) to the length
+of the text that you want returned. The actual length may be shorter than
+specified as it tries to break on a word boundary.
 
 [source,js]
 --------------------------------------------------

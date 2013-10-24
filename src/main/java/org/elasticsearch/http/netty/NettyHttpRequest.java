@@ -25,8 +25,10 @@ import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,9 +44,18 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
     private final String rawPath;
 
     private final BytesReference content;
+    
+    private final String opaqueId;
+    
+    private final InetSocketAddress remoteAddress;
+    
+    private final InetSocketAddress localAddress;
 
-    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
+    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request, Channel channel) {
         this.request = request;
+        this.opaqueId = request.getHeader("X-Opaque-Id");
+        this.remoteAddress = (InetSocketAddress) channel.getRemoteAddress();
+        this.localAddress = (InetSocketAddress) channel.getLocalAddress();
         this.params = new HashMap<String, String>();
         if (request.getContent().readable()) {
             this.content = new ChannelBufferBytesReference(request.getContent());
@@ -141,5 +152,26 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
             return defaultValue;
         }
         return value;
+    }
+    
+    public String localAddr() {
+        return this.localAddress.getAddress().getHostAddress();
+    }
+
+    public long localPort() {
+        return this.localAddress.getPort();
+    }
+
+    //TODO: Think about X-Forwarded-For header
+    public String remoteAddr() {
+        return this.remoteAddress.getAddress().getHostAddress();
+    }
+
+    public long remotePort() {
+        return this.remoteAddress.getPort();
+    }   
+
+    public String opaqueId() {
+        return this.opaqueId;
     }
 }

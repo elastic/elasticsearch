@@ -17,19 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.plugin.httprequest;
 
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.rest.RestModule;
 
-/**
- *
- */
-public interface HttpRequest extends RestRequest {
-    
-    public String localAddr();
-    public long localPort();
-    public String remoteAddr();
-    public long remotePort();
-    public String opaqueId() ;
+public class TestHttpRequestPlugin extends AbstractPlugin {
 
+    @Override
+    public String name() {
+        return "test-plugin-httprequest";
+    }
+
+    @Override
+    public String description() {
+        return "test-plugin-httprequest-desc";
+    }
+
+    public void onModule(RestModule restModule) {
+        restModule.addRestAction(TestHttpRequestRestAction.class);
+    }
 }

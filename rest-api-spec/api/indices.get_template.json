@@ -4,7 +4,7 @@
     "methods": ["GET"],
     "url": {
       "path": "/_template/{name}",
-      "paths": ["/_template/{name}"],
+      "paths": ["/_template", "/_template/{name}"],
       "parts": {
         "name": {
           "type" : "string",

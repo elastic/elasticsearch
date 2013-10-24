@@ -99,9 +99,13 @@ echo Using JAVA_HOME (%ARCH%):  "%JAVA_HOME%"
 
 rem Check JVM server dll first
 set JVM_DLL=%JAVA_HOME%\jre\bin\server\jvm.dll
-
 if exist "%JVM_DLL%" goto foundJVM
 
+rem Check 'server' JRE (JRE installed on Windows Server)
+set JVM_DLL=%JAVA_HOME%\bin\server\jvm.dll
+if exist "%JVM_DLL%" goto foundJVM
+
+rem Fallback to 'client' JRE
 set JVM_DLL=%JAVA_HOME%\bin\client\jvm.dll
 
 if exist "%JVM_DLL%" (

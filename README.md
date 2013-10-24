@@ -63,6 +63,7 @@ The metadata supported are:
 * `keywords`
 * `content_type`
 * `content_length` is the original content_length before text extraction (aka file size)
+* `language`
 
 They can be queried using the "dot notation", for example: `my_attachment.author`.
 
@@ -81,7 +82,8 @@ Both the meta data and the actual content are simple core type mappers (string, 
                     "author" : {"analyzer" : "myAnalyzer"},
                     "keywords" : {store : "yes"},
                     "content_type" : {store : "yes"},
-                    "content_length" : {store : "yes"}
+                    "content_length" : {store : "yes"},
+                    "language" : {store : "yes"}
                 }
             }
         }
@@ -96,7 +98,7 @@ Indexed Characters
 
 By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the `_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be represented in memory.
 
-Note, this feature is support since `1.3.0` version.
+Note, this feature is supported since `1.3.0` version.
 
 Metadata parsing error handling
 -------------------------------
@@ -105,6 +107,16 @@ While extracting metadata content, errors could happen for example when parsing 
 Since version `1.9.0`, parsing errors are ignored so your document is indexed.
 
 You can disable this feature by setting the `index.mapping.attachment.ignore_errors` setting to `false`.
+
+Language Detection
+------------------
+
+By default, language detection is disabled (`false`) as it could come with a cost.
+This default value can be changed by setting the `index.mapping.attachment.detect_language` setting.
+It can also be provided on a per document indexed using the `_detect_language` parameter.
+
+Note, this feature is supported since `2.0.0` version.
+
 
 License
 -------

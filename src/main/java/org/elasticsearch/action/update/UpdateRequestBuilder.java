@@ -336,6 +336,40 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+
+    public UpdateRequestBuilder setPaths(XContentBuilder source) throws Exception {
+        request.paths(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setPaths(byte[] source) throws Exception {
+        request.paths(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setPaths(byte[] source, int offset, int length) throws Exception {
+        request.paths(source, offset, length);
+        return this;
+    }
+
+    public UpdateRequestBuilder setPaths(BytesReference source) throws Exception {
+        request.paths(source);
+        return this;
+    }
+
+    public UpdateRequestBuilder setPaths(String source) throws Exception {
+        request.paths(source);
+        return this;
+    }
+
+    /**
+     * Sets whether the specified doc parameter should be used as paths document.
+     */
+    public UpdateRequestBuilder setDocAsPaths(boolean docAsPaths) {
+        request.docAsPaths(docAsPaths);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         ((Client) client).update(request, listener);

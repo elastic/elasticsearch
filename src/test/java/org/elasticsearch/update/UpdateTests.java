@@ -31,8 +31,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -440,8 +442,8 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             fail("Should have thrown ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors().size(), equalTo(1));
-            assertThat(e.validationErrors().get(0), containsString("doc must be specified if doc_as_upsert is enabled"));
-            assertThat(e.getMessage(), containsString("doc must be specified if doc_as_upsert is enabled"));
+            assertThat(e.validationErrors().get(0), containsString("doc must be specified if doc_as_upsert or doc_as_paths is enabled"));
+            assertThat(e.getMessage(), containsString("doc must be specified if doc_as_upsert or doc_as_paths is enabled"));
         }
     }
 
@@ -498,6 +500,120 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
             assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));
         }
+    }
+
+    private List<String> createPathsTestDocs() throws Exception {
+        List<String> testDocs = new ArrayList<String>(3);
+
+        String sourceDoc = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("map1")
+                    .startObject("submap")
+                        .field("number", 1)
+                        .field("string", "a string")
+                        .startObject("subsubmap")
+                            .field("number", 2)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("map2")
+                    .field("number", 3)
+                .endObject()
+                .endObject()
+                .string();
+        testDocs.add(sourceDoc);
+
+        String overwritePaths = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("map1.submap.number", 4)
+                .startObject("map1.submap.subsubmap")
+                    .startObject("newmap")
+                        .field("newstring", "a new string")
+                    .endObject()
+                .endObject()
+                .startObject("map2")
+                    .startObject("newmap")
+                        .field("newfield", 3)
+                    .endObject()
+                .endObject()
+                .startObject("newmap3.newsubmap")
+                    .field("newstring", "a new string")
+                .endObject()
+                .endObject()
+                .string();
+        testDocs.add(overwritePaths);
+
+        String expectedUpdatedDoc = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("map1")
+                    .startObject("submap")
+                        .field("number", 4)
+                        .field("string", "a string")
+                        .startObject("subsubmap")
+                            .startObject("newmap")
+                                .field("newstring", "a new string")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("map2")
+                    .startObject("newmap")
+                        .field("newfield", 3)
+                    .endObject()
+                .endObject()
+                .startObject("newmap3")
+                    .startObject("newsubmap")
+                        .field("newstring", "a new string")
+                    .endObject()
+                .endObject()
+                .endObject()
+                .string();
+        testDocs.add(expectedUpdatedDoc);
+
+        return testDocs;
+    }
+
+    @Test
+    public void testPaths() throws Exception {
+        createIndex();
+        ensureGreen();
+
+        List<String> testDocs = createPathsTestDocs();
+        String sourceDoc = testDocs.get(0);
+        String overwritePaths = testDocs.get(1);
+        String expectedUpdatedDoc = testDocs.get(2);
+
+        client().prepareIndex("test", "type1", "1").setSource(sourceDoc).execute().actionGet();
+
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+                .setPaths(overwritePaths)
+                .setFields("_source")
+                .execute().actionGet();
+
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsString(), equalTo(expectedUpdatedDoc));
+    }
+
+    @Test
+    public void testPathsDoc() throws Exception {
+        createIndex();
+        ensureGreen();
+
+        List<String> testDocs = createPathsTestDocs();
+        String sourceDoc = testDocs.get(0);
+        String overwritePaths = testDocs.get(1);
+        String expectedUpdatedDoc = testDocs.get(2);
+
+        client().prepareIndex("test", "type1", "1").setSource(sourceDoc).execute().actionGet();
+
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+                .setDoc(overwritePaths)
+                .setDocAsPaths(true)
+                .setFields("_source")
+                .execute().actionGet();
+
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsString(), equalTo(expectedUpdatedDoc));
     }
 
 }

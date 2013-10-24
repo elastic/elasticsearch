@@ -125,8 +125,8 @@ public class UpdateHelper extends AbstractComponent {
         String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
         String parent = getResult.getFields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).getValue().toString() : null;
 
-        if (request.script() == null && request.doc() != null) {
-            IndexRequest indexRequest = request.doc();
+        if (request.script() == null && (request.doc() != null || request.pathsRequest() != null)) {
+            IndexRequest indexRequest = request.pathsRequest() != null ? request.pathsRequest() : request.doc();
             updatedSourceAsMap = sourceAndContent.v2();
             if (indexRequest.ttl() > 0) {
                 ttl = indexRequest.ttl();
@@ -138,7 +138,11 @@ public class UpdateHelper extends AbstractComponent {
             if (indexRequest.parent() != null) {
                 parent = indexRequest.parent();
             }
-            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+            if (request.docAsPaths() || request.pathsRequest() != null) {
+                XContentHelper.updatePaths(updatedSourceAsMap, indexRequest.sourceAsMap());
+            } else {
+                XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+            }
         } else {
             Map<String, Object> ctx = new HashMap<String, Object>(2);
             ctx.put("_source", sourceAndContent.v2());

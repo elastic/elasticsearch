@@ -147,7 +147,7 @@ public class PlainHighlighter implements Highlighter {
                 }
             });
         }
-        String[] fragments = null;
+        String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field
         if (field.numberOfFragments() == 0 && textsToHighlight.size() > 1 && fragsList.size() > 0) {
             fragments = new String[fragsList.size()];
@@ -166,8 +166,9 @@ public class PlainHighlighter implements Highlighter {
         if (fragments != null && fragments.length > 0) {
             return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
         }
+
         int noMatchSize = highlighterContext.field.noMatchSize();
-        if (noMatchSize > 0 && textsToHighlight.size() >= 1) {
+        if (noMatchSize > 0 && textsToHighlight.size() > 0) {
             // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
             String fieldContents = textsToHighlight.get(0).toString();
             Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();

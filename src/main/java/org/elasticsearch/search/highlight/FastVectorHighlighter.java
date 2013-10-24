@@ -152,6 +152,7 @@ public class FastVectorHighlighter implements Highlighter {
             if (fragments != null && fragments.length > 0) {
                 return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
             }
+
             int noMatchSize = highlighterContext.field.noMatchSize();
             if (noMatchSize > 0) {
                 // Essentially we just request that a fragment is built from 0 to noMatchSize using the normal fragmentsBuilder
@@ -163,7 +164,9 @@ public class FastVectorHighlighter implements Highlighter {
                     return new HighlightField(field.field(), StringText.convertFromStringArray(fragments));
                 }
             }
+
             return null;
+
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }

@@ -19,44 +19,19 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 /**
  * The response of put warmer operation.
  */
-public class PutWarmerResponse extends ActionResponse implements AcknowledgedResponse {
-
-    private boolean acknowledged;
+public class PutWarmerResponse extends AcknowledgedResponse {
 
     PutWarmerResponse() {
-
+        super();
     }
 
     PutWarmerResponse(boolean acknowledged) {
-        this.acknowledged = acknowledged;
+        super(acknowledged);
     }
 
-    /**
-     * Has the put warmer been ack'ed.
-     */
-    public boolean isAcknowledged() {
-        return acknowledged;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        acknowledged = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(acknowledged);
-    }
 }

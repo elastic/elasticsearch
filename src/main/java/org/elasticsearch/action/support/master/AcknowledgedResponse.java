@@ -18,15 +18,45 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
- * Interface that allows to mark action responses that support acknowledgements.
+ * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public interface AcknowledgedResponse {
+public abstract class AcknowledgedResponse extends ActionResponse {
+
+    private boolean acknowledged;
+
+    protected AcknowledgedResponse() {
+
+    }
+
+    protected AcknowledgedResponse(boolean acknowledged) {
+        this.acknowledged = acknowledged;
+    }
 
     /**
      * Returns whether the response is acknowledged or not
      * @return true if the response is acknowledged, false otherwise
      */
-    boolean isAcknowledged();
+    public final boolean isAcknowledged() {
+        return acknowledged;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        acknowledged = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(acknowledged);
+    }
 }

@@ -60,7 +60,38 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleQueryTests extends AbstractIntegrationTest {
 
+    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3797
+    public void testMultiMatchLenientIssue3797() {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource("field1", 123, "field2", "value2").get();
+        refresh();
 
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.multiMatchQuery("value2", "field1^2", "field2").lenient(true).useDisMax(false)).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.multiMatchQuery("value2", "field1^2", "field2").lenient(true).useDisMax(true)).get();
+        assertHitCount(searchResponse, 1l);
+        
+        
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.multiMatchQuery("value2", "field1^2", "field2").lenient(true)).execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.multiMatchQuery("value2", "_id^2", "field2").lenient(true)).execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.multiMatchQuery("123", "field1^2", "field2").lenient(true)).execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.multiMatchQuery("value2", "field1", "field2").lenient(true)).execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+        
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.multiMatchQuery("value2", "field1", "field2")).execute().actionGet();
+        assertHitCount(searchResponse, 1l);
+    }
+    
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
         run(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)));

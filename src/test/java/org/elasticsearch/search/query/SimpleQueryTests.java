@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleQueryTests extends AbstractIntegrationTest {
 
-
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
         run(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)));
@@ -1793,5 +1792,25 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                                 .field("field1").field("field2")).get();
 
         assertHitCount(response, 1l);
+    }
+
+    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3797
+    public void testMultiMatchLenientIssue3797() {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource("field1", 123, "field2", "value2").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.multiMatchQuery("value2", "field1^2", "field2").lenient(true).useDisMax(false)).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.multiMatchQuery("value2", "field1^2", "field2").lenient(true).useDisMax(true)).get();
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.multiMatchQuery("value2", "field2^2").lenient(true)).get();
+        assertHitCount(searchResponse, 1l);
     }
 }

@@ -85,11 +85,11 @@ ternary operator. Compare the following statements:
 [source,js]
 --------------------------------------------------
 // Will NOT update the tags array
-ctx._source.tags.contains(tag) ? ctx.op = \"none\" : ctx._source.tags += tag
+ctx._source.tags.containsKey(tag) ? ctx.op = \"none\" : ctx._source.tags += tag
 // Will update
-ctx._source.tags.contains(tag) ? (ctx.op = \"none\") : ctx._source.tags += tag
+ctx._source.tags.containsKey(tag) ? (ctx.op = \"none\") : ctx._source.tags += tag
 // Also works
-if (ctx._source.tags.contains(tag)) { ctx.op = \"none\" } else { ctx._source.tags += tag }
+if (ctx._source.tags.containsKey(tag)) { ctx.op = \"none\" } else { ctx._source.tags += tag }
 --------------------------------------------------
 
 The update API also support passing a partial document,

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -225,44 +224,5 @@ public class SimpleIndicesWarmerTests extends AbstractIntegrationTest {
     private long getWarmerRuns() {
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setWarmer(true).execute().actionGet();
         return indicesStatsResponse.getIndex("test").getPrimaries().warmer.total();
-    }
-
-    @Test
-    public void testPutWarmerAcknowledgement() {
-        createIndex("test");
-        ensureGreen();
-
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
-                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
-
-        for (Client client : clients()) {
-            GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-            assertThat(getWarmersResponse.warmers().size(), equalTo(1));
-            Map.Entry<String,ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().entrySet().iterator().next();
-            assertThat(entry.getKey(), equalTo("test"));
-            assertThat(entry.getValue().size(), equalTo(1));
-            assertThat(entry.getValue().get(0).name(), equalTo("custom_warmer"));
-        }
-    }
-
-    @Test
-    public void testDeleteWarmerAcknowledgement() {
-        createIndex("test");
-        ensureGreen();
-
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
-                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
-
-        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer").get();
-        assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
-
-        for (Client client : clients()) {
-            GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-            assertThat(getWarmersResponse.warmers().size(), equalTo(0));
-        }
     }
 }

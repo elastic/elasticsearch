@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.settings;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
@@ -28,21 +28,24 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 
 /**
- *
+ * Builder for an update index settings request
  */
-public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
+public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
 
     public UpdateSettingsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
         super((InternalIndicesAdminClient) indicesClient, new UpdateSettingsRequest(indices));
     }
 
+    /**
+     * Sets the indices the update settings will execute on
+     */
     public UpdateSettingsRequestBuilder setIndices(String... indices) {
         request.indices(indices);
         return this;
     }
 
     /**
-     * The settings update.
+     * Sets the settings to be updated
      */
     public UpdateSettingsRequestBuilder setSettings(Settings settings) {
         request.settings(settings);
@@ -50,7 +53,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
-     * The settings to update.
+     * Sets the settings to be updated
      */
     public UpdateSettingsRequestBuilder setSettings(Settings.Builder settings) {
         request.settings(settings);
@@ -58,7 +61,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
-     * The settings to update (either json/yaml/properties format)
+     * Sets the settings to be updated (either json/yaml/properties format)
      */
     public UpdateSettingsRequestBuilder setSettings(String source) {
         request.settings(source);
@@ -66,7 +69,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
-     * The settings to update (either json/yaml/properties format)
+     * Sets the settings to be updated (either json/yaml/properties format)
      */
     public UpdateSettingsRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);

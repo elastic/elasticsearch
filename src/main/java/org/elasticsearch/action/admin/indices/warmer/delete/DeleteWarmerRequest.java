@@ -26,11 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to delete an index warmer.
@@ -40,8 +37,6 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     private String name;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-
-    private TimeValue timeout = timeValueSeconds(10);
 
     DeleteWarmerRequest() {
     }
@@ -57,8 +52,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        return validationException;
+        return null;
     }
 
     /**

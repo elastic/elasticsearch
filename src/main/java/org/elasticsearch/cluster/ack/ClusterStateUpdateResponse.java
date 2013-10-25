@@ -17,36 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.warmer.put;
-
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+package org.elasticsearch.cluster.ack;
 
 /**
- * The response of put warmer operation.
+ * Base response returned after a cluster state update
  */
-public class PutWarmerResponse extends AcknowledgedResponse {
+public class ClusterStateUpdateResponse {
 
-    PutWarmerResponse() {
-        super();
+    private final boolean acknowledged;
+
+    public ClusterStateUpdateResponse(boolean acknowledged) {
+        this.acknowledged = acknowledged;
     }
 
-    PutWarmerResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out, null);
+    /**
+     * Whether the cluster state update was acknowledged or not
+     */
+    public boolean isAcknowledged() {
+        return acknowledged;
     }
 }

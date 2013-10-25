@@ -32,6 +32,17 @@ depends on the data set which one performs better. Note though, that
 indexed lat lon only make sense when there is a single geo point value
 for the field, and not multi values.
 
+In advance the `geohash` option can be enabled to benefit from the
+artificial grid geohases provide. A geohash is a hierarchical
+datastructure which allows a division of a spatial geometry. Each
+geohash defines a cell on the earths surface and each character of
+such a hash defines a cell within the cell described by the sequence
+of characters before. So the longer the geohash the smaller cell
+assoiciated with this geohash. Thereby the length of a geohash can be
+seen as precision. The `geopoint` corresponding to a geohash is the
+center of cell it referres to. This kind of representation is for
+example applied in the <<query-dsl-geohash-cell-filter,geohash cell filter>>.
+
 [float]
 ==== Input Structure
 
@@ -106,9 +117,15 @@ Defaults to `false`.
 |`geohash` |Set to `true` to also index the `.geohash` as a field.
 Defaults to `false`.
 
-|`geohash_precision` |Sets the geohash precision, defaults to 12.
+|`geohash_precision` |Sets the geohash precision. It can be set to an
+absolute geohash length or a distance value defining the size of the
+smallest cell. Defaults to an absolute length of 12.
 
-|`geohash_prefix` |If this option is set to `true`, not only the geohash but also all its parent cells (true prefixes) will be indexed as well. Defaults to `false`. *Note*: This option requires `geohash` to be enabled.
+|`geohash_prefix` |If this option is set to `true`, not only the geohash
+but also all its parent cells (true prefixes) will be indexed as well. The
+number of terms that will be index in this case depends on the
+`geohash_precision`. Defaults to `false`. *Note*: This option implicitly
+enables `geohash`.
 
 |`validate` |Set to `true` to reject geo points with invalid latitude or
 longitude (default is `false`) *Note*: Validation only works when

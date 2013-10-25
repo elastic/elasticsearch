@@ -1,23 +1,15 @@
 [[query-dsl-geohash-cell-filter]]
 === Geohash Cell Filter
 
-A geohash is a hierarchical datastructure which allows a division of a
-spatial geometry. Each geohash defines a cell on the earths surface and
-the longer the geohash the smaller cell. Also the size of a cell can be
-seen as precision. The geohash filter provides an access to this
-datastructure by defining a cell and match only points that lie within
-this cell.
+The geohash filter provides an access to hierachical datastructure of
+geohashes. By defining a geohash cell only <<mapping-geo-point-type,geopoints>>
+within this cell will match this filter.
 
 To get this filter work all prefixes of a geohash need to be indexed. In
 example a geohash `u30` needs to be decomposed into three terms: `u30`,
-`u3` and `u`. The number of terms that will be index in this case depends
-on the `geohash_precision` set in the `geo_point` mapping. This option can
-be set to an absolute geohash length or a distance value defining the size
-of the smallest cell.
-
-This decomposition must be enabled in the mapping of the
-`geo_point` field that's going to be filtered by setting the
-`geohash_prefix` option:
+`u3` and `u`. This decomposition must be enabled in the mapping of the
+<<mapping-geo-point-type,geopoint>> field that's going to be filtered by
+setting the `geohash_prefix` option:
 
 [source,js]
 --------------------------------------------------

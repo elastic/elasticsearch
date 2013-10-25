@@ -38,11 +38,13 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
 
     protected AcknowledgedRequest() {
     }
+
     /**
      * Allows to set the timeout
      * @param timeout timeout as a string (e.g. 1s)
      * @return the request itself
      */
+    @SuppressWarnings("unchecked")
     public final T timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, this.timeout);
         return (T)this;
@@ -53,6 +55,7 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
      * @param timeout timeout as a {@link TimeValue}
      * @return the request itself
      */
+    @SuppressWarnings("unchecked")
     public final T timeout(TimeValue timeout) {
         this.timeout = timeout;
         return (T) this;
@@ -83,5 +86,4 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
             timeout.writeTo(out);
         }
     }
-
 }

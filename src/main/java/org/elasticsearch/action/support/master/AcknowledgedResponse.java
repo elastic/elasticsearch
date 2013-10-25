@@ -18,6 +18,7 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,15 +49,21 @@ public abstract class AcknowledgedResponse extends ActionResponse {
         return acknowledged;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        acknowledged = in.readBoolean();
+    /**
+     * Reads the timeout value if on or after the specified min version or if the version is <code>null</code>.
+     */
+    protected void readAcknowledged(StreamInput in, Version minVersion) throws IOException {
+        if (minVersion == null || in.getVersion().onOrAfter(minVersion)) {
+            acknowledged = in.readBoolean();
+        }
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(acknowledged);
+    /**
+     * Writes the timeout value if on or after the specified min version or if the version is <code>null</code>.
+     */
+    protected void writeAcknowledged(StreamOutput out, Version minVersion) throws IOException {
+        if (minVersion == null || out.getVersion().onOrAfter(minVersion)) {
+            out.writeBoolean(acknowledged);
+        }
     }
 }

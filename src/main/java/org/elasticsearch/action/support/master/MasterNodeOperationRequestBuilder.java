@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.InternalGenericClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
+ * Base request builder for master node operations
  */
 public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response, RequestBuilder> {

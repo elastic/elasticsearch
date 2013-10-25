@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.settings;
 
 import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,9 +40,9 @@ import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFr
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
 
 /**
- *
+ * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSettingsRequest> {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> {
 
     private String[] indices;
 
@@ -51,14 +52,14 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     }
 
     /**
-     * Constructs a new request to create an index with the specified name and settings.
+     * Constructs a new request to update settings for one or more indices
      */
     public UpdateSettingsRequest(String... indices) {
         this.indices = indices;
     }
 
     /**
-     * Constructs a new request to create an index with the specified name and settings.
+     * Constructs a new request to update settings for one or more indices
      */
     public UpdateSettingsRequest(Settings settings, String... indices) {
         this.indices = indices;
@@ -82,13 +83,16 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
         return settings;
     }
 
+    /**
+     * Sets the indices to apply to settings update to
+     */
     public UpdateSettingsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
 
     /**
-     * The settings to created the index with.
+     * Sets the settings to be updated
      */
     public UpdateSettingsRequest settings(Settings settings) {
         this.settings = settings;
@@ -96,7 +100,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     }
 
     /**
-     * The settings to created the index with.
+     * Sets the settings to be updated
      */
     public UpdateSettingsRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
@@ -104,7 +108,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * Sets the settings to be updated (either json/yaml/properties format)
      */
     public UpdateSettingsRequest settings(String source) {
         this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
@@ -112,8 +116,9 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     }
 
     /**
-     * The settings to crete the index with (either json/yaml/properties format)
+     * Sets the settings to be updated (either json/yaml/properties format)
      */
+    @SuppressWarnings("unchecked")
     public UpdateSettingsRequest settings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -130,6 +135,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
         super.readFrom(in);
         indices = in.readStringArray();
         settings = readSettingsFromStream(in);
+        readTimeout(in, Version.V_0_90_6);
     }
 
     @Override
@@ -137,5 +143,6 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         writeSettingsToStream(settings, out);
+        writeTimeout(out, Version.V_0_90_6);
     }
 }

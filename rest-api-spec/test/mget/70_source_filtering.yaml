@@ -18,7 +18,7 @@
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
   - do:
       mget:
-        body: >
+        body:
           { docs:
               [ { _index:  "test_1", _type: "test", _id: "1", _source: false },
                 { _index:  "test_1", _type: "test", _id: "2", _source: true }

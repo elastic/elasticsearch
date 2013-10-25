@@ -358,7 +358,7 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     public boolean equals(Object o) {
-        if (getClass() != o.getClass())
+        if (o == null || getClass() != o.getClass())
             return false;
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
         if (this.getBoost() != other.getBoost())

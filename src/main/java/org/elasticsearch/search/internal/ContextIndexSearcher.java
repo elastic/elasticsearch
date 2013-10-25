@@ -34,7 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- *
+ * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher {
 
@@ -42,6 +42,11 @@ public class ContextIndexSearcher extends IndexSearcher {
         NA,
         MAIN_QUERY
     }
+
+    /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of <tt>super</tt> is that
+     *  this instance may have more assertions, for example if it comes from MockRobinEngine which wraps the IndexSearcher into an
+     *  AssertingIndexSearcher. */
+    private final IndexSearcher in;
 
     private final SearchContext searchContext;
 
@@ -56,6 +61,7 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
+        in = searcher.searcher();
         this.searchContext = searchContext;
         setSimilarity(searcher.searcher().getSimilarity());
     }
@@ -106,11 +112,11 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (searchContext.queryRewritten()) {
                 return searchContext.query();
             }
-            Query rewriteQuery = super.rewrite(original);
+            Query rewriteQuery = in.rewrite(original);
             searchContext.updateRewriteQuery(rewriteQuery);
             return rewriteQuery;
         } else {
-            return super.rewrite(original);
+            return in.rewrite(original);
         }
     }
 
@@ -121,7 +127,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
                 return dfSource.createNormalizedWeight(query);
             }
-            return super.createNormalizedWeight(query);
+            return in.createNormalizedWeight(query);
         } catch (Throwable t) {
             searchContext.clearReleasables();
             throw new RuntimeException(t);

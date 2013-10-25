@@ -99,7 +99,7 @@ public class ParentConstantScoreQuery extends Query {
         indexSearcher.search(parentQuery, collector);
 
         if (parents.v().isEmpty()) {
-            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
         ChildrenWeight childrenWeight = new ChildrenWeight(searchContext, parents);
@@ -219,6 +219,7 @@ public class ParentConstantScoreQuery extends Query {
     public int hashCode() {
         int result = originalParentQuery.hashCode();
         result = 31 * result + parentType.hashCode();
+        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
@@ -236,6 +237,9 @@ public class ParentConstantScoreQuery extends Query {
             return false;
         }
         if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        if (this.getBoost() != that.getBoost()) {
             return false;
         }
         return true;

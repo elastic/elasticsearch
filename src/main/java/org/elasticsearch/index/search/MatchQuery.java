@@ -33,7 +33,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -390,6 +389,6 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
-        return zeroTermsQuery == ZeroTermsQuery.NONE ? MatchNoDocsQuery.INSTANCE : Queries.newMatchAllQuery();
+        return zeroTermsQuery == ZeroTermsQuery.NONE ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
     }
 }

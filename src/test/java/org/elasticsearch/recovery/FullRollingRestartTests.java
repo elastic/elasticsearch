@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope=Scope.TEST, numNodes = 0)
+@ClusterScope(scope=Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartTests extends AbstractIntegrationTest {
 
     @Test

@@ -136,7 +136,7 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
         default:
            assert false : "Unknonw Scope: [" + currentClusterScope + "]";
         }
-        currentCluster.beforeTest(getRandom(), Double.isNaN(TRANSPORT_CLIENT_RATIO) ? randomDouble() : TRANSPORT_CLIENT_RATIO);
+        currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
         wipeIndices();
         wipeTemplates();
         randomIndexTemplate();
@@ -683,6 +683,7 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
     public @interface ClusterScope {
         Scope scope() default Scope.GLOBAL; 
         int numNodes() default -1;
+        double transportClientRatio() default -1;
     }
     
     private static long clusterSeed() {
@@ -699,6 +700,19 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
             return Double.NaN;
         }
         return Double.parseDouble(property);
+    }
+
+    private double getPerTestTransportClientRatio() {
+        final ClusterScope annotation = getAnnotation(this.getClass());
+        double perTestRatio = -1;
+        if (annotation != null) {
+            perTestRatio = annotation.transportClientRatio();
+        }
+        if (perTestRatio == -1) {
+            return Double.isNaN(TRANSPORT_CLIENT_RATIO) ? randomDouble() : TRANSPORT_CLIENT_RATIO;
+        }
+        assert perTestRatio >= 0.0 && perTestRatio <= 1.0;
+        return perTestRatio;
     }
 
 }

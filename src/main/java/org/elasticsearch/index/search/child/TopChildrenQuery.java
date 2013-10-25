@@ -230,6 +230,9 @@ public class TopChildrenQuery extends Query {
         if (incrementalFactor != that.incrementalFactor) {
             return false;
         }
+        if (getBoost() != that.getBoost()) {
+            return false;
+        }
         return true;
     }
 
@@ -238,6 +241,7 @@ public class TopChildrenQuery extends Query {
         int result = originalChildQuery.hashCode();
         result = 31 * result + parentType.hashCode();
         result = 31 * result + incrementalFactor;
+        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
@@ -342,10 +346,7 @@ public class TopChildrenQuery extends Query {
 
         @Override
         public final int advance(int target) throws IOException {
-            int doc;
-            while ((doc = nextDoc()) < target) {
-            }
-            return doc;
+            return slowAdvance(target);
         }
 
         @Override

@@ -101,7 +101,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         int remaining = collectedUids.v().size();
         if (remaining == 0) {
-            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
         Filter shortCircuitFilter = null;
@@ -261,6 +261,9 @@ public class ChildrenConstantScoreQuery extends Query {
         if (shortCircuitParentDocSet != that.shortCircuitParentDocSet) {
             return false;
         }
+        if (getBoost() != that.getBoost()) {
+            return false;
+        }
         return true;
     }
 
@@ -268,7 +271,8 @@ public class ChildrenConstantScoreQuery extends Query {
     public int hashCode() {
         int result = originalChildQuery.hashCode();
         result = 31 * result + childType.hashCode();
-        result += shortCircuitParentDocSet;
+        result = 31 * result + shortCircuitParentDocSet;
+        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 

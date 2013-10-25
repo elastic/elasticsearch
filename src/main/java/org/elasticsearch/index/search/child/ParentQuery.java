@@ -78,6 +78,9 @@ public class ParentQuery extends Query {
         if (!parentType.equals(that.parentType)) {
             return false;
         }
+        if (getBoost() != that.getBoost()) {
+            return false;
+        }
         return true;
     }
 
@@ -85,6 +88,7 @@ public class ParentQuery extends Query {
     public int hashCode() {
         int result = originalParentQuery.hashCode();
         result = 31 * result + parentType.hashCode();
+        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
@@ -131,7 +135,7 @@ public class ParentQuery extends Query {
 
         if (uidToScore.v().isEmpty()) {
             uidToScore.release();
-            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
         ChildWeight childWeight = new ChildWeight(parentQuery.createWeight(searcher), searchContext, uidToScore);

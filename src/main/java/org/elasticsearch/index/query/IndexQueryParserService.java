@@ -283,7 +283,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         parseContext.reset(parser);
         Query query = parseContext.parseInnerQuery();
         if (query == null) {
-            query = Queries.NO_MATCH_QUERY;
+            query = Queries.newMatchNoDocsQuery();
         }
         return new ParsedQuery(query, parseContext.copyNamedFilters());
     }

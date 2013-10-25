@@ -24,10 +24,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.XLuceneConstantScoreQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -41,7 +41,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -68,7 +67,7 @@ public class FilterCacheTests extends ElasticsearchTestCase {
 
         reader = refreshReader(reader);
         IndexSearcher searcher = new IndexSearcher(reader);
-        assertThat(Lucene.count(searcher, new ConstantScoreQuery(filterCache.cache(new TermFilter(new Term("id", "1"))))), equalTo(1l));
+        assertThat(Lucene.count(searcher, new XLuceneConstantScoreQuery(filterCache.cache(new TermFilter(new Term("id", "1"))))), equalTo(1l));
         assertThat(Lucene.count(searcher, new XFilteredQuery(new MatchAllDocsQuery(), filterCache.cache(new TermFilter(new Term("id", "1"))))), equalTo(1l));
 
         indexWriter.deleteDocuments(new Term("id", "1"));
@@ -78,7 +77,7 @@ public class FilterCacheTests extends ElasticsearchTestCase {
         Filter cachedFilter = filterCache.cache(filter);
         long constantScoreCount = filter == cachedFilter ? 0 : 1;
         // sadly, when caching based on cacheKey with NRT, this fails, that's why we have DeletionAware one
-        assertThat(Lucene.count(searcher, new ConstantScoreQuery(cachedFilter)), equalTo(constantScoreCount));
+        assertThat(Lucene.count(searcher, new XLuceneConstantScoreQuery(cachedFilter)), equalTo(constantScoreCount));
         assertThat(Lucene.count(searcher, new XConstantScoreQuery(cachedFilter)), equalTo(0l));
         assertThat(Lucene.count(searcher, new XFilteredQuery(new MatchAllDocsQuery(), cachedFilter)), equalTo(0l));
 

@@ -116,7 +116,7 @@ public class Lucene {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query
         if (!(query instanceof ConstantScoreQuery)) {
-            query = new ConstantScoreQuery(query);
+            query = new XLuceneConstantScoreQuery(query);
         }
         searcher.search(query, countCollector);
         return countCollector.getTotalHits();

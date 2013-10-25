@@ -11,13 +11,15 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import sun.security.provider.MD5;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.Random;
 
 /**
  * This script demonstrates how native scripts can be used to create custom sort order.
  * Since sort operation is expecting float parameter, the {@link AbstractFloatSearchScript} can be used.
- *
+ * <p/>
  * The script accepts one optional parameter salt. If parameter is specified, a pseudo random sort order is used.
  * Otherwise, a random sort order is used.
  */
@@ -61,16 +63,23 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
 
         @Override
         public long runAsLong() {
-            ScriptDocValues.Strings fieldData = (ScriptDocValues.Strings)doc().get(UidFieldMapper.NAME);
-            byte[] sort = org.elasticsearch.common.Digest.md5(fieldData.getValue() + salt);
-            return (sort[0] & 0xFFL) << 56
-                    | (sort[1] & 0xFFL) << 48
-                    | (sort[2] & 0xFFL) << 40
-                    | (sort[3] & 0xFFL) << 32
-                    | (sort[4] & 0xFFL) << 24
-                    | (sort[5] & 0xFFL) << 16
-                    | (sort[6] & 0xFFL) << 8
-                    | (sort[7] & 0xFFL);
+            ScriptDocValues.Strings fieldData = (ScriptDocValues.Strings) doc().get(UidFieldMapper.NAME);
+            try {
+                MessageDigest m = MessageDigest.getInstance("MD5");
+                m.reset();
+                m.update((fieldData.getValue() + salt).getBytes());
+                byte[] sort = m.digest();
+                return (sort[0] & 0xFFL) << 56
+                        | (sort[1] & 0xFFL) << 48
+                        | (sort[2] & 0xFFL) << 40
+                        | (sort[3] & 0xFFL) << 32
+                        | (sort[4] & 0xFFL) << 24
+                        | (sort[5] & 0xFFL) << 16
+                        | (sort[6] & 0xFFL) << 8
+                        | (sort[7] & 0xFFL);
+            } catch (NoSuchAlgorithmException ex) {
+                return -1;
+            }
         }
     }
 }

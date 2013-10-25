@@ -21,13 +21,18 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -41,7 +46,7 @@ import java.util.*;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
- *
+ * Service responsible for submitting update index settings requests
  */
 public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
 
@@ -120,9 +125,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<String> indices = nrReplicasChanged.get(fNumberOfReplicas);
 
-                updateSettings(settings, indices.toArray(new String[indices.size()]), TimeValue.timeValueMinutes(10), new Listener() {
+                UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
+                        .indices(indices.toArray(new String[indices.size()])).settings(settings)
+                        .ackTimeout(TimeValue.timeValueMillis(0)) //no need to wait for ack here
+                        .masterNodeTimeout(TimeValue.timeValueMinutes(10));
+
+                updateSettings(updateRequest, new ClusterStateUpdateListener() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(ClusterStateUpdateResponse response) {
                         for (String index : indices) {
                             logger.info("[{}] auto expanded replicas to [{}]", index, fNumberOfReplicas);
                         }
@@ -139,9 +149,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
     }
 
-    public void updateSettings(final Settings pSettings, final String[] indices, final TimeValue masterTimeout, final Listener listener) {
+    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
+        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
             if (entry.getKey().equals("index")) {
                 continue;
             }
@@ -186,10 +196,31 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
-        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                listener.onResponse(new ClusterStateUpdateResponse(false));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.ackTimeout();
+            }
+
             @Override
             public TimeValue timeout() {
-                return masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -199,7 +230,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                String[] actualIndices = currentState.metaData().concreteIndices(indices);
+                String[] actualIndices = currentState.metaData().concreteIndices(request.indices());
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
 
@@ -296,14 +327,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onSuccess();
             }
         });
-    }
-
-    public static interface Listener {
-        void onSuccess();
-
-        void onFailure(Throwable t);
     }
 }

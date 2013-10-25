@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -67,10 +69,17 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticSearchException {
-        updateSettingsService.updateSettings(request.settings(), request.indices(), request.masterNodeTimeout(), new MetaDataUpdateSettingsService.Listener() {
+
+        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
+                .indices(request.indices())
+                .settings(request.settings())
+                .ackTimeout(request.timeout())
+                .masterNodeTimeout(request.masterNodeTimeout());
+
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ClusterStateUpdateListener() {
             @Override
-            public void onSuccess() {
-                listener.onResponse(new UpdateSettingsResponse());
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new UpdateSettingsResponse(response.isAcknowledged()));
             }
 
             @Override

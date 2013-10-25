@@ -41,9 +41,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> {
 
     private SearchRequest searchRequest;
 
-
     PutWarmerRequest() {
-
     }
 
     /**

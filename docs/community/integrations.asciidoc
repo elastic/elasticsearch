@@ -70,3 +70,6 @@
 * https://github.com/fullscale/dangle[dangle]:
   A set of AngularJS directives that provide common visualizations for elasticsearch based on
   D3.
+
+* https://github.com/roundscope/ember-data-elasticsearch-kit[ember-data-elasticsearch-kit]:
+  An ember-data kit for both pushing and querying objects to ElasticSearch cluster

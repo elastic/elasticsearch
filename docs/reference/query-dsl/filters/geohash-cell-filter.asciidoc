@@ -1,8 +1,8 @@
 [[query-dsl-geohash-cell-filter]]
 === Geohash Cell Filter
 
-The geohash filter provides an access to hierachical datastructure of
-geohashes. By defining a geohash cell only <<mapping-geo-point-type,geopoints>>
+The `geohash_cell` filter provides access to a hierarchy of geohashes.  
+By defining a geohash cell, only <<mapping-geo-point-type,geopoints>> 
 within this cell will match this filter.
 
 To get this filter work all prefixes of a geohash need to be indexed. In

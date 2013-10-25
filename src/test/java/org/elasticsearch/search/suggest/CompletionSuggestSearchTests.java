@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -118,6 +119,23 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
         refresh();
 
         assertSuggestions("the", "the", "The the", "The Verve", "The Prodigy");
+    }
+
+    @Test
+    public void testThatWeightMustBeAnInteger() throws Exception {
+        createIndexAndMapping();
+
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .startArray("input").value("sth").endArray()
+                    .field("weight", 2.5)
+                    .endObject().endObject()
+            ).get();
+            fail("Indexing with a float weight was successful, but should not be");
+        } catch (MapperParsingException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("2.5"));
+        }
     }
 
     @Test

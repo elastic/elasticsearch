@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,8 +28,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
+ * Response returned after a cluster reroute request
  */
-public class ClusterRerouteResponse extends ActionResponse {
+public class ClusterRerouteResponse extends AcknowledgedResponse {
 
     private ClusterState state;
 
@@ -36,10 +38,14 @@ public class ClusterRerouteResponse extends ActionResponse {
 
     }
 
-    ClusterRerouteResponse(ClusterState state) {
+    ClusterRerouteResponse(boolean acknowledged, ClusterState state) {
+        super(acknowledged);
         this.state = state;
     }
 
+    /**
+     * Returns the cluster state resulted from the cluster reroute request execution
+     */
     public ClusterState getState() {
         return this.state;
     }
@@ -48,11 +54,13 @@ public class ClusterRerouteResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         state = ClusterState.Builder.readFrom(in, null);
+        readAcknowledged(in, Version.V_0_90_6);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         ClusterState.Builder.writeTo(state, out);
+        writeAcknowledged(out, Version.V_0_90_6);
     }
 }

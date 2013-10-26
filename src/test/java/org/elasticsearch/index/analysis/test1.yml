@@ -48,6 +48,11 @@ index :
       custom5 :
         tokenizer : standard
         char_filter : [my_mapping]
+      custom6 :
+        type : standard
+      custom7 :
+        type : standard
+        version: 3.6
       czechAnalyzerWithStemmer :
         tokenizer : standard
         filter : [standard, lowercase, stop, czech_stem]

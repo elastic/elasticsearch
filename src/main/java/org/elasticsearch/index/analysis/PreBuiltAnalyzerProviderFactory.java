@@ -20,7 +20,12 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+
+import java.util.Locale;
 
 /**
  *
@@ -30,15 +35,17 @@ public class PreBuiltAnalyzerProviderFactory implements AnalyzerProviderFactory 
     private final PreBuiltAnalyzerProvider analyzerProvider;
 
     public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer) {
-        this(new PreBuiltAnalyzerProvider(name, scope, analyzer));
-    }
-
-    public PreBuiltAnalyzerProviderFactory(PreBuiltAnalyzerProvider analyzerProvider) {
-        this.analyzerProvider = analyzerProvider;
+        analyzerProvider = new PreBuiltAnalyzerProvider(name, scope, analyzer);
     }
 
     @Override
     public AnalyzerProvider create(String name, Settings settings) {
+        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (!Version.CURRENT.equals(indexVersion)) {
+            Analyzer analyzer = PreBuiltAnalyzers.valueOf(name.toUpperCase(Locale.ROOT)).getAnalyzer(indexVersion);
+            return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+        }
+
         return analyzerProvider;
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.reroute;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
@@ -52,6 +50,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
+        clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
         if (request.hasContent()) {
             try {
@@ -65,27 +64,17 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                 return;
             }
         }
-        client.admin().cluster().reroute(clusterRerouteRequest, new ActionListener<ClusterRerouteResponse>() {
+
+        client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestResponseActionListener<ClusterRerouteResponse>(request, channel, logger) {
             @Override
-            public void onResponse(ClusterRerouteResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-
-                    builder.field("ok", true);
-                    builder.startObject("state");
-                    // by default, filter metadata
-                    if (request.param("filter_metadata") == null) {
-                        request.params().put("filter_metadata", "true");
-                    }
-                    response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
-                    builder.endObject();
-
-                    builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+            protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
+                builder.startObject("state");
+                // by default, filter metadata
+                if (request.param("filter_metadata") == null) {
+                    request.params().put("filter_metadata", "true");
                 }
+                response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                builder.endObject();
             }
 
             @Override
@@ -93,11 +82,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to handle cluster reroute", e);
                 }
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                super.onFailure(e);
             }
         });
     }

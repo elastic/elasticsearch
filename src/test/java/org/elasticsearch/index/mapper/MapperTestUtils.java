@@ -48,7 +48,7 @@ public class MapperTestUtils {
     }
 
     public static DocumentMapperParser newParser(Settings indexSettings) {
-        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(), new PostingsFormatService(new Index("test")),
+        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(indexSettings), new PostingsFormatService(new Index("test")),
                 new DocValuesFormatService(new Index("test")), newSimilarityLookupService());
     }
 
@@ -58,11 +58,15 @@ public class MapperTestUtils {
     }
 
     public static AnalysisService newAnalysisService() {
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS), new EnvironmentModule(new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS)), new IndicesAnalysisModule()).createInjector();
+        return newAnalysisService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    public static AnalysisService newAnalysisService(Settings indexSettings) {
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(indexSettings), new EnvironmentModule(new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new IndexSettingsModule(new Index("test"), indexSettings),
                 new IndexNameModule(new Index("test")),
-                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
+                new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }

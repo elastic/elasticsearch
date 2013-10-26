@@ -24,11 +24,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.Lucene;
@@ -45,20 +47,34 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public class AnalysisModuleTests extends ElasticsearchTestCase {
+
+    private Injector injector;
+
+    public AnalysisService getAnalysisService(Settings settings) {
+        Index index = new Index("test");
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
+        injector = new ModulesBuilder().add(
+                new IndexSettingsModule(index, settings),
+                new IndexNameModule(index),
+                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
+                .createChildInjector(parentInjector);
+
+        return injector.getInstance(AnalysisService.class);
+    }
 
     @Test
     public void testSimpleConfigurationJson() {
@@ -79,6 +95,38 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
     }
 
+    @Test
+    public void testVersionedAnalyzers() throws Exception {
+        Settings settings2 = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build();
+        AnalysisService analysisService2 = getAnalysisService(settings2);
+
+        // indicesanalysisservice always has the current version
+        IndicesAnalysisService indicesAnalysisService2 = injector.getInstance(IndicesAnalysisService.class);
+        assertThat(indicesAnalysisService2.analyzer("default"), is(instanceOf(NamedAnalyzer.class)));
+        NamedAnalyzer defaultNamedAnalyzer = (NamedAnalyzer) indicesAnalysisService2.analyzer("default");
+        assertThat(defaultNamedAnalyzer.analyzer(), is(instanceOf(StandardAnalyzer.class)));
+        assertLuceneAnalyzerVersion(Version.CURRENT.luceneVersion, defaultNamedAnalyzer.analyzer());
+
+        // analysis service has the expected version
+        assertThat(analysisService2.analyzer("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
+        assertLuceneAnalyzerVersion(Version.V_0_90_0.luceneVersion, analysisService2.analyzer("standard").analyzer());
+        assertLuceneAnalyzerVersion(Version.V_0_90_0.luceneVersion, analysisService2.analyzer("thai").analyzer());
+    }
+
+    // ugly reflection based hack to extract the lucene version from an analyzer
+    private void assertLuceneAnalyzerVersion(org.apache.lucene.util.Version luceneVersion, Analyzer analyzer) throws Exception {
+        Field field = analyzer.getClass().getSuperclass().getDeclaredField("matchVersion");
+        boolean currentAccessible = field.isAccessible();
+        field.setAccessible(true);
+        Object obj = field.get(analyzer);
+        field.setAccessible(currentAccessible);
+
+        assertThat(obj, instanceOf(org.apache.lucene.util.Version.class));
+        org.apache.lucene.util.Version analyzerVersion = (org.apache.lucene.util.Version) obj;
+        assertThat(analyzerVersion, is(luceneVersion));
+    }
+
     private void assertTokenFilter(String name, Class clazz) {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
@@ -88,16 +136,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     }
 
     private void testSimpleConfiguration(Settings settings) {
-        Index index = new Index("test");
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
-                .createChildInjector(parentInjector);
-
-        AnalysisService analysisService = injector.getInstance(AnalysisService.class);
-
+        AnalysisService analysisService = getAnalysisService(settings);
         Analyzer analyzer = analysisService.analyzer("custom1").analyzer();
 
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));

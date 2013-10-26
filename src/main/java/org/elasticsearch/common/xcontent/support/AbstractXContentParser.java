@@ -31,6 +31,22 @@ import java.util.*;
  */
 public abstract class AbstractXContentParser implements XContentParser {
 
+
+    @Override
+    public boolean isBooleanValue() throws IOException {
+        switch (currentToken()) {
+            case VALUE_BOOLEAN:
+                return true;
+            case VALUE_NUMBER:
+                NumberType numberType = numberType();
+                return numberType == NumberType.LONG || numberType == NumberType.INT;
+            case VALUE_STRING:
+                return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+            default:
+                return false;
+        }
+    }
+
     @Override
     public boolean booleanValue() throws IOException {
         Token token = currentToken();

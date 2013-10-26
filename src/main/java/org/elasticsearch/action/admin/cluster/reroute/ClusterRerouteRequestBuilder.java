@@ -20,15 +20,16 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
+ * Builder for a cluster reroute request
  */
-public class ClusterRerouteRequestBuilder extends MasterNodeOperationRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
+public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
 
     public ClusterRerouteRequestBuilder(ClusterAdminClient clusterClient) {
         super((InternalClusterAdminClient) clusterClient, new ClusterRerouteRequest());
@@ -52,6 +53,9 @@ public class ClusterRerouteRequestBuilder extends MasterNodeOperationRequestBuil
         return this;
     }
 
+    /**
+     * Sets the source for the request
+     */
     public ClusterRerouteRequestBuilder setSource(BytesReference source) throws Exception {
         request.source(source);
         return this;

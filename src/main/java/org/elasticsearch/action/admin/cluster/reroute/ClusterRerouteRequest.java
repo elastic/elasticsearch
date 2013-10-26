@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,8 +34,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
+ * Request to submit cluster reroute allocation commands
  */
-public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRerouteRequest> {
+public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
 
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;
@@ -60,6 +62,10 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
         return this;
     }
 
+    /**
+     * Returns the current dry run flag which allows to run the commands without actually applying them,
+     * just to get back the resulting cluster state back.
+     */
     public boolean dryRun() {
         return this.dryRun;
     }
@@ -105,6 +111,7 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
         super.readFrom(in);
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
+        readTimeout(in, Version.V_0_90_6);
     }
 
     @Override
@@ -112,5 +119,6 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
         super.writeTo(out);
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
+        writeTimeout(out, Version.V_0_90_6);
     }
 }

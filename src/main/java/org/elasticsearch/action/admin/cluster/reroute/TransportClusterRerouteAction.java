@@ -22,11 +22,13 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -72,9 +74,29 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticSearchException {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             private volatile ClusterState clusterStateToSend;
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.timeout();
+            }
 
             @Override
             public TimeValue timeout() {
@@ -100,7 +122,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new ClusterRerouteResponse(clusterStateToSend));
+
             }
         });
     }

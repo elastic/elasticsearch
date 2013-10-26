@@ -322,10 +322,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                                         versionType = VersionType.fromString(parser.text());
                                     } else if ("_source".equals(currentFieldName)) {
-                                        if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                                        if (parser.isBooleanValue()) {
                                             fetchSourceContext = new FetchSourceContext(parser.booleanValue());
                                         } else if (token == XContentParser.Token.VALUE_STRING) {
                                             fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
+                                        } else {
+                                            throw new ElasticSearchParseException("illegal type for _source: [" + token + "]");
                                         }
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {

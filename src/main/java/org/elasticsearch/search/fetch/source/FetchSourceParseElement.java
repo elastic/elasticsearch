@@ -48,7 +48,7 @@ public class FetchSourceParseElement implements SearchParseElement {
         List<String> includes = null, excludes = null;
         String currentFieldName = null;
         token = parser.currentToken(); // we get it on the value
-        if (token == XContentParser.Token.VALUE_BOOLEAN) {
+        if (parser.isBooleanValue()) {
             context.fetchSourceContext(new FetchSourceContext(parser.booleanValue()));
             return;
         } else if (token == XContentParser.Token.VALUE_STRING) {

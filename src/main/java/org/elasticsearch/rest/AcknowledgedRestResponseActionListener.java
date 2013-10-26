@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public final class AcknowledgedRestResponseActionListener<T extends AcknowledgedResponse> extends AbstractRestResponseActionListener<T> {
+public class AcknowledgedRestResponseActionListener<T extends AcknowledgedResponse> extends AbstractRestResponseActionListener<T> {
 
     public AcknowledgedRestResponseActionListener(RestRequest request, RestChannel channel, ESLogger logger) {
         super(request, channel, logger);
@@ -42,10 +42,19 @@ public final class AcknowledgedRestResponseActionListener<T extends Acknowledged
             builder.startObject()
                     .field("ok", true)
                     .field("acknowledged", response.isAcknowledged());
+            addCustomFields(builder, response);
             builder.endObject();
             channel.sendResponse(new XContentRestResponse(request, OK, builder));
         } catch (IOException e) {
             onFailure(e);
         }
+    }
+
+    /**
+     * Adds api specific fields to the rest response
+     * Does nothing by default but can be overridden by subclasses
+     */
+    protected void addCustomFields(XContentBuilder builder, T response) throws IOException {
+
     }
 }

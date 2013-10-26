@@ -19,14 +19,20 @@
 
 package org.elasticsearch.cluster.ack;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -34,10 +40,10 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.AbstractIntegrationTest.Scope.SUITE;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = SUITE)
 public class AckTests extends AbstractIntegrationTest {
@@ -113,15 +119,120 @@ public class AckTests extends AbstractIntegrationTest {
 
         client().prepareIndex("test", "type1").setSource("field1", "value1");
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").addTypes("type1").get();
-        assertThat(getMappingsResponse.mappings().get("test").get("type1"), notNullValue());
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        MappingMetaData mapping = clusterStateResponse.getState().metaData().index("test").mapping("type1");
+        assertThat(mapping, notNullValue());
 
         DeleteMappingResponse deleteMappingResponse = client().admin().indices().prepareDeleteMapping("test").setType("type1").get();
         assertThat(deleteMappingResponse.isAcknowledged(), equalTo(true));
 
         for (Client client : clients()) {
-            getMappingsResponse = client.admin().indices().prepareGetMappings("test").addTypes("type1").get();
-            assertThat(getMappingsResponse.mappings().size(), equalTo(0));
+            clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
+            mapping = clusterStateResponse.getState().metaData().index("test").mapping("type1");
+            assertThat(mapping, nullValue());
         }
+    }
+
+    @Test
+    public void testClusterRerouteAcknowledgement() throws InterruptedException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_replicas", 0)).get();
+        ensureGreen();
+
+
+        MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
+
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().add(moveAllocationCommand).get();
+        assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
+            RoutingNode routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
+            for (MutableShardRouting mutableShardRouting : routingNode) {
+                //if the shard that we wanted to move is still on the same node, it must be relocating
+                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                    assertThat(mutableShardRouting.relocating(), equalTo(true));
+                }
+
+            }
+
+            routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
+            boolean found = false;
+            for (MutableShardRouting mutableShardRouting : routingNode) {
+                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                    assertThat(mutableShardRouting.state(), anyOf(equalTo(ShardRoutingState.INITIALIZING), equalTo(ShardRoutingState.STARTED)));
+                    found = true;
+                    break;
+                }
+            }
+            assertThat(found, equalTo(true));
+        }
+        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
+        waitForRelocation();
+    }
+
+    @Test
+    public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_replicas", 0)).get();
+        ensureGreen();
+
+        MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
+
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setDryRun(true).add(moveAllocationCommand).get();
+        assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
+            RoutingNode routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
+            for (MutableShardRouting mutableShardRouting : routingNode) {
+                //the shard that we wanted to move is still on the same node, as we had dryRun flag
+                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                    assertThat(mutableShardRouting.started(), equalTo(true));
+                }
+
+            }
+
+            routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
+            boolean found = false;
+            for (MutableShardRouting mutableShardRouting : routingNode) {
+                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                    found = true;
+                    break;
+                }
+            }
+            assertThat(found, equalTo(false));
+        }
+    }
+
+    private static MoveAllocationCommand getAllocationCommand() {
+        String fromNodeId = null;
+        String toNodeId = null;
+        MutableShardRouting shardToBeMoved = null;
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        for (RoutingNode routingNode : clusterStateResponse.getState().routingNodes().nodesToShards().values()) {
+            if (routingNode.node().isDataNode()) {
+                if (fromNodeId == null && routingNode.numberOfOwningShards() > 0) {
+                    fromNodeId = routingNode.nodeId();
+                    shardToBeMoved = routingNode.shards().get(0);
+                } else {
+                    toNodeId = routingNode.nodeId();
+                }
+
+                if (toNodeId != null && fromNodeId != null) {
+                    break;
+                }
+            }
+        }
+
+        assert fromNodeId != null;
+        assert toNodeId != null;
+        assert shardToBeMoved != null;
+
+        return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);
     }
 }

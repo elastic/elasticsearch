@@ -22,13 +22,15 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
@@ -293,12 +295,32 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void removeMapping(final RemoveRequest request, final Listener listener) {
-        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.HIGH, new TimeoutClusterStateUpdateTask() {
+    public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+        clusterService.submitStateUpdateTask("remove-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.ackTimeout();
+            }
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -308,18 +330,18 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (request.indices.length == 0) {
+                if (request.indices().length == 0) {
                     throw new IndexMissingException(new Index("_all"));
                 }
 
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                 boolean changed = false;
                 String latestIndexWithout = null;
-                for (String indexName : request.indices) {
+                for (String indexName : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                     if (indexMetaData != null) {
-                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.mappingType));
+                        if (indexMetaData.mappings().containsKey(request.type())) {
+                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.type()));
                             changed = true;
                         } else {
                             latestIndexWithout = indexMetaData.index();
@@ -328,17 +350,17 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
 
                 if (!changed) {
-                    throw new TypeMissingException(new Index(latestIndexWithout), request.mappingType);
+                    throw new TypeMissingException(new Index(latestIndexWithout), request.type());
                 }
 
-                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
+                logger.info("[{}] remove_mapping [{}]", request.indices(), request.type());
 
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new Response(true));
+
             }
         });
     }
@@ -524,23 +546,6 @@ public class MetaDataMappingService extends AbstractComponent {
         void onResponse(Response response);
 
         void onFailure(Throwable t);
-    }
-
-    public static class RemoveRequest {
-
-        final String[] indices;
-        final String mappingType;
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public RemoveRequest(String[] indices, String mappingType) {
-            this.indices = indices;
-            this.mappingType = mappingType;
-        }
-
-        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
     }
 
     public static class PutRequest {

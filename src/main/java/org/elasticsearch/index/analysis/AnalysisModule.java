@@ -387,7 +387,7 @@ public class AnalysisModule extends AbstractModule {
         }
 
 
-        // go over the tokenizers in the bindings and register the ones that are not configured
+        // go over the analyzers in the bindings and register the ones that are not configured
         for (Map.Entry<String, Class<? extends AnalyzerProvider>> entry : analyzersBindings.analyzers.entrySet()) {
             String analyzerName = entry.getKey();
             Class<? extends AnalyzerProvider> clazz = entry.getValue();
@@ -407,7 +407,6 @@ public class AnalysisModule extends AbstractModule {
                 analyzerBinder.addBinding(analyzerName).toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, clazz)).in(Scopes.SINGLETON);
             }
         }
-
 
         bind(AnalysisService.class).in(Scopes.SINGLETON);
     }

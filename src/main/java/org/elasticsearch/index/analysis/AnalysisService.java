@@ -22,6 +22,8 @@ package org.elasticsearch.index.analysis;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.CloseableComponent;
@@ -188,14 +190,13 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (indicesAnalysisService != null) {
             for (Map.Entry<String, PreBuiltAnalyzerProviderFactory> entry : indicesAnalysisService.analyzerProviderFactories().entrySet()) {
                 String name = entry.getKey();
+                Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
                 if (!analyzerProviders.containsKey(name)) {
-                    analyzerProviders.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
+                    analyzerProviders.put(name, entry.getValue().create(name, ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!analyzerProviders.containsKey(name)) {
-                        analyzerProviders.put(name, entry.getValue().create(name, ImmutableSettings.Builder.EMPTY_SETTINGS));
-                    }
+                String camelCaseName = Strings.toCamelCase(name);
+                if (!camelCaseName.equals(entry.getKey()) && !analyzerProviders.containsKey(camelCaseName)) {
+                    analyzerProviders.put(camelCaseName, entry.getValue().create(name, ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
             }
         }

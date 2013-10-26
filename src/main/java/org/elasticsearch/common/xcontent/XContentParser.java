@@ -167,6 +167,15 @@ public interface XContentParser extends Closeable {
 
     double doubleValue() throws IOException;
 
+    /**
+     * returns true if the current value is boolean in nature.
+     * values that are considered booleans:
+     * - boolean value (true/false)
+     * - numeric integers (=0 is considered as false, !=0 is true)
+     * - one of the following strings: "true","false","on","off","yes","no","1","0"
+     */
+    boolean isBooleanValue() throws IOException;
+
     boolean booleanValue() throws IOException;
 
     byte[] binaryValue() throws IOException;

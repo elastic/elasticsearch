@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,19 +29,25 @@ import java.io.IOException;
 /**
  * The response of remove mapping operation.
  */
-public class DeleteMappingResponse extends ActionResponse {
+public class DeleteMappingResponse extends AcknowledgedResponse {
 
     DeleteMappingResponse() {
 
     }
 
+    DeleteMappingResponse(boolean acknowledged) {
+        super(acknowledged);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        readAcknowledged(in, Version.V_0_90_6);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeAcknowledged(out, Version.V_0_90_6);
     }
 }

@@ -20,26 +20,29 @@
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
- *
+ * Builder for a delete mapping request
  */
-public class DeleteMappingRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteMappingRequest, DeleteMappingResponse, DeleteMappingRequestBuilder> {
+public class DeleteMappingRequestBuilder extends AcknowledgedRequestBuilder<DeleteMappingRequest, DeleteMappingResponse, DeleteMappingRequestBuilder> {
 
     public DeleteMappingRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new DeleteMappingRequest());
     }
 
+    /**
+     * Sets the indices the delete mapping will execute on
+     */
     public DeleteMappingRequestBuilder setIndices(String... indices) {
         request.indices(indices);
         return this;
     }
 
     /**
-     * The type of the mapping to remove.
+     * Sets the type of the mapping to remove
      */
     public DeleteMappingRequestBuilder setType(String type) {
         request.type(type);

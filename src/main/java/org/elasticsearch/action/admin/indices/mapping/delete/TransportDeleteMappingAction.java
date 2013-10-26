@@ -31,6 +31,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
@@ -106,25 +108,24 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                         refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
-                                    @Override
-                                    public void onResponse(MetaDataMappingService.Response response) {
-                                        listener.onResponse(new DeleteMappingResponse());
-                                    }
-
-                                    @Override
-                                    public void onFailure(Throwable t) {
-                                        listener.onFailure(t);
-                                    }
-                                });
+                                removeMapping();
                             }
 
                             @Override
                             public void onFailure(Throwable e) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
+                                removeMapping();
+                            }
+
+                            protected void removeMapping() {
+                                DeleteMappingClusterStateUpdateRequest clusterStateUpdateRequest = new DeleteMappingClusterStateUpdateRequest()
+                                        .indices(request.indices()).type(request.type())
+                                        .ackTimeout(request.timeout())
+                                        .masterNodeTimeout(request.masterNodeTimeout());
+
+                                metaDataMappingService.removeMapping(clusterStateUpdateRequest, new ClusterStateUpdateListener() {
                                     @Override
-                                    public void onResponse(MetaDataMappingService.Response response) {
-                                        listener.onResponse(new DeleteMappingResponse());
+                                    public void onResponse(ClusterStateUpdateResponse response) {
+                                        listener.onResponse(new DeleteMappingResponse(response.isAcknowledged()));
                                     }
 
                                     @Override

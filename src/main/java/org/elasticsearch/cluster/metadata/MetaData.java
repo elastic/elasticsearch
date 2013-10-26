@@ -671,6 +671,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             boolean add = true;
             if (aliasOrIndex.charAt(0) == '+') {
+                // if its the first, add empty result set
+                if (i == 0) {
+                    result = new HashSet<String>();
+                }
                 add = true;
                 aliasOrIndex = aliasOrIndex.substring(1);
             } else if (aliasOrIndex.charAt(0) == '-') {

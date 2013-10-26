@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.ack;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
@@ -100,6 +102,26 @@ public class AckTests extends AbstractIntegrationTest {
             IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
             assertThat(warmersMetaData, notNullValue());
             assertThat(warmersMetaData.entries().size(), equalTo(0));
+        }
+    }
+
+    @Test
+    public void testDeleteMappingAcknowledgement() {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string").get();
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "value1");
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").addTypes("type1").get();
+        assertThat(getMappingsResponse.mappings().get("test").get("type1"), notNullValue());
+
+        DeleteMappingResponse deleteMappingResponse = client().admin().indices().prepareDeleteMapping("test").setType("type1").get();
+        assertThat(deleteMappingResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            getMappingsResponse = client.admin().indices().prepareGetMappings("test").addTypes("type1").get();
+            assertThat(getMappingsResponse.mappings().size(), equalTo(0));
         }
     }
 }

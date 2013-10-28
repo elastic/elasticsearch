@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.enterprise.monitor;
+package org.elasticsearch.marvel.monitor;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -18,8 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.enterprise.monitor.exporter.ESExporter;
-import org.elasticsearch.enterprise.monitor.exporter.StatsExporter;
+import org.elasticsearch.marvel.monitor.exporter.ESExporter;
+import org.elasticsearch.marvel.monitor.exporter.StatsExporter;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesService;
 import org.elasticsearch.node.service.NodeService;

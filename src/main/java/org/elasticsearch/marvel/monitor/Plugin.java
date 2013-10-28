@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.enterprise.monitor;
+package org.elasticsearch.marvel.monitor;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -22,7 +22,7 @@ public class Plugin extends AbstractPlugin {
 
     @Override
     public String name() {
-        return "Elasticsearch enterprise - monitor";
+        return "Elasticsearch marvel - monitor";
     }
 
     @Override

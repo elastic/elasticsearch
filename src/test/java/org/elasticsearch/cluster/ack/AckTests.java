@@ -33,10 +33,7 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -237,5 +234,50 @@ public class AckTests extends AbstractIntegrationTest {
         assert shardToBeMoved != null;
 
         return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);
+    }
+
+    @Test
+    public void testClusterUpdateSettingsAcknowledgement() {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_replicas", 0)).get();
+        ensureGreen();
+
+        NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
+        String excludedNodeId = null;
+        for (NodeInfo nodeInfo : nodesInfo) {
+            if (nodeInfo.getNode().isDataNode()) {
+                excludedNodeId = nodesInfo.getAt(0).getNode().id();
+                break;
+            }
+        }
+        assert excludedNodeId != null;
+
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
+        assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(true));
+        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+
+        for (Client client : clients()) {
+            ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
+            assertThat(clusterState.routingNodes().metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        if (clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
+                            //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
+                            assertThat(shardRouting.relocating(), equalTo(true));
+                        }
+                    }
+                }
+            }
+        }
+
+        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
+        waitForRelocation();
+
+        //removes the allocation exclude settings
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
     }
 }

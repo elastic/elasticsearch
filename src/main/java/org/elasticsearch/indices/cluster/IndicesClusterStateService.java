@@ -83,7 +83,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
-    private final NodeAliasesUpdatedAction nodeAliasesUpdatedAction;
     private final NodeIndicesStateUpdatedAction nodeIndicesStateUpdatedAction;
 
     // a map of mappings type we have seen per index due to cluster state
@@ -114,7 +113,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       ShardStateAction shardStateAction,
                                       NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
                                       NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction,
-                                      NodeAliasesUpdatedAction nodeAliasesUpdatedAction, NodeIndicesStateUpdatedAction nodeIndicesStateUpdatedAction) {
+                                      NodeIndicesStateUpdatedAction nodeIndicesStateUpdatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -125,7 +124,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingCreatedAction = nodeMappingCreatedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
-        this.nodeAliasesUpdatedAction = nodeAliasesUpdatedAction;
         this.nodeIndicesStateUpdatedAction = nodeIndicesStateUpdatedAction;
     }
 
@@ -471,9 +469,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     }
                 }
             }
-            // Notify client that alias changes were applied
-            nodeAliasesUpdatedAction.nodeAliasesUpdated(event.state(),
-                    new NodeAliasesUpdatedAction.NodeAliasesUpdatedResponse(event.state().nodes().localNodeId(), event.state().version()));
         }
     }
 

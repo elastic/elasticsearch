@@ -20,11 +20,10 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.util.Map;
@@ -32,7 +31,7 @@ import java.util.Map;
 /**
  *
  */
-public class IndicesAliasesRequestBuilder extends MasterNodeOperationRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
+public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
 
     public IndicesAliasesRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new IndicesAliasesRequest());
@@ -103,16 +102,6 @@ public class IndicesAliasesRequestBuilder extends MasterNodeOperationRequestBuil
      */
     public IndicesAliasesRequestBuilder removeAlias(String index, String alias) {
         request.removeAlias(index, alias);
-        return this;
-    }
-
-    /**
-     * Sets operation timeout.
-     *
-     * @param timeout
-     */
-    public IndicesAliasesRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
         return this;
     }
 

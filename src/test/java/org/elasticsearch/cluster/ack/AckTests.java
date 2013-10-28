@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -47,6 +49,7 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = SUITE)
@@ -382,5 +385,31 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         //removes the allocation exclude settings
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
+    }
+
+    @Test
+    public void testIndicesAliasesAcknowledgement() {
+        createIndex("test");
+
+        //testing acknowledgement when trying to submit an existing alias too
+        //in that case it would not make any change, but we are sure about the cluster state
+        //as the previous operation was acknowledged
+        for (int i = 0; i < 2; i++) {
+            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
+
+            for (Client client : clients()) {
+                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
+                AliasMetaData aliasMetaData = clusterState.metaData().aliases().get("alias").get("test");
+                assertThat(aliasMetaData.alias(), equalTo("alias"));
+            }
+        }
+    }
+
+    @Test
+    public void testIndicesAliasesNoAcknowledgement() {
+        createIndex("test");
+
+        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
+        assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
     }
 }

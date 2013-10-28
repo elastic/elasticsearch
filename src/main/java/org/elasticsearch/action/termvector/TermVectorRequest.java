@@ -54,7 +54,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
-    TermVectorRequest() {
+    public TermVectorRequest() {
     }
 
     /**
@@ -66,6 +66,23 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         super(index);
         this.id = id;
         this.type = type;
+    }
+    
+    /**
+     * Constructs a new term vector request for a document that will be fetch
+     * from the provided index. Use {@link #type(String)} and
+     * {@link #id(String)} to specify the document to load.
+     */
+    public TermVectorRequest(TermVectorRequest other) {
+        super(other.index());
+        this.id = other.id();
+        this.type = other.type();
+        this.flagsEnum = other.getFlags().clone();
+        this.preference = other.preference();
+        this.routing = other.routing();
+        if (other.selectedFields != null) {
+            this.selectedFields = new HashSet<String>(other.selectedFields);
+        }
     }
 
     public EnumSet<Flag> getFlags() {
@@ -84,6 +101,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      */
     public String id() {
         return id;
+    }
+    
+    /**
+     * Sets the id of document the term vector is requested for.
+     */
+    public void id(String id) {
+        this.id = id;
     }
 
     /**

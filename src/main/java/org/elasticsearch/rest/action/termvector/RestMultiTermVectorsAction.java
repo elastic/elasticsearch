@@ -22,8 +22,8 @@ package org.elasticsearch.rest.action.termvector;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,18 +49,14 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
+        
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         multiTermVectorsRequest.listenerThreaded(false);
-        multiTermVectorsRequest.preference(request.param("preference"));
-
-        String[] sFields = null;
-        String sField = request.param("fields");
-        if (sField != null) {
-            sFields = Strings.splitStringByCommaToArray(sField);
-        }
-
+        TermVectorRequest template = new TermVectorRequest();
+        RestTermVectorAction.readURIParameters(template, request);
+       
         try {
-            multiTermVectorsRequest.add(request.param("index"), request.param("type"), sFields, request.content());
+            multiTermVectorsRequest.add(template, request.content());
         } catch (Throwable t) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, t));

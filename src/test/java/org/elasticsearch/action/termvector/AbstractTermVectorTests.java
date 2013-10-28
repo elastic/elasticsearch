@@ -1,4 +1,4 @@
-package org.elasticsearch.termvectors;
+package org.elasticsearch.action.termvector;
 
 /*
  * Licensed to ElasticSearch under one

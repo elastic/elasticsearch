@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.termvectors;
+package org.elasticsearch.action.termvector;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
@@ -28,11 +28,10 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
-import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -51,6 +50,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -287,6 +287,42 @@ public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
         ft.setStoreTermVectorPositions(false);
         String ftOpts = AbstractFieldMapper.termVectorOptionsToString(ft);
         assertThat(ftOpts, equalTo("with_offsets"));
+    }
+
+    @Test
+    public void testMultiParser() throws Exception {
+        byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/termvector/multiRequest1.json");
+        BytesReference bytes = new BytesArray(data);
+        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+        request.add(new TermVectorRequest(), bytes);
+        checkParsedParameters(request);
+        
+        data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/termvector/multiRequest2.json");
+        bytes = new BytesArray(data);
+        request = new MultiTermVectorsRequest();
+        request.add(new TermVectorRequest(), bytes);
+        checkParsedParameters(request);
+        
+    }
+    void checkParsedParameters(MultiTermVectorsRequest request) {
+        Set<String> ids = new HashSet<String>();
+        ids.add("1");
+        ids.add("2");
+        Set<String> fields = new HashSet<String>();
+        fields.add("a");
+        fields.add("b");
+        fields.add("c");
+        for (TermVectorRequest singleRequest : request.requests) {
+            assertThat(singleRequest.index(), equalTo("testidx"));
+            assertThat(singleRequest.type(), equalTo("test"));
+            assertThat(singleRequest.payloads(), equalTo(false));
+            assertThat(singleRequest.positions(), equalTo(false));
+            assertThat(singleRequest.offsets(), equalTo(false));
+            assertThat(singleRequest.termStatistics(), equalTo(true));
+            assertThat(singleRequest.fieldStatistics(), equalTo(false));
+            assertThat(singleRequest.id(),Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
+            assertThat(singleRequest.selectedFields(), equalTo(fields));
+        }
     }
     
 }

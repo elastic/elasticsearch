@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.termvectors;
+package org.elasticsearch.action.termvector;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.analysis.payloads.PayloadHelper;

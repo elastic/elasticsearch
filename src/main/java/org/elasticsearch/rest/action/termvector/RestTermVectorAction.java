@@ -59,9 +59,6 @@ public class RestTermVectorAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
 
         TermVectorRequest termVectorRequest = new TermVectorRequest(request.param("index"), request.param("type"), request.param("id"));
-        termVectorRequest.routing(request.param("routing"));
-        termVectorRequest.parent(request.param("parent"));
-        termVectorRequest.preference(request.param("preference"));
         XContentParser parser = null;
         if (request.hasContent()) {
             try {
@@ -114,6 +111,9 @@ public class RestTermVectorAction extends BaseRestHandler {
         termVectorRequest.offsets(request.paramAsBoolean("offsets", termVectorRequest.offsets()));
         termVectorRequest.positions(request.paramAsBoolean("positions", termVectorRequest.positions()));
         termVectorRequest.payloads(request.paramAsBoolean("payloads", termVectorRequest.payloads()));
+        termVectorRequest.routing(request.param("routing"));
+        termVectorRequest.parent(request.param("parent"));
+        termVectorRequest.preference(request.param("preference"));
         termVectorRequest.termStatistics(request.paramAsBoolean("termStatistics", termVectorRequest.termStatistics()));
         termVectorRequest.termStatistics(request.paramAsBoolean("term_statistics", termVectorRequest.termStatistics()));
         termVectorRequest.fieldStatistics(request.paramAsBoolean("fieldStatistics", termVectorRequest.fieldStatistics()));

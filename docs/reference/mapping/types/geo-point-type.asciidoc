@@ -52,8 +52,8 @@ length (eg `12`, the default) or to a distance (eg `1km`).
 More usefully, set the `geohash_prefix` option to `true` to not only index
 the geohash value, but all the enclosing cells as well.  For instance, a
 geohash of `u30` will be indexed as `[u,u3,u30]`. This option can be used
-by the <<query-dsl-geohash-cell-filter>> to find geopoints within this
-cell very efficiently.
+by the <<query-dsl-geohash-cell-filter>> to find geopoints within a
+particular cell very efficiently.
 
 [float]
 ==== Input Structure
@@ -130,14 +130,13 @@ Defaults to `false`.
 Defaults to `false`.
 
 |`geohash_precision` |Sets the geohash precision. It can be set to an
-absolute geohash length or a distance value defining the size of the
-smallest cell. Defaults to an absolute length of 12.
+absolute geohash length or a distance value (eg 1km, 1m, 1ml) defining
+the size of the smallest cell. Defaults to an absolute length of 12.
 
 |`geohash_prefix` |If this option is set to `true`, not only the geohash
 but also all its parent cells (true prefixes) will be indexed as well. The
-number of terms that will be index in this case depends on the
-`geohash_precision`. Defaults to `false`. *Note*: This option implicitly
-enables `geohash`.
+number of terms that will be indexed depends on the `geohash_precision`.
+Defaults to `false`. *Note*: This option implicitly enables `geohash`.
 
 |`validate` |Set to `true` to reject geo points with invalid latitude or
 longitude (default is `false`) *Note*: Validation only works when

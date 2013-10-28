@@ -45,6 +45,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -1894,7 +1896,65 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         } catch (MergeMappingException e) {
             assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field can't be added or updated]}"));
         }
+    }
 
+    @Test
+    // The SimpleIdReaderTypeCache#docById method used lget, which can't be used if a map is shared.
+    public void testTopChildrenBug_concurrencyIssue() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        int numThreads = 10;
+        final CountDownLatch latch = new CountDownLatch(numThreads);
+        final AtomicReference<AssertionError> holder = new AtomicReference<AssertionError>();
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    for (int i = 0; i < 100; i++) {
+                        SearchResponse searchResponse = client().prepareSearch("test")
+                                .setQuery(topChildrenQuery("child", termQuery("c_field", "blue")))
+                                .execute().actionGet();
+                        assertNoFailures(searchResponse);
+                        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+                        searchResponse = client().prepareSearch("test")
+                                .setQuery(topChildrenQuery("child", termQuery("c_field", "red")))
+                                .execute().actionGet();
+                        assertNoFailures(searchResponse);
+                        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+                    }
+                } catch (AssertionError error) {
+                    holder.set(error);
+                } finally {
+                    latch.countDown();
+                }
+            }
+        };
+
+        for (int i = 0; i < 10; i++) {
+            new Thread(r).start();
+        }
+        latch.await();
+        if (holder.get() != null) {
+            throw holder.get();
+        }
     }
 
 }

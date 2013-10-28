@@ -350,7 +350,7 @@ public final class TermVectorFields extends Fields {
             public int getDocCount() throws IOException {
                 return docCount;
             }
-
+            
             @Override
             public boolean hasFreqs() {
                 return true;

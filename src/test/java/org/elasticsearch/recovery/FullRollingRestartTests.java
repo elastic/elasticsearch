@@ -20,6 +20,8 @@
 package org.elasticsearch.recovery;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
@@ -33,15 +35,24 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope=Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartTests extends AbstractIntegrationTest {
+
+    protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
+        ClusterHealthResponse clusterHealth = requestBuilder.get();
+        if (clusterHealth.isTimedOut()) {
+            logger.info("cluster health request timed out:\n{}", clusterHealth);
+            fail("cluster health request timed out");
+        }
+
+    }
 
     @Test
     @Slow
     public void testFullRollingRestart() throws Exception {
         cluster().startNode();
         createIndex("test");
-    
+
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test", "type1", Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
@@ -57,14 +68,14 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
         cluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
         // now start adding nodes
         cluster().startNode();
         cluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5").execute().actionGet().isTimedOut(), equalTo(false));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -74,10 +85,10 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
         // now start shutting nodes down
         cluster().stopRandomNode();
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4").execute().actionGet().isTimedOut(), equalTo(false));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4"));
         cluster().stopRandomNode();
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -87,11 +98,11 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
 
         cluster().stopRandomNode();
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2").execute().actionGet().isTimedOut(), equalTo(false));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2"));
         cluster().stopRandomNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1").execute().actionGet().isTimedOut(), equalTo(false));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {

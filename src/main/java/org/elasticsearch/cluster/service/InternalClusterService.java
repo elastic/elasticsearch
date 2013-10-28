@@ -50,7 +50,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -314,6 +313,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 logger.debug("processing [{}]: no change in cluster_state", source);
                 if (updateTask instanceof ProcessedClusterStateUpdateTask) {
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
+                }
+                if (updateTask instanceof AckedClusterStateUpdateTask) {
+                    //no need to wait for ack if nothing changed, the update can be counted as acknowledged
+                    ((AckedClusterStateUpdateTask)updateTask).onAllNodesAcked(null);
                 }
                 return;
             }

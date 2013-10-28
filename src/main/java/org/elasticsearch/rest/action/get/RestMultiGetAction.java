@@ -72,7 +72,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
 
         try {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.content(), allowExplicitIndex);
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), request.content(), allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

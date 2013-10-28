@@ -85,9 +85,13 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
             }
             shardRequest.add(i, termVectorRequest);
         }
-
+        
+        if (shardRequests.size() == 0) {
+            // only failures..
+            listener.onResponse(new MultiTermVectorsResponse(responses.toArray(new MultiTermVectorsItemResponse[responses.length()])));
+        }
+        
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
-
         for (final MultiTermVectorsShardRequest shardRequest : shardRequests.values()) {
             shardAction.execute(shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {
                 @Override

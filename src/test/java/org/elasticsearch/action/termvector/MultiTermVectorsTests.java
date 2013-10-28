@@ -23,8 +23,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
 import org.elasticsearch.action.termvector.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvector.MultiTermVectorsRequestBuilder;
+import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
 import org.junit.Test;
 
+import static org.hamcrest.Matchers.equalTo;
 public class MultiTermVectorsTests extends AbstractTermVectorTests {
 
     @Test
@@ -60,5 +63,13 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
             }
         }
 
+    }
+    public void testMissingIndexThrowsMissingIndex() throws Exception {
+        TermVectorRequestBuilder requestBuilder = client().prepareTermVector("testX", "typeX", Integer.toString(1));
+        MultiTermVectorsRequestBuilder mtvBuilder = new MultiTermVectorsRequestBuilder(client());
+        mtvBuilder.add(requestBuilder.request());
+        MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getFailure().getMessage(), equalTo("[" + response.getResponses()[0].getIndex() + "] missing"));
     }
 }

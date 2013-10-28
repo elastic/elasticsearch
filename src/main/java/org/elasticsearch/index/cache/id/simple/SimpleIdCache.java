@@ -321,6 +321,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
          */
         public HashedBytesArray canReuse(HashedBytesArray id) {
             if (idToDoc.containsKey(id)) {
+                // we can use #lkey() since this is called from a synchronized block
                 return idToDoc.lkey();
             } else {
                 return id;

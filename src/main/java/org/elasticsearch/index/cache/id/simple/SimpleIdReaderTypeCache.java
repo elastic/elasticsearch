@@ -60,7 +60,9 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
 
     public int docById(HashedBytesArray uid) {
         if (idToDoc.containsKey(uid)) {
-            return idToDoc.lget();
+            // We can't use #lget() here since the idToDoc map shared across threads, so we really need a second lookup...
+            // BTW: This method is only used via TopChildrenQuery
+            return idToDoc.get(uid);
         } else {
             return -1;
         }
@@ -82,6 +84,7 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
      */
     public HashedBytesArray canReuse(HashedBytesArray id) {
         if (idToDoc.containsKey(id)) {
+            // we can use #lkey() since this is called from a synchronized block
             return idToDoc.lkey();
         } else {
             return id;

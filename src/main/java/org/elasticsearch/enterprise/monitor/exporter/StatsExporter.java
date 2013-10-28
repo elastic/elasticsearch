@@ -5,8 +5,13 @@
  */
 package org.elasticsearch.enterprise.monitor.exporter;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.component.LifecycleComponent;
+
+import java.util.Map;
 
 public interface StatsExporter<T> extends LifecycleComponent<T> {
 
@@ -15,4 +20,7 @@ public interface StatsExporter<T> extends LifecycleComponent<T> {
     void exportNodeStats(NodeStats nodeStats);
 
     void exportShardStats(ShardStats[] shardStatsArray);
+
+    void exportIndicesStats(IndicesStatsResponse indicesStats);
+
 }

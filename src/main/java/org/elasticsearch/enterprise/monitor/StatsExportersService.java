@@ -7,8 +7,10 @@ package org.elasticsearch.enterprise.monitor;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -28,6 +30,8 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
 
     private final InternalIndicesService indicesService;
     private final NodeService nodeService;
+    private final ClusterService clusterService;
+    private final Client client;
 
     private volatile ExportingWorker exp;
     private volatile Thread thread;
@@ -37,11 +41,15 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
 
     @Inject
     public StatsExportersService(Settings settings, IndicesService indicesService,
-                                 NodeService nodeService, Discovery discovery) {
+                                 NodeService nodeService, ClusterService clusterService,
+                                 Client client,
+                                 Discovery discovery) {
         super(settings);
         this.indicesService = (InternalIndicesService) indicesService;
+        this.clusterService = clusterService;
         this.nodeService = nodeService;
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(5));
+        this.client = client;
 
         StatsExporter esExporter = new ESExporter(settings.getComponentSettings(ESExporter.class), discovery);
         this.exporters = ImmutableSet.of(esExporter);
@@ -79,7 +87,7 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
         @Override
         public void run() {
             while (!closed) {
-                // sleep first to allow node to complete initialization before collectiont the first start
+                // sleep first to allow node to complete initialization before collecting the first start
                 try {
                     Thread.sleep(interval.millis());
                 } catch (InterruptedException e) {
@@ -96,7 +104,7 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
                         try {
                             e.exportNodeStats(nodeStats);
                         } catch (Throwable t) {
-                            logger.error("StatsExporter {} has thrown an exception:", t, e.name());
+                            logger.error("StatsExporter [{}] has thrown an exception:", t, e.name());
                         }
                     }
 
@@ -108,9 +116,27 @@ public class StatsExportersService extends AbstractLifecycleComponent<StatsExpor
                         try {
                             e.exportShardStats(shardStatsArray);
                         } catch (Throwable t) {
-                            logger.error("StatsExporter {} has thrown an exception:", t, e.name());
+                            logger.error("StatsExporter [{}] has thrown an exception:", t, e.name());
                         }
                     }
+
+
+                    if (clusterService.state().nodes().localNodeMaster()) {
+                        logger.debug("local node is master, exporting aggregated stats");
+                        IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats().all().get();
+                        for (StatsExporter e : exporters) {
+                            try {
+                                e.exportIndicesStats(indicesStatsResponse);
+                            } catch (Throwable t) {
+                                logger.error("StatsExporter [{}] has thrown an exception:", t, e.name());
+                            }
+
+
+                        }
+
+                    }
+
+
                 } catch (Throwable t) {
                     logger.error("Background thread had an uncaught exception:", t);
                 }

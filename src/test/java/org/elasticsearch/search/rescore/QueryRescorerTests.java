@@ -162,6 +162,8 @@ public class QueryRescorerTests extends AbstractIntegrationTest {
     }
 
     private static final void assertEquivalent(SearchResponse plain, SearchResponse rescored) {
+        assertNoFailures(plain);
+        assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
         assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
@@ -199,7 +201,7 @@ public class QueryRescorerTests extends AbstractIntegrationTest {
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
         ensureGreen();
-        int numDocs = 1000;
+        int numDocs = atLeast(100);
 
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i)).execute().actionGet();
@@ -209,8 +211,9 @@ public class QueryRescorerTests extends AbstractIntegrationTest {
         optimize(); // make sure we don't have a background merge running
         refresh();
         ensureGreen();
-        for (int i = 0; i < numDocs; i++) {
-            String intToEnglish = English.intToEnglish(i);
+        final int iters = atLeast(50);
+        for (int i = 0; i < iters; i++) {
+            String intToEnglish = English.intToEnglish(between(0, numDocs-1));
             String query = intToEnglish.split(" ")[0];
             SearchResponse rescored = client()
                     .prepareSearch()

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.termvectors;
+package org.elasticsearch.action.termvector;
 
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Fields;

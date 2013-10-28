@@ -239,7 +239,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         add(defaultIndex, defaultType, defaultFields, data, true);
     }
 
-    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, BytesReference data, boolean allowExplicitIndex) throws Exception {
+    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, BytesReference data, boolean allowExplicitIndex) {
+        add(defaultIndex, defaultType, defaultFields, data, allowExplicitIndex);
+    }
+
+    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws Exception {
         XContentParser parser = XContentFactory.xContent(data).createParser(data);
         try {
             XContentParser.Token token;
@@ -256,7 +260,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             String index = defaultIndex;
                             String type = defaultType;
                             String id = null;
-                            String routing = null;
+                            String routing = defaultRouting;
                             String parent = null;
                             List<String> fields = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -302,7 +306,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             if (!token.isValue()) {
                                 throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
                             }
-                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields));
+                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).routing(defaultRouting));
                         }
                     }
                 }

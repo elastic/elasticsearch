@@ -25,6 +25,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -37,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Set;
 
 /**
- *
+ * Add/remove aliases action
  */
 public class TransportIndicesAliasesAction extends TransportMasterNodeOperationAction<IndicesAliasesRequest, IndicesAliasesResponse> {
 
@@ -82,10 +84,15 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) throws ElasticSearchException {
-        indexAliasesService.indicesAliases(new MetaDataIndexAliasesService.Request(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]), request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexAliasesService.Listener() {
+
+        IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                .actions(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]));
+
+        indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener() {
             @Override
-            public void onResponse(MetaDataIndexAliasesService.Response response) {
-                listener.onResponse(new IndicesAliasesResponse(response.acknowledged()));
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));
             }
 
             @Override

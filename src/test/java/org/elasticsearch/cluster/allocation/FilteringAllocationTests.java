@@ -35,8 +35,6 @@ import org.junit.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
 public class FilteringAllocationTests extends AbstractIntegrationTest {
 
@@ -65,9 +63,7 @@ public class FilteringAllocationTests extends AbstractIntegrationTest {
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._name", node_1))
                 .execute().actionGet();
-
-        client().admin().cluster().prepareReroute().get();
-        ensureGreen();
+        waitForRelocation();
 
         logger.info("--> verify all are allocated on node1 now");
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -140,7 +136,6 @@ public class FilteringAllocationTests extends AbstractIntegrationTest {
         client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(settingsBuilder().put("index.routing.allocation.exclude._name", ""))
                 .execute().actionGet();
-
         client().admin().cluster().prepareReroute().get();
         ensureGreen();
 

@@ -204,9 +204,7 @@ public class AwarenessAllocationTests extends AbstractIntegrationTest {
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.containsKey(noZoneNode), equalTo(false));
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put("cluster.routing.allocation.awareness.attributes", "").build()).get();
-        
-        
-        client().admin().cluster().prepareReroute().get();
+
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForActiveShards(10).setWaitForRelocatingShards(0).execute().actionGet();
 
         assertThat(health.isTimedOut(), equalTo(false));

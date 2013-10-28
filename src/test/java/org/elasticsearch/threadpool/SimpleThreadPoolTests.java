@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=2)
+@ClusterScope(scope=Scope.TEST, numNodes=2)
 public class SimpleThreadPoolTests extends AbstractIntegrationTest {
 
     @Override

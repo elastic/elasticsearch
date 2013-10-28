@@ -32,14 +32,6 @@ import java.util.Set;
  */
 public final class MatchNoDocsQuery extends Query {
 
-    public static MatchNoDocsQuery INSTANCE = new MatchNoDocsQuery();
-
-    /**
-     * Since all instances of this class are equal to each other,
-     * we have a constant hash code.
-     */
-    private static final int HASH_CODE = 12345;
-
     /**
      * Weight implementation that matches no documents.
      */
@@ -92,11 +84,14 @@ public final class MatchNoDocsQuery extends Query {
 
     @Override
     public boolean equals(final Object o) {
-        return o instanceof MatchAllDocsQuery;
+        if (o instanceof MatchNoDocsQuery) {
+            return getBoost() == ((MatchNoDocsQuery) o).getBoost();
+        }
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return HASH_CODE;
+        return getClass().hashCode() ^ Float.floatToIntBits(getBoost());
     }
 }

@@ -45,7 +45,7 @@ public class PercolatorFacetsTests extends AbstractIntegrationTest {
         ensureGreen();
 
         int numQueries = atLeast(250);
-        int numUniqueQueries = randomInt(numQueries / 2);
+        int numUniqueQueries = between(1, numQueries / 2);
         String[] values = new String[numUniqueQueries];
         for (int i = 0; i < values.length; i++) {
             values[i] = "value" + i;

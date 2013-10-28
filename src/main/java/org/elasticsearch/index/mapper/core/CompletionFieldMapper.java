@@ -45,6 +45,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentParser.NumberType;
+
 /**
  *
  */
@@ -248,9 +250,13 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
+                        NumberType numberType = parser.numberType();
+                        if (NumberType.LONG != numberType && NumberType.INT != numberType) {
+                            throw new ElasticSearchIllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
+                        }
                         weight = parser.longValue(); // always parse a long to make sure we don't get the overflow value
                         if (weight < 0 || weight > Integer.MAX_VALUE) {
-                            throw new ElasticSearchIllegalArgumentException("Weight must be in the interval [0..2147483647] but was " + weight);
+                            throw new ElasticSearchIllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {

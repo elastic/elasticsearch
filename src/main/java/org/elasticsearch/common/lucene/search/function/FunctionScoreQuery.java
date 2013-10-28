@@ -191,7 +191,7 @@ public class FunctionScoreQuery extends Query {
     }
 
     public boolean equals(Object o) {
-        if (getClass() != o.getClass())
+        if (o == null || getClass() != o.getClass())
             return false;
         FunctionScoreQuery other = (FunctionScoreQuery) o;
         return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && this.function.equals(other.function)

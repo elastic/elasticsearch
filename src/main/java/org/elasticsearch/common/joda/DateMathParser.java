@@ -20,14 +20,14 @@ public class DateMathParser {
     }
 
     public long parse(String text, long now) {
-        return parse(text, now, false, false);
+        return parse(text, now, false);
     }
 
-    public long parseUpperInclusive(String text, long now) {
-        return parse(text, now, true, true);
+    public long parseRoundCeil(String text, long now) {
+        return parse(text, now, true);
     }
 
-    public long parse(String text, long now, boolean roundUp, boolean upperInclusive) {
+    public long parse(String text, long now, boolean roundCeil) {
         long time;
         String mathString;
         if (text.startsWith("now")) {
@@ -43,8 +43,8 @@ public class DateMathParser {
                 parseString = text.substring(0, index);
                 mathString = text.substring(index + 2);
             }
-            if (upperInclusive) {
-                time = parseUpperInclusiveStringValue(parseString);
+            if (roundCeil) {
+                time = parseRoundCeilStringValue(parseString);
             } else {
                 time = parseStringValue(parseString);
             }
@@ -54,7 +54,7 @@ public class DateMathParser {
             return time;
         }
 
-        return parseMath(mathString, time, roundUp);
+        return parseMath(mathString, time, roundCeil);
     }
 
     private long parseMath(String mathString, long time, boolean roundUp) throws ElasticSearchParseException {
@@ -209,7 +209,7 @@ public class DateMathParser {
         }
     }
 
-    private long parseUpperInclusiveStringValue(String value) {
+    private long parseRoundCeilStringValue(String value) {
         try {
             // we create a date time for inclusive upper range, we "include" by default the day level data
             // so something like 2011-01-01 will include the full first day of 2011.

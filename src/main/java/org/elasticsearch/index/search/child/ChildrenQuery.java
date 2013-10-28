@@ -92,6 +92,9 @@ public class ChildrenQuery extends Query {
         if (!childType.equals(that.childType)) {
             return false;
         }
+        if (getBoost() != that.getBoost()) {
+            return false;
+        }
         return true;
     }
 
@@ -99,6 +102,7 @@ public class ChildrenQuery extends Query {
     public int hashCode() {
         int result = originalChildQuery.hashCode();
         result = 31 * result + childType.hashCode();
+        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
@@ -158,7 +162,7 @@ public class ChildrenQuery extends Query {
             if (uidToCount != null) {
                 uidToCount.release();
             }
-            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
         Filter parentFilter;
@@ -276,6 +280,7 @@ public class ChildrenQuery extends Query {
             @Override
             public int nextDoc() throws IOException {
                 if (remaining == 0) {
+                    currentDocId = NO_MORE_DOCS;
                     return NO_MORE_DOCS;
                 }
 
@@ -297,6 +302,7 @@ public class ChildrenQuery extends Query {
             @Override
             public int advance(int target) throws IOException {
                 if (remaining == 0) {
+                    currentDocId = NO_MORE_DOCS;
                     return NO_MORE_DOCS;
                 }
 

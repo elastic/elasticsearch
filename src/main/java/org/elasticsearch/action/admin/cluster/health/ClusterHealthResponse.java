@@ -181,4 +181,24 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         }
     }
 
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("ClusterHealthResponse - status [").append(status).append("]")
+                .append("\ntimedOut [").append(timedOut).append("]")
+                .append("\nclustername [").append(clusterName).append("]")
+                .append("\nnumberOfNodes [").append(numberOfNodes).append("]")
+                .append("\nnumberOfDataNodes [").append(numberOfDataNodes).append("]")
+                .append("\nactiveShards [").append(activeShards).append("]")
+                .append("\nrelocatingShards [").append(relocatingShards).append("]")
+                .append("\nactivePrimaryShards [").append(activePrimaryShards).append("]")
+                .append("\ninitializingShards [").append(initializingShards).append("]")
+                .append("\nvalidationFailures ").append(validationFailures)
+                .append("\nindices:");
+
+        for (Map.Entry<String, ClusterIndexHealth> indexEntry : indices.entrySet()) {
+            builder.append(" [").append(indexEntry.getKey()).append("][").append(indexEntry.getValue().status).append("]");
+        }
+        return builder.toString();
+    }
 }

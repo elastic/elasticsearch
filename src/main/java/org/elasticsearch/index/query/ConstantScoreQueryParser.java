@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.XLuceneConstantScoreQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -104,7 +104,7 @@ public class ConstantScoreQueryParser implements QueryParser {
             return query1;
         }
         // Query
-        query = new ConstantScoreQuery(query);
+        query = new XLuceneConstantScoreQuery(query);
         query.setBoost(boost);
         return query;
     }

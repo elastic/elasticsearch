@@ -97,7 +97,7 @@ public class IndicesQueryParser implements QueryParser {
                     if ("all".equals(type)) {
                         noMatchQuery = Queries.newMatchAllQuery();
                     } else if ("none".equals(type)) {
-                        noMatchQuery = MatchNoDocsQuery.INSTANCE;
+                        noMatchQuery = Queries.newMatchNoDocsQuery();
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();

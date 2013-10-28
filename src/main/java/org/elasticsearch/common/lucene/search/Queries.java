@@ -33,10 +33,6 @@ import java.util.regex.Pattern;
  */
 public class Queries {
 
-    /* In general we should never us a static query instance and share it.
-     * In this case the instance is immutable so that's ok.*/
-    public final static Query NO_MATCH_QUERY = MatchNoDocsQuery.INSTANCE;
-
     /**
      * A match all docs filter. Note, requires no caching!.
      */
@@ -48,6 +44,11 @@ public class Queries {
         // NEVER cache this XConstantScore Query it's not immutable and based on #3521
         // some code might set a boost on this query.
         return new XConstantScoreQuery(MATCH_ALL_FILTER);
+    }
+
+    /** Return a query that matches no document. */
+    public static Query newMatchNoDocsQuery() {
+        return new MatchNoDocsQuery();
     }
 
     /**

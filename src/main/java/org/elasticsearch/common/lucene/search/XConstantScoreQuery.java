@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.XLuceneConstantScoreQuery;
 
 /**
  * We still need sometimes to exclude deletes, because we don't remove them always with acceptDocs on filters
  */
-public class XConstantScoreQuery extends ConstantScoreQuery {
+public class XConstantScoreQuery extends XLuceneConstantScoreQuery {
 
     private final Filter actualFilter;
 

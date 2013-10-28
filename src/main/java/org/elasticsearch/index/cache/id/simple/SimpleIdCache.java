@@ -83,13 +83,13 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     @Override
-    public void onClose(SegmentReader owner) {
-        clear(owner);
+    public void onClose(Object coreCacheKey) {
+        clear(coreCacheKey);
     }
 
     @Override
-    public void clear(IndexReader reader) {
-        SimpleIdReaderCache removed = idReaders.remove(reader.getCoreCacheKey());
+    public void clear(Object coreCacheKey) {
+        SimpleIdReaderCache removed = idReaders.remove(coreCacheKey);
         if (removed != null) onRemoval(removed);
     }
 

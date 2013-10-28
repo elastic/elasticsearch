@@ -129,6 +129,8 @@ public class QueryFacetExecutor extends FacetExecutor {
             if (constantScoreQuery.getFilter() != null) {
                 return constantScoreQuery.getFilter();
             }
+        } else if (query instanceof XLuceneConstantScoreQuery) {
+            return ((XLuceneConstantScoreQuery) query).getFilter();
         }
         return null;
     }

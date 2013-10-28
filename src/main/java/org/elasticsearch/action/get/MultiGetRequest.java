@@ -273,6 +273,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
     }
 
     public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data, boolean allowExplicitIndex) throws Exception {
+        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, null, data, allowExplicitIndex);
+    }
+
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws Exception {
         XContentParser parser = XContentFactory.xContent(data).createParser(data);
         try {
             XContentParser.Token token;
@@ -289,7 +293,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             String index = defaultIndex;
                             String type = defaultType;
                             String id = null;
-                            String routing = null;
+                            String routing = defaultRouting;
                             String parent = null;
                             List<String> fields = null;
                             long version = Versions.MATCH_ANY;
@@ -322,10 +326,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                                         versionType = VersionType.fromString(parser.text());
                                     } else if ("_source".equals(currentFieldName)) {
-                                        if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                                        if (parser.isBooleanValue()) {
                                             fetchSourceContext = new FetchSourceContext(parser.booleanValue());
                                         } else if (token == XContentParser.Token.VALUE_STRING) {
                                             fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
+                                        } else {
+                                            throw new ElasticSearchParseException("illegal type for _source: [" + token + "]");
                                         }
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -387,7 +393,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             if (!token.isValue()) {
                                 throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
                             }
-                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).fetchSourceContext(defaultFetchSource));
+                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).fetchSourceContext(defaultFetchSource).routing(defaultRouting));
                         }
                     }
                 }

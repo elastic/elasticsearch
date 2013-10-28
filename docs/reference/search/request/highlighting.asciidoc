@@ -2,8 +2,9 @@
 === Highlighting
 
 Allows to highlight search results on one or more fields. The
-implementation uses either the lucene `fast-vector-highlighter` or
-`highlighter`. The search request body:
+implementation uses either the lucene `highlighter`, `fast-vector-highlighter`
+or `postings-highlighter`. The following is an example of the  search request
+body:
 
 [source,js]
 --------------------------------------------------
@@ -24,16 +25,54 @@ fragments).
 
 In order to perform highlighting, the actual content of the field is
 required. If the field in question is stored (has `store` set to `yes`
-in the mapping), it will be used, otherwise, the actual `_source` will
+in the mapping) it will be used, otherwise, the actual `_source` will
 be loaded and the relevant field will be extracted from it.
 
-If `term_vector` information is provided by setting `term_vector` to
-`with_positions_offsets` in the mapping then the fast vector
-highlighter will be used instead of the plain highlighter.  The fast vector highlighter:
+The field name supports wildcard notation. For example, using `comment_*`
+will cause all fields that match the expression to be highlighted.
+
+==== Postings highlighter
+
+If `index_options` is set to `offsets` in the mapping the postings highlighter
+will be used instead of the plain highlighter. The postings highlighter:
+
+* Is faster since it doesn't require to reanalyze the text to be highlighted:
+the larger the documents the better the performance gain should be
+* Requires less disk space than term_vectors, needed for the fast vector
+highlighter
+* Breaks the text into sentences and highlights them. Plays really well with
+natural languages, not as well with fields containing for instance html markup
+* Treats the document as the whole corpus, and scores individual sentences as
+if they were documents in this corpus, using the  BM25 algorithm
+
+Here is an example of setting the `content` field to allow for
+highlighting using the postings highlighter on it:
+
+[source,js]
+--------------------------------------------------
+{
+    "type_name" : {
+        "content" : {"index_options" : "offsets"}
+    }
+}
+--------------------------------------------------
+
+Note that the postings highlighter is meant to perform simple query terms
+highlighting, regardless of their positions. That means that when used for
+instance in combination with a phrase query, it will highlight all the terms
+that the query is composed of, regardless of whether they are actually part of
+a query match, effectively ignoring their positions.
+
+
+==== Fast vector highlighter
+
+If `term_vector` information is provided by setting `term_vector` to 
+`with_positions_offsets` in the mapping then the fast vector highlighter
+will be used instead of the plain highlighter.  The fast vector highlighter:
 
 * Is faster especially for large fields (> `1MB`)
 * Can be customized with `boundary_chars`, `boundary_max_scan`, and
- `fragment_offset` (see below)
+ `fragment_offset` (see <<boundary-characters,below>>)
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
 
@@ -50,9 +89,25 @@ the index to be bigger):
 }
 --------------------------------------------------
 
-The field name supports wildcard notation, for example,
-using `comment_*` which will cause all fields that match the expression
-to be highlighted.
+==== Force highlighter type
+
+The `type` field allows to force a specific highlighter type. This is useful
+for instance when needing to use the plain highlighter on a field that has
+`term_vectors` enabled. The allowed values are: `plain`, `postings` and `fvh`.
+The following is an example that forces the use of the plain highlighter:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "fields" : {
+            "content" : { "type" : "plain"}
+        }
+    }
+}
+--------------------------------------------------
+
 
 [[tags]]
 ==== Highlighting Tags
@@ -60,6 +115,23 @@ to be highlighted.
 By default, the highlighting will wrap highlighted text in `<em>` and
 `</em>`. This can be controlled by setting `pre_tags` and `post_tags`,
 for example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "pre_tags" : ["<tag1>"],
+        "post_tags" : ["</tag1>"],
+        "fields" : {
+            "_all" : {}
+        }
+    }
+}
+--------------------------------------------------
+
+Using the fast vector highlighter there can be more tags, and the "importance"
+is ordered.
 
 [source,js]
 --------------------------------------------------
@@ -75,9 +147,8 @@ for example:
 }
 --------------------------------------------------
 
-There can be a single tag or more, and the "importance" is ordered.
 There are also built in "tag" schemas, with currently a single schema
-called `styled` with `pre_tags` of:
+called `styled` with the following `pre_tags`:
 
 [source,js]
 --------------------------------------------------
@@ -87,7 +158,7 @@ called `styled` with `pre_tags` of:
 <em class="hlt10">
 --------------------------------------------------
 
-And post tag of `</em>`. If you think of more nice to have built in tag
+and `</em>` as `post_tags`. If you think of more nice to have built in tag
 schemas, just send an email to the mailing list or open an issue. Here
 is an example of switching tag schemas:
 
@@ -104,6 +175,9 @@ is an example of switching tag schemas:
 }
 --------------------------------------------------
 
+
+==== Encoder
+
 An `encoder` parameter can be used to define how highlighted text will
 be encoded. It can be either `default` (no encoding) or `html` (will
 escape html, if you use html highlighting tags).
@@ -112,7 +186,8 @@ escape html, if you use html highlighting tags).
 
 Each field highlighted can control the size of the highlighted fragment
 in characters (defaults to `100`), and the maximum number of fragments
-to return (defaults to `5`). For example:
+to return (defaults to `5`).
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -126,8 +201,11 @@ to return (defaults to `5`). For example:
 }
 --------------------------------------------------
 
-On top of this it is possible to specify that highlighted fragments are
-order by score:
+The `fragment_size` is ignored when using the postings highlighter, as it
+outputs sentences regardless of their length.
+
+On top of this it is possible to specify that highlighted fragments need
+to be sorted by score:
 
 [source,js]
 --------------------------------------------------
@@ -168,7 +246,10 @@ In the case where there is no matching fragment to highlight, the default is
 to not return anything. Instead, we can return a snippet of text from the
 beginning of the field by setting `no_match_size` (default `0`) to the length
 of the text that you want returned. The actual length may be shorter than
-specified as it tries to break on a word boundary.
+specified as it tries to break on a word boundary. When using the postings
+highlighter it is not possible to control the actual size of the snippet,
+therefore the first sentence gets returned whenever `no_match_size` is
+greater than `0`.
 
 [source,js]
 --------------------------------------------------
@@ -256,9 +337,11 @@ query and the rescore query in `highlight_query`.
 }
 --------------------------------------------------
 
-Note the score of text fragment in this case is calculated by Lucene
-highlighting framework. For implementation details you can check
-`ScoreOrderFragmentsBuilder.java` class.
+Note that the score of text fragment in this case is calculated by the Lucene
+highlighting framework. For implementation details you can check the
+`ScoreOrderFragmentsBuilder.java` class. On the other hand when using the
+postings highlighter the fragments are scored using, as mentioned above,
+the BM25 algorithm.
 
 [[highlighting-settings]]
 ==== Global Settings
@@ -295,7 +378,7 @@ matches specifically on them.
 [[boundary-characters]]
 ==== Boundary Characters
 
-When highlighting a field that is mapped with term vectors,
+When highlighting a field using the fast vector highlighter,
 `boundary_chars` can be configured to define what constitutes a boundary
 for highlighting. It's a single string with each boundary character
 defined in it. It defaults to `.,!? \t\n`.

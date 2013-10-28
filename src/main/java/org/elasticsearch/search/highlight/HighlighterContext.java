@@ -28,12 +28,12 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class HighlighterContext {
 
-    public String fieldName;
-    public SearchContextHighlight.Field field;
-    public FieldMapper<?> mapper;
-    public SearchContext context;
-    public FetchSubPhase.HitContext hitContext;
-    public Query highlightQuery;
+    public final String fieldName;
+    public final SearchContextHighlight.Field field;
+    public final FieldMapper<?> mapper;
+    public final SearchContext context;
+    public final FetchSubPhase.HitContext hitContext;
+    public final Query highlightQuery;
 
     public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext context,
             FetchSubPhase.HitContext hitContext, Query highlightQuery) {

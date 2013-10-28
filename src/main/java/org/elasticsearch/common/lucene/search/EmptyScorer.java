@@ -29,33 +29,36 @@ import java.io.IOException;
  */
 public class EmptyScorer extends Scorer {
 
+    private int docId = -1;
+
     public EmptyScorer(Weight weight) {
         super(weight);
     }
 
     @Override
     public float score() throws IOException {
-        return 0;
+        throw new UnsupportedOperationException("Should never be called");
     }
 
     @Override
     public int freq() throws IOException {
-        return 0;
+        throw new UnsupportedOperationException("Should never be called");
     }
 
     @Override
     public int docID() {
-        return -1;
+        return docId;
     }
 
     @Override
     public int nextDoc() throws IOException {
-        return NO_MORE_DOCS;
+        assert docId != NO_MORE_DOCS;
+        return docId = NO_MORE_DOCS;
     }
 
     @Override
     public int advance(int target) throws IOException {
-        return NO_MORE_DOCS;
+        return slowAdvance(target);
     }
 
     @Override

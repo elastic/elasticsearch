@@ -129,15 +129,15 @@ public class RestRecoveryAction extends BaseRestHandler {
             t.addCell(id);
             t.addCell(status.getShardRouting().currentNodeId());
             if (primarySize == null) {
-                t.addCell("NaN", "text-align:right;");
+                t.addCell("NaN");
             } else {
-                t.addCell(primarySize, "text-align:right;");
+                t.addCell(primarySize);
             }
-            t.addCell(replicaSize, "text-align:right;");
+            t.addCell(replicaSize);
             if (primarySize == null) {
-                t.addCell("NaN", "text-align:right;");
+                t.addCell("NaN");
             } else {
-                t.addCell(String.format("%1.1f%%", 100.0 * (float)replicaSize / primarySize), "text-align:right;");
+                t.addCell(String.format("%1.1f%%", 100.0 * (float)replicaSize / primarySize));
             }
             t.endRow();
         }

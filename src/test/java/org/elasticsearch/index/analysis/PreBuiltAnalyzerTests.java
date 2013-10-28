@@ -68,8 +68,8 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
     @Test
     public void testThatInstancesWithSameLuceneVersionAreReused() {
         // both are lucene 4.4 and should return the same instance
-        assertThat(PreBuiltAnalyzers.CATALAN.getAnalyzer(Version.V_0_90_5),
-                is(PreBuiltAnalyzers.CATALAN.getAnalyzer(Version.V_0_90_6)));
+        assertThat(PreBuiltAnalyzers.CATALAN.getAnalyzer(Version.V_0_90_4),
+                is(PreBuiltAnalyzers.CATALAN.getAnalyzer(Version.V_0_90_5)));
     }
 
     @Test

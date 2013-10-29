@@ -47,22 +47,15 @@ public class MultiMatchQuery extends MatchQuery {
     }
     
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
-        Query query;
-        
-        try {
-            query = parse(type, fieldName, value);
-        } catch (NumberFormatException e) {
-            query = null;
-        }
-        
+
+        Query query = parse(type, fieldName, value);
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
-        
         if (boostValue != null && query != null) {
             query.setBoost(boostValue);
         }
-        
+
         return query;
     }
 
@@ -70,9 +63,8 @@ public class MultiMatchQuery extends MatchQuery {
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();
-            final Query query = parseAndApply(type, fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
 
-            return query;
+            return parseAndApply(type, fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
         }
 
         if (useDisMax) {
@@ -81,7 +73,6 @@ public class MultiMatchQuery extends MatchQuery {
             for (String fieldName : fieldNames.keySet()) {
                 Float boostValue = fieldNames.get(fieldName);
                 Query query = parseAndApply(type, fieldName, value, minimumShouldMatch, boostValue);
-               
                 if (query != null) {
                     clauseAdded = true;
                     disMaxQuery.add(query);
@@ -93,7 +84,6 @@ public class MultiMatchQuery extends MatchQuery {
             for (String fieldName : fieldNames.keySet()) {
                 Float boostValue = fieldNames.get(fieldName);
                 Query query = parseAndApply(type, fieldName, value, minimumShouldMatch, boostValue);
-                
                 if (query != null) {
                     booleanQuery.add(query, BooleanClause.Occur.SHOULD);
                 }

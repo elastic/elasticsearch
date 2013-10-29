@@ -23,21 +23,18 @@ import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with
@@ -51,7 +48,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
  */
-public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequest> {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
 
     private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
@@ -63,8 +60,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     private String type;
 
     private String source;
-
-    private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
     private boolean ignoreConflicts = false;
 
@@ -206,6 +201,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The mapping source definition.
      */
+    @SuppressWarnings("unchecked")
     public PutMappingRequest source(Map mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -222,31 +218,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     public PutMappingRequest source(String mappingSource) {
         this.source = mappingSource;
         return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    TimeValue timeout() {
-        return timeout;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutMappingRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutMappingRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     /**
@@ -274,7 +245,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
         indices = in.readStringArray();
         type = in.readOptionalString();
         source = in.readString();
-        timeout = readTimeValue(in);
+        readTimeout(in);
         ignoreConflicts = in.readBoolean();
     }
 
@@ -284,7 +255,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
         out.writeStringArrayNullable(indices);
         out.writeOptionalString(type);
         out.writeString(source);
-        timeout.writeTo(out);
+        writeTimeout(out);
         out.writeBoolean(ignoreConflicts);
     }
 }

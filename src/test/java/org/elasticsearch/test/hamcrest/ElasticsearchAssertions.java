@@ -75,15 +75,6 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(response);
     }
 
-    public static void assertAcked(PutMappingRequestBuilder builder) {
-        assertAcked(builder.get());
-    }
-
-    private static void assertAcked(PutMappingResponse response) {
-        assertThat("Put Mapping failed - not acked", response.isAcknowledged(), equalTo(true));
-        assertVersionSerializable(response);
-    }
-
     public static void assertAcked(DeleteIndexRequestBuilder builder) {
         assertAcked(builder.get());
     }

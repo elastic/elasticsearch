@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,35 +28,25 @@ import java.io.IOException;
 /**
  * The response of put mapping operation.
  */
-public class PutMappingResponse extends ActionResponse {
-
-    private boolean acknowledged;
+public class PutMappingResponse extends AcknowledgedResponse {
 
     PutMappingResponse() {
 
     }
 
     PutMappingResponse(boolean acknowledged) {
-        this.acknowledged = acknowledged;
-    }
-
-    /**
-     * Has the put mapping creation been acknowledged by all current cluster nodes within the
-     * provided {@link PutMappingRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
-     */
-    public boolean isAcknowledged() {
-        return acknowledged;
+        super(acknowledged);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        acknowledged = in.readBoolean();
+        readAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(acknowledged);
+        writeAcknowledged(out);
     }
 }

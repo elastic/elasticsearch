@@ -20,15 +20,14 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
 
 /**
- *
+ * Builder for for open index request
  */
-public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
+public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
 
     public OpenIndexRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest());
@@ -40,24 +39,6 @@ public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<O
 
     public OpenIndexRequestBuilder setIndex(String index) {
         request.index(index);
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public OpenIndexRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public OpenIndexRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
         return this;
     }
 

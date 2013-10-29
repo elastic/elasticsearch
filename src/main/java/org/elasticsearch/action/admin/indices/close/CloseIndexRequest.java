@@ -20,25 +20,20 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to close an index.
  */
-public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequest> {
+public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
 
     private String index;
-
-    private TimeValue timeout = timeValueSeconds(10);
 
     CloseIndexRequest() {
     }
@@ -60,7 +55,7 @@ public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequ
     }
 
     /**
-     * The index to delete.
+     * The index to close.
      */
     String index() {
         return index;
@@ -71,42 +66,17 @@ public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequ
         return this;
     }
 
-    /**
-     * Timeout to wait for the index closure to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    TimeValue timeout() {
-        return timeout;
-    }
-
-    /**
-     * Timeout to wait for the index closure to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public CloseIndexRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index closure to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public CloseIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readString();
-        timeout = readTimeValue(in);
+        readTimeout(in, null);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        timeout.writeTo(out);
+        writeTimeout(out, null);
     }
 }

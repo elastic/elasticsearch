@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -33,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Delete index action.
+ * Close index action
  */
 public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
 
@@ -76,10 +78,14 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
 
-        indexStateService.closeIndex(new MetaDataIndexStateService.Request(request.index()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexStateService.Listener() {
+        CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                .index(request.index());
+
+        indexStateService.closeIndex(updateRequest, new ClusterStateUpdateListener() {
             @Override
-            public void onResponse(MetaDataIndexStateService.Response response) {
-                listener.onResponse(new CloseIndexResponse(response.acknowledged()));
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new CloseIndexResponse(response.isAcknowledged()));
             }
 
             @Override

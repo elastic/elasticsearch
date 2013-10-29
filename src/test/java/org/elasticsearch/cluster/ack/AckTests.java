@@ -25,7 +25,9 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
@@ -34,6 +36,7 @@ import org.elasticsearch.cluster.ClusterState;
 
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.*;
 
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -413,5 +416,58 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
+    }
+
+    public void testCloseIndexAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
+            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get("test");
+            assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.CLOSE));
+        }
+    }
+
+    @Test
+    public void testCloseIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse= client().admin().indices().prepareClose("test").setTimeout("0s").get();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
+    public void testOpenIndexAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexResponse openIndexResponse= client().admin().indices().prepareOpen("test").execute().actionGet();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
+            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get("test");
+            assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.OPEN));
+        }
+    }
+
+    @Test
+    public void testOpenIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
     }
 }

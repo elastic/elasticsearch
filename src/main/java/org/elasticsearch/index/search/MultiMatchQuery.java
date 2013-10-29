@@ -61,7 +61,6 @@ public class MultiMatchQuery extends MatchQuery {
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();
-
             return parseAndApply(type, fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
         }
 

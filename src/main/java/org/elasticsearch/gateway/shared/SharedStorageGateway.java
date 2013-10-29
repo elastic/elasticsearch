@@ -19,14 +19,12 @@
 
 package org.elasticsearch.gateway.shared;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.StopWatch;
@@ -40,7 +38,6 @@ import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -62,8 +59,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private NodeEnvironment nodeEnv;
 
-    private NodeIndexDeletedAction nodeIndexDeletedAction;
-
     public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
@@ -76,12 +71,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
     @Inject
     public void setNodeEnv(NodeEnvironment nodeEnv) {
         this.nodeEnv = nodeEnv;
-    }
-
-    // here as setter injection not to break backward comp. with extensions of this class..
-    @Inject
-    public void setNodeIndexDeletedAction(NodeIndexDeletedAction nodeIndexDeletedAction) {
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
     }
 
     @Override
@@ -146,7 +135,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         writeStateExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                Set<String> indicesDeleted = Sets.newHashSet();
                 if (event.localNodeMaster()) {
                     logger.debug("writing to gateway {} ...", this);
                     StopWatch stopWatch = new StopWatch().start();
@@ -161,7 +149,6 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                         for (IndexMetaData current : currentMetaData) {
                             if (!event.state().metaData().hasIndex(current.index())) {
                                 delete(current);
-                                indicesDeleted.add(current.index());
                             }
                         }
                     }
@@ -171,20 +158,11 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                         for (IndexMetaData current : currentMetaData) {
                             if (!event.state().metaData().hasIndex(current.index())) {
                                 FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
-                                indicesDeleted.add(current.index());
                             }
                         }
                     }
                 }
                 currentMetaData = event.state().metaData();
-
-                for (String indexDeleted : indicesDeleted) {
-                    try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), indexDeleted, event.state().nodes().localNodeId());
-                    } catch (Exception e) {
-                        logger.debug("[{}] failed to notify master on local index store deletion", e, indexDeleted);
-                    }
-                }
             }
         });
     }

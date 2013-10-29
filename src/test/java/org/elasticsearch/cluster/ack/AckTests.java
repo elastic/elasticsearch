@@ -22,11 +22,14 @@ package org.elasticsearch.cluster.ack;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
@@ -43,10 +46,12 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -467,5 +472,54 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
+    public void testDeleteIndexAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        for (int i = 0; i < atLeast(1000); i++) {
+            index("test", "test", String.valueOf(i), "field", "value");
+        }
+
+        assertThat(indexDirExists(client(), "test"), equalTo(true));
+
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete("test").get();
+        assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
+
+        for (Client client : clients()) {
+            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
+            assertThat(clusterStateResponse.getState().metaData().indices().containsKey("test"), equalTo(false));
+            assertThat(indexDirExists(client, "test"), equalTo(false));
+        }
+    }
+
+    @Test
+    public void testDeleteIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        DeleteIndexResponse deleteIndexResponse = client().admin().indices().prepareDelete("test").setTimeout("0s").get();
+        assertThat(deleteIndexResponse.isAcknowledged(), equalTo(false));
+    }
+
+    /*
+    Returns true if at least one node holds the index dir, false otherwise
+     */
+    private static boolean indexDirExists(Client client, String index) {
+        NodesStatsResponse nodesStatsResponse = client.admin().cluster().prepareNodesStats().clear().setFs(true).get();
+        assertThat(nodesStatsResponse.getNodes().length, greaterThan(0));
+        for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+            assertThat(nodeStats.getFs().iterator().hasNext(), equalTo(true));
+            for (FsStats.Info info : nodeStats.getFs()) {
+                String indexDir = info.getPath() + File.separator + "indices" + File.separator + index;
+                File dir = new File(indexDir);
+                if (dir.exists()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

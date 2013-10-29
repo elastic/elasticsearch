@@ -28,8 +28,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -83,17 +81,8 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(response);
     }
 
-    public static void assertAcked(DeleteIndexRequestBuilder builder) {
-        assertAcked(builder.get());
-    }
-
     public static void assertAcked(CreateIndexRequestBuilder builder) {
         assertAcked(builder.get());
-    }
-
-    public static void assertAcked(DeleteIndexResponse response) {
-        assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
-        assertVersionSerializable(response);
     }
 
     public static void assertAcked(CreateIndexResponse response) {

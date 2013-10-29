@@ -20,25 +20,20 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
  */
-public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> {
+public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> {
 
     private String[] indices;
-
-    private TimeValue timeout = timeValueSeconds(60);
 
     DeleteIndexRequest() {
     }
@@ -75,31 +70,6 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         return indices;
     }
 
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    TimeValue timeout() {
-        return timeout;
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public DeleteIndexRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public DeleteIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -107,7 +77,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readString();
         }
-        timeout = readTimeValue(in);
+        readTimeout(in);
     }
 
     @Override
@@ -121,6 +91,6 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
                 out.writeString(index);
             }
         }
-        timeout.writeTo(out);
+        writeTimeout(out);
     }
 }

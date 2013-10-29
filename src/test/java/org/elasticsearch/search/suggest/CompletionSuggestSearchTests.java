@@ -814,13 +814,13 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
         client().admin().indices().prepareCreate(INDEX).get();
         int iters = atLeast(10);
         for (int i = 0; i < iters; i++) {
-            int len = between(3, 50);
-            String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(len + 1, atLeast(len + 2)), (char) 0x01);
+            int maxInputLen = between(3, 50);
+            String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(maxInputLen + 1, atLeast(maxInputLen + 2)), (char) 0x01);
             ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
                     .field("type", "completion")
-                    .field("max_input_len", len)
+                    .field("max_input_len", maxInputLen)
                             // upgrade mapping each time
                     .field("analyzer", "keyword")
                     .endObject()
@@ -833,11 +833,16 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
                     .field("output", "foobar")
                     .endObject().endObject()
             ).setRefresh(true).get();
-            int prefixLen = CompletionFieldMapper.correctSubStringLen(str, between(1, len - 1));
+            // need to flush and refresh, because we keep changing the same document
+            // we have to make sure that segments without any live documents are deleted
+            flushAndRefresh();
+            int prefixLen = CompletionFieldMapper.correctSubStringLen(str, between(1, maxInputLen - 1));
             assertSuggestions(str.substring(0, prefixLen), "foobar");
-            if (len + 1 < str.length()) {
-                assertSuggestions(str.substring(0, CompletionFieldMapper.correctSubStringLen(str,
-                        len + (Character.isHighSurrogate(str.charAt(len - 1)) ? 2 : 1))));
+            if (maxInputLen + 1 < str.length()) {
+                int offset = Character.isHighSurrogate(str.charAt(maxInputLen - 1)) ? 2 : 1;
+                int correctSubStringLen = CompletionFieldMapper.correctSubStringLen(str, maxInputLen + offset);
+                String shortenedSuggestion = str.substring(0, correctSubStringLen);
+                assertSuggestions(shortenedSuggestion);
             }
         }
     }

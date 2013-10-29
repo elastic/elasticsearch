@@ -1813,4 +1813,17 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
                 .setQuery(QueryBuilders.multiMatchQuery("value2", "field2^2").lenient(true)).get();
         assertHitCount(searchResponse, 1l);
     }
+    
+    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3975
+    public void testMultiMatchUseDisMaxIssue3975() {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource("field1", 123, "field2", "value2").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.multiMatchQuery("value2", "field1", "field2").useDisMax(true)).get();
+        
+        assertHitCount(searchResponse, 1l);
+    }
 }

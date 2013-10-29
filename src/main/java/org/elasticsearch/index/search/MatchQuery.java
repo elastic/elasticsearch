@@ -160,6 +160,8 @@ public class MatchQuery {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
                     return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
+                } catch (NumberFormatException e) {
+                    return null;
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -171,6 +173,8 @@ public class MatchQuery {
             } else {
                 try {
                     return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
+                } catch (NumberFormatException e) {
+                    return null;
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;

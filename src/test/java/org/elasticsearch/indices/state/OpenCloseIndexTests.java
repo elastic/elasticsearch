@@ -28,10 +28,8 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -253,7 +251,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         assertIndexIsOpened("test1");
     }
 
-    @Test @TestLogging("cluster.metadata:TRACE")
+    @Test
     public void testCloseOpenAliasMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2");
@@ -274,25 +272,6 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         assertIndexIsOpened("test1", "test2");
     }
 
-    @Test
-    public void testSimpleCloseOpenAcknowledged() {
-        createIndex("test1");
-        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test1").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsClosedOnAllNodes("test1");
-
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test1").execute().actionGet();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
-        assertIndexIsOpenedOnAllNodes("test1");
-
-        //we now set the timeout to 0, which means not wait for acknowledgement from other nodes
-        closeIndexResponse = client().admin().indices().prepareClose("test1").setTimeout(TimeValue.timeValueMillis(0)).execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
-    }
-
     private void assertIndexIsOpened(String... indices) {
         checkIndexState(IndexMetaData.State.OPEN, indices);
     }
@@ -301,31 +280,10 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         checkIndexState(IndexMetaData.State.CLOSE, indices);
     }
 
-    private void assertIndexIsOpenedOnAllNodes(String... indices) {
-        checkIndexStateOnAllNodes(IndexMetaData.State.OPEN, indices);
-    }
-
-    private void assertIndexIsClosedOnAllNodes(String... indices) {
-        checkIndexStateOnAllNodes(IndexMetaData.State.CLOSE, indices);
-    }
-
-    private void checkIndexStateOnAllNodes(IndexMetaData.State state, String... indices) {
-        //we explicitly check the cluster state on all nodes forcing the local execution
-        // we want to make sure that acknowledged true means that all the nodes already hold the updated cluster state
-        for (Client client : clients()) {
-            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).execute().actionGet();
-            checkIndexState(state, clusterStateResponse, indices);
-        }
-    }
-
     private void checkIndexState(IndexMetaData.State expectedState, String... indices) {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        checkIndexState(expectedState, clusterStateResponse, indices);
-    }
-
-    private void checkIndexState(IndexMetaData.State expectedState, ClusterStateResponse clusterState, String... indices) {
         for (String index : indices) {
-            IndexMetaData indexMetaData = clusterState.getState().metaData().indices().get(index);
+            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get(index);
             assertThat(indexMetaData, notNullValue());
             assertThat(indexMetaData.getState(), equalTo(expectedState));
         }

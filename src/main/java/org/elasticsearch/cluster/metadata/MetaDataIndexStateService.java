@@ -20,25 +20,28 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeIndicesStateUpdatedAction;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
@@ -49,7 +52,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- *
+ * Service responsible for submitting open/close index requests
  */
 public class MetaDataIndexStateService extends AbstractComponent {
 
@@ -59,27 +62,44 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
     private final AllocationService allocationService;
 
-    private final NodeIndicesStateUpdatedAction indicesStateUpdatedAction;
-
     @Inject
-    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService, NodeIndicesStateUpdatedAction indicesStateUpdatedAction) {
+    public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.indicesStateUpdatedAction = indicesStateUpdatedAction;
     }
 
-    public void closeIndex(final Request request, final Listener listener) {
-        if (request.indices == null || request.indices.length == 0) {
+    public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+        if (request.indices() == null || request.indices().length == 0) {
             throw new ElasticSearchIllegalArgumentException("Index name is required");
         }
 
-        final String indicesAsString = Arrays.toString(request.indices);
-        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+        final String indicesAsString = Arrays.toString(request.indices());
+        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, Priority.URGENT, new AckedClusterStateUpdateTask() {
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                listener.onResponse(new ClusterStateUpdateResponse(false));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.ackTimeout();
+            }
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -90,7 +110,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToClose = new ArrayList<String>();
-                for (String index : request.indices) {
+                for (String index : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(index));
@@ -129,34 +149,48 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 }
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
-
-                ClusterState newClusterState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-
-                waitForOtherNodes(newClusterState, listener, request.timeout);
-
-                return newClusterState;
+                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+                return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (oldState == newState) {
-                    // we didn't do anything, callback
-                    listener.onResponse(new Response(true));
-                }
+
             }
         });
     }
 
-    public void openIndex(final Request request, final Listener listener) {
-        if (request.indices == null || request.indices.length == 0) {
+    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+        if (request.indices() == null || request.indices().length == 0) {
             throw new ElasticSearchIllegalArgumentException("Index name is required");
         }
 
-        final String indicesAsString = Arrays.toString(request.indices);
-        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+        final String indicesAsString = Arrays.toString(request.indices());
+        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, Priority.URGENT, new AckedClusterStateUpdateTask() {
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                listener.onResponse(new ClusterStateUpdateResponse(false));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.ackTimeout();
+            }
+
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -167,7 +201,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToOpen = new ArrayList<String>();
-                for (String index : request.indices) {
+                for (String index : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(index));
@@ -199,103 +233,15 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 }
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
-
-                ClusterState newClusterState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-
-                waitForOtherNodes(newClusterState, listener, request.timeout);
-
-                return newClusterState;
-
+                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+                return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (oldState == newState) {
-                    // we didn't do anything, callback
-                    listener.onResponse(new Response(true));
-                }
+
             }
         });
     }
 
-    private void waitForOtherNodes(ClusterState updatedState, Listener listener, TimeValue timeout) {
-        // wait for responses from other nodes if needed
-        int responseCount = updatedState.nodes().size();
-        long version = updatedState.version() + 1;
-        logger.trace("waiting for [{}] notifications with version [{}]", responseCount, version);
-        indicesStateUpdatedAction.add(new CountDownListener(responseCount, listener, version), timeout);
-    }
-
-    public static interface Listener {
-
-        void onResponse(Response response);
-
-        void onFailure(Throwable t);
-    }
-
-    public static class Request {
-
-        final String[] indices;
-
-        TimeValue timeout = TimeValue.timeValueSeconds(10);
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public Request(String[] indices) {
-            this.indices = indices;
-        }
-
-        public Request timeout(TimeValue timeout) {
-            this.timeout = timeout;
-            return this;
-        }
-
-        public Request masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class Response {
-        private final boolean acknowledged;
-
-        public Response(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
-    private class CountDownListener implements NodeIndicesStateUpdatedAction.Listener {
-        private final CountDown countDown;
-        private final Listener listener;
-        private final long version;
-
-        public CountDownListener(int count, Listener listener, long version) {
-            this.countDown = new CountDown(count);
-            this.listener = listener;
-            this.version = version;
-        }
-
-        @Override
-        public void onIndexStateUpdated(NodeIndicesStateUpdatedAction.NodeIndexStateUpdatedResponse response) {
-            if (version <= response.version()) {
-                logger.trace("Received NodeIndexStateUpdatedResponse with version [{}] from [{}]", response.version(), response.nodeId());
-                if (countDown.countDown()) {
-                    indicesStateUpdatedAction.remove(this);
-                    logger.trace("NodeIndexStateUpdated was acknowledged by all expected nodes, returning");
-                    listener.onResponse(new Response(true));
-                }
-            }
-        }
-
-        @Override
-        public void onTimeout() {
-            if (countDown.fastForward()) {
-                indicesStateUpdatedAction.remove(this);
-                listener.onResponse(new Response(false));
-            }
-        }
-    }
 }

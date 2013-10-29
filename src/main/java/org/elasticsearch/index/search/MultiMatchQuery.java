@@ -47,7 +47,6 @@ public class MultiMatchQuery extends MatchQuery {
     }
     
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
-
         Query query = parse(type, fieldName, value);
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
@@ -55,7 +54,6 @@ public class MultiMatchQuery extends MatchQuery {
         if (boostValue != null && query != null) {
             query.setBoost(boostValue);
         }
-
         return query;
     }
 

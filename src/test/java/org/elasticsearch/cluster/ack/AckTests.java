@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
@@ -449,6 +450,27 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
+    public void testPutMappingAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,index=not_analyzed"));
+
+        for (Client client : clients()) {
+            assertThat(getLocalClusterState(client).metaData().indices().get("test").mapping("test"), notNullValue());
+        }
+    }
+
+    @Test
+    public void testPutMappingNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,index=not_analyzed").setTimeout("0s").get();
+        assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
     }
 
     private static ClusterState getLocalClusterState(Client client) {

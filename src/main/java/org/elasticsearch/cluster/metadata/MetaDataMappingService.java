@@ -23,13 +23,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingClusterStateUpdateRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,7 +57,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
- *
+ * Service responsible for submitting mapping changes
  */
 public class MetaDataMappingService extends AbstractComponent {
 
@@ -65,16 +65,13 @@ public class MetaDataMappingService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
-    private final NodeMappingCreatedAction mappingCreatedAction;
-
     private final BlockingQueue<MappingTask> refreshOrUpdateQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
-    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeMappingCreatedAction mappingCreatedAction) {
+    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.mappingCreatedAction = mappingCreatedAction;
     }
 
     static class MappingTask {
@@ -99,9 +96,9 @@ public class MetaDataMappingService extends AbstractComponent {
     static class UpdateTask extends MappingTask {
         final String type;
         final CompressedString mappingSource;
-        final Listener listener;
+        final ClusterStateUpdateListener listener;
 
-        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, Listener listener) {
+        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, ClusterStateUpdateListener listener) {
             super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
@@ -247,7 +244,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
                 for (Object task : tasks) {
                     if (task instanceof UpdateTask) {
-                        ((UpdateTask) task).listener.onResponse(new Response(true));
+                        ((UpdateTask) task).listener.onResponse(new ClusterStateUpdateResponse(true));
                     }
                 }
             }
@@ -277,7 +274,7 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final Listener listener) {
+    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final ClusterStateUpdateListener listener) {
         refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, listener));
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
@@ -362,15 +359,33 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void putMapping(final PutRequest request, final Listener listener) {
+    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
 
-        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.HIGH, new TimeoutClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
 
-            CountDownListener countDownListener; // used to count ack responses before confirming operation is complete
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                listener.onResponse(new ClusterStateUpdateResponse(false));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.ackTimeout();
+            }
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -382,17 +397,17 @@ public class MetaDataMappingService extends AbstractComponent {
             public ClusterState execute(final ClusterState currentState) throws Exception {
                 List<String> indicesToClose = Lists.newArrayList();
                 try {
-                    if (request.indices.length == 0) {
+                    if (request.indices().length == 0) {
                         throw new IndexMissingException(new Index("_all"));
                     }
-                    for (String index : request.indices) {
+                    for (String index : request.indices()) {
                         if (!currentState.metaData().hasIndex(index)) {
                             throw new IndexMissingException(new Index(index));
                         }
                     }
 
                     // pre create indices here and add mappings to them so we can merge the mappings here if needed
-                    for (String index : request.indices) {
+                    for (String index : request.indices()) {
                         if (indicesService.hasIndex(index)) {
                             continue;
                         }
@@ -404,29 +419,29 @@ public class MetaDataMappingService extends AbstractComponent {
                             indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source(), false);
                         }
                         // only add the current relevant mapping (if exists)
-                        if (indexMetaData.mappings().containsKey(request.mappingType)) {
-                            indexService.mapperService().merge(request.mappingType, indexMetaData.mappings().get(request.mappingType).source(), false);
+                        if (indexMetaData.mappings().containsKey(request.type())) {
+                            indexService.mapperService().merge(request.type(), indexMetaData.mappings().get(request.type()).source(), false);
                         }
                     }
 
                     Map<String, DocumentMapper> newMappers = newHashMap();
                     Map<String, DocumentMapper> existingMappers = newHashMap();
-                    for (String index : request.indices) {
+                    for (String index : request.indices()) {
                         IndexService indexService = indicesService.indexService(index);
                         if (indexService != null) {
                             // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                             DocumentMapper newMapper;
-                            DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.mappingType);
-                            if (MapperService.DEFAULT_MAPPING.equals(request.mappingType)) {
+                            DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
+                            if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
                                 // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                                newMapper = indexService.mapperService().parse(request.mappingType, new CompressedString(request.mappingSource), false);
+                                newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), false);
                             } else {
-                                newMapper = indexService.mapperService().parse(request.mappingType, new CompressedString(request.mappingSource));
+                                newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()));
                                 if (existingMapper != null) {
                                     // first, simulate
                                     DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
                                     // if we have conflicts, and we are not supposed to ignore them, throw an exception
-                                    if (!request.ignoreConflicts && mergeResult.hasConflicts()) {
+                                    if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
                                         throw new MergeMappingException(mergeResult.conflicts());
                                     }
                                 }
@@ -442,7 +457,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    String mappingType = request.mappingType;
+                    String mappingType = request.type();
                     if (mappingType == null) {
                         mappingType = newMappers.values().iterator().next().type();
                     } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
@@ -489,12 +504,11 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     if (mappings.isEmpty()) {
                         // no changes, return
-                        listener.onResponse(new Response(true));
                         return currentState;
                     }
 
                     MetaData.Builder builder = MetaData.builder(currentState.metaData());
-                    for (String indexName : request.indices) {
+                    for (String indexName : request.indices()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(indexName));
@@ -505,26 +519,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
-
-                    int counter = 1; // we want to wait on the master node to apply it on its cluster state
-                    // also wait for nodes that actually have the index created on them to apply the mappings internally
-                    for (String index : request.indices) {
-                        IndexRoutingTable indexRoutingTable = updatedState.routingTable().index(index);
-                        if (indexRoutingTable != null) {
-                            counter += indexRoutingTable.numberOfNodesShardsAreAllocatedOn(updatedState.nodes().masterNodeId());
-                        }
-                    }
-
-                    logger.debug("Expecting {} mapping created responses for other nodes", counter - 1);
-
-                    // TODO: adding one to the version is based on knowledge on how the parent class will increment the version
-                    //       move this to the base class or add another callback before publishing the new cluster state so we
-                    //       capture its version.
-                    countDownListener = new CountDownListener(counter, currentState.version() + 1, listener);
-                    mappingCreatedAction.add(countDownListener, request.timeout);
-
-                    return updatedState;
+                    return ClusterState.builder(currentState).metaData(builder).build();
                 } finally {
                     for (String index : indicesToClose) {
                         indicesService.removeIndex(index, "created for mapping processing");
@@ -534,107 +529,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (countDownListener != null) {
-                    // the master has applied it on its cluster state
-                    countDownListener.decrementCounter();
-                }
+
             }
         });
-    }
-
-    public static interface Listener {
-
-        void onResponse(Response response);
-
-        void onFailure(Throwable t);
-    }
-
-    public static class PutRequest {
-
-        final String[] indices;
-
-        final String mappingType;
-
-        final String mappingSource;
-
-        boolean ignoreConflicts = false;
-
-        TimeValue timeout = TimeValue.timeValueSeconds(10);
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public PutRequest(String[] indices, String mappingType, String mappingSource) {
-            this.indices = indices;
-            this.mappingType = mappingType;
-            this.mappingSource = mappingSource;
-        }
-
-        public PutRequest ignoreConflicts(boolean ignoreConflicts) {
-            this.ignoreConflicts = ignoreConflicts;
-            return this;
-        }
-
-        public PutRequest timeout(TimeValue timeout) {
-            this.timeout = timeout;
-            return this;
-        }
-
-        public PutRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class Response {
-        private final boolean acknowledged;
-
-        public Response(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
-    private class CountDownListener implements NodeMappingCreatedAction.Listener {
-
-        private final CountDown countDown;
-        private final Listener listener;
-        private final long minClusterStateVersion;
-
-        /**
-         * @param countDown              initial counter value
-         * @param minClusterStateVersion the minimum cluster state version for which accept responses
-         * @param listener               listener to call when counter reaches 0.
-         */
-        public CountDownListener(int countDown, long minClusterStateVersion, Listener listener) {
-            this.countDown = new CountDown(countDown);
-            this.listener = listener;
-            this.minClusterStateVersion = minClusterStateVersion;
-        }
-
-        @Override
-        public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
-            if (response.clusterStateVersion() < minClusterStateVersion) {
-                return;
-            }
-            decrementCounter();
-
-        }
-
-        public void decrementCounter() {
-            if (countDown.countDown()) {
-                mappingCreatedAction.remove(this);
-                listener.onResponse(new Response(true));
-            }
-        }
-
-        @Override
-        public void onTimeout() {
-            if (countDown.fastForward()) {
-                mappingCreatedAction.remove(this);
-                listener.onResponse(new Response(false));
-            }
-        }
     }
 }

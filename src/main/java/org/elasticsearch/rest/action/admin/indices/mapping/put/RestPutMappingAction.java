@@ -19,24 +19,17 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -59,32 +52,9 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().toUtf8());
-        putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
-        client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
-            @Override
-            public void onResponse(PutMappingResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field("ok", true)
-                            .field("acknowledged", response.isAcknowledged());
-                    builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestResponseActionListener<PutMappingResponse>(request, channel, logger));
     }
 }

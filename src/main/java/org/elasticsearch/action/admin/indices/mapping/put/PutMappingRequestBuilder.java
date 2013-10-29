@@ -20,18 +20,17 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
 
 /**
- *
+ * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
     public PutMappingRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new PutMappingRequest());
@@ -80,24 +79,6 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      */
     public PutMappingRequestBuilder setSource(Object... source) {
         request.source(source);
-        return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutMappingRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
-     * <tt>10s</tt>.
-     */
-    public PutMappingRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
         return this;
     }
 

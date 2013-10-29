@@ -86,6 +86,18 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             out.writeDouble(diskServiceTime);
         }
 
+        public String getPath() {
+            return path;
+        }
+
+        public String getMount() {
+            return mount;
+        }
+
+        public String getDev() {
+            return dev;
+        }
+
         public ByteSizeValue getTotal() {
             return new ByteSizeValue(total);
         }

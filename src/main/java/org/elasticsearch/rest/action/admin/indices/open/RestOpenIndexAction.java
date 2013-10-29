@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.open;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
@@ -27,15 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -53,39 +44,11 @@ public class RestOpenIndexAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.listenerThreaded(false);
-        openIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
         if (request.hasParam("ignore_indices")) {
             openIndexRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
-        client.admin().indices().open(openIndexRequest, new ActionListener<OpenIndexResponse>() {
-            @Override
-            public void onResponse(OpenIndexResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
-                            .endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
-    }
-
-    static final class Fields {
-        static final XContentBuilderString OK = new XContentBuilderString("ok");
-        static final XContentBuilderString ACKNOWLEDGED = new XContentBuilderString("acknowledged");
+        client.admin().indices().open(openIndexRequest, new AcknowledgedRestResponseActionListener<OpenIndexResponse>(request, channel, logger));
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -48,17 +47,15 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
 
     private final ClusterService clusterService;
     private final NodeEnvironment nodeEnv;
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
     @Nullable
     private volatile MetaData currentMetaData;
 
     @Inject
-    public NoneGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, NodeIndexDeletedAction nodeIndexDeletedAction) {
+    public NoneGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
 
         clusterService.addLast(this);
     }
@@ -119,11 +116,6 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
                     if (nodeEnv.hasNodeFile()) {
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
-                    }
-                    try {
-                        nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
-                    } catch (Exception e) {
-                        logger.debug("[{}] failed to notify master on local index store deletion", e, current.index());
                     }
                 }
             }

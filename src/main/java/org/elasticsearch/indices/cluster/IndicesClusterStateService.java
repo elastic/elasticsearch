@@ -80,7 +80,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final RecoveryTarget recoveryTarget;
     private final ShardStateAction shardStateAction;
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
@@ -110,7 +109,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
-                                      NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
+                                      NodeIndexCreatedAction nodeIndexCreatedAction,
                                       NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction) {
         super(settings);
         this.indicesService = indicesService;
@@ -119,7 +118,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.recoveryTarget = recoveryTarget;
         this.shardStateAction = shardStateAction;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingCreatedAction = nodeMappingCreatedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
     }
@@ -190,13 +188,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 nodeIndexCreatedAction.nodeIndexCreated(event.state(), index, localNodeId);
             } catch (Throwable e) {
                 logger.debug("failed to send to master index {} created event", e, index);
-            }
-        }
-        for (String index : event.indicesDeleted()) {
-            try {
-                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, localNodeId);
-            } catch (Throwable e) {
-                logger.debug("failed to send to master index {} deleted event", e, index);
             }
         }
     }

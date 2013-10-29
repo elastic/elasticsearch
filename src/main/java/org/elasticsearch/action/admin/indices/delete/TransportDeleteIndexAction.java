@@ -22,10 +22,11 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
@@ -42,17 +43,13 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     private final MetaDataDeleteIndexService deleteIndexService;
 
-    private final TransportDeleteMappingAction deleteMappingAction;
-
     private final boolean disableDeleteAllIndices;
 
     @Inject
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService, TransportDeleteMappingAction deleteMappingAction) {
+                                      ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService) {
         super(settings, transportService, clusterService, threadPool);
         this.deleteIndexService = deleteIndexService;
-        this.deleteMappingAction = deleteMappingAction;
-
         this.disableDeleteAllIndices = settings.getAsBoolean("action.disable_delete_all_indices", false);
     }
 
@@ -106,14 +103,19 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         // TODO: this API should be improved, currently, if one delete index failed, we send a failure, we should send a response array that includes all the indices that were deleted
         final CountDown count = new CountDown(request.indices().length);
         for (final String index : request.indices()) {
-            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
+
+            DeleteIndexClusterStateUpdateRequest updateRequest = new DeleteIndexClusterStateUpdateRequest()
+                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                    .index(index);
+
+            deleteIndexService.deleteIndex(updateRequest, new ClusterStateUpdateListener() {
 
                 private volatile Throwable lastFailure;
                 private volatile boolean ack = true;
 
                 @Override
-                public void onResponse(MetaDataDeleteIndexService.Response response) {
-                    if (!response.acknowledged()) {
+                public void onResponse(ClusterStateUpdateResponse response) {
+                    if (!response.isAcknowledged()) {
                         ack = false;
                     }
                     if (count.countDown()) {

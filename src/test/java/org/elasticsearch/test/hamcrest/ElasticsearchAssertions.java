@@ -28,14 +28,14 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -72,7 +72,7 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(response);
     }
 
-    public static void assertAcked(DeleteIndexRequestBuilder builder) {
+    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
         assertAcked(builder.get());
     }
 
@@ -80,8 +80,8 @@ public class ElasticsearchAssertions {
         assertAcked(builder.get());
     }
 
-    public static void assertAcked(DeleteIndexResponse response) {
-        assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
+    public static void assertAcked(AcknowledgedResponse response) {
+        assertThat("Request failed - not acked", response.isAcknowledged(), equalTo(true));
         assertVersionSerializable(response);
     }
 

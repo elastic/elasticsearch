@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -527,11 +528,8 @@ public class AckTests extends AbstractIntegrationTest {
 
     @Test
     public void testCreateIndexAcknowledgement() {
-        createIndex("test");
-
-        for (Client client : clients()) {
-            assertThat(getLocalClusterState(client).metaData().indices().get("test"), notNullValue());
-        }
+        CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate("test").setTimeout("0s").get();
+        assertThat(createIndexResponse.isAcknowledged(), equalTo(false));
     }
 
     private static ClusterState getLocalClusterState(Client client) {

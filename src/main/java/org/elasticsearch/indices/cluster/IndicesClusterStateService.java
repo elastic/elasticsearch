@@ -79,7 +79,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final ThreadPool threadPool;
     private final RecoveryTarget recoveryTarget;
     private final ShardStateAction shardStateAction;
-    private final NodeIndexCreatedAction nodeIndexCreatedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
     // a map of mappings type we have seen per index due to cluster state
@@ -108,7 +107,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
-                                      NodeIndexCreatedAction nodeIndexCreatedAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction) {
         super(settings);
         this.indicesService = indicesService;
@@ -116,7 +114,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.threadPool = threadPool;
         this.recoveryTarget = recoveryTarget;
         this.shardStateAction = shardStateAction;
-        this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
     }
 
@@ -174,19 +171,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             applyDeletedShards(event);
             applyCleanedIndices(event);
             applySettings(event);
-            sendIndexLifecycleEvents(event);
-        }
-    }
-
-    private void sendIndexLifecycleEvents(final ClusterChangedEvent event) {
-        String localNodeId = event.state().nodes().localNodeId();
-        assert localNodeId != null;
-        for (String index : event.indicesCreated()) {
-            try {
-                nodeIndexCreatedAction.nodeIndexCreated(event.state(), index, localNodeId);
-            } catch (Throwable e) {
-                logger.debug("failed to send to master index {} created event", e, index);
-            }
         }
     }
 

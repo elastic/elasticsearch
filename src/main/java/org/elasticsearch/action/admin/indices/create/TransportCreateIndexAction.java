@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -80,26 +82,27 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
             cause = "api";
         }
 
-        createIndexService.createIndex(new MetaDataCreateIndexService.Request(cause, request.index()).settings(request.settings())
-                .mappings(request.mappings())
-                .customs(request.customs())
-                .timeout(request.timeout())
-                .masterTimeout(request.masterNodeTimeout()),
-                new MetaDataCreateIndexService.Listener() {
-                    @Override
-                    public void onResponse(MetaDataCreateIndexService.Response response) {
-                        listener.onResponse(new CreateIndexResponse(response.acknowledged()));
-                    }
+        CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(cause, request.index())
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                .settings(request.settings()).mappings(request.mappings())
+                .customs(request.customs());
 
-                    @Override
-                    public void onFailure(Throwable t) {
-                        if (t instanceof IndexAlreadyExistsException) {
-                            logger.trace("[{}] failed to create", t, request.index());
-                        } else {
-                            logger.debug("[{}] failed to create", t, request.index());
-                        }
-                        listener.onFailure(t);
-                    }
-                });
+        createIndexService.createIndex(updateRequest, new ClusterStateUpdateListener() {
+
+            @Override
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new CreateIndexResponse(response.isAcknowledged()));
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                if (t instanceof IndexAlreadyExistsException) {
+                    logger.trace("[{}] failed to create", t, request.index());
+                } else {
+                    logger.debug("[{}] failed to create", t, request.index());
+                }
+                listener.onFailure(t);
+            }
+        });
     }
 }

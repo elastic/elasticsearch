@@ -22,21 +22,23 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -64,23 +66,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.*;
-import java.util.concurrent.ScheduledFuture;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
- *
+ * Service responsible for submitting create index requests
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
 
@@ -89,29 +89,27 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final NodeIndexCreatedAction nodeIndexCreatedAction;
     private final MetaDataService metaDataService;
     private final Version version;
     private final String riverIndexName;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                      AllocationService allocationService, NodeIndexCreatedAction nodeIndexCreatedAction, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName) {
+                                      AllocationService allocationService, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.metaDataService = metaDataService;
         this.version = version;
         this.riverIndexName = riverIndexName;
     }
 
-    public void createIndex(final Request request, final Listener userListener) {
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings.getAsMap().entrySet()) {
+        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
             if (!entry.getKey().startsWith("index.")) {
                 updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
             } else {
@@ -122,11 +120,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
+        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index());
 
         // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
         if (mdLock.tryAcquire()) {
-            createIndex(request, userListener, mdLock);
+            createIndex(request, listener, mdLock);
             return;
         }
 
@@ -134,31 +132,53 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             @Override
             public void run() {
                 try {
-                    if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
-                        userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
+                    if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
+                        listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
                         return;
                     }
                 } catch (InterruptedException e) {
-                    userListener.onFailure(e);
+                    listener.onFailure(e);
                     return;
                 }
 
-                createIndex(request, userListener, mdLock);
+                createIndex(request, listener, mdLock);
             }
         });
     }
 
-    private void createIndex(final Request request, final Listener userListener, Semaphore mdLock) {
-        final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
-        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener, final Semaphore mdLock) {
+        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask() {
+
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                mdLock.release();
+                listener.onResponse(new ClusterStateUpdateResponse(true));
+            }
+
+            @Override
+            public void onAckTimeout() {
+                mdLock.release();
+                listener.onResponse(new ClusterStateUpdateResponse(false));
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return request.ackTimeout();
+            }
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
             public void onFailure(String source, Throwable t) {
+                mdLock.release();
                 listener.onFailure(t);
             }
 
@@ -178,11 +198,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // add the request mapping
                     Map<String, Map<String, Object>> mappings = Maps.newHashMap();
 
-                    for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+                    for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
 
-                    for (Map.Entry<String, Custom> entry : request.customs.entrySet()) {
+                    for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
                         customs.put(entry.getKey(), entry.getValue());
                     }
 
@@ -213,7 +233,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     File mappingsDir = new File(environment.configFile(), "mappings");
                     if (mappingsDir.exists() && mappingsDir.isDirectory()) {
                         // first index level
-                        File indexMappingsDir = new File(mappingsDir, request.index);
+                        File indexMappingsDir = new File(mappingsDir, request.index());
                         if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
                             addMappings(mappings, indexMappingsDir);
                         }
@@ -231,17 +251,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(templates.get(i).settings());
                     }
                     // now, put the request settings, so they override templates
-                    indexSettingsBuilder.put(request.settings);
+                    indexSettingsBuilder.put(request.settings());
 
                     if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                        if (request.index.equals(riverIndexName)) {
+                        if (request.index().equals(riverIndexName)) {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                         } else {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                         }
                     }
                     if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                        if (request.index.equals(riverIndexName)) {
+                        if (request.index().equals(riverIndexName)) {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         } else {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -262,10 +282,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
 
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(request.index, actualIndexSettings, clusterService.localNode().id());
+                    indicesService.createIndex(request.index(), actualIndexSettings, clusterService.localNode().id());
                     indexCreated = true;
                     // now add the mappings
-                    IndexService indexService = indicesService.indexServiceSafe(request.index);
+                    IndexService indexService = indicesService.indexServiceSafe(request.index());
                     MapperService mapperService = indexService.mapperService();
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
@@ -295,14 +315,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         mappingsMetaData.put(mapper.type(), mappingMd);
                     }
 
-                    final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
+                    final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index()).settings(actualIndexSettings);
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
                     }
                     for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
-                    indexMetaDataBuilder.state(request.state);
+                    indexMetaDataBuilder.state(request.state());
                     final IndexMetaData indexMetaData;
                     try {
                         indexMetaData = indexMetaDataBuilder.build();
@@ -316,57 +336,32 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             .put(indexMetaData, false)
                             .build();
 
-                    logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", request.index, request.cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
+                    logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", request.index(), request.cause(), indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    if (!request.blocks.isEmpty()) {
-                        for (ClusterBlock block : request.blocks) {
-                            blocks.addIndexBlock(request.index, block);
+                    if (!request.blocks().isEmpty()) {
+                        for (ClusterBlock block : request.blocks()) {
+                            blocks.addIndexBlock(request.index(), block);
                         }
                     }
-                    if (request.state == State.CLOSE) {
-                        blocks.addIndexBlock(request.index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                    if (request.state() == State.CLOSE) {
+                        blocks.addIndexBlock(request.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
                     }
 
                     ClusterState updatedState = newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
 
-                    if (request.state == State.OPEN) {
+                    if (request.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable())
-                                .addAsNew(updatedState.metaData().index(request.index));
+                                .addAsNew(updatedState.metaData().index(request.index()));
                         RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                     }
-
-                    // we wait for events from all nodes that the index has been added to the metadata
-                    final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
-
-                    final NodeIndexCreatedAction.Listener nodeIndexCreatedListener = new NodeIndexCreatedAction.Listener() {
-                        @Override
-                        public void onNodeIndexCreated(String index, String nodeId) {
-                            if (index.equals(request.index)) {
-                                if (counter.decrementAndGet() == 0) {
-                                    listener.onResponse(new Response(true, indexMetaData));
-                                    nodeIndexCreatedAction.remove(this);
-                                }
-                            }
-                        }
-                    };
-
-                    nodeIndexCreatedAction.add(nodeIndexCreatedListener);
-
-                    listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, new Runnable() {
-                        @Override
-                        public void run() {
-                            listener.onResponse(new Response(false, indexMetaData));
-                            nodeIndexCreatedAction.remove(nodeIndexCreatedListener);
-                        }
-                    });
 
                     return updatedState;
                 } finally {
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
-                        indicesService.removeIndex(request.index, failureReason != null ? failureReason : "failed to create index");
+                        indicesService.removeIndex(request.index(), failureReason != null ? failureReason : "failed to create index");
                     }
                 }
             }
@@ -376,44 +371,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         });
     }
-
-    class CreateIndexListener implements Listener {
-
-        private final AtomicBoolean notified = new AtomicBoolean();
-        private final Semaphore mdLock;
-        private final Request request;
-        private final Listener listener;
-        volatile ScheduledFuture future;
-
-        private CreateIndexListener(Semaphore mdLock, Request request, Listener listener) {
-            this.mdLock = mdLock;
-            this.request = request;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(final Response response) {
-            if (notified.compareAndSet(false, true)) {
-                mdLock.release();
-                if (future != null) {
-                    future.cancel(false);
-                }
-                listener.onResponse(response);
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-            if (notified.compareAndSet(false, true)) {
-                mdLock.release();
-                if (future != null) {
-                    future.cancel(false);
-                }
-                listener.onFailure(t);
-            }
-        }
-    }
-
 
     private Map<String, Object> parseMapping(String mappingSource) throws Exception {
         return XContentFactory.xContent(mappingSource).createParser(mappingSource).mapAndClose();
@@ -440,10 +397,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private List<IndexTemplateMetaData> findTemplates(Request request, ClusterState state) {
+    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         List<IndexTemplateMetaData> templates = Lists.newArrayList();
         for (IndexTemplateMetaData template : state.metaData().templates().values()) {
-            if (Regex.simpleMatch(template.template(), request.index)) {
+            if (Regex.simpleMatch(template.template(), request.index())) {
                 templates.add(template);
             }
         }
@@ -459,11 +416,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         byte[] templatesData = Streams.copyToByteArray(templatesFile);
                         parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
                         IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContentStandalone(parser);
-                        if (Regex.simpleMatch(template.template(), request.index)) {
+                        if (Regex.simpleMatch(template.template(), request.index())) {
                             templates.add(template);
                         }
                     } catch (Exception e) {
-                        logger.warn("[{}] failed to read template [{}] from config", e, request.index, templatesFile.getAbsolutePath());
+                        logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.getAbsolutePath());
                     } finally {
                         IOUtils.closeWhileHandlingException(parser);
                     }
@@ -480,132 +437,33 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return templates;
     }
 
-    private void validate(Request request, ClusterState state) throws ElasticSearchException {
-        if (state.routingTable().hasIndex(request.index)) {
-            throw new IndexAlreadyExistsException(new Index(request.index));
+    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticSearchException {
+        if (state.routingTable().hasIndex(request.index())) {
+            throw new IndexAlreadyExistsException(new Index(request.index()));
         }
-        if (state.metaData().hasIndex(request.index)) {
-            throw new IndexAlreadyExistsException(new Index(request.index));
+        if (state.metaData().hasIndex(request.index())) {
+            throw new IndexAlreadyExistsException(new Index(request.index()));
         }
-        if (request.index.contains(" ")) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain whitespace");
+        if (request.index().contains(" ")) {
+            throw new InvalidIndexNameException(new Index(request.index()), request.index(), "must not contain whitespace");
         }
-        if (request.index.contains(",")) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain ',");
+        if (request.index().contains(",")) {
+            throw new InvalidIndexNameException(new Index(request.index()), request.index(), "must not contain ',");
         }
-        if (request.index.contains("#")) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain '#");
+        if (request.index().contains("#")) {
+            throw new InvalidIndexNameException(new Index(request.index()), request.index(), "must not contain '#");
         }
-        if (!request.index.equals(riverIndexName) && request.index.charAt(0) == '_') {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'");
+        if (!request.index().equals(riverIndexName) && request.index().charAt(0) == '_') {
+            throw new InvalidIndexNameException(new Index(request.index()), request.index(), "must not start with '_'");
         }
-        if (!request.index.toLowerCase(Locale.ROOT).equals(request.index)) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must be lowercase");
+        if (!request.index().toLowerCase(Locale.ROOT).equals(request.index())) {
+            throw new InvalidIndexNameException(new Index(request.index()), request.index(), "must be lowercase");
         }
-        if (!Strings.validFileName(request.index)) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        if (!Strings.validFileName(request.index())) {
+            throw new InvalidIndexNameException(new Index(request.index()), request.index(), "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
-        if (state.metaData().aliases().containsKey(request.index)) {
-            throw new IndexAlreadyExistsException(new Index(request.index), "already exists as alias");
-        }
-    }
-
-    public static interface Listener {
-
-        void onResponse(Response response);
-
-        void onFailure(Throwable t);
-    }
-
-    public static class Request {
-
-        final String cause;
-        final String index;
-
-        State state = State.OPEN;
-
-        Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-
-        Map<String, String> mappings = Maps.newHashMap();
-
-        Map<String, IndexMetaData.Custom> customs = newHashMap();
-
-
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        Set<ClusterBlock> blocks = Sets.newHashSet();
-
-        public Request(String cause, String index) {
-            this.cause = cause;
-            this.index = index;
-        }
-
-        public Request settings(Settings settings) {
-            this.settings = settings;
-            return this;
-        }
-
-        public Request mappings(Map<String, String> mappings) {
-            this.mappings.putAll(mappings);
-            return this;
-        }
-
-        public Request mappingsMetaData(Map<String, MappingMetaData> mappings) throws IOException {
-            for (Map.Entry<String, MappingMetaData> entry : mappings.entrySet()) {
-                this.mappings.put(entry.getKey(), entry.getValue().source().string());
-            }
-            return this;
-        }
-
-        public Request mappingsCompressed(Map<String, CompressedString> mappings) throws IOException {
-            for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
-                this.mappings.put(entry.getKey(), entry.getValue().string());
-            }
-            return this;
-        }
-
-        public Request customs(Map<String, Custom> customs) {
-            this.customs.putAll(customs);
-            return this;
-        }
-
-        public Request blocks(Set<ClusterBlock> blocks) {
-            this.blocks.addAll(blocks);
-            return this;
-        }
-
-        public Request state(State state) {
-            this.state = state;
-            return this;
-        }
-
-        public Request timeout(TimeValue timeout) {
-            this.timeout = timeout;
-            return this;
-        }
-
-        public Request masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class Response {
-        private final boolean acknowledged;
-        private final IndexMetaData indexMetaData;
-
-        public Response(boolean acknowledged, IndexMetaData indexMetaData) {
-            this.acknowledged = acknowledged;
-            this.indexMetaData = indexMetaData;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-
-        public IndexMetaData indexMetaData() {
-            return indexMetaData;
+        if (state.metaData().aliases().containsKey(request.index())) {
+            throw new IndexAlreadyExistsException(new Index(request.index()), "already exists as alias");
         }
     }
 }

@@ -28,7 +28,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -86,7 +85,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final ThreadPool threadPool;
     private final RecoveryTarget recoveryTarget;
     private final ShardStateAction shardStateAction;
-    private final NodeIndexCreatedAction nodeIndexCreatedAction;
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
@@ -117,7 +115,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
-                                      NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
+                                      NodeIndexDeletedAction nodeIndexDeletedAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction) {
         super(settings);
         this.indicesService = indicesService;
@@ -125,7 +123,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.threadPool = threadPool;
         this.recoveryTarget = recoveryTarget;
         this.shardStateAction = shardStateAction;
-        this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
 
@@ -193,13 +190,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private void sendIndexLifecycleEvents(final ClusterChangedEvent event) {
         String localNodeId = event.state().nodes().localNodeId();
         assert localNodeId != null;
-        for (String index : event.indicesCreated()) {
-            try {
-                nodeIndexCreatedAction.nodeIndexCreated(event.state(), index, localNodeId);
-            } catch (Throwable e) {
-                logger.debug("failed to send to master index {} created event", e, index);
-            }
-        }
         for (String index : event.indicesDeleted()) {
             try {
                 nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, localNodeId);

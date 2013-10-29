@@ -35,7 +35,7 @@ settings API:
     The number of replicas each shard has.
 
 `index.auto_expand_replicas`::
-    Set to an actual value (like `0-all`) or `false` to disable it.
+    Set to an actual value (like `0`, `1`, or `all`) or `false` to disable it.
 
 `index.blocks.read_only`::
     Set to `true` to have the index read only, `false` to allow writes

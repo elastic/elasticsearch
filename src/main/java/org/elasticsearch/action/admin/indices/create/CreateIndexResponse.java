@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,34 +28,24 @@ import java.io.IOException;
 /**
  * A response for a create index action.
  */
-public class CreateIndexResponse extends ActionResponse {
-
-    private boolean acknowledged;
+public class CreateIndexResponse extends AcknowledgedResponse {
 
     CreateIndexResponse() {
     }
 
     CreateIndexResponse(boolean acknowledged) {
-        this.acknowledged = acknowledged;
-    }
-
-    /**
-     * Has the index creation been acknowledged by all current cluster nodes within the
-     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
-     */
-    public boolean isAcknowledged() {
-        return acknowledged;
+        super(acknowledged);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        acknowledged = in.readBoolean();
+        readAcknowledged(in, null);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(acknowledged);
+        writeAcknowledged(out, null);
     }
 }

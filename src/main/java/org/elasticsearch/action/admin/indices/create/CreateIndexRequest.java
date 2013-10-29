@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -48,7 +46,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -59,7 +56,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRequest> {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> {
 
     private String cause = "";
 
@@ -70,8 +67,6 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
     private Map<String, String> mappings = newHashMap();
 
     private Map<String, IndexMetaData.Custom> customs = newHashMap();
-
-    private TimeValue timeout = AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 
     CreateIndexRequest() {
     }
@@ -173,6 +168,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
     /**
      * The settings to crete the index with (either json/yaml/properties format)
      */
+    @SuppressWarnings("unchecked")
     public CreateIndexRequest settings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -224,6 +220,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
      * @param type   The mapping type
      * @param source The mapping source
      */
+    @SuppressWarnings("unchecked")
     public CreateIndexRequest mapping(String type, Map source) {
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
@@ -292,6 +289,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
     /**
      * Sets the settings and mappings as a single source.
      */
+    @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, Object> source) {
         boolean found = false;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
@@ -338,38 +336,13 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
         return this.customs;
     }
 
-    /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public TimeValue timeout() {
-        return timeout;
-    }
-
-    /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public CreateIndexRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public CreateIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        timeout = readTimeValue(in);
+        readTimeout(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             mappings.put(in.readString(), in.readString());
@@ -388,7 +361,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        timeout.writeTo(out);
+        writeTimeout(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());

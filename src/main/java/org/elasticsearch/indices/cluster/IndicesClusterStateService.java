@@ -80,7 +80,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final RecoveryTarget recoveryTarget;
     private final ShardStateAction shardStateAction;
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
-    private final NodeMappingCreatedAction nodeMappingCreatedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
     // a map of mappings type we have seen per index due to cluster state
@@ -110,7 +109,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexCreatedAction nodeIndexCreatedAction,
-                                      NodeMappingCreatedAction nodeMappingCreatedAction, NodeMappingRefreshAction nodeMappingRefreshAction) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -118,7 +117,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.recoveryTarget = recoveryTarget;
         this.shardStateAction = shardStateAction;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
-        this.nodeMappingCreatedAction = nodeMappingCreatedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
     }
 
@@ -341,7 +339,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             MapperService mapperService = indexService.mapperService();
             // first, go over and update the _default_ mapping (if exists)
             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                processMapping(event, index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
             }
 
             // go over and add the relevant mappings (or update them)
@@ -351,7 +349,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
                     continue;
                 }
-                boolean requireRefresh = processMapping(event, index, mapperService, mappingType, mappingSource);
+                boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
                 if (requireRefresh) {
                     if (typesToRefresh == null) {
                         typesToRefresh = Lists.newArrayList();
@@ -375,7 +373,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private boolean processMapping(ClusterChangedEvent event, String index, MapperService mapperService, String mappingType, CompressedString mappingSource) {
+    private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedString mappingSource) {
         if (!seenMappings.containsKey(new Tuple<String, String>(index, mappingType))) {
             seenMappings.put(new Tuple<String, String>(index, mappingType), true);
         }
@@ -393,8 +391,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     requiresRefresh = true;
                 }
-                nodeMappingCreatedAction.nodeMappingCreated(event.state(),
-                        new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId(), event.state().version()));
             } else {
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                 if (!mappingSource.equals(existingMapper.mappingSource())) {
@@ -409,8 +405,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         // this might happen when upgrading from 0.15 to 0.16
                         logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
                     }
-                    nodeMappingCreatedAction.nodeMappingCreated(event.state(),
-                            new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId(), event.state().version()));
                 }
             }
         } catch (Throwable e) {

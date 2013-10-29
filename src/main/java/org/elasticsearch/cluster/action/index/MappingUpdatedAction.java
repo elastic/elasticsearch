@@ -80,7 +80,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     protected void masterOperation(final MappingUpdatedRequest request, final ClusterState state, final ActionListener<MappingUpdatedResponse> listener) throws ElasticSearchException {
         metaDataMappingService.updateMapping(request.index(), request.indexUUID(), request.type(), request.mappingSource(), new MetaDataMappingService.Listener() {
             @Override
-            public void onResponse(MetaDataMappingService.Response response) {
+            public void onResponse() {
                 listener.onResponse(new MappingUpdatedResponse());
             }
 

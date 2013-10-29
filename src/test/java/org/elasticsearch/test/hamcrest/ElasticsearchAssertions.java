@@ -28,8 +28,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -62,15 +60,6 @@ import static org.junit.Assert.fail;
  *
  */
 public class ElasticsearchAssertions {
-
-    public static void assertAcked(PutMappingRequestBuilder builder) {
-        assertAcked(builder.get());
-    }
-
-    private static void assertAcked(PutMappingResponse response) {
-        assertThat("Put Mapping failed - not acked", response.isAcknowledged(), equalTo(true));
-        assertVersionSerializable(response);
-    }
 
     public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
         assertAcked(builder.get());

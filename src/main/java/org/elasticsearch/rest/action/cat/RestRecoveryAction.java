@@ -34,10 +34,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -137,7 +134,7 @@ public class RestRecoveryAction extends BaseRestHandler {
             if (primarySize == null) {
                 t.addCell("NaN");
             } else {
-                t.addCell(String.format("%1.1f%%", 100.0 * (float)replicaSize / primarySize));
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", 100.0 * (float)replicaSize / primarySize));
             }
             t.endRow();
         }

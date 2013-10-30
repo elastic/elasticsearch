@@ -620,14 +620,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         if (indexService.hasShard(shardId)) {
             IndexShard indexShard = indexService.shardSafe(shardId);
-            if (indexShard.state() == IndexShardState.STARTED) {
-                // the master thinks we are initializing, but we are already started
-                // (either master failover, or a cluster event before we managed to tell the master we started), mark us as started
+            if (indexShard.state() == IndexShardState.STARTED || indexShard.state() == IndexShardState.POST_RECOVERY) {
+                // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
+                // for master to confirm a shard started message (either master failover, or a cluster event before
+                // we managed to tell the master we started), mark us as started
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}][{}] master [{}] marked shard as initializing, but shard already created, mark shard as started");
+                    logger.trace("[{}][{}] master [{}] marked shard as initializing, but shard has state [{}], mark shard as started", indexShard.state());
                 }
                 shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(),
-                        "master " + nodes.masterNode() + " marked shard as initializing, but shard already started, mark shard as started");
+                        "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started");
                 return;
             } else {
                 if (indexShard.ignoreRecoveryAttempt()) {

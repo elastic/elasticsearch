@@ -4,7 +4,7 @@
 deprecated[1.0.0.RC1,See <<function-score-instead-of-boost>>]
 
 Boosting is the process of enhancing the relevancy of a document or
-field. Field level mapping allows to define explicit boost level on a
+field. Field level mapping allows to define an explicit boost level on a
 specific field. The boost field mapping (applied on the
 <<mapping-root-object-type,root object>>) allows
 to define a boost field mapping where *its content will control the

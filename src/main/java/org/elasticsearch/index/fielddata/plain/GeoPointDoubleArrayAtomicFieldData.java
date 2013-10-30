@@ -156,20 +156,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL;
-            }
-
-            @Override
-            public GeoPoint getValue(int docId) {
-                long ord = ordinals.getOrd(docId);
-                if (ord == Ordinals.MISSING_ORDINAL) {
-                    return null;
-                }
-                return scratch.reset(lat.get(ord), lon.get(ord));
-            }
-
-            @Override
             public GeoPoint nextValue() {
                 final long ord = ordinals.nextOrd();
                 assert ord > 0;
@@ -246,17 +232,14 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return set.get(docId) ? 1 : 0;
             }
 
             @Override
-            public GeoPoint getValue(int docId) {
-                if (set.get(docId)) {
-                    return scratch.reset(lat.get(docId), lon.get(docId));
-                } else {
-                    return null;
-                }
+            public GeoPoint nextValue() {
+                return scratch.reset(lat.get(docId), lon.get(docId));
             }
         }
     }
@@ -320,12 +303,13 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return true;
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return 1;
             }
 
             @Override
-            public GeoPoint getValue(int docId) {
+            public GeoPoint nextValue() {
                 return scratch.reset(lat.get(docId), lon.get(docId));
             }
         }

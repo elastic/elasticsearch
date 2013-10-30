@@ -66,11 +66,6 @@ public abstract class BytesValues {
     }
 
     /**
-     * Returns <code>true</code> if the given document ID has a value in this. Otherwise <code>false</code>.
-     */
-    public abstract boolean hasValue(int docId);
-
-    /**
      * Converts the current shared {@link BytesRef} to a stable instance. Note,
      * this calls makes the bytes safe for *reads*, not writes (into the same BytesRef). For example,
      * it makes it safe to be placed in a map.
@@ -80,29 +75,13 @@ public abstract class BytesValues {
     }
 
     /**
-     * Returns a value for the given document id. If the document
-     * has more than one value the returned value is one of the values
-     * associated with the document.
-     *
-     * Note: the {@link BytesRef} might be shared across invocations.
-     *
-     * @param docId the documents id.
-     * @return a value for the given document id or a {@link BytesRef} with a length of <tt>0</tt>if the document
-     *         has no value.
-     */
-    public abstract BytesRef getValue(int docId);
-
-    /**
      * Sets iteration to the specified docID and returns the number of
      * values for this document ID,
      * @param docId document ID
      *
      * @see #nextValue()
      */
-    public int setDocument(int docId) {
-        this.docId = docId;
-        return hasValue(docId) ? 1 : 0;
-    }
+    public abstract int setDocument(int docId);
 
     /**
      * Returns the next value for the current docID set to {@link #setDocument(int)}.
@@ -114,10 +93,7 @@ public abstract class BytesValues {
      *
      * @return the next value for the current docID set to {@link #setDocument(int)}.
      */
-    public BytesRef nextValue() {
-        assert docId != -1;
-        return getValue(docId);
-    }
+    public abstract BytesRef nextValue();
 
     /**
      * Returns the hash value of the previously returned shared {@link BytesRef} instances.
@@ -157,25 +133,10 @@ public abstract class BytesValues {
         public abstract BytesRef getValueByOrd(long ord);
 
         @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL;
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            final long ord = ordinals.getOrd(docId);
-            if (ord == Ordinals.MISSING_ORDINAL) {
-                scratch.length = 0;
-                return scratch;
-            }
-            return getValueByOrd(ord);
-        }
-
-        @Override
         public int setDocument(int docId) {
             this.docId = docId;
             int length = ordinals.setDocument(docId);
-            assert hasValue(docId) == length > 0 : "Doc: [" + docId + "] hasValue: [" + hasValue(docId) + "] but length is [" + length + "]";
+            assert (ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL) == length > 0 : "Doc: [" + docId + "] hasValue: [" + (ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL) + "] but length is [" + length + "]";
             return length;
         }
 
@@ -193,17 +154,6 @@ public abstract class BytesValues {
 
         Empty() {
             super(false);
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return false;
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            scratch.length = 0;
-            return scratch;
         }
 
         @Override

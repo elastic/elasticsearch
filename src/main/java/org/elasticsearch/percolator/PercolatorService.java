@@ -716,9 +716,9 @@ public class PercolatorService extends AbstractComponent {
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
                     BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues(true);
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
-                    assert values.hasValue(localDocId);
-                    spare.bytes = values.getValue(localDocId);
-
+                    final int numValues = values.setDocument(localDocId);
+                    assert numValues == 1;
+                    spare.bytes = values.nextValue();
                     spare.hash = values.currentValueHash();
                     matches.add(values.copyShared());
                     if (hls != null) {

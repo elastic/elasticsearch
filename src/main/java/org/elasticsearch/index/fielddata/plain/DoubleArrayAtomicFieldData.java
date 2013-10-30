@@ -239,15 +239,16 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return  set.get(docId) ? 1 : 0;
             }
 
             @Override
-            public long getValue(int docId) {
+            public long nextValue() {
                 return (long) values.get(docId);
             }
-        }
+            }
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
@@ -261,15 +262,15 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return set.get(docId) ? 1 : 0;
             }
 
             @Override
-            public double getValue(int docId) {
+            public double nextValue() {
                 return values.get(docId);
             }
-
         }
     }
 
@@ -334,17 +335,9 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
             }
 
             @Override
-            public long getValue(int docId) {
-                return (long) values.get(docId);
-            }
-
-            @Override
             public long nextValue() {
                 return (long) values.get(docId);
             }
-            
-            
-
         }
 
         static final class DoubleValues extends DenseDoubleValues {
@@ -356,11 +349,6 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
                 this.values = values;
             }
 
-            @Override
-            public double getValue(int docId) {
-                return values.get(docId);
-            }
-            
             @Override
             public double nextValue() {
                 return values.get(docId);

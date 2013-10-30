@@ -33,16 +33,6 @@ public class FilterLongValues extends LongValues {
     }
 
     @Override
-    public boolean hasValue(int docId) {
-        return delegate.hasValue(docId);
-    }
-
-    @Override
-    public long getValue(int docId) {
-        return delegate.getValue(docId);
-    }
-
-    @Override
     public int setDocument(int docId) {
         return delegate.setDocument(docId);
     }
@@ -52,8 +42,4 @@ public class FilterLongValues extends LongValues {
         return delegate.nextValue();
     }
 
-    @Override
-    public long getValueMissing(int docId, long missingValue) {
-        return delegate.getValueMissing(docId, missingValue);    //To change body of overridden methods use File | Settings | File Templates.
-    }
 }

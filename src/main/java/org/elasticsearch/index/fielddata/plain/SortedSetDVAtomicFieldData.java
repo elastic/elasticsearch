@@ -74,7 +74,7 @@ abstract class SortedSetDVAtomicFieldData {
         // no-op
     }
 
-    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getBytesValues() {
+    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
         final SortedSetDocValues values = getValuesNoException(reader, field);
         return new SortedSetValues(reader, field, values);
     }

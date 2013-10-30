@@ -103,7 +103,7 @@ abstract class QueryCollector extends Collector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
-        values = idFieldData.load(context).getBytesValues();
+        values = idFieldData.load(context).getBytesValues(true);
         if (facetCollector != null) {
             facetCollector.setNextReader(context);
         }

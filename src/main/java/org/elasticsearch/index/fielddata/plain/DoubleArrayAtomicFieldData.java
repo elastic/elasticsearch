@@ -88,7 +88,7 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public BytesValues getBytesValues() {
+        public BytesValues getBytesValues(boolean needsHashes) {
             return BytesValues.EMPTY;
         }
 

@@ -106,19 +106,18 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
-    public BytesValues.WithOrdinals getBytesValues() {
-        return new BytesValues(bytes, termOrdToBytesOffset, ordinals.ordinals());
-    }
-
-    @Override
-    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
-        final BigIntArray hashes = getHashes();
-        return new BytesValues.HashedBytesValues(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
+    public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
+        if (needsHashes) {
+            final BigIntArray hashes = getHashes();
+            return new BytesValues.HashedBytesValues(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
+        } else {
+            return new BytesValues(bytes, termOrdToBytesOffset, ordinals.ordinals());
+        }
     }
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+        return new ScriptDocValues.Strings(getBytesValues(false));
     }
 
     static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
@@ -221,7 +220,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         @Override
-        public BytesValues.WithOrdinals getBytesValues() {
+        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
             return new EmptyByteValuesWithOrdinals(ordinals.ordinals());
         }
 

@@ -70,7 +70,9 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public BytesValues getBytesValues() {
+    public BytesValues getBytesValues(boolean needsHashes) {
+        // if you want hashes to be cached, you should rather store them on disk alongside the values rather than loading them into memory
+        // here - not supported for now, and probably not useful since this field data only applies to _id and _uid?
         final BinaryDocValues values;
         final Bits docsWithField;
         try {
@@ -109,15 +111,8 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public BytesValues getHashedBytesValues() {
-        // if you want hashes to be cached, you should rather store them on disk alongside the values rather than loading them into memory
-        // here - not supported for now, and probably not useful since this field data only applies to _id and _uid?
-        return getBytesValues();
-    }
-
-    @Override
     public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+        return new ScriptDocValues.Strings(getBytesValues(false));
     }
 
     @Override

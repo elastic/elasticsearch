@@ -61,7 +61,7 @@ final class QueriesLoaderCollector extends Collector {
                 // id is only used for logging, if we fail we log the id in the catch statement
                 final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
                 if (parseQuery != null) {
-                    queries.put(new HashedBytesRef(idValues.copyShared()), parseQuery);
+                    queries.put(new HashedBytesRef(idValues.copyShared(), idValues.currentValueHash()), parseQuery);
                 } else {
                     logger.warn("failed to add query [{}] - parser returned null", id);
                 }
@@ -75,7 +75,7 @@ final class QueriesLoaderCollector extends Collector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         reader = context.reader();
-        idValues = idFieldData.load(context).getBytesValues();
+        idValues = idFieldData.load(context).getBytesValues(true);
     }
 
     @Override

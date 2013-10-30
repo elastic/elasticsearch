@@ -53,12 +53,14 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
 
     /**
      * Use a non thread safe (lightweight) view of the values as bytes.
+     *
+     * @param needsHashes if <code>true</code> the implementation will use pre-build hashes if
+     *                    {@link org.elasticsearch.index.fielddata.BytesValues#currentValueHash()} is used. if no hashes
+     *                    are used <code>false</code> should be passed instead.
+     *
      */
-    BytesValues getBytesValues();
+    BytesValues getBytesValues(boolean needsHashes);
     
-    
-    BytesValues getHashedBytesValues();
-
     /**
      * Returns a "scripting" based values.
      */
@@ -73,10 +75,8 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
 
         /**
          * Use a non thread safe (lightweight) view of the values as bytes.
+         * @param needsHashes
          */
-        BytesValues.WithOrdinals getBytesValues();
-        
-        
-        BytesValues.WithOrdinals getHashedBytesValues();
+        BytesValues.WithOrdinals getBytesValues(boolean needsHashes);
     }
 }

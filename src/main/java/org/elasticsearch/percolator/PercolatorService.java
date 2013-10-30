@@ -714,7 +714,7 @@ public class PercolatorService extends AbstractComponent {
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues();
+                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues(true);
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     assert values.hasValue(localDocId);
                     spare.bytes = values.getValue(localDocId);

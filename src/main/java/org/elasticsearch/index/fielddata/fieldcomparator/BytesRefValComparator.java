@@ -82,7 +82,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        docTerms = indexFieldData.load(context).getBytesValues();
+        docTerms = indexFieldData.load(context).getBytesValues(false);
         if (docTerms.isMultiValued()) {
             docTerms = new MultiValuedBytesWrapper(docTerms, sortMode);
         }

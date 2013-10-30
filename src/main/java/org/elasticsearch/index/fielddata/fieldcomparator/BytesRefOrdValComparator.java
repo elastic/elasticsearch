@@ -271,7 +271,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        termsIndex = indexFieldData.load(context).getBytesValues();
+        termsIndex = indexFieldData.load(context).getBytesValues(false);
         assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
         if (missingValue == null) {
             missingOrd = Ordinals.MISSING_ORDINAL;

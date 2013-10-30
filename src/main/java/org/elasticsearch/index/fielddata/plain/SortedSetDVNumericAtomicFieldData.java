@@ -50,7 +50,7 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
 
     @Override
     public LongValues getLongValues() {
-        final BytesValues.WithOrdinals values = super.getBytesValues();
+        final BytesValues.WithOrdinals values = super.getBytesValues(false);
         return new LongValues.WithOrdinals(values.ordinals()) {
             @Override
             public long getValueByOrd(long ord) {
@@ -62,7 +62,7 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
 
     @Override
     public DoubleValues getDoubleValues() {
-        final BytesValues.WithOrdinals values = super.getBytesValues();
+        final BytesValues.WithOrdinals values = super.getBytesValues(false);
         return new DoubleValues.WithOrdinals(values.ordinals()) {
             @Override
             public double getValueByOrd(long ord) {
@@ -73,8 +73,8 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
     }
 
     @Override
-    public BytesValues.WithOrdinals getBytesValues() {
-        final BytesValues.WithOrdinals values = super.getBytesValues();
+    public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
+        final BytesValues.WithOrdinals values = super.getBytesValues(needsHashes);
         return new BytesValues.WithOrdinals(values.ordinals()) {
             final BytesRef spare = new BytesRef(16);
             private BytesRef convert(BytesRef input, BytesRef output) {
@@ -95,10 +95,4 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
             }
         };
     }
-
-    @Override
-    public BytesValues.WithOrdinals getHashedBytesValues() {
-        return getBytesValues();
-    }
-
 }

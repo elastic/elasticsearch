@@ -42,7 +42,7 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
     }
 
     @Override
-    public BytesValues getBytesValues() {
+    public BytesValues getBytesValues(boolean needsHashes) {
         if (isFloat) {
             final DoubleValues values = getDoubleValues();
             return new BytesValues(values.isMultiValued()) {
@@ -105,10 +105,5 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
                 }
             };
         }
-    }
-
-    @Override
-    public BytesValues getHashedBytesValues() {
-        return getBytesValues();
     }
 }

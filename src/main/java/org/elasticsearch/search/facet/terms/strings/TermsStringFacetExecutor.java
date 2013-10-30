@@ -107,7 +107,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = indexFieldData.load(context).getBytesValues();
+            values = indexFieldData.load(context).getBytesValues(true);
             if (script != null) {
                 script.setNextReader(context);
             }
@@ -130,7 +130,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
         for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
             int maxDoc = readerContext.reader().maxDoc();
             if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
+                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues(false);
                 Ordinals.Docs ordinals = values.ordinals();
                 // 0 = docs with no value for field, so start from 1 instead
                 for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
@@ -138,7 +138,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
                     aggregator.addValue(value, value.hashCode(), values);
                 }
             } else {
-                BytesValues values = indexFieldData.load(readerContext).getBytesValues();
+                BytesValues values = indexFieldData.load(readerContext).getBytesValues(true);
                 for (int docId = 0; docId < maxDoc; docId++) {
                     final int size = values.setDocument(docId);
                     for (int i = 0; i < size; i++) {

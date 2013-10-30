@@ -422,14 +422,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 @Override
                                 public void run() {
                                     try {
-                                        performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                                        performOnPrimary(shard.id(), shard, clusterState);
                                     } catch (Throwable t) {
                                         listener.onFailure(t);
                                     }
                                 }
                             });
                         } else {
-                            performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
+                            performOnPrimary(shard.id(), shard, clusterState);
                         }
                     } catch (Throwable t) {
                         listener.onFailure(t);
@@ -490,9 +490,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     @Override
                     public void postAdded() {
                         logger.trace("listener to cluster state added, trying to index again");
-                        if (start(true)) {
-                            // if we managed to start and perform the operation on the primary, we can remove this listener
-                            clusterService.remove(this);
+                        // check if state version changed while we were adding this listener
+                        if (clusterState.version() != clusterService.state().version()) {
+                            logger.trace("state change while we were trying to add listener, trying to index again");
+                            if (start(true)) {
+                                // if we managed to start and perform the operation on the primary, we can remove this listener
+                                clusterService.remove(this);
+                            }
                         }
                     }
 
@@ -535,7 +539,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
-        void performOnPrimary(int primaryShardId, boolean fromDiscoveryListener, final ShardRouting shard, ClusterState clusterState) {
+        void performOnPrimary(int primaryShardId, final ShardRouting shard, ClusterState clusterState) {
             try {
                 PrimaryResponse<Response, ReplicaRequest> response = shardOperationOnPrimary(clusterState, new PrimaryOperationRequest(primaryShardId, request));
                 performReplicas(response);
@@ -544,7 +548,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (retryPrimaryException(e)) {
                     primaryOperationStarted.set(false);
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
-                    retry(fromDiscoveryListener, null);
+                    retry(false, null);
                     return;
                 }
                 if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {

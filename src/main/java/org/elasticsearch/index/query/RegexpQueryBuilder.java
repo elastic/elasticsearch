@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder> {
+public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder>, MultiTermQueryBuilder {
 
     private final String name;
     private final String regexp;

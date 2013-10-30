@@ -94,7 +94,7 @@ public abstract class ScriptDocValues {
 
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
         }
 
         public BytesValues getInternalValues() {
@@ -102,7 +102,11 @@ public abstract class ScriptDocValues {
         }
 
         public BytesRef getBytesValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return null;
+            }
+            return values.nextValue();
         }
 
         public String getValue() {
@@ -150,11 +154,15 @@ public abstract class ScriptDocValues {
 
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
         }
 
         public long getValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return 0l;
+            }
+            return values.nextValue();
         }
 
         public List<Long> getValues() {
@@ -195,12 +203,16 @@ public abstract class ScriptDocValues {
 
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
         }
 
 
         public double getValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return 0d;
+            }
+            return values.nextValue();
         }
 
         public List<Double> getValues() {
@@ -243,11 +255,15 @@ public abstract class ScriptDocValues {
 
         @Override
         public boolean isEmpty() {
-            return !values.hasValue(docId);
+            return values.setDocument(docId) == 0;
         }
 
         public GeoPoint getValue() {
-            return values.getValue(docId);
+            int numValues = values.setDocument(docId);
+            if (numValues == 0) {
+                return null;
+            }
+            return values.nextValue();
         }
 
         public double getLat() {

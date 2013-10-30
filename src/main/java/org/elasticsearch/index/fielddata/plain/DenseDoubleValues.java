@@ -16,30 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.fielddata.plain;
 
 import org.elasticsearch.index.fielddata.DoubleValues;
 
 /**
- * Package private base class for dense long values.
+ * Package private base class for dense double values.
  */
 abstract class DenseDoubleValues extends DoubleValues {
-
 
     protected DenseDoubleValues(boolean multiValued) {
         super(multiValued);
     }
 
     @Override
-    public final boolean hasValue(int docId) {
-        return true;
+    public final int setDocument(int docId) {
+        this.docId = docId;
+        return 1;
     }
-
-    public final double getValueMissing(int docId, double missingValue) {
-        assert hasValue(docId);
-        assert !isMultiValued();
-        return getValue(docId);
-    }
-
 }

@@ -82,26 +82,11 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                         facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
                     }
                 } else {
-                    // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
-                    if (values.isMultiValued()) {
-                        for (int docId = 0; docId < maxDoc; docId++) {
-                            if (!values.hasValue(docId)) {
-                                continue;
-                            }
-                            int numValues = values.setDocument(docId);
-                            DoubleIntOpenHashMap map = facets.v();
-                            for (int i = 0; i < numValues; i++) {
-                                map.putIfAbsent(values.nextValue(), 0);
-                            }
-                        }
-                    } else {
-                        for (int docId = 0; docId < maxDoc; docId++) {
-                            if (!values.hasValue(docId)) {
-                                continue;
-                            }
-
-                            double value = values.getValue(docId);
-                            facets.v().putIfAbsent(value, 0);
+                    for (int docId = 0; docId < maxDoc; docId++) {
+                        int numValues = values.setDocument(docId);
+                        DoubleIntOpenHashMap map = facets.v();
+                        for (int i = 0; i < numValues; i++) {
+                            map.putIfAbsent(values.nextValue(), 0);
                         }
                     }
                 }

@@ -47,17 +47,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(longValues.isMultiValued(), equalTo(false));
 
-        assertThat(longValues.hasValue(0), equalTo(true));
-        assertThat(longValues.hasValue(1), equalTo(true));
-        assertThat(longValues.hasValue(2), equalTo(true));
-
-        assertThat(longValues.getValue(0), equalTo(2l));
-        assertThat(longValues.getValue(1), equalTo(1l));
-        assertThat(longValues.getValue(2), equalTo(3l));
-
-        assertThat(longValues.getValueMissing(0, -1), equalTo(2l));
-        assertThat(longValues.getValueMissing(1, -1), equalTo(1l));
-        assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
         assertThat(longValues.setDocument(0), equalTo(1));
         assertThat(longValues.nextValue(), equalTo(2l));
 
@@ -70,18 +59,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(false));
-
-        assertThat(doubleValues.hasValue(0), equalTo(true));
-        assertThat(doubleValues.hasValue(1), equalTo(true));
-        assertThat(doubleValues.hasValue(2), equalTo(true));
-
-        assertThat(doubleValues.getValue(0), equalTo(2d));
-        assertThat(doubleValues.getValue(1), equalTo(1d));
-        assertThat(doubleValues.getValue(2), equalTo(3d));
-
-        assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
-        assertThat(doubleValues.getValueMissing(1, -1), equalTo(1d));
-        assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
 
         assertThat(1, equalTo(doubleValues.setDocument(0)));
         assertThat(doubleValues.nextValue(), equalTo(2d));
@@ -122,39 +99,17 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(longValues.isMultiValued(), equalTo(false));
 
-        assertThat(longValues.hasValue(0), equalTo(true));
-        assertThat(longValues.hasValue(1), equalTo(false));
-        assertThat(longValues.hasValue(2), equalTo(true));
-
-        assertThat(longValues.getValue(0), equalTo(2l));
-        assertThat(longValues.getValue(2), equalTo(3l));
-
-        assertThat(longValues.getValueMissing(0, -1), equalTo(2l));
-        assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
-        assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
-        
         assertThat(longValues.setDocument(0), equalTo(1));
         assertThat(longValues.nextValue(), equalTo(2l));
 
         assertThat(longValues.setDocument(1), equalTo(0));
-        
+
         assertThat(longValues.setDocument(2), equalTo(1));
         assertThat(longValues.nextValue(), equalTo(3l));
 
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(false));
-
-        assertThat(doubleValues.hasValue(0), equalTo(true));
-        assertThat(doubleValues.hasValue(1), equalTo(false));
-        assertThat(doubleValues.hasValue(2), equalTo(true));
-
-        assertThat(doubleValues.getValue(0), equalTo(2d));
-        assertThat(doubleValues.getValue(2), equalTo(3d));
-
-        assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
-        assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
-        assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
 
         assertThat(1, equalTo(doubleValues.setDocument(0)));
         assertThat(doubleValues.nextValue(), equalTo(2d));
@@ -222,18 +177,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(longValues.isMultiValued(), equalTo(true));
 
-        assertThat(longValues.hasValue(0), equalTo(true));
-        assertThat(longValues.hasValue(1), equalTo(true));
-        assertThat(longValues.hasValue(2), equalTo(true));
-
-        assertThat(longValues.getValue(0), equalTo(2l));
-        assertThat(longValues.getValue(1), equalTo(1l));
-        assertThat(longValues.getValue(2), equalTo(3l));
-
-        assertThat(longValues.getValueMissing(0, -1), equalTo(2l));
-        assertThat(longValues.getValueMissing(1, -1), equalTo(1l));
-        assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
-
         assertThat(longValues.setDocument(0), equalTo(2));
         assertThat(longValues.nextValue(), equalTo(2l));
         assertThat(longValues.nextValue(), equalTo(4l));
@@ -247,18 +190,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(true));
-
-        assertThat(doubleValues.hasValue(0), equalTo(true));
-        assertThat(doubleValues.hasValue(1), equalTo(true));
-        assertThat(doubleValues.hasValue(2), equalTo(true));
-
-        assertThat(doubleValues.getValue(0), equalTo(2d));
-        assertThat(doubleValues.getValue(1), equalTo(1d));
-        assertThat(doubleValues.getValue(2), equalTo(3d));
-
-        assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
-        assertThat(doubleValues.getValueMissing(1, -1), equalTo(1d));
-        assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
 
         assertThat(2, equalTo(doubleValues.setDocument(0)));
         assertThat(doubleValues.nextValue(), equalTo(2d));
@@ -283,17 +214,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(longValues.isMultiValued(), equalTo(true));
 
-        assertThat(longValues.hasValue(0), equalTo(true));
-        assertThat(longValues.hasValue(1), equalTo(false));
-        assertThat(longValues.hasValue(2), equalTo(true));
-
-        assertThat(longValues.getValue(0), equalTo(2l));
-        assertThat(longValues.getValue(2), equalTo(3l));
-
-        assertThat(longValues.getValueMissing(0, -1), equalTo(2l));
-        assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
-        assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
-
         assertThat(longValues.setDocument(0), equalTo(2));
         assertThat(longValues.nextValue(), equalTo(2l));
         assertThat(longValues.nextValue(), equalTo(4l));
@@ -307,16 +227,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(doubleValues.isMultiValued(), equalTo(true));
 
-        assertThat(doubleValues.hasValue(0), equalTo(true));
-        assertThat(doubleValues.hasValue(1), equalTo(false));
-        assertThat(doubleValues.hasValue(2), equalTo(true));
-
-        assertThat(doubleValues.getValue(0), equalTo(2d));
-        assertThat(doubleValues.getValue(2), equalTo(3d));
-
-        assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
-        assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
-        assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
 
         assertThat(2, equalTo(doubleValues.setDocument(0)));
         assertThat(doubleValues.nextValue(), equalTo(2d));
@@ -343,15 +253,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(longValues.isMultiValued(), equalTo(false));
 
-        assertThat(longValues.hasValue(0), equalTo(false));
-        assertThat(longValues.hasValue(1), equalTo(false));
-        assertThat(longValues.hasValue(2), equalTo(false));
-
-        assertThat(longValues.getValueMissing(0, -1), equalTo(-1l));
-        assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
-        assertThat(longValues.getValueMissing(2, -1), equalTo(-1l));
-
-        
         assertThat(longValues.setDocument(0), equalTo(0));
         assertThat(longValues.setDocument(1), equalTo(0));
         assertThat(longValues.setDocument(2), equalTo(0));
@@ -361,14 +262,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(false));
-
-        assertThat(doubleValues.hasValue(0), equalTo(false));
-        assertThat(doubleValues.hasValue(1), equalTo(false));
-        assertThat(doubleValues.hasValue(2), equalTo(false));
-
-        assertThat(doubleValues.getValueMissing(0, -1), equalTo(-1d));
-        assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
-        assertThat(doubleValues.getValueMissing(2, -1), equalTo(-1d));
 
         assertThat(0, equalTo(doubleValues.setDocument(0)));
 

@@ -28,7 +28,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -534,7 +533,6 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         @Override
         public void collect(int doc) throws IOException {
-            BytesRef uid = values.getValue(doc);
             if (values.setDocument(doc) == 0) {
                 return;
             }

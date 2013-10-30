@@ -63,49 +63,13 @@ public abstract class DoubleValues {
     }
 
     /**
-     * Returns <code>true</code> if the given document ID has a value in this. Otherwise <code>false</code>.
-     */
-    public abstract boolean hasValue(int docId);
-
-    /**
-     * Returns a value for the given document id. If the document
-     * has more than one value the returned value is one of the values
-     * associated with the document.
-     * @param docId the documents id.
-     * @return a value for the given document id.
-     */
-    public abstract double getValue(int docId);
-
-
-    /**
-     * Returns a value for the given document id or the given missing value if
-     * {@link #hasValue(int)} returns <code>false</code> ie. the document has no
-     * value associated with it.
-     *
-     * @param docId        the documents id.
-     * @param missingValue the missing value
-     * @return a value for the given document id or the given missing value if
-     *         {@link #hasValue(int)} returns <code>false</code> ie. the document has no
-     *         value associated with it.
-     */
-    public double getValueMissing(int docId, double missingValue) {
-        if (hasValue(docId)) {
-            return getValue(docId);
-        }
-        return missingValue;
-    }
-
-    /**
      * Sets iteration to the specified docID and returns the number of
      * values for this document ID,
      * @param docId document ID
      *
      * @see #nextValue()
      */
-    public int setDocument(int docId) {
-        this.docId = docId;
-        return hasValue(docId) ?  1 : 0;
-    }
+    public abstract int setDocument(int docId);
 
     /**
      * Returns the next value for the current docID set to {@link #setDocument(int)}.
@@ -115,9 +79,7 @@ public abstract class DoubleValues {
      *
      * @return the next value for the current docID set to {@link #setDocument(int)}.
      */
-    public double nextValue() {
-        return getValue(docId);
-    }
+    public abstract double nextValue();
 
     /**
      * Ordinal based {@link DoubleValues}.
@@ -146,19 +108,6 @@ public abstract class DoubleValues {
          */
         public abstract double getValueByOrd(long ord);
 
-        @Override
-        public final boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != Ordinals.MISSING_ORDINAL;
-        }
-
-        @Override
-        public final double getValue(int docId) {
-            final long ord = ordinals.getOrd(docId);
-            if (ord == Ordinals.MISSING_ORDINAL) {
-                return 0d;
-            }
-            return getValueByOrd(ord);
-        }
 
         @Override
         public int setDocument(int docId) {
@@ -170,17 +119,6 @@ public abstract class DoubleValues {
         public double nextValue() {
             return getValueByOrd(ordinals.nextOrd());
         }
-
-        @Override
-        public final double getValueMissing(int docId, double missingValue) {
-            final long ord = ordinals.getOrd(docId);
-            if (ord == Ordinals.MISSING_ORDINAL) {
-                return missingValue;
-            } else {
-                return getValueByOrd(ord);
-            }
-        }
-
     }
     /**
      * An empty {@link DoubleValues} implementation
@@ -191,17 +129,6 @@ public abstract class DoubleValues {
             super(false);
         }
 
-        @Override
-        public boolean hasValue(int docId) {
-            return false;
-        }
-
-        @Override
-        public double getValue(int docId) {
-            // conforms with all other impls when there is no value
-            return 0;
-        }
-        
         @Override
         public int setDocument(int docId) {
             return 0;

@@ -148,13 +148,13 @@ public class GeoDistanceComparator extends NumberComparatorBase<Double> {
 
         @Override
         public double computeDistance(int doc) {
-            GeoPoint geoPoint = readerValues.getValue(doc);
-            if (geoPoint == null) {
-                // is this true? push this to the "end"
-                return MISSING_VALUE;
-            } else {
+            int numValues = readerValues.setDocument(doc);
+            double result = MISSING_VALUE;
+            for (int i = 0; i < numValues; i++) {
+                GeoPoint geoPoint = readerValues.nextValue();
                 return fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
             }
+            return MISSING_VALUE;
         }
     }
 

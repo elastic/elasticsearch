@@ -51,7 +51,7 @@ public final class ShortValuesComparator extends LongValuesComparatorBase<Short>
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = (short) readerValues.getValueMissing(doc, missingValue);
+        values[slot] = (short) sortMode.getRelevantValue(readerValues, doc, missingValue);
     }
 
     @Override
@@ -61,7 +61,7 @@ public final class ShortValuesComparator extends LongValuesComparatorBase<Short>
 
     @Override
     public void add(int slot, int doc) {
-        values[slot] += (short) readerValues.getValueMissing(doc, missingValue);
+        values[slot] += (short) sortMode.getRelevantValue(readerValues, doc, missingValue);
     }
 
     @Override

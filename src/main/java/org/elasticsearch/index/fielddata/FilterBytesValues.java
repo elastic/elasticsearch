@@ -35,11 +35,6 @@ public abstract class FilterBytesValues extends BytesValues {
     }
 
     @Override
-    public boolean hasValue(int docId) {
-        return delegate.hasValue(docId);
-    }
-
-    @Override
     public BytesRef copyShared() {
         return delegate.copyShared();
     }
@@ -57,10 +52,5 @@ public abstract class FilterBytesValues extends BytesValues {
     @Override
     public int currentValueHash() {
         return delegate.currentValueHash();
-    }
-
-    @Override
-    public BytesRef getValue(int docId) {
-        return delegate.getValue(docId);
     }
 }

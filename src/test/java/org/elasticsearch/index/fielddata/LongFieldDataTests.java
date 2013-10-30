@@ -38,6 +38,7 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for all integer types (byte, short, int, long).
@@ -81,8 +82,20 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         IndexNumericFieldData indexFieldData = ifdService.getForField(new FieldMapper.Names("value"), new FieldDataType("long"));
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData, instanceOf(PackedArrayAtomicFieldData.class));
-        assertThat(fieldData.getLongValues().getValue(0), equalTo((long) Integer.MAX_VALUE + 1l));
-        assertThat(fieldData.getLongValues().getValue(1), equalTo((long) Integer.MIN_VALUE - 1l));
+        assertThat(getFirst(fieldData.getLongValues(), 0), equalTo((long) Integer.MAX_VALUE + 1l));
+        assertThat(getFirst(fieldData.getLongValues(), 1), equalTo((long) Integer.MIN_VALUE - 1l));
+    }
+
+    private static long getFirst(LongValues values, int docId) {
+        final int numValues = values.setDocument(docId);
+        assertThat(numValues , is(1));
+        return values.nextValue();
+    }
+
+    private static double getFirst(DoubleValues values, int docId) {
+        final int numValues = values.setDocument(docId);
+        assertThat(numValues , is(1));
+        return values.nextValue();
     }
 
     @Test
@@ -326,13 +339,8 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         for (int i = 0; i < values.size(); ++i) {
             final LongOpenHashSet v = values.get(i);
 
-            assertThat(data.hasValue(i), equalTo(!v.isEmpty()));
-            assertThat(doubleData.hasValue(i), equalTo(!v.isEmpty()));
-
-            if (v.isEmpty()) {
-                assertThat(data.getValue(i), equalTo(0L));
-                assertThat(doubleData.getValue(i), equalTo(0d));
-            }
+            assertThat(data.setDocument(i) > 0, equalTo(!v.isEmpty()));
+            assertThat(doubleData.setDocument(i) > 0, equalTo(!v.isEmpty()));
 
             set.clear();
             int numValues = data.setDocument(i);

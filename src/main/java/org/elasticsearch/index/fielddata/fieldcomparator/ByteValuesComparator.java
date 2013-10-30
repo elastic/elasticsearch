@@ -49,7 +49,7 @@ public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = (byte) readerValues.getValueMissing(doc, missingValue);
+        values[slot] = (byte) sortMode.getRelevantValue(readerValues, doc, missingValue);
     }
 
     @Override
@@ -59,7 +59,7 @@ public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
 
     @Override
     public void add(int slot, int doc) {
-        values[slot] += (byte) readerValues.getValueMissing(doc, missingValue);
+        values[slot] += (byte) sortMode.getRelevantValue(readerValues, doc, missingValue);
     }
 
     @Override

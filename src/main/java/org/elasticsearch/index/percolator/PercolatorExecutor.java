@@ -535,10 +535,10 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         @Override
         public void collect(int doc) throws IOException {
             BytesRef uid = values.getValue(doc);
-            if (uid == null) {
+            if (values.setDocument(doc) == 0) {
                 return;
             }
-            String id = Uid.idFromUid(uid).toUtf8();
+            String id = Uid.idFromUid(values.nextValue()).toUtf8();
             Query query = queries.get(id);
             if (query == null) {
                 // log???
@@ -559,7 +559,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             // we use the UID because id might not be indexed
-            values = uidFieldData.load(context).getBytesValues();
+            values = uidFieldData.load(context).getBytesValues(false);
         }
 
         @Override

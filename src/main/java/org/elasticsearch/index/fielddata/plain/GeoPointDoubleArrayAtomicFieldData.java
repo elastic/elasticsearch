@@ -86,7 +86,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         }
 
         @Override
-        public BytesValues getBytesValues() {
+        public BytesValues getBytesValues(boolean needsHashes) {
             return BytesValues.EMPTY;
         }
 

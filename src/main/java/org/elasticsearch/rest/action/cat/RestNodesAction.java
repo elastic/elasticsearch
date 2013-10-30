@@ -122,6 +122,7 @@ public class RestNodesAction extends BaseRestHandler {
         table.addCell("ip");
         table.addCell("port");
 
+        table.addCell("es");
         table.addCell("jdk");
         table.addCell("diskAvail", "text-align:right;");
         table.addCell("heapUsed", "text-align:right;");
@@ -163,6 +164,7 @@ public class RestNodesAction extends BaseRestHandler {
             table.addCell(info.getProcess().id());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            table.addCell(info.getVersion().number());
             table.addCell(info.getJvm().version());
             table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
             table.addCell(new ByteSizeValue(heapUsed));

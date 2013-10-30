@@ -1506,6 +1506,74 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testSpanMultiTermQuery() throws ElasticSearchException, IOException {
+
+        client().admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+        )
+                .execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .field("description", "foo other anything bar")
+                .field("count", 1)
+                .endObject())
+                .execute().actionGet();
+
+        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .field("description", "foo other anything")
+                .field("count", 2)
+                .endObject())
+                .execute().actionGet();
+
+        client().prepareIndex("test", "test", "3").setSource(jsonBuilder().startObject()
+                .field("description", "foo other")
+                .field("count", 3)
+                .endObject())
+                .execute().actionGet();
+
+        client().prepareIndex("test", "test", "4").setSource(jsonBuilder().startObject()
+                .field("description", "fop")
+                .field("count", 4)
+                .endObject())
+                .execute().actionGet();
+
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.fuzzyQuery("description", "fop"))))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 4);
+
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("description", "fo"))))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 4);
+
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.wildcardQuery("description", "oth*"))))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 3);
+
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("description").from("ffa").to("foo"))))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 3);
+
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.regexpQuery("description", "fo{2}"))))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 3);
+    }
+
+    @Test
     public void testSimpleDFSQuery() throws ElasticSearchException, IOException {
         prepareCreate("test", -1,
                 ImmutableSettings.settingsBuilder()

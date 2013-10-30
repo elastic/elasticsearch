@@ -79,6 +79,28 @@ All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
 [float]
+=== Distance Values
+
+Some API calls provide distance values. Those values are expected to be
+set in `meters`, if not mentioned otherwise. Also other units like
+`inches`, `miles` or `kilometers` are supported by the API. A complete
+list is shown below. A distance value is expected to be a string value
+that combines a numeric value and a string representing the unit. Eg.
+`100m`, `0.1km` or `1.6miles`.
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Unit |Names
+|Inch |in, inch
+|Yard |yd, yards
+|Mile |mi, miles
+|Kilometer |km, kilometers
+|Meter |m, meters
+|Centimeter |cm, centimeters
+|Millimeter |mm, millimeters
+|=======================================================================
+
+[float]
 === Result Casing
 
 All REST APIs accept the `case` parameter. When set to `camelCase`, all

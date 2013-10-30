@@ -69,7 +69,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         this.metaDataService = metaDataService;
     }
 
-    public void deleteIndex(final DeleteIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void deleteIndex(final DeleteIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
         final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index());
@@ -98,7 +98,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         });
     }
 
-    private void deleteIndex(final DeleteIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener, final Semaphore mdLock) {
+    private void deleteIndex(final DeleteIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
         clusterService.submitStateUpdateTask("delete-index [" + request.index() + "]", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             @Override

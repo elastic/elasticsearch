@@ -69,7 +69,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
         this.allocationService = allocationService;
     }
 
-    public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void closeIndex(final CloseIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new ElasticSearchIllegalArgumentException("Index name is required");
         }
@@ -162,7 +162,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
         });
     }
 
-    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new ElasticSearchIllegalArgumentException("Index name is required");
         }

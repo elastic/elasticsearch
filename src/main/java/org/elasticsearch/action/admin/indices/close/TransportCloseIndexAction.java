@@ -101,7 +101,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());
 
-        indexStateService.closeIndex(updateRequest, new ClusterStateUpdateListener() {
+        indexStateService.closeIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

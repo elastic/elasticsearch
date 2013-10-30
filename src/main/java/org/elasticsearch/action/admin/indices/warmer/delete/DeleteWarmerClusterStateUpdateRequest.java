@@ -17,21 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.ack;
+package org.elasticsearch.action.admin.indices.warmer.delete;
+
+import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
 /**
- * Listener used for cluster state updates processing
- * Supports acknowledgement logic
+ *  Cluster state update request that allows to delete a warmer from the cluster state
  */
-public interface ClusterStateUpdateListener<Response extends ClusterStateUpdateResponse> {
+public class DeleteWarmerClusterStateUpdateRequest extends ClusterStateUpdateRequest<DeleteWarmerClusterStateUpdateRequest> {
 
-    /**
-     * Called when the cluster state update is acknowledged
-     */
-    void onResponse(Response response);
+    private final String name;
+    private final String[] indices;
 
-    /**
-     * Called when any error is thrown during the cluster state update processing
-     */
-    void onFailure(Throwable t);
+    DeleteWarmerClusterStateUpdateRequest(String name, String[] indices) {
+        this.name = name;
+        this.indices = indices;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String[] indices() {
+        return indices;
+    }
 }

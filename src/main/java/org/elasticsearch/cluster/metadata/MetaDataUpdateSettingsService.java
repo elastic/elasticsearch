@@ -130,7 +130,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         .ackTimeout(TimeValue.timeValueMillis(0)) //no need to wait for ack here
                         .masterNodeTimeout(TimeValue.timeValueMinutes(10));
 
-                updateSettings(updateRequest, new ClusterStateUpdateListener() {
+                updateSettings(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
                     @Override
                     public void onResponse(ClusterStateUpdateResponse response) {
                         for (String index : indices) {
@@ -149,7 +149,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
     }
 
-    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
         for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
             if (entry.getKey().equals("index")) {

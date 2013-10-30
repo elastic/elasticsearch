@@ -88,7 +88,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
                 .indices(request.indices()).type(request.type())
                 .source(request.source()).ignoreConflicts(request.ignoreConflicts());
 
-        metaDataMappingService.putMapping(updateRequest, new ClusterStateUpdateListener() {
+        metaDataMappingService.putMapping(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

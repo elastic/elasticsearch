@@ -17,21 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.ack;
+package org.elasticsearch.action.admin.cluster.reroute;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 
 /**
- * Listener used for cluster state updates processing
- * Supports acknowledgement logic
+ * Response obtained from a cluster state update that consisted of a reroute request
  */
-public interface ClusterStateUpdateListener<Response extends ClusterStateUpdateResponse> {
+public class ClusterRerouteClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 
-    /**
-     * Called when the cluster state update is acknowledged
-     */
-    void onResponse(Response response);
+    private final ClusterState clusterState;
 
-    /**
-     * Called when any error is thrown during the cluster state update processing
-     */
-    void onFailure(Throwable t);
+    public ClusterRerouteClusterStateUpdateResponse(boolean acknowledged, ClusterState clusterState) {
+        super(acknowledged);
+        this.clusterState = clusterState;
+    }
+
+    public ClusterState clusterState() {
+        return clusterState;
+    }
 }

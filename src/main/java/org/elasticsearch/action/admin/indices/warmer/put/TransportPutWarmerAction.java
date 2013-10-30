@@ -24,28 +24,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.cluster.metadata.MetaDataWarmersService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Put warmer action.
@@ -54,11 +45,14 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     private final TransportSearchAction searchAction;
 
+    private final MetaDataWarmersService metaDataWarmersService;
+
     @Inject
     public TransportPutWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    TransportSearchAction searchAction) {
+                                    TransportSearchAction searchAction, MetaDataWarmersService metaDataWarmersService) {
         super(settings, transportService, clusterService, threadPool);
         this.searchAction = searchAction;
+        this.metaDataWarmersService = metaDataWarmersService;
     }
 
     @Override
@@ -98,94 +92,29 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                     return;
                 }
 
-                clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
+                PutWarmerClusterStateUpdateRequest putWarmerRequest = new PutWarmerClusterStateUpdateRequest(request.name())
+                        .types(request.searchRequest().types())
+                        .indices(request.searchRequest().indices())
+                        .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
+                if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
+                    putWarmerRequest.source(request.searchRequest().source());
+                } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
+                    putWarmerRequest.source(request.searchRequest().extraSource());
+                }
+
+                metaDataWarmersService.putWarmer(putWarmerRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
                     @Override
-                    public boolean mustAck(DiscoveryNode discoveryNode) {
-                        return true;
+                    public void onResponse(ClusterStateUpdateResponse response) {
+                        listener.onResponse(new PutWarmerResponse(response.isAcknowledged()));
                     }
 
                     @Override
-                    public void onAllNodesAcked(@Nullable Throwable t) {
-                        listener.onResponse(new PutWarmerResponse(true));
-                    }
-
-                    @Override
-                    public void onAckTimeout() {
-                        listener.onResponse(new PutWarmerResponse(false));
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.timeout();
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.debug("failed to put warmer [{}] on indices [{}]", t, request.name(), request.searchRequest().indices());
+                    public void onFailure(Throwable t) {
                         listener.onFailure(t);
                     }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        MetaData metaData = currentState.metaData();
-                        String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indices());
-
-                        BytesReference source = null;
-                        if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
-                            source = request.searchRequest().source();
-                        } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
-                            source = request.searchRequest().extraSource();
-                        }
-
-                        // now replace it on the metadata
-                        MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
-
-                        for (String index : concreteIndices) {
-                            IndexMetaData indexMetaData = metaData.index(index);
-                            if (indexMetaData == null) {
-                                throw new IndexMissingException(new Index(index));
-                            }
-                            IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-                            if (warmers == null) {
-                                logger.info("[{}] putting warmer [{}]", index, request.name());
-                                warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
-                            } else {
-                                boolean found = false;
-                                List<IndexWarmersMetaData.Entry> entries = new ArrayList<IndexWarmersMetaData.Entry>(warmers.entries().size() + 1);
-                                for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                    if (entry.name().equals(request.name())) {
-                                        found = true;
-                                        entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
-                                    } else {
-                                        entries.add(entry);
-                                    }
-                                }
-                                if (!found) {
-                                    logger.info("[{}] put warmer [{}]", index, request.name());
-                                    entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
-                                } else {
-                                    logger.info("[{}] update warmer [{}]", index, request.name());
-                                }
-                                warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
-                            }
-                            IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
-                            mdBuilder.put(indexBuilder);
-                        }
-
-                        return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
-                    }
                 });
+
             }
 
             @Override

@@ -108,7 +108,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                     .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                     .index(index);
 
-            deleteIndexService.deleteIndex(updateRequest, new ClusterStateUpdateListener() {
+            deleteIndexService.deleteIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
 
                 private volatile Throwable lastFailure;
                 private volatile boolean ack = true;

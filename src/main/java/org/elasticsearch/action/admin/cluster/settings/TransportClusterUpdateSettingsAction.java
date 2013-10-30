@@ -22,45 +22,26 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.metadata.MetaDataClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Map;
-
-import static org.elasticsearch.cluster.ClusterState.builder;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
- *
+ * Update cluster settings action
  */
 public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOperationAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
-    private final AllocationService allocationService;
-
-    private final DynamicSettings dynamicSettings;
+    private final MetaDataClusterService metaDataClusterService;
 
     @Inject
-    public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+    public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, MetaDataClusterService metaDataClusterService) {
         super(settings, transportService, clusterService, threadPool);
-        this.allocationService = allocationService;
-        this.dynamicSettings = dynamicSettings;
+        this.metaDataClusterService = metaDataClusterService;
     }
 
     @Override
@@ -85,165 +66,23 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Override
     protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state, final ActionListener<ClusterUpdateSettingsResponse> listener) throws ElasticSearchException {
-        final ImmutableSettings.Builder transientUpdates = ImmutableSettings.settingsBuilder();
-        final ImmutableSettings.Builder persistentUpdates = ImmutableSettings.settingsBuilder();
+        ClusterUpdateSettingsClusterStateUpdateRequest updateRequest = new ClusterUpdateSettingsClusterStateUpdateRequest()
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                .persistentSettings(request.persistentSettings())
+                .transientSettings(request.transientSettings());
 
-        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
-
-            private volatile boolean changed = false;
-
+        metaDataClusterService.updateSettings(updateRequest, new ClusterStateUpdateListener<ClusterUpdateSettingsClusterStateUpdateResponse>() {
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            public void onResponse(ClusterUpdateSettingsClusterStateUpdateResponse response) {
+                listener.onResponse(new ClusterUpdateSettingsResponse(response.isAcknowledged(),
+                        response.transientSettings(), response.persistentSettings()));
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                if (changed) {
-                    reroute(true);
-                } else {
-                    listener.onResponse(new ClusterUpdateSettingsResponse(true, transientUpdates.build(), persistentUpdates.build()));
-                }
-
-            }
-
-            @Override
-            public void onAckTimeout() {
-                if (changed) {
-                    reroute(false);
-                } else {
-                    listener.onResponse(new ClusterUpdateSettingsResponse(false, transientUpdates.build(), persistentUpdates.build()));
-                }
-            }
-
-            private void reroute(final boolean updateSettingsAcked) {
-                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
-
-                    @Override
-                    public boolean mustAck(DiscoveryNode discoveryNode) {
-                        //we wait for the reroute ack only if the update settings was acknowledged
-                        return updateSettingsAcked;
-                    }
-
-                    @Override
-                    public void onAllNodesAcked(@Nullable Throwable t) {
-                        //we return when the cluster reroute is acked (the acknowledged flag depends on whether the update settings was acknowledged)
-                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, transientUpdates.build(), persistentUpdates.build()));
-                    }
-
-                    @Override
-                    public void onAckTimeout() {
-                        //we return when the cluster reroute ack times out (acknowledged false)
-                        listener.onResponse(new ClusterUpdateSettingsResponse(false, transientUpdates.build(), persistentUpdates.build()));
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.timeout();
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Throwable t) {
-                        //if the reroute fails we only log
-                        logger.debug("failed to perform [{}]", t, source);
-                    }
-
-                    @Override
-                    public ClusterState execute(final ClusterState currentState) {
-                        // now, reroute in case things that require it changed (e.g. number of replicas)
-                        RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
-                        if (!routingResult.changed()) {
-                            return currentState;
-                        }
-                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    }
-                });
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.timeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
+            public void onFailure(Throwable t) {
                 listener.onFailure(t);
             }
-
-            @Override
-            public ClusterState execute(final ClusterState currentState) {
-                ImmutableSettings.Builder transientSettings = ImmutableSettings.settingsBuilder();
-                transientSettings.put(currentState.metaData().transientSettings());
-                for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
-                    if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
-                        String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
-                        if (error == null) {
-                            transientSettings.put(entry.getKey(), entry.getValue());
-                            transientUpdates.put(entry.getKey(), entry.getValue());
-                            changed = true;
-                        } else {
-                            logger.warn("ignoring transient setting [{}], [{}]", entry.getKey(), error);
-                        }
-                    } else {
-                        logger.warn("ignoring transient setting [{}], not dynamically updateable", entry.getKey());
-                    }
-                }
-
-                ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder();
-                persistentSettings.put(currentState.metaData().persistentSettings());
-                for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
-                    if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
-                        String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
-                        if (error == null) {
-                            persistentSettings.put(entry.getKey(), entry.getValue());
-                            persistentUpdates.put(entry.getKey(), entry.getValue());
-                            changed = true;
-                        } else {
-                            logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
-                        }
-                    } else {
-                        logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
-                    }
-                }
-
-                if (!changed) {
-                    return currentState;
-                }
-
-                MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData())
-                        .persistentSettings(persistentSettings.build())
-                        .transientSettings(transientSettings.build());
-
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                boolean updatedReadOnly = metaData.persistentSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || metaData.transientSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false);
-                if (updatedReadOnly) {
-                    blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
-                } else {
-                    blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
-                }
-
-                return builder().state(currentState).metaData(metaData).blocks(blocks).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
-            }
         });
+
     }
 }

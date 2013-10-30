@@ -87,7 +87,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());
 
-        indexStateService.openIndex(updateRequest, new ClusterStateUpdateListener() {
+        indexStateService.openIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

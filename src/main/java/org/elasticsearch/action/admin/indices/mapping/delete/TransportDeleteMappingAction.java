@@ -122,7 +122,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                                         .ackTimeout(request.timeout())
                                         .masterNodeTimeout(request.masterNodeTimeout());
 
-                                metaDataMappingService.removeMapping(clusterStateUpdateRequest, new ClusterStateUpdateListener() {
+                                metaDataMappingService.removeMapping(clusterStateUpdateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
                                     @Override
                                     public void onResponse(ClusterStateUpdateResponse response) {
                                         listener.onResponse(new DeleteMappingResponse(response.isAcknowledged()));

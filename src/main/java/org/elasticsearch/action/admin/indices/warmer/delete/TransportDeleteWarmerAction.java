@@ -19,40 +19,32 @@
 
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.MetaDataWarmersService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.search.warmer.IndexWarmerMissingException;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.List;
 
 /**
  * Delete index warmer.
  */
 public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAction<DeleteWarmerRequest, DeleteWarmerResponse> {
 
+    private final MetaDataWarmersService metaDataWarmersService;
+
     @Inject
-    public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, MetaDataWarmersService metaDataWarmersService) {
         super(settings, transportService, clusterService, threadPool);
+        this.metaDataWarmersService = metaDataWarmersService;
     }
 
     @Override
@@ -90,100 +82,19 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Override
     protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticSearchException {
-        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
 
+        DeleteWarmerClusterStateUpdateRequest deleteWarmerRequest = new DeleteWarmerClusterStateUpdateRequest(request.name(), request.indices())
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+
+        metaDataWarmersService.deleteWarmer(deleteWarmerRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new DeleteWarmerResponse(response.isAcknowledged()));
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new DeleteWarmerResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new DeleteWarmerResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.timeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to delete warmer [{}] on indices [{}]", t, request.name(), request.indices());
+            public void onFailure(Throwable t) {
                 listener.onFailure(t);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
-
-                boolean globalFoundAtLeastOne = false;
-                for (String index : request.indices()) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(index);
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(index));
-                    }
-                    IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-                    if (warmers != null) {
-                        List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
-                        for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                            if (request.name() == null || Regex.simpleMatch(request.name(), entry.name())) {
-                                globalFoundAtLeastOne = true;
-                                // don't add it...
-                            } else {
-                                entries.add(entry);
-                            }
-                        }
-                        // a change, update it...
-                        if (entries.size() != warmers.entries().size()) {
-                            warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
-                            IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
-                            mdBuilder.put(indexBuilder);
-                        }
-                    }
-                }
-
-                if (!globalFoundAtLeastOne) {
-                    if (request.name() == null) {
-                        // full match, just return with no failure
-                        return currentState;
-                    }
-                    throw new IndexWarmerMissingException(request.name());
-                }
-
-                if (logger.isInfoEnabled()) {
-                    for (String index : request.indices()) {
-                        IndexMetaData indexMetaData = currentState.metaData().index(index);
-                        if (indexMetaData == null) {
-                            throw new IndexMissingException(new Index(index));
-                        }
-                        IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-                        if (warmers != null) {
-                            for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                if (Regex.simpleMatch(request.name(), entry.name())) {
-                                    logger.info("[{}] delete warmer [{}]", index, entry.name());
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

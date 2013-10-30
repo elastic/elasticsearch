@@ -87,7 +87,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
                 .settings(request.settings()).mappings(request.mappings())
                 .customs(request.customs());
 
-        createIndexService.createIndex(updateRequest, new ClusterStateUpdateListener() {
+        createIndexService.createIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

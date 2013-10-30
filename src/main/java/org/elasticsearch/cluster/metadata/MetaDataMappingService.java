@@ -292,7 +292,7 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("remove-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
 
             @Override
@@ -362,7 +362,7 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
 
         clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
 

@@ -89,7 +89,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .actions(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]));
 
-        indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener() {
+        indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));

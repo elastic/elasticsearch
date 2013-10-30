@@ -107,7 +107,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.riverIndexName = riverIndexName;
     }
 
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
         for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
             if (!entry.getKey().startsWith("index.")) {
@@ -146,7 +146,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener listener, final Semaphore mdLock) {
+    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             @Override

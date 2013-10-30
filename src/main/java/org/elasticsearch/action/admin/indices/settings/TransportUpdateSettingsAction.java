@@ -76,7 +76,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ClusterStateUpdateListener() {
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new UpdateSettingsResponse(response.isAcknowledged()));

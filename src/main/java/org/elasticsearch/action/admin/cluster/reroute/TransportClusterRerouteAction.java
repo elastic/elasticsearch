@@ -22,33 +22,26 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.metadata.MetaDataClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
+ * Cluster reroute action
  */
 public class TransportClusterRerouteAction extends TransportMasterNodeOperationAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
-    private final AllocationService allocationService;
+    private final MetaDataClusterService metaDataClusterService;
 
     @Inject
-    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         AllocationService allocationService) {
+    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, MetaDataClusterService metaDataClusterService) {
         super(settings, transportService, clusterService, threadPool);
-        this.allocationService = allocationService;
+        this.metaDataClusterService = metaDataClusterService;
     }
 
     @Override
@@ -74,55 +67,18 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticSearchException {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
+        ClusterRerouteClusterStateUpdateRequest updateRequest = new ClusterRerouteClusterStateUpdateRequest(request.commands, request.dryRun())
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-            private volatile ClusterState clusterStateToSend;
-
+        metaDataClusterService.reroute(updateRequest, new ClusterStateUpdateListener<ClusterRerouteClusterStateUpdateResponse>() {
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            public void onResponse(ClusterRerouteClusterStateUpdateResponse response) {
+                listener.onResponse(new ClusterRerouteResponse(response.isAcknowledged(), response.clusterState()));
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.timeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
+            public void onFailure(Throwable t) {
                 listener.onFailure(t);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands);
-                ClusterState newState = newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
-                clusterStateToSend = newState;
-                if (request.dryRun) {
-                    return currentState;
-                }
-                return newState;
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

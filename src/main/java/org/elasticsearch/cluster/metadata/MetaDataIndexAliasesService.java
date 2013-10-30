@@ -68,7 +68,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
         this.indicesService = indicesService;
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new AckedClusterStateUpdateTask() {
 
             @Override

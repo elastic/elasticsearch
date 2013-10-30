@@ -9,7 +9,7 @@ to the date the document was processed by the indexing chain.
 [float]
 ==== enabled
 
-By default it is disabled, in order to enable it, the following mapping
+By default it is disabled. In order to enable it, the following mapping
 should be defined:
 
 [source,js]

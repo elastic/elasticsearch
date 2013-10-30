@@ -39,18 +39,19 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * We want to test site plugins
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=1)
+@ClusterScope(scope = Scope.SUITE, numNodes = 1)
 public class SitePluginTests extends AbstractIntegrationTest {
 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         try {
-        File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/plugin").toURI());
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("path.plugins", pluginDir.getAbsolutePath())
-                .build();
+            File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/plugin").toURI());
+            return settingsBuilder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .put("path.plugins", pluginDir.getAbsolutePath())
+                    .put("force.http.enabled", true)
+                    .build();
         } catch (URISyntaxException ex) {
             throw new RuntimeException(ex);
         }

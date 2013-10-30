@@ -27,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 
+import java.util.Map;
+
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -94,6 +96,16 @@ public class InternalSettingsPreparer {
         if (useSystemProperties) {
             settingsBuilder.putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
                     .putProperties("es.", System.getProperties(), ignorePrefixes);
+        }
+        settingsBuilder.replacePropertyPlaceholders();
+
+        // allow to force set properties based on configuration of the settings provided
+        for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
+            String setting = entry.getKey();
+            if (setting.startsWith("force.")) {
+                settingsBuilder.remove(setting);
+                settingsBuilder.put(setting.substring(".force".length()), entry.getValue());
+            }
         }
         settingsBuilder.replacePropertyPlaceholders();
 

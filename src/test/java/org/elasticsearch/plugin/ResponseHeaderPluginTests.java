@@ -39,12 +39,16 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test a rest action that sets special response headers
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=1)
+@ClusterScope(scope = Scope.SUITE, numNodes = 1)
 public class ResponseHeaderPluginTests extends AbstractIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put("plugin.types", TestResponseHeaderPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
+        return ImmutableSettings.settingsBuilder()
+                .put("plugin.types", TestResponseHeaderPlugin.class.getName())
+                .put("force.http.enabled", true)
+                .put(super.nodeSettings(nodeOrdinal))
+                .build();
     }
 
     @Test

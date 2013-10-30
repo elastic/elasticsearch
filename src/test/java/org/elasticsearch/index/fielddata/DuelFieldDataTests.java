@@ -354,8 +354,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
 
         int numDocs = leftData.getNumDocs();
-        BytesValues leftBytesValues = random.nextBoolean() ? leftData.getBytesValues() : leftData.getHashedBytesValues();
-        BytesValues rightBytesValues = random.nextBoolean() ? rightData.getBytesValues() : rightData.getHashedBytesValues();
+        BytesValues leftBytesValues = leftData.getBytesValues(random.nextBoolean());
+        BytesValues rightBytesValues = rightData.getBytesValues(random.nextBoolean());
         BytesRef leftSpare = new BytesRef();
         BytesRef rightSpare = new BytesRef();
         for (int i = 0; i < numDocs; i++) {

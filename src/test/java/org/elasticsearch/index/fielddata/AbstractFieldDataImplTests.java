@@ -66,7 +66,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        BytesValues values = fieldData.getBytesValues();
+        BytesValues values = fieldData.getBytesValues(randomBoolean());
         for (int i = 0; i < fieldData.getNumDocs(); ++i) {
             assertThat(values.hasValue(i), equalTo(true));
         }
@@ -82,7 +82,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
-        BytesValues bytesValues = fieldData.getBytesValues();
+        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
@@ -98,7 +98,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 1, one());
         assertValues(bytesValues, 2, three());
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(true));
@@ -185,7 +185,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData
-                .getBytesValues();
+                .getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
@@ -201,7 +201,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
 
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(false));
@@ -227,7 +227,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
-        BytesValues bytesValues = fieldData.getBytesValues();
+        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
 
@@ -241,7 +241,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertValues(bytesValues, 0, two(), four());
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(true));
@@ -280,7 +280,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
-        BytesValues bytesValues = fieldData.getBytesValues();
+        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
 
@@ -295,7 +295,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 0, two(), four());
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(false));
@@ -320,7 +320,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
-        BytesValues bytesValues = fieldData.getBytesValues();
+        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
@@ -335,7 +335,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 0, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 2, Strings.EMPTY_ARRAY);
-        BytesValues hashedBytesValues = fieldData.getBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(false));
         assertThat(hashedBytesValues.hasValue(1), equalTo(false));

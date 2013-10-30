@@ -89,7 +89,7 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public BytesValues getBytesValues() {
+        public BytesValues getBytesValues(boolean needsHashes) {
             return BytesValues.EMPTY;
         }
 

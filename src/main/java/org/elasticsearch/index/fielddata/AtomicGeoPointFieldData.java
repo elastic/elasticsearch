@@ -30,7 +30,7 @@ public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> im
     public abstract GeoPointValues getGeoPointValues();
 
     @Override
-    public BytesValues getBytesValues() {
+    public BytesValues getBytesValues(boolean needsHashes) {
         final GeoPointValues values = getGeoPointValues();
         return new BytesValues(values.isMultiValued()) {
 
@@ -65,11 +65,6 @@ public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> im
             }
 
         };
-    }
-
-    @Override
-    public BytesValues getHashedBytesValues() {
-        return getBytesValues();
     }
 
 }

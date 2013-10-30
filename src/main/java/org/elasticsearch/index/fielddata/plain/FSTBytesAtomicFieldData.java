@@ -90,42 +90,42 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public BytesValues.WithOrdinals getBytesValues() {
+    public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
         assert fst != null;
-        return new BytesValues(fst, ordinals.ordinals());
+        if (needsHashes) {
+            if (hashes == null) {
+                BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
+                BigIntArray hashes = new BigIntArray(ordinals.getMaxOrd());
+                // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
+                // empty strings twice. ie. them merge fails for long output.
+                hashes.set(0, new BytesRef().hashCode());
+                try {
+                    for (long i = 1, maxOrd = ordinals.getMaxOrd(); i < maxOrd; ++i) {
+                        hashes.set(i, fstEnum.next().input.hashCode());
+                    }
+                    assert fstEnum.next() == null;
+                } catch (IOException e) {
+                    // Don't use new "AssertionError("Cannot happen", e)" directly as this is a Java 1.7-only API
+                    final AssertionError error = new AssertionError("Cannot happen");
+                    error.initCause(e);
+                    throw error;
+                }
+                this.hashes = hashes;
+            }
+            return new HashedBytesValues(fst, ordinals.ordinals(), hashes);
+        } else {
+            return new BytesValues(fst, ordinals.ordinals());
+        }
     }
 
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
         assert fst != null;
-        return new ScriptDocValues.Strings(getBytesValues());
+        return new ScriptDocValues.Strings(getBytesValues(false));
     }
 
-    @Override
-    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
-        assert fst != null;
-        if (hashes == null) {
-            BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
-            BigIntArray hashes = new BigIntArray(ordinals.getMaxOrd());
-            // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
-            // empty strings twice. ie. them merge fails for long output.
-            hashes.set(0, new BytesRef().hashCode());
-            try {
-                for (long i = 1, maxOrd = ordinals.getMaxOrd(); i < maxOrd; ++i) {
-                    hashes.set(i, fstEnum.next().input.hashCode());
-                }
-                assert fstEnum.next() == null;
-            } catch (IOException e) {
-                // Don't use new "AssertionError("Cannot happen", e)" directly as this is a Java 1.7-only API
-                final AssertionError error = new AssertionError("Cannot happen");
-                error.initCause(e);
-                throw error;
-            }
-            this.hashes = hashes;
-        }
-        return new HashedBytesValues(fst, ordinals.ordinals(), hashes);
-    }
+
 
     static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
@@ -201,18 +201,13 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         }
 
         @Override
-        public BytesValues.WithOrdinals getBytesValues() {
+        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
             return new EmptyByteValuesWithOrdinals(ordinals.ordinals());
         }
 
         @Override
         public ScriptDocValues.Strings getScriptValues() {
             return ScriptDocValues.EMPTY_STRINGS;
-        }
-
-        @Override
-        public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
-            return getBytesValues();
         }
     }
 

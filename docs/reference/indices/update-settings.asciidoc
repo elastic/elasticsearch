@@ -123,7 +123,7 @@ settings API:
     * `quorum` (default)
     * `quorum-1` (or `half`)
     * `full`
-    * full-1`.
+    * `full-1`.
     * Number values are also supported, e.g. `1`.
 
 `index.gc_deletes`::

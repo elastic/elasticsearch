@@ -131,7 +131,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     @Override
     protected void doStart() throws ElasticSearchException {
-        clusterService.add(this);
+        clusterService.addFirst(this);
     }
 
     @Override

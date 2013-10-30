@@ -45,10 +45,12 @@ import java.net.URL;
 
 import static org.hamcrest.CoreMatchers.*;
 
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
 public class PluginManagerTests extends AbstractIntegrationTest {
     private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
-        .put("discovery.zen.ping.multicast.enabled", false).build();
+            .put("discovery.zen.ping.multicast.enabled", false)
+            .put("force.http.enabled", true)
+            .build();
     private static final String PLUGIN_DIR = "plugins";
 
     @After
@@ -211,7 +213,8 @@ public class PluginManagerTests extends AbstractIntegrationTest {
      * We are ignoring by default these tests as they require to have an internet access
      * To activate the test, use -Dtests.network=true
      */
-    @Test @Network
+    @Test
+    @Network
     public void testInstallPluginWithInternet() throws IOException {
         // We test regular form: username/reponame/version
         // It should find it in download.elasticsearch.org service

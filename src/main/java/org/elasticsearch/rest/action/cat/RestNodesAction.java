@@ -41,6 +41,7 @@ import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -122,9 +123,11 @@ public class RestNodesAction extends BaseRestHandler {
         table.addCell("port");
 
         table.addCell("jdk");
-        table.addCell("diskfree", "text-align:right;");
-        table.addCell("heapmax", "text-align:right;");
-        table.addCell("memmax", "text-align:right;");
+        table.addCell("diskAvail", "text-align:right;");
+        table.addCell("heapUsed", "text-align:right;");
+        table.addCell("heapMax", "text-align:right;");
+        table.addCell("heapRatio", "text-align:right;");
+        table.addCell("ramMax", "text-align:right;");
 
         table.addCell("uptime", "text-align:right;");
         table.addCell("data/client");
@@ -135,6 +138,15 @@ public class RestNodesAction extends BaseRestHandler {
         for (DiscoveryNode node : state.getState().nodes()) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            
+            long heapUsed = stats.getJvm().mem().heapUsed().bytes();
+            long heapMax = info.getJvm().mem().heapMax().bytes();
+            float heapRatio = -1.0f;
+            
+            if (heapMax > 0) {
+                heapRatio = heapUsed / (heapMax * 1.0f);
+            }
+            
             long availableDisk = -1;
 
             if (!(stats.getFs() == null)) {
@@ -153,7 +165,9 @@ public class RestNodesAction extends BaseRestHandler {
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
             table.addCell(info.getJvm().version());
             table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
-            table.addCell(info.getJvm().mem().heapMax());
+            table.addCell(new ByteSizeValue(heapUsed));
+            table.addCell(new ByteSizeValue(heapMax));
+            table.addCell(heapRatio < 0 ? null : String.format(Locale.ROOT, "%.1f%%", heapRatio*100.0));
             table.addCell(info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
             table.addCell(stats.getJvm().uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : null);

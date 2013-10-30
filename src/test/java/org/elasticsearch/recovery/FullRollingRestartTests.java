@@ -30,7 +30,7 @@ import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
  *
@@ -79,7 +79,7 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
         }
 
         // now start shutting nodes down
@@ -93,7 +93,7 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
         }
 
         cluster().stopRandomNode();
@@ -106,7 +106,7 @@ public class FullRollingRestartTests extends AbstractIntegrationTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
         }
     }
 }

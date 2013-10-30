@@ -29,7 +29,11 @@ import org.elasticsearch.rest.RestStatus;
 public class IndexAlreadyExistsException extends IndexException {
 
     public IndexAlreadyExistsException(Index index) {
-        super(index, "Already exists");
+        this(index, "already exists");
+    }
+
+    public IndexAlreadyExistsException(Index index, String message) {
+        super(index, message);
     }
 
     @Override

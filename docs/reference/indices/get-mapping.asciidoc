@@ -1,7 +1,7 @@
 [[indices-get-mapping]]
 == Get Mapping
 
-The get mapping API allows to retrieve mapping definition of index or
+The get mapping API allows to retrieve mapping definitions for an index or
 index/type.
 
 [source,js]

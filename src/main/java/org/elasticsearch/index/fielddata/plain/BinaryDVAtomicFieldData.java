@@ -93,20 +93,16 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
         return new BytesValues(false) {
 
             @Override
-            public boolean hasValue(int docId) {
-                return docsWithField.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return docsWithField.get(docId) ? 1 : 0;
             }
 
             @Override
-            public BytesRef getValue(int docId) {
-                if (docsWithField.get(docId)) {
-                    values.get(docId, scratch);
-                    return scratch;
-                }
-                scratch.length = 0;
+            public BytesRef nextValue() {
+                values.get(docId, scratch);
                 return scratch;
             }
-
         };
     }
 

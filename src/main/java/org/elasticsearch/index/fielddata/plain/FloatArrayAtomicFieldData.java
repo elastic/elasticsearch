@@ -237,12 +237,13 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return set.get(docId) ? 1 : 0;
             }
 
             @Override
-            public long getValue(int docId) {
+            public long nextValue() {
                 return (long) values.get(docId);
             }
         }
@@ -259,15 +260,15 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return set.get(docId) ? 1 : 0;
             }
 
             @Override
-            public double getValue(int docId) {
-                return (double) values.get(docId);
+            public double nextValue() {
+                return values.get(docId);
             }
-
         }
 
     }
@@ -334,16 +335,9 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
             }
 
             @Override
-            public long getValue(int docId) {
-                return (long) values.get(docId);
-            }
-            
-            @Override
             public long nextValue() {
                 return (long) values.get(docId);
             }
-            
-
         }
 
         static class DoubleValues extends DenseDoubleValues {
@@ -355,11 +349,6 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
                 this.values = values;
             }
 
-            @Override
-            public double getValue(int docId) {
-                return (double) values.get(docId);
-            }
-            
             @Override
             public double nextValue() {
                 return values.get(docId);

@@ -28,7 +28,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.*;
@@ -359,26 +358,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         BytesRef leftSpare = new BytesRef();
         BytesRef rightSpare = new BytesRef();
         for (int i = 0; i < numDocs; i++) {
-            assertThat(leftBytesValues.hasValue(i), equalTo(rightBytesValues.hasValue(i)));
-            if (leftBytesValues.hasValue(i)) {
-                assertThat(pre.toString(leftBytesValues.getValue(i)), equalTo(pre.toString(rightBytesValues.getValue(i))));
-            } else {
-                assertThat(leftBytesValues.getValue(i), equalTo(new BytesRef()));
-                assertThat(rightBytesValues.getValue(i), equalTo(new BytesRef()));
-            }
-            
-            
             int numValues = 0;
-            if (leftBytesValues.hasValue(i)) {
-                assertThat(rightBytesValues.hasValue(i), equalTo(true));
-                assertThat(leftBytesValues.setDocument(i), Matchers.greaterThanOrEqualTo(1));
-                assertThat(rightBytesValues.setDocument(i),  Matchers.greaterThanOrEqualTo(1));
-            } else { 
-                assertThat(rightBytesValues.hasValue(i), equalTo(false));
-                assertThat(leftBytesValues.setDocument(i), equalTo(0));
-                assertThat(rightBytesValues.setDocument(i), equalTo(0));
-            }
-            
             assertThat((numValues = leftBytesValues.setDocument(i)), equalTo(rightBytesValues.setDocument(i)));
             for (int j = 0; j < numValues; j++) {
                 rightSpare.copyBytes(rightBytesValues.nextValue());
@@ -406,14 +386,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         DoubleValues leftDoubleValues = leftData.getDoubleValues();
         DoubleValues rightDoubleValues = rightData.getDoubleValues();
         for (int i = 0; i < numDocs; i++) {
-            assertThat(leftDoubleValues.hasValue(i), equalTo(rightDoubleValues.hasValue(i)));
-            if (leftDoubleValues.hasValue(i)) {
-                assertThat(leftDoubleValues.getValue(i), equalTo(rightDoubleValues.getValue(i)));
-            } else {
-                assertThat(leftDoubleValues.getValue(i), equalTo(0d));
-                assertThat(rightDoubleValues.getValue(i), equalTo(0d));
-            }
-
             int numValues = 0;
             assertThat((numValues = leftDoubleValues.setDocument(i)), equalTo(rightDoubleValues.setDocument(i)));
             for (int j = 0; j < numValues; j++) {
@@ -432,15 +404,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         LongValues leftLongValues = leftData.getLongValues();
         LongValues rightLongValues = rightData.getLongValues();
         for (int i = 0; i < numDocs; i++) {
-            assertThat(leftLongValues.hasValue(i), equalTo(rightLongValues.hasValue(i)));
-            if (leftLongValues.hasValue(i)) {
-                assertThat(leftLongValues.getValue(i), equalTo(rightLongValues.getValue(i)));
-
-            } else {
-                assertThat(leftLongValues.getValue(i), equalTo(0l));
-                assertThat(rightLongValues.getValue(i), equalTo(0l));
-            }
-
             int numValues = 0;
             assertThat((numValues = leftLongValues.setDocument(i)), equalTo(rightLongValues.setDocument(i)));
             for (int j = 0; j < numValues; j++) {

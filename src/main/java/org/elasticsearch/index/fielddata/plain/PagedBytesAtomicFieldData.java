@@ -153,17 +153,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         @Override
-        public final BytesRef getValue(int docId) {
-            final long ord = ordinals.getOrd(docId);
-            if (ord == Ordinals.MISSING_ORDINAL) {
-                scratch.length = 0;
-                return scratch;
-            }
-            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return scratch;
-        }
-
-        @Override
         public final BytesRef nextValue() {
             bytes.fill(scratch, termOrdToBytesOffset.get(ordinals.nextOrd()));
             return scratch;

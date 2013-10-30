@@ -244,14 +244,14 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
             }
 
             @Override
-            public boolean hasValue(int docId) {
-                return values.get(docId) != missingValue;
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return values.get(docId) != missingValue ? 1 : 0;
             }
 
             @Override
-            public long getValue(int docId) {
-                final long value = values.get(docId);
-                return value == missingValue ? 0L : minValue + value;
+            public long nextValue() {
+                return  minValue + values.get(docId);
             }
         }
 
@@ -268,16 +268,15 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
                 this.missingValue = missingValue;
             }
 
-
             @Override
-            public boolean hasValue(int docId) {
-                return values.get(docId) != missingValue;
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return values.get(docId) != missingValue ? 1 : 0;
             }
 
             @Override
-            public double getValue(int docId) {
-                final long value = values.get(docId);
-                return value == missingValue ? 0L : minValue + value;
+            public double nextValue() {
+                return  minValue + values.get(docId);
             }
         }
     }
@@ -346,10 +345,6 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
                 this.minValue = minValue;
             }
 
-            @Override
-            public long getValue(int docId) {
-                return minValue + values.get(docId);
-            }
 
             @Override
             public long nextValue() {
@@ -359,7 +354,7 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         }
 
-        static class DoubleValues extends DenseDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
             private final PackedInts.Mutable values;
             private final long minValue;
@@ -371,10 +366,11 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
             }
 
             @Override
-            public double getValue(int docId) {
-                return minValue + values.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return 1;
             }
-            
+
             @Override
             public double nextValue() {
                 return minValue + values.get(docId);

@@ -21,6 +21,8 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.LongValues;
 
 import java.util.Locale;
 
@@ -261,6 +263,27 @@ public enum SortMode {
         } catch (Throwable t) {
             throw new ElasticSearchIllegalArgumentException("Illegal sort_mode " + sortMode);
         }
+    }
+
+
+    public final double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
+        final int numValues = values.setDocument(docId);
+        double relevantVal = startDouble();
+        double result = defaultValue;
+        for (int i = 0; i < numValues; i++) {
+            result = relevantVal = apply(relevantVal, values.nextValue());
+        }
+        return reduce(result, numValues);
+    }
+
+    public final long getRelevantValue(LongValues values, int docId, long defaultValue) {
+        final int numValues = values.setDocument(docId);
+        long relevantVal = startLong();
+        long result = defaultValue;
+        for (int i = 0; i < numValues; i++) {
+            result = relevantVal = apply(relevantVal, values.nextValue());
+        }
+        return reduce(result, numValues);
     }
 
 }

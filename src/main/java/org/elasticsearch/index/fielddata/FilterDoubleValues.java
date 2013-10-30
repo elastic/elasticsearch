@@ -32,16 +32,6 @@ public abstract class FilterDoubleValues extends DoubleValues {
     }
 
     @Override
-    public boolean hasValue(int docId) {
-        return delegate.hasValue(docId);
-    }
-
-    @Override
-    public double getValue(int docId) {
-        return delegate.getValue(docId);
-    }
-
-    @Override
     public int setDocument(int docId) {
         return delegate.setDocument(docId);
     }
@@ -49,10 +39,5 @@ public abstract class FilterDoubleValues extends DoubleValues {
     @Override
     public double nextValue() {
         return delegate.nextValue();
-    }
-
-    @Override
-    public double getValueMissing(int docId, double missingValue) {
-        return delegate.getValueMissing(docId, missingValue);
     }
 }

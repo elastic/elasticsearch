@@ -284,9 +284,17 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             geoPointValues = fieldData.load(context).getGeoPointValues();
         }
 
+        private final GeoPoint getValue(int doc, GeoPoint missing) {
+            final int num = geoPointValues.setDocument(doc);
+            for (int i = 0; i < num; i++) {
+                return geoPointValues.nextValue();
+            }
+            return missing;
+        }
+
         @Override
         protected double distance(int docId) {
-            GeoPoint other = geoPointValues.getValueMissing(docId, origin);
+            GeoPoint other = getValue(docId, origin);
             double distance = Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
                     DistanceUnit.METERS)) - offset;
             if (distance < 0.0d) {
@@ -297,7 +305,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected String getDistanceString(int docId) {
-            final GeoPoint other = geoPointValues.getValueMissing(docId, origin);
+            final GeoPoint other = getValue(docId, origin);
             return "arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
                     + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
                     + "(=offset)";
@@ -326,9 +334,17 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
         }
 
+        private final double getValue(int doc, double missing) {
+            final int num = doubleValues.setDocument(doc);
+            for (int i = 0; i < num; i++) {
+                return doubleValues.nextValue();
+            }
+            return missing;
+        }
+
         @Override
         protected double distance(int docId) {
-            double distance = Math.abs(doubleValues.getValueMissing(docId, origin) - origin) - offset;
+            double distance = Math.abs(getValue(docId, origin) - origin) - offset;
             if (distance < 0.0) {
                 distance = 0.0;
             }
@@ -337,8 +353,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected String getDistanceString(int docId) {
-            return "Math.abs(" + doubleValues.getValueMissing(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
-                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + doubleValues.getValueMissing(docId, origin) + "(=doc value) - "
+            return "Math.abs(" + getValue(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
+                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + getValue(docId, origin) + "(=doc value) - "
                     + origin + ") - " + offset + "(=offset)";
         }
 

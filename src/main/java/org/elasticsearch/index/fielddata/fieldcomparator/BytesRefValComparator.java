@@ -128,17 +128,6 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
             this.sortMode = sortMode;
         }
 
-        @Override
-        public BytesRef getValue(int docId) {
-            numValues = delegate.setDocument(docId);
-            scratch.length = 0;
-            if (numValues == 0) {
-                scratch.length = 0;
-                return scratch;
-            }
-            return nextValue();
-        }
-
         public int setDocument(int docId) {
             // either 0 or 1
             return Math.min(1, (numValues = delegate.setDocument(docId)));

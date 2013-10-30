@@ -46,21 +46,7 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
         if (isFloat) {
             final DoubleValues values = getDoubleValues();
             return new BytesValues(values.isMultiValued()) {
-                @Override
-                public boolean hasValue(int docId) {
-                    return values.hasValue(docId);
-                }
 
-                @Override
-                public BytesRef getValue(int docId) {
-                    if (values.hasValue(docId)) {
-                        scratch.copyChars(Double.toString(values.getValue(docId)));
-                    } else {
-                        scratch.length = 0;
-                    }
-                    return scratch;
-                }
-                
                 @Override
                 public int setDocument(int docId) {
                     this.docId = docId;
@@ -76,21 +62,6 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
         } else {
             final LongValues values = getLongValues();
             return new BytesValues(values.isMultiValued()) {
-
-                @Override
-                public boolean hasValue(int docId) {
-                    return values.hasValue(docId);
-                }
-
-                @Override
-                public BytesRef getValue(int docId) {
-                    if (values.hasValue(docId)) {
-                        scratch.copyChars(Long.toString(values.getValue(docId)));
-                    } else {
-                        scratch.length = 0;
-                    }
-                    return scratch;
-                }
 
                 @Override
                 public int setDocument(int docId) {

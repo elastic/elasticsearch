@@ -68,7 +68,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         BytesValues values = fieldData.getBytesValues(randomBoolean());
         for (int i = 0; i < fieldData.getNumDocs(); ++i) {
-            assertThat(values.hasValue(i), equalTo(true));
+            assertThat(values.setDocument(i), greaterThanOrEqualTo(1));
         }
     }
 
@@ -86,23 +86,18 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(true));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef(one())));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
+        assertThat(bytesValues.setDocument(0), equalTo(1));
+        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(two())));
+        assertThat(bytesValues.setDocument(1), equalTo(1));
+        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(one())));
+        assertThat(bytesValues.setDocument(2), equalTo(1));
+        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(three())));
 
         assertValues(bytesValues, 0, two());
         assertValues(bytesValues, 1, one());
         assertValues(bytesValues, 2, three());
 
         BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
@@ -133,8 +128,8 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
     }
     
     private HashedBytesRef convert(BytesValues values, int doc) {
-        if (values.hasValue(doc)) {
-            return new HashedBytesRef(BytesRef.deepCopyOf(values.getValue(doc)), values.currentValueHash());
+        if (values.setDocument(doc) > 0) {
+            return new HashedBytesRef(BytesRef.deepCopyOf(values.nextValue()), values.currentValueHash());
         } else {
             return new HashedBytesRef(new BytesRef());
         }
@@ -189,30 +184,19 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(false));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef()));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
         assertValues(bytesValues, 0, two());
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
-
+        assertValues(bytesValues, 2, three());
 
         BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
-
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
         assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
 
         assertHashedValues(hashedBytesValues, 0, two());
         assertHashedValues(hashedBytesValues, 1, Strings.EMPTY_ARRAY);
+        assertHashedValues(hashedBytesValues,  2, three());
+
 
     }
 
@@ -231,21 +215,12 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
 
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(true));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef(one())));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
         assertValues(bytesValues, 0, two(), four());
+        assertValues(bytesValues, 1, one());
+        assertValues(bytesValues, 2, three());
+
 
         BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
-
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
@@ -284,22 +259,11 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
 
-        assertThat(bytesValues.hasValue(0), equalTo(true));
-        assertThat(bytesValues.hasValue(1), equalTo(false));
-        assertThat(bytesValues.hasValue(2), equalTo(true));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef(two())));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef()));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef(three())));
-
         assertValues(bytesValues, 0, two(), four());
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
 
         BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
-        assertThat(hashedBytesValues.hasValue(0), equalTo(true));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
@@ -307,8 +271,12 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertHashedValues(bytesValues, 0, two(), four());
         assertHashedValues(bytesValues, 1, Strings.EMPTY_ARRAY);
+        assertHashedValues(bytesValues, 2, three());
+
         assertHashedValues(hashedBytesValues, 0, two(), four());
         assertHashedValues(hashedBytesValues, 1, Strings.EMPTY_ARRAY);
+        assertHashedValues(hashedBytesValues, 2, three());
+
     }
 
     public void testMissingValueForAll() throws Exception {
@@ -324,26 +292,11 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
-        assertThat(bytesValues.hasValue(0), equalTo(false));
-        assertThat(bytesValues.hasValue(1), equalTo(false));
-        assertThat(bytesValues.hasValue(2), equalTo(false));
-
-        assertThat(bytesValues.getValue(0), equalTo(new BytesRef()));
-        assertThat(bytesValues.getValue(1), equalTo(new BytesRef()));
-        assertThat(bytesValues.getValue(2), equalTo(new BytesRef()));
-
         assertValues(bytesValues, 0, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 2, Strings.EMPTY_ARRAY);
         BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
 
-        assertThat(hashedBytesValues.hasValue(0), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
-        assertThat(hashedBytesValues.hasValue(2), equalTo(false));
-
-        assertThat(hashedBytesValues.getValue(0), equalTo(new BytesRef()));
-        assertThat(hashedBytesValues.getValue(1), equalTo(new BytesRef()));
-        assertThat(hashedBytesValues.getValue(2), equalTo(new BytesRef()));
         assertValues(hashedBytesValues, 0, Strings.EMPTY_ARRAY);
         assertValues(hashedBytesValues, 1, Strings.EMPTY_ARRAY);
         assertValues(hashedBytesValues, 2, Strings.EMPTY_ARRAY);

@@ -110,14 +110,14 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
         final DocValuesAndBits docValues = getDocValues();
 
         return new LongValues(false) {
-
             @Override
-            public boolean hasValue(int docId) {
-                return docValues.docsWithField.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return docValues.docsWithField.get(docId) ? 1 : 0;
             }
 
             @Override
-            public long getValue(int docId) {
+            public long nextValue() {
                 return docValues.values.get(docId);
             }
         };
@@ -130,12 +130,13 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
         return new DoubleValues(false) {
 
             @Override
-            public boolean hasValue(int docId) {
-                return docValues.docsWithField.get(docId);
+            public int setDocument(int docId) {
+                this.docId = docId;
+                return docValues.docsWithField.get(docId) ? 1 : 0;
             }
 
             @Override
-            public double getValue(int docId) {
+            public double nextValue() {
                 return docValues.values.get(docId);
             }
 

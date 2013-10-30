@@ -30,18 +30,7 @@ abstract class DenseLongValues extends LongValues {
     }
 
     @Override
-    public final boolean hasValue(int docId) {
-        return true;
-    }
-
-    public final long getValueMissing(int docId, long missingValue) {
-        assert hasValue(docId);
-        assert !isMultiValued();
-        return getValue(docId);
-    }
-
-    @Override
-    public int setDocument(int docId) {
+    public final int setDocument(int docId) {
         this.docId = docId;
         return 1;
     }

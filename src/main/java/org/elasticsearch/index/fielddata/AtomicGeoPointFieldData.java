@@ -35,23 +35,6 @@ public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> im
         return new BytesValues(values.isMultiValued()) {
 
             @Override
-            public boolean hasValue(int docId) {
-                return values.hasValue(docId);
-            }
-
-            @Override
-            public BytesRef getValue(int docId) {
-                GeoPoint value = values.getValue(docId);
-                if (value != null) {
-                    scratch.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
-                } else {
-                    scratch.length = 0;
-                    return scratch;
-                }
-                return scratch;
-            }
-
-            @Override
             public int setDocument(int docId) {
                 this.docId = docId;
                 return values.setDocument(docId);

@@ -131,6 +131,19 @@ abstract class QueryCollector extends Collector {
         return new MatchAndSort(logger, context);
     }
 
+
+    protected final Query getQuery(int doc) {
+        final int numValues = values.setDocument(doc);
+        if (numValues == 0) {
+            return null;
+        }
+        assert numValues == 1;
+        spare.reset(values.nextValue(), values.currentValueHash());
+        return queries.get(spare);
+    }
+
+
+
     final static class Match extends QueryCollector {
 
         final PercolateContext context;
@@ -152,8 +165,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.reset(values.getValue(doc), values.currentValueHash());
-            Query query = queries.get(spare);
+            final Query query = getQuery(doc);
             if (query == null) {
                 // log???
                 return;
@@ -210,8 +222,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.reset(values.getValue(doc), values.currentValueHash());
-            Query query = queries.get(spare);
+            final Query query = getQuery(doc);
             if (query == null) {
                 // log???
                 return;
@@ -273,8 +284,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.reset(values.getValue(doc), values.currentValueHash());
-            Query query = queries.get(spare);
+            final Query query = getQuery(doc);
             if (query == null) {
                 // log???
                 return;
@@ -338,8 +348,7 @@ abstract class QueryCollector extends Collector {
 
         @Override
         public void collect(int doc) throws IOException {
-            spare.reset(values.getValue(doc), values.currentValueHash());
-            Query query = queries.get(spare);
+            final Query query = getQuery(doc);
             if (query == null) {
                 // log???
                 return;

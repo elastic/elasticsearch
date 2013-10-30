@@ -49,7 +49,7 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = (float) readerValues.getValueMissing(doc, missingValue);
+        values[slot] = (float) sortMode.getRelevantValue(readerValues, doc, missingValue);
     }
 
     @Override
@@ -59,7 +59,7 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
 
     @Override
     public void add(int slot, int doc) {
-        values[slot] += (float) readerValues.getValueMissing(doc, missingValue);
+        values[slot] += (float) sortMode.getRelevantValue(readerValues, doc, missingValue);
     }
 
     @Override

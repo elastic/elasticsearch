@@ -20,7 +20,7 @@ type:
 |Setting |Description
 |`max_shingle_size` |The maximum shingle size. Defaults to `2`.
 
-|`min_shingle_sizes` |The minimum shingle size. Defaults to `2`.
+|`min_shingle_size` |The minimum shingle size. Defaults to `2`.
 
 |`output_unigrams` |If `true` the output will contain the input tokens
 (unigrams) as well as the shingles. Defaults to `true`.

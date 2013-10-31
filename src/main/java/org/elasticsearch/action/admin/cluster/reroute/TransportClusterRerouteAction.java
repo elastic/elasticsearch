@@ -19,12 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.metadata.MetaDataClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +31,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Cluster reroute action
  */
-public class TransportClusterRerouteAction extends TransportMasterNodeOperationAction<ClusterRerouteRequest, ClusterRerouteResponse> {
+public class TransportClusterRerouteAction extends TransportClusterStateUpdateAction<ClusterRerouteClusterStateUpdateRequest, ClusterRerouteClusterStateUpdateResponse, ClusterRerouteRequest, ClusterRerouteResponse> {
 
     private final MetaDataClusterService metaDataClusterService;
 
@@ -66,20 +63,17 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticSearchException {
-        ClusterRerouteClusterStateUpdateRequest updateRequest = new ClusterRerouteClusterStateUpdateRequest(request.commands, request.dryRun())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+    protected ClusterRerouteResponse newResponse(ClusterRerouteClusterStateUpdateResponse updateResponse) {
+        return new ClusterRerouteResponse(updateResponse.isAcknowledged(), updateResponse.clusterState());
+    }
 
-        metaDataClusterService.reroute(updateRequest, new ClusterStateUpdateListener<ClusterRerouteClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterRerouteClusterStateUpdateResponse response) {
-                listener.onResponse(new ClusterRerouteResponse(response.isAcknowledged(), response.clusterState()));
-            }
+    @Override
+    protected ClusterRerouteClusterStateUpdateRequest newClusterStateUpdateRequest(ClusterRerouteRequest acknowledgedRequest) {
+        return new ClusterRerouteClusterStateUpdateRequest(acknowledgedRequest.commands, acknowledgedRequest.dryRun);
+    }
 
-            @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected void updateClusterState(ClusterRerouteClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterRerouteClusterStateUpdateResponse, ClusterRerouteResponse> listener) {
+        metaDataClusterService.reroute(updateRequest, listener);
     }
 }

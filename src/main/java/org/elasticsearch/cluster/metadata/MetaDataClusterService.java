@@ -39,7 +39,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Map;
 
@@ -65,39 +64,13 @@ public class MetaDataClusterService extends AbstractComponent {
 
     public void reroute(final ClusterRerouteClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterRerouteClusterStateUpdateResponse> listener) {
 
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterRerouteClusterStateUpdateResponse>(request, listener) {
 
             private volatile ClusterState clusterStateToSend;
 
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterRerouteClusterStateUpdateResponse(true, clusterStateToSend));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterRerouteClusterStateUpdateResponse(false, clusterStateToSend));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
-                listener.onFailure(t);
+            protected ClusterRerouteClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterRerouteClusterStateUpdateResponse(acknowledged, clusterStateToSend);
             }
 
             @Override
@@ -110,11 +83,6 @@ public class MetaDataClusterService extends AbstractComponent {
                 }
                 return newState;
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
-            }
         });
     }
 
@@ -123,13 +91,19 @@ public class MetaDataClusterService extends AbstractComponent {
         final ImmutableSettings.Builder transientUpdates = ImmutableSettings.settingsBuilder();
         final ImmutableSettings.Builder persistentUpdates = ImmutableSettings.settingsBuilder();
 
-        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterUpdateSettingsClusterStateUpdateResponse>(request, listener) {
 
             private volatile boolean changed = false;
 
+            private ClusterUpdateSettingsClusterStateUpdateResponse buildNewResponse(boolean acknowledged) {
+                return new ClusterUpdateSettingsClusterStateUpdateResponse(acknowledged)
+                        .transientSettings(transientUpdates.build())
+                        .persistentSettings(persistentUpdates.build());
+            }
+
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            protected ClusterUpdateSettingsClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return buildNewResponse(acknowledged);
             }
 
             @Override
@@ -137,13 +111,8 @@ public class MetaDataClusterService extends AbstractComponent {
                 if (changed) {
                     reroute(true);
                 } else {
-                    listener.onResponse(
-                            new ClusterUpdateSettingsClusterStateUpdateResponse(true)
-                                    .transientSettings(transientUpdates.build())
-                                    .persistentSettings(persistentUpdates.build())
-                    );
+                    super.onAllNodesAcked(t);
                 }
-
             }
 
             @Override
@@ -151,16 +120,19 @@ public class MetaDataClusterService extends AbstractComponent {
                 if (changed) {
                     reroute(false);
                 } else {
-                    listener.onResponse(
-                            new ClusterUpdateSettingsClusterStateUpdateResponse(false)
-                                    .transientSettings(transientUpdates.build())
-                                    .persistentSettings(persistentUpdates.build())
-                    );
+                    super.onAckTimeout();
                 }
             }
 
             private void reroute(final boolean updateSettingsAcked) {
-                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
+                //we reuse the same timeouts that were set in the cluster update settings, will cause the request to take a bit longer than expected in case of timeout
+                //we reuse the original listener too as we want to return when the reroute is completed
+                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterUpdateSettingsClusterStateUpdateResponse>(request, listener) {
+
+                    @Override
+                    protected ClusterUpdateSettingsClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                        return buildNewResponse(acknowledged);
+                    }
 
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -171,31 +143,7 @@ public class MetaDataClusterService extends AbstractComponent {
                     @Override
                     public void onAllNodesAcked(@Nullable Throwable t) {
                         //we return when the cluster reroute is acked (the acknowledged flag depends on whether the update settings was acknowledged)
-                        listener.onResponse(
-                                new ClusterUpdateSettingsClusterStateUpdateResponse(updateSettingsAcked)
-                                        .transientSettings(transientUpdates.build())
-                                        .persistentSettings(persistentUpdates.build())
-                        );
-                    }
-
-                    @Override
-                    public void onAckTimeout() {
-                        //we return when the cluster reroute ack times out (acknowledged false)
-                        listener.onResponse(
-                                new ClusterUpdateSettingsClusterStateUpdateResponse(false)
-                                        .transientSettings(transientUpdates.build())
-                                        .persistentSettings(persistentUpdates.build())
-                        );
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.ackTimeout();
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                        listener.onResponse(newResponse(updateSettingsAcked));
                     }
 
                     @Override
@@ -213,27 +161,7 @@ public class MetaDataClusterService extends AbstractComponent {
                         }
                         return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
                     }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    }
                 });
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
-                listener.onFailure(t);
             }
 
             @Override
@@ -290,12 +218,6 @@ public class MetaDataClusterService extends AbstractComponent {
 
                 return builder().state(currentState).metaData(metaData).blocks(blocks).build();
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
-            }
         });
-
     }
 }

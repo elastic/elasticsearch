@@ -22,15 +22,19 @@ package org.elasticsearch.action.admin.indices.settings;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to update settings for some indices
  */
 public class UpdateSettingsClusterStateUpdateRequest extends ClusterStateUpdateRequest<UpdateSettingsClusterStateUpdateRequest> {
-    private Settings settings;
-    private String[] indices;
+    private final Settings settings;
+    private final String[] indices;
 
-    public UpdateSettingsClusterStateUpdateRequest() {
-
+    public UpdateSettingsClusterStateUpdateRequest(String[] indices, Settings settings) {
+        this.indices = indices;
+        this.settings = settings;
     }
 
     /**
@@ -41,25 +45,15 @@ public class UpdateSettingsClusterStateUpdateRequest extends ClusterStateUpdateR
     }
 
     /**
-     * Sets the indices to update
-     */
-    public UpdateSettingsClusterStateUpdateRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
-    }
-
-    /**
      * Returns the {@link Settings} to update
      */
     public Settings settings() {
         return settings;
     }
 
-    /**
-     * Sets the {@link Settings} to update
-     */
-    public UpdateSettingsClusterStateUpdateRequest settings(Settings settings) {
-        this.settings = settings;
-        return this;
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "update index settings: indices %s, settings [%s]",
+                Arrays.toString(indices), settings.toDelimitedString(';'));
     }
 }

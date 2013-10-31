@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to update cluster settings
  */
@@ -50,5 +52,11 @@ public class ClusterUpdateSettingsClusterStateUpdateRequest extends ClusterState
     public ClusterUpdateSettingsClusterStateUpdateRequest persistentSettings(Settings persistentSettings) {
         this.persistentSettings = persistentSettings;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "cluster update settings: persistent [%s], transient[%s]",
+                persistentSettings.toDelimitedString(';'), transientSettings.toDelimitedString(';'));
     }
 }

@@ -20,14 +20,18 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to open one or more indices
  */
 public class OpenIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<OpenIndexClusterStateUpdateRequest> {
 
-    private String[] indices;
+    private final String[] indices;
 
-    OpenIndexClusterStateUpdateRequest() {
+    OpenIndexClusterStateUpdateRequest(String[] indices) {
+        this.indices = indices;
 
     }
 
@@ -35,8 +39,8 @@ public class OpenIndexClusterStateUpdateRequest extends ClusterStateUpdateReques
         return indices;
     }
 
-    public OpenIndexClusterStateUpdateRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "open index: indices %s", Arrays.toString(indices));
     }
 }

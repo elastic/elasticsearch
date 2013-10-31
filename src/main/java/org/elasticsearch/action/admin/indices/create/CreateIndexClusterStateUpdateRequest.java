@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -107,5 +108,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Set<ClusterBlock> blocks() {
         return blocks;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "create index: index [%s], cause [%s]", index, cause);
     }
 }

@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -38,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
+public class TransportCloseIndexAction extends TransportClusterStateUpdateAction<CloseIndexClusterStateUpdateRequest, ClusterStateUpdateResponse, CloseIndexRequest, CloseIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
     private final boolean disableCloseAllIndices;
@@ -95,24 +94,17 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticSearchException {
+    protected CloseIndexClusterStateUpdateRequest newClusterStateUpdateRequest(CloseIndexRequest request) {
+        return new CloseIndexClusterStateUpdateRequest(request.indices());
+    }
 
-        CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(request.indices());
+    @Override
+    protected CloseIndexResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new CloseIndexResponse(updateResponse.isAcknowledged());
+    }
 
-        indexStateService.closeIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new CloseIndexResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to close indices [{}]", t, request.indices());
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected void updateClusterState(CloseIndexClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, CloseIndexResponse> listener) {
+        indexStateService.closeIndex(updateRequest, listener);
     }
 }

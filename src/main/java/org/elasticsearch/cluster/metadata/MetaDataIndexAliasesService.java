@@ -23,19 +23,16 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AckedDefaultClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -69,37 +66,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new AckedClusterStateUpdateTask() {
-
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
-            }
+        clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new AckedDefaultClusterStateUpdateTask(request, listener) {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
@@ -201,11 +168,6 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         indicesService.removeIndex(index, "created for alias processing");
                     }
                 }
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

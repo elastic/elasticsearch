@@ -20,22 +20,19 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AckedDefaultClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -99,39 +96,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     }
 
     private void deleteIndex(final DeleteIndexClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
-        clusterService.submitStateUpdateTask("delete-index [" + request.index() + "]", Priority.URGENT, new AckedClusterStateUpdateTask() {
+
+        clusterService.submitStateUpdateTask("delete-index [" + request.index() + "]", Priority.URGENT, new AckedDefaultClusterStateUpdateTask(request, listener) {
 
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            protected void beforeReturn() {
                 mdLock.release();
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                mdLock.release();
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                mdLock.release();
-                listener.onFailure(t);
             }
 
             @Override
@@ -155,10 +125,6 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                 ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index()).build();
                 return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             }
         });
     }

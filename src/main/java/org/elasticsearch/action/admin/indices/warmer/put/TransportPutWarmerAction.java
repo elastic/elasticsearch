@@ -23,10 +23,10 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -41,7 +41,7 @@ import java.util.Arrays;
 /**
  * Put warmer action.
  */
-public class TransportPutWarmerAction extends TransportMasterNodeOperationAction<PutWarmerRequest, PutWarmerResponse> {
+public class TransportPutWarmerAction extends TransportClusterStateUpdateAction<PutWarmerClusterStateUpdateRequest, ClusterStateUpdateResponse, PutWarmerRequest, PutWarmerResponse> {
 
     private final TransportSearchAction searchAction;
 
@@ -82,39 +82,39 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     }
 
     @Override
+    protected PutWarmerResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new PutWarmerResponse(updateResponse.isAcknowledged());
+    }
+
+    @Override
+    protected PutWarmerClusterStateUpdateRequest newClusterStateUpdateRequest(PutWarmerRequest acknowledgedRequest) {
+        PutWarmerClusterStateUpdateRequest updateRequest = new PutWarmerClusterStateUpdateRequest(acknowledgedRequest.name())
+                .indices(acknowledgedRequest.searchRequest().indices())
+                .types(acknowledgedRequest.searchRequest().types());
+
+        if (acknowledgedRequest.searchRequest().source() != null && acknowledgedRequest.searchRequest().source().length() > 0) {
+            updateRequest.source(acknowledgedRequest.searchRequest().source());
+        } else if (acknowledgedRequest.searchRequest().extraSource() != null && acknowledgedRequest.searchRequest().extraSource().length() > 0) {
+            updateRequest.source(acknowledgedRequest.searchRequest().extraSource());
+        }
+
+        return updateRequest;
+    }
+
+    @Override
     protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticSearchException {
         // first execute the search request, see that its ok...
         searchAction.execute(request.searchRequest(), new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
+
                 if (searchResponse.getFailedShards() > 0) {
                     listener.onFailure(new ElasticSearchException("search failed with failed shards: " + Arrays.toString(searchResponse.getShardFailures())));
                     return;
                 }
 
-                PutWarmerClusterStateUpdateRequest putWarmerRequest = new PutWarmerClusterStateUpdateRequest(request.name())
-                        .types(request.searchRequest().types())
-                        .indices(request.searchRequest().indices())
-                        .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-
-                if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
-                    putWarmerRequest.source(request.searchRequest().source());
-                } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
-                    putWarmerRequest.source(request.searchRequest().extraSource());
-                }
-
-                metaDataWarmersService.putWarmer(putWarmerRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-                    @Override
-                    public void onResponse(ClusterStateUpdateResponse response) {
-                        listener.onResponse(new PutWarmerResponse(response.isAcknowledged()));
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        listener.onFailure(t);
-                    }
-                });
-
+                //if everything went well we update the cluster state as usual
+                TransportPutWarmerAction.super.masterOperation(request, state, listener);
             }
 
             @Override
@@ -122,5 +122,10 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                 listener.onFailure(e);
             }
         });
+    }
+
+    @Override
+    protected void updateClusterState(PutWarmerClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, PutWarmerResponse> listener) {
+        metaDataWarmersService.putWarmer(updateRequest, listener);
     }
 }

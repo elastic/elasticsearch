@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to send allocate commands
  */
@@ -41,5 +43,10 @@ public class ClusterRerouteClusterStateUpdateRequest extends ClusterStateUpdateR
 
     public boolean dryRun() {
         return dryRun;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "cluster reroute: dryRun [%s]", dryRun);
     }
 }

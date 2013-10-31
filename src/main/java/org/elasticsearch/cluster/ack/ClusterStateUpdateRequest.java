@@ -62,4 +62,7 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
         this.masterNodeTimeout = masterNodeTimeout;
         return (T) this;
     }
+
+    @Override
+    public abstract String toString();
 }

@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.warmer.delete;
 
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
+import java.util.Locale;
+
 /**
  *  Cluster state update request that allows to delete a warmer from the cluster state
  */
@@ -40,5 +42,10 @@ public class DeleteWarmerClusterStateUpdateRequest extends ClusterStateUpdateReq
 
     public String[] indices() {
         return indices;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "delete warmer: name [%s]", name);
     }
 }

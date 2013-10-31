@@ -27,11 +27,11 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -46,7 +46,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete mapping action.
  */
-public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> {
+public class TransportDeleteMappingAction extends TransportClusterStateUpdateAction<DeleteMappingClusterStateUpdateRequest, ClusterStateUpdateResponse, DeleteMappingRequest, DeleteMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
     private final TransportFlushAction flushAction;
@@ -98,6 +98,17 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     }
 
     @Override
+    protected DeleteMappingResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new DeleteMappingResponse(updateResponse.isAcknowledged());
+    }
+
+    @Override
+    protected DeleteMappingClusterStateUpdateRequest newClusterStateUpdateRequest(DeleteMappingRequest acknowledgedRequest) {
+        return new DeleteMappingClusterStateUpdateRequest()
+                .indices(acknowledgedRequest.indices()).type(acknowledgedRequest.type());
+    }
+
+    @Override
     protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticSearchException {
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
@@ -108,31 +119,12 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                         refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
-                                removeMapping();
+                                TransportDeleteMappingAction.super.masterOperation(request, state, listener);
                             }
 
                             @Override
                             public void onFailure(Throwable e) {
-                                removeMapping();
-                            }
-
-                            protected void removeMapping() {
-                                DeleteMappingClusterStateUpdateRequest clusterStateUpdateRequest = new DeleteMappingClusterStateUpdateRequest()
-                                        .indices(request.indices()).type(request.type())
-                                        .ackTimeout(request.timeout())
-                                        .masterNodeTimeout(request.masterNodeTimeout());
-
-                                metaDataMappingService.removeMapping(clusterStateUpdateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-                                    @Override
-                                    public void onResponse(ClusterStateUpdateResponse response) {
-                                        listener.onResponse(new DeleteMappingResponse(response.isAcknowledged()));
-                                    }
-
-                                    @Override
-                                    public void onFailure(Throwable t) {
-                                        listener.onFailure(t);
-                                    }
-                                });
+                                TransportDeleteMappingAction.super.masterOperation(request, state, listener);
                             }
                         });
                     }
@@ -149,5 +141,10 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    protected void updateClusterState(DeleteMappingClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, DeleteMappingResponse> listener) {
+        metaDataMappingService.removeMapping(updateRequest, listener);
     }
 }

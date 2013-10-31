@@ -22,18 +22,15 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerClusterStateUpdateRequest;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AckedDefaultClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
@@ -56,38 +53,7 @@ public class MetaDataWarmersService extends AbstractComponent {
     }
 
     public void putWarmer(final PutWarmerClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
-
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to put warmer [{}] on indices [{}]", t, request.name(), request.indices());
-                listener.onFailure(t);
-            }
+        clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedDefaultClusterStateUpdateTask(request, listener) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -131,48 +97,12 @@ public class MetaDataWarmersService extends AbstractComponent {
 
                 return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
-            }
         });
     }
 
     public void deleteWarmer(final DeleteWarmerClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
 
-        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
-
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to delete warmer [{}] on indices [{}]", t, request.name(), request.indices());
-                listener.onFailure(t);
-            }
+        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new AckedDefaultClusterStateUpdateTask(request, listener) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -230,11 +160,6 @@ public class MetaDataWarmersService extends AbstractComponent {
                 }
 
                 return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

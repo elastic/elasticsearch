@@ -21,6 +21,9 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to add or remove aliases
  */
@@ -45,5 +48,20 @@ public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateR
     public IndicesAliasesClusterStateUpdateRequest actions(AliasAction[] actions) {
         this.actions = actions;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "indices aliases: %s", Arrays.toString(toString(actions)));
+    }
+
+    private String[] toString(AliasAction[] aliasActions) {
+        String[] aliases = new String[aliasActions.length];
+        for (int i = 0; i < aliasActions.length; i++) {
+            AliasAction aliasAction = aliasActions[i];
+            aliases[i] = String.format(Locale.ROOT, "%s alias [%s], index [%s]",
+                    aliasAction.actionType().name(), aliasAction.alias(), aliasAction.index());
+        }
+        return aliases;
     }
 }

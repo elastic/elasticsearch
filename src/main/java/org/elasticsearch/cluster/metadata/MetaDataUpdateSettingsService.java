@@ -26,13 +26,11 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -125,9 +123,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<String> indices = nrReplicasChanged.get(fNumberOfReplicas);
 
-                UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                        .indices(indices.toArray(new String[indices.size()])).settings(settings)
-                        .ackTimeout(TimeValue.timeValueMillis(0)) //no need to wait for ack here
+                UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest(indices.toArray(new String[indices.size()]), settings)
+                        .ackTimeout(TimeValue.timeValueMillis(0)) //no need to wait for ack here, we don't care about the ack flag either
                         .masterNodeTimeout(TimeValue.timeValueMinutes(10));
 
                 updateSettings(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
@@ -196,37 +193,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
-        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
-
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
-            }
+        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new AckedDefaultClusterStateUpdateTask(request, listener) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -323,10 +290,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
 
                 return updatedState;
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             }
         });
     }

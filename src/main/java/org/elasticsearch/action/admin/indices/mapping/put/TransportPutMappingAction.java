@@ -21,10 +21,10 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Put mapping action.
  */
-public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
+public class TransportPutMappingAction extends TransportClusterStateUpdateAction<PutMappingClusterStateUpdateRequest, ClusterStateUpdateResponse, PutMappingRequest, PutMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
 
@@ -81,25 +81,19 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) throws ElasticSearchException {
+    protected PutMappingResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new PutMappingResponse(updateResponse.isAcknowledged());
+    }
 
-        PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(request.indices()).type(request.type())
-                .source(request.source()).ignoreConflicts(request.ignoreConflicts());
+    @Override
+    protected PutMappingClusterStateUpdateRequest newClusterStateUpdateRequest(PutMappingRequest acknowledgedRequest) {
+        return new PutMappingClusterStateUpdateRequest()
+                .indices(acknowledgedRequest.indices()).type(acknowledgedRequest.type())
+                .source(acknowledgedRequest.source()).ignoreConflicts(acknowledgedRequest.ignoreConflicts());
+    }
 
-        metaDataMappingService.putMapping(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new PutMappingResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to put mappings on indices [{}], type [{}]", t, request.indices(), request.type());
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected void updateClusterState(PutMappingClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, PutMappingResponse> listener) {
+        metaDataMappingService.putMapping(updateRequest, listener);
     }
 }

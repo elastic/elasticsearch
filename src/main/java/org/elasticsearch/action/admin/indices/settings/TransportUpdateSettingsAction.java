@@ -19,12 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.settings;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.common.inject.Inject;
@@ -33,9 +30,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- *
+ * Update index settings action
  */
-public class TransportUpdateSettingsAction extends TransportMasterNodeOperationAction<UpdateSettingsRequest, UpdateSettingsResponse> {
+public class TransportUpdateSettingsAction extends TransportClusterStateUpdateAction<UpdateSettingsClusterStateUpdateRequest, ClusterStateUpdateResponse, UpdateSettingsRequest, UpdateSettingsResponse> {
 
     private final MetaDataUpdateSettingsService updateSettingsService;
 
@@ -68,25 +65,17 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticSearchException {
+    protected UpdateSettingsResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new UpdateSettingsResponse(updateResponse.isAcknowledged());
+    }
 
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(request.indices())
-                .settings(request.settings())
-                .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+    @Override
+    protected UpdateSettingsClusterStateUpdateRequest newClusterStateUpdateRequest(UpdateSettingsRequest acknowledgedRequest) {
+        return new UpdateSettingsClusterStateUpdateRequest(acknowledgedRequest.indices(), acknowledgedRequest.settings());
+    }
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new UpdateSettingsResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to update settings on indices [{}]", t, request.indices());
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected void updateClusterState(UpdateSettingsClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, UpdateSettingsResponse> listener) {
+        updateSettingsService.updateSettings(updateRequest, listener);
     }
 }

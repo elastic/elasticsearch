@@ -22,6 +22,9 @@ package org.elasticsearch.action.admin.indices.warmer.put;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to add a warmer to the cluster state
  */
@@ -68,5 +71,11 @@ public class PutWarmerClusterStateUpdateRequest extends ClusterStateUpdateReques
     public PutWarmerClusterStateUpdateRequest source(BytesReference source) {
         this.source = source;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "put warmer: name [%s], indices %s, types %s",
+                name, Arrays.toString(indices), Arrays.toString(types));
     }
 }

@@ -19,12 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.metadata.MetaDataClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +31,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Update cluster settings action
  */
-public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOperationAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
+public class TransportClusterUpdateSettingsAction extends TransportClusterStateUpdateAction<ClusterUpdateSettingsClusterStateUpdateRequest, ClusterUpdateSettingsClusterStateUpdateResponse, ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
     private final MetaDataClusterService metaDataClusterService;
 
@@ -65,24 +62,18 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     }
 
     @Override
-    protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state, final ActionListener<ClusterUpdateSettingsResponse> listener) throws ElasticSearchException {
-        ClusterUpdateSettingsClusterStateUpdateRequest updateRequest = new ClusterUpdateSettingsClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .persistentSettings(request.persistentSettings())
-                .transientSettings(request.transientSettings());
+    protected ClusterUpdateSettingsResponse newResponse(ClusterUpdateSettingsClusterStateUpdateResponse updateResponse) {
+        return new ClusterUpdateSettingsResponse(updateResponse.isAcknowledged(), updateResponse.transientSettings(), updateResponse.persistentSettings());
+    }
 
-        metaDataClusterService.updateSettings(updateRequest, new ClusterStateUpdateListener<ClusterUpdateSettingsClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterUpdateSettingsClusterStateUpdateResponse response) {
-                listener.onResponse(new ClusterUpdateSettingsResponse(response.isAcknowledged(),
-                        response.transientSettings(), response.persistentSettings()));
-            }
+    @Override
+    protected ClusterUpdateSettingsClusterStateUpdateRequest newClusterStateUpdateRequest(ClusterUpdateSettingsRequest acknowledgedRequest) {
+        return new ClusterUpdateSettingsClusterStateUpdateRequest().transientSettings(acknowledgedRequest.transientSettings())
+                .persistentSettings(acknowledgedRequest.persistentSettings());
+    }
 
-            @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
-            }
-        });
-
+    @Override
+    protected void updateClusterState(ClusterUpdateSettingsClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterUpdateSettingsClusterStateUpdateResponse, ClusterUpdateSettingsResponse> listener) {
+        metaDataClusterService.updateSettings(updateRequest, listener);
     }
 }

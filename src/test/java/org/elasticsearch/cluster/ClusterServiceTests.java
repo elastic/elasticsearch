@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
@@ -128,7 +129,13 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final AtomicBoolean processed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(null, null) {
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return true;
@@ -199,7 +206,13 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final AtomicBoolean processed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(null, null) {
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return true;
@@ -269,7 +282,13 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(null, null) {
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -338,7 +357,13 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(null, null) {
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;

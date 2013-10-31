@@ -19,12 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete index warmer.
  */
-public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAction<DeleteWarmerRequest, DeleteWarmerResponse> {
+public class TransportDeleteWarmerAction extends TransportClusterStateUpdateAction<DeleteWarmerClusterStateUpdateRequest, ClusterStateUpdateResponse, DeleteWarmerRequest, DeleteWarmerResponse> {
 
     private final MetaDataWarmersService metaDataWarmersService;
 
@@ -81,21 +80,17 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticSearchException {
+    protected DeleteWarmerResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new DeleteWarmerResponse(updateResponse.isAcknowledged());
+    }
 
-        DeleteWarmerClusterStateUpdateRequest deleteWarmerRequest = new DeleteWarmerClusterStateUpdateRequest(request.name(), request.indices())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+    @Override
+    protected DeleteWarmerClusterStateUpdateRequest newClusterStateUpdateRequest(DeleteWarmerRequest acknowledgedRequest) {
+        return new DeleteWarmerClusterStateUpdateRequest(acknowledgedRequest.name(), acknowledgedRequest.indices());
+    }
 
-        metaDataWarmersService.deleteWarmer(deleteWarmerRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new DeleteWarmerResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected void updateClusterState(DeleteWarmerClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, DeleteWarmerResponse> listener) {
+        metaDataWarmersService.deleteWarmer(updateRequest, listener);
     }
 }

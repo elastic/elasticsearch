@@ -20,19 +20,25 @@ package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to delete an index
  */
 public class DeleteIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest> {
 
-    private String index;
+    private final String index;
+
+    DeleteIndexClusterStateUpdateRequest(String index) {
+        this.index = index;
+    }
 
     public String index() {
         return index;
     }
 
-    public DeleteIndexClusterStateUpdateRequest index(String index) {
-        this.index = index;
-        return this;
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "delete index: index [%s]", index);
     }
 }

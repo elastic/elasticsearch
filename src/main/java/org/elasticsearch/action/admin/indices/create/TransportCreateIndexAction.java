@@ -19,16 +19,16 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
@@ -38,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Create index action.
  */
-public class TransportCreateIndexAction extends TransportMasterNodeOperationAction<CreateIndexRequest, CreateIndexResponse> {
+public class TransportCreateIndexAction extends TransportClusterStateUpdateAction<CreateIndexClusterStateUpdateRequest, ClusterStateUpdateResponse, CreateIndexRequest, CreateIndexResponse> {
 
     private final MetaDataCreateIndexService createIndexService;
 
@@ -76,22 +76,24 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state, final ActionListener<CreateIndexResponse> listener) throws ElasticSearchException {
-        String cause = request.cause();
-        if (cause.length() == 0) {
-            cause = "api";
-        }
+    protected CreateIndexClusterStateUpdateRequest newClusterStateUpdateRequest(CreateIndexRequest acknowledgedRequest) {
+        String cause = Strings.hasLength(acknowledgedRequest.cause()) ? acknowledgedRequest.cause() : "api";
+        return new CreateIndexClusterStateUpdateRequest(cause, acknowledgedRequest.index())
+                .settings(acknowledgedRequest.settings()).mappings(acknowledgedRequest.mappings())
+                .customs(acknowledgedRequest.customs());
+    }
 
-        CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(cause, request.index())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .settings(request.settings()).mappings(request.mappings())
-                .customs(request.customs());
+    @Override
+    protected CreateIndexResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new CreateIndexResponse(updateResponse.isAcknowledged());
+    }
 
-        createIndexService.createIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-
+    @Override
+    protected ClusterStateUpdateActionListener<ClusterStateUpdateResponse, CreateIndexResponse> newClusterStateUpdateActionListener(final CreateIndexClusterStateUpdateRequest request, final ActionListener<CreateIndexResponse> listener) {
+        return new ClusterStateUpdateActionListener<ClusterStateUpdateResponse, CreateIndexResponse>(listener) {
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new CreateIndexResponse(response.isAcknowledged()));
+            protected CreateIndexResponse newResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                return TransportCreateIndexAction.this.newResponse(clusterStateUpdateResponse);
             }
 
             @Override
@@ -103,6 +105,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
                 }
                 listener.onFailure(t);
             }
-        });
+        };
+    }
+
+    @Override
+    protected void updateClusterState(CreateIndexClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, CreateIndexResponse> listener) {
+        createIndexService.createIndex(updateRequest, listener);
     }
 }

@@ -20,23 +20,26 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to close one or more indices
  */
 public class CloseIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CloseIndexClusterStateUpdateRequest> {
 
-    private String[] indices;
+    private final String[] indices;
 
-    CloseIndexClusterStateUpdateRequest() {
-
+    CloseIndexClusterStateUpdateRequest(String[] indices) {
+        this.indices = indices;
     }
 
     public String[] indices() {
         return indices;
     }
 
-    public CloseIndexClusterStateUpdateRequest indices(String[] indices) {
-        this.indices = indices;
-        return this;
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "close index: indices %s", Arrays.toString(indices));
     }
 }

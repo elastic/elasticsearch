@@ -21,6 +21,9 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to put a mapping
  */
@@ -72,5 +75,10 @@ public class PutMappingClusterStateUpdateRequest extends ClusterStateUpdateReque
     public PutMappingClusterStateUpdateRequest ignoreConflicts(boolean ignoreConflicts) {
         this.ignoreConflicts = ignoreConflicts;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "put mapping: indices %s, type [%s]", Arrays.toString(indices), type);
     }
 }

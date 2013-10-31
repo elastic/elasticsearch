@@ -19,12 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Open index action
  */
-public class TransportOpenIndexAction extends TransportMasterNodeOperationAction<OpenIndexRequest, OpenIndexResponse> {
+public class TransportOpenIndexAction extends TransportClusterStateUpdateAction<OpenIndexClusterStateUpdateRequest, ClusterStateUpdateResponse, OpenIndexRequest, OpenIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
 
@@ -81,24 +80,17 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     }
 
     @Override
-    protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticSearchException {
+    protected OpenIndexClusterStateUpdateRequest newClusterStateUpdateRequest(OpenIndexRequest acknowledgedRequest) {
+        return new OpenIndexClusterStateUpdateRequest(acknowledgedRequest.indices());
+    }
 
-        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(request.indices());
+    @Override
+    protected OpenIndexResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new OpenIndexResponse(updateResponse.isAcknowledged());
+    }
 
-        indexStateService.openIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new OpenIndexResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to open indices [{}]", t, request.indices());
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected void updateClusterState(OpenIndexClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, OpenIndexResponse> listener) {
+        indexStateService.openIndex(updateRequest, listener);
     }
 }

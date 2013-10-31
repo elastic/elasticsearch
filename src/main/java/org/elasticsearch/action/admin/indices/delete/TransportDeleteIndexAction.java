@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -104,14 +104,18 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         final CountDown count = new CountDown(request.indices().length);
         for (final String index : request.indices()) {
 
-            DeleteIndexClusterStateUpdateRequest updateRequest = new DeleteIndexClusterStateUpdateRequest()
-                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                    .index(index);
+            DeleteIndexClusterStateUpdateRequest updateRequest = new DeleteIndexClusterStateUpdateRequest(index)
+                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-            deleteIndexService.deleteIndex(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
+            deleteIndexService.deleteIndex(updateRequest, new ClusterStateUpdateActionListener<ClusterStateUpdateResponse, DeleteIndexResponse>(listener) {
 
                 private volatile Throwable lastFailure;
                 private volatile boolean ack = true;
+
+                @Override
+                protected DeleteIndexResponse newResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                    return new DeleteIndexResponse(clusterStateUpdateResponse.isAcknowledged());
+                }
 
                 @Override
                 public void onResponse(ClusterStateUpdateResponse response) {

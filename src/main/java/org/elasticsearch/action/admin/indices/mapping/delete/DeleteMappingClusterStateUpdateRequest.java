@@ -21,6 +21,9 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 
+import java.util.Arrays;
+import java.util.Locale;
+
 /**
  * Cluster state update request that allows to delete a mapping
  */
@@ -61,5 +64,10 @@ public class DeleteMappingClusterStateUpdateRequest extends ClusterStateUpdateRe
     public DeleteMappingClusterStateUpdateRequest type(String type) {
         this.type = type;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(Locale.ROOT, "delete mapping: indices %s, type [%s]", Arrays.toString(indices), type);
     }
 }

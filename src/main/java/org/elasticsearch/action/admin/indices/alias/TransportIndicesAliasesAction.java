@@ -20,12 +20,10 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -41,7 +39,7 @@ import java.util.Set;
 /**
  * Add/remove aliases action
  */
-public class TransportIndicesAliasesAction extends TransportMasterNodeOperationAction<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class TransportIndicesAliasesAction extends TransportClusterStateUpdateAction<IndicesAliasesClusterStateUpdateRequest, ClusterStateUpdateResponse, IndicesAliasesRequest, IndicesAliasesResponse> {
 
     private final MetaDataIndexAliasesService indexAliasesService;
 
@@ -83,23 +81,19 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) throws ElasticSearchException {
+    protected IndicesAliasesClusterStateUpdateRequest newClusterStateUpdateRequest(IndicesAliasesRequest acknowledgedRequest) {
+        return new IndicesAliasesClusterStateUpdateRequest()
+                .actions(acknowledgedRequest.aliasActions().toArray(new AliasAction[acknowledgedRequest.aliasActions().size()]));
+    }
 
-        IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .actions(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]));
+    @Override
+    protected IndicesAliasesResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new IndicesAliasesResponse(updateResponse.isAcknowledged());
+    }
 
-        indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));
-            }
+    @Override
+    protected void updateClusterState(IndicesAliasesClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, IndicesAliasesResponse> listener) {
+        indexAliasesService.indicesAliases(updateRequest, listener);
 
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to perform aliases", t);
-                listener.onFailure(t);
-            }
-        });
     }
 }

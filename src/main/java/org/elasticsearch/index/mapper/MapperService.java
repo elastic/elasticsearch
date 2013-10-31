@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
@@ -90,9 +89,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final Object typeMutex = new Object();
     private final Object mappersMutex = new Object();
 
-    private volatile ObjectObjectOpenHashMap<String, FieldMappers> nameFieldMappers = HppcMaps.newMap();
-    private volatile ObjectObjectOpenHashMap<String, FieldMappers> indexNameFieldMappers = HppcMaps.newMap();
-    private volatile ObjectObjectOpenHashMap<String, FieldMappers> fullNameFieldMappers = HppcMaps.newMap();
+    private final FieldMappersLookup fieldMappers = new FieldMappersLookup();
     private volatile ObjectObjectOpenHashMap<String, ObjectMappers> fullPathObjectMappers = HppcMaps.newMap();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
@@ -318,40 +315,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     private void addFieldMappers(FieldMapper[] fieldMappers) {
         synchronized (mappersMutex) {
-            ObjectObjectOpenHashMap<String, FieldMappers> nameFieldMappers = this.nameFieldMappers.clone();
-            ObjectObjectOpenHashMap<String, FieldMappers> indexNameFieldMappers = this.indexNameFieldMappers.clone();
-            ObjectObjectOpenHashMap<String, FieldMappers> fullNameFieldMappers = this.fullNameFieldMappers.clone();
-            for (FieldMapper fieldMapper : fieldMappers) {
-                FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
-                if (mappers == null) {
-                    mappers = new FieldMappers(fieldMapper);
-                } else {
-                    mappers = mappers.concat(fieldMapper);
-                }
-                nameFieldMappers.put(fieldMapper.names().name(), mappers);
-
-
-                mappers = indexNameFieldMappers.get(fieldMapper.names().indexName());
-                if (mappers == null) {
-                    mappers = new FieldMappers(fieldMapper);
-                } else {
-                    mappers = mappers.concat(fieldMapper);
-                }
-                indexNameFieldMappers.put(fieldMapper.names().indexName(), mappers);
-
-
-                mappers = fullNameFieldMappers.get(fieldMapper.names().fullName());
-                if (mappers == null) {
-                    mappers = new FieldMappers(fieldMapper);
-                } else {
-                    mappers = mappers.concat(fieldMapper);
-                }
-                fullNameFieldMappers.put(fieldMapper.names().fullName(), mappers);
-            }
-
-            this.nameFieldMappers = nameFieldMappers;
-            this.indexNameFieldMappers = indexNameFieldMappers;
-            this.fullNameFieldMappers = fullNameFieldMappers;
+            this.fieldMappers.addNewMappers(Arrays.asList(fieldMappers));
         }
     }
 
@@ -372,45 +336,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     private void removeObjectAndFieldMappers(DocumentMapper docMapper) {
         synchronized (mappersMutex) {
-            // we need to remove those mappers
-            ObjectObjectOpenHashMap<String, FieldMappers> nameFieldMappers = this.nameFieldMappers.clone();
-            ObjectObjectOpenHashMap<String, FieldMappers> indexNameFieldMappers = this.indexNameFieldMappers.clone();
-            ObjectObjectOpenHashMap<String, FieldMappers> fullNameFieldMappers = this.fullNameFieldMappers.clone();
-
-            for (FieldMapper mapper : docMapper.mappers()) {
-                FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        nameFieldMappers.remove(mapper.names().name());
-                    } else {
-                        nameFieldMappers.put(mapper.names().name(), mappers);
-                    }
-                }
-
-                mappers = indexNameFieldMappers.get(mapper.names().indexName());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        indexNameFieldMappers.remove(mapper.names().indexName());
-                    } else {
-                        indexNameFieldMappers.put(mapper.names().indexName(), mappers);
-                    }
-                }
-
-                mappers = fullNameFieldMappers.get(mapper.names().fullName());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        fullNameFieldMappers.remove(mapper.names().fullName());
-                    } else {
-                        fullNameFieldMappers.put(mapper.names().fullName(), mappers);
-                    }
-                }
-            }
-            this.nameFieldMappers = nameFieldMappers;
-            this.indexNameFieldMappers = indexNameFieldMappers;
-            this.fullNameFieldMappers = fullNameFieldMappers;
+            fieldMappers.removeMappers(docMapper.mappers());
 
             ObjectObjectOpenHashMap<String, ObjectMappers> fullPathObjectMappers = this.fullPathObjectMappers.clone();
             for (ObjectMapper mapper : docMapper.objectMappers().values()) {
@@ -568,7 +494,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      * @return All the {@link FieldMappers} for across all {@link DocumentMapper}s
      */
     public FieldMappers name(String name) {
-        return nameFieldMappers.get(name);
+        return fieldMappers.name(name);
     }
 
     /**
@@ -579,7 +505,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      * @return All the {@link FieldMappers} across all {@link DocumentMapper}s for the given indexName.
      */
     public FieldMappers indexName(String indexName) {
-        return indexNameFieldMappers.get(indexName);
+        return fieldMappers.indexName(indexName);
     }
 
     /**
@@ -590,7 +516,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      * @return All teh {@link FieldMappers} across all the {@link DocumentMapper}s for the given fullName.
      */
     public FieldMappers fullName(String fullName) {
-        return fullNameFieldMappers.get(fullName);
+        return fieldMappers.fullName(fullName);
     }
 
     /**
@@ -646,29 +572,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 return typedFields;
             }
         }
-        Set<String> fields = Sets.newHashSet();
-        for (ObjectObjectCursor<String, FieldMappers> cursor : fullNameFieldMappers) {
-            if (Regex.simpleMatch(pattern, cursor.key)) {
-                for (FieldMapper mapper : cursor.value) {
-                    fields.add(mapper.names().indexName());
-                }
-            }
-        }
-        for (ObjectObjectCursor<String, FieldMappers> cursor : indexNameFieldMappers) {
-            if (Regex.simpleMatch(pattern, cursor.key)) {
-                for (FieldMapper mapper : cursor.value) {
-                    fields.add(mapper.names().indexName());
-                }
-            }
-        }
-        for (ObjectObjectCursor<String, FieldMappers> cursor : nameFieldMappers) {
-            if (Regex.simpleMatch(pattern, cursor.key)) {
-                for (FieldMapper mapper : cursor.value) {
-                    fields.add(mapper.names().indexName());
-                }
-            }
-        }
-        return fields;
+        return fieldMappers.simpleMatchToIndexNames(pattern);
     }
 
     public SmartNameObjectMapper smartNameObjectMapper(String smartName, @Nullable String[] types) {
@@ -1062,12 +966,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     return possibleDocMapper.mappers().searchAnalyzer();
                 }
             }
-            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            FieldMappers mappers = fieldMappers.fullName(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
                 return mappers.mapper().searchAnalyzer();
             }
 
-            mappers = indexNameFieldMappers.get(fieldName);
+            mappers = fieldMappers.indexName(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
                 return mappers.mapper().searchAnalyzer();
             }
@@ -1098,12 +1002,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     return possibleDocMapper.mappers().searchQuoteAnalyzer();
                 }
             }
-            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            FieldMappers mappers = fieldMappers.fullName(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer();
             }
 
-            mappers = indexNameFieldMappers.get(fieldName);
+            mappers = fieldMappers.indexName(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchQuoteAnalyzer() != null) {
                 return mappers.mapper().searchQuoteAnalyzer();
             }

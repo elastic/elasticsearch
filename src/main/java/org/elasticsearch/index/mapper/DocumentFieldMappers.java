@@ -21,16 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.hppc.HppcMaps;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Set;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -38,63 +34,28 @@ import static com.google.common.collect.Lists.newArrayList;
 public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     private final DocumentMapper docMapper;
+    private final FieldMappersLookup fieldMappers;
 
-    private final ImmutableList<FieldMapper> fieldMappers;
-    private final ObjectObjectOpenHashMap<String, FieldMappers> fullNameFieldMappers;
-    private final ObjectObjectOpenHashMap<String, FieldMappers> nameFieldMappers;
-    private final ObjectObjectOpenHashMap<String, FieldMappers> indexNameFieldMappers;
-
-    private final FieldNameAnalyzer indexAnalyzer;
-    private final FieldNameAnalyzer searchAnalyzer;
-    private final FieldNameAnalyzer searchQuoteAnalyzer;
+    private volatile FieldNameAnalyzer indexAnalyzer;
+    private volatile FieldNameAnalyzer searchAnalyzer;
+    private volatile FieldNameAnalyzer searchQuoteAnalyzer;
 
     public DocumentFieldMappers(DocumentMapper docMapper) {
         this.docMapper = docMapper;
-        this.fieldMappers = ImmutableList.of();
-        this.fullNameFieldMappers = HppcMaps.newMap();
-        this.nameFieldMappers = HppcMaps.newMap();
-        this.indexNameFieldMappers = HppcMaps.newMap();
-
+        this.fieldMappers = new FieldMappersLookup();
         this.indexAnalyzer = new FieldNameAnalyzer(HppcMaps.<String, Analyzer>newMap(), docMapper.indexAnalyzer());
         this.searchAnalyzer = new FieldNameAnalyzer(HppcMaps.<String, Analyzer>newMap(), docMapper.searchAnalyzer());
         this.searchQuoteAnalyzer = new FieldNameAnalyzer(HppcMaps.<String, Analyzer>newMap(), docMapper.searchQuotedAnalyzer());
     }
 
-    public DocumentFieldMappers(DocumentMapper docMapper, DocumentFieldMappers copyFrom, Iterable<FieldMapper> newMappers) {
-        this.docMapper = docMapper;
-        final ObjectObjectOpenHashMap<String, FieldMappers> tempNameFieldMappers = copyFrom.nameFieldMappers.clone();
-        final ObjectObjectOpenHashMap<String, FieldMappers> tempIndexNameFieldMappers = copyFrom.indexNameFieldMappers.clone();
-        final ObjectObjectOpenHashMap<String, FieldMappers> tempFullNameFieldMappers = copyFrom.fullNameFieldMappers.clone();
+    public void addNewMappers(Iterable<FieldMapper> newMappers) {
+        fieldMappers.addNewMappers(newMappers);
 
-        final ObjectObjectOpenHashMap<String, Analyzer> indexAnalyzers = copyFrom.indexAnalyzer.analyzers().clone();
-        final ObjectObjectOpenHashMap<String, Analyzer> searchAnalyzers = copyFrom.searchAnalyzer.analyzers().clone();
-        final ObjectObjectOpenHashMap<String, Analyzer> searchQuoteAnalyzers = copyFrom.searchQuoteAnalyzer.analyzers().clone();
+        final ObjectObjectOpenHashMap<String, Analyzer> indexAnalyzers = this.indexAnalyzer.analyzers().clone();
+        final ObjectObjectOpenHashMap<String, Analyzer> searchAnalyzers = this.searchAnalyzer.analyzers().clone();
+        final ObjectObjectOpenHashMap<String, Analyzer> searchQuoteAnalyzers = this.searchQuoteAnalyzer.analyzers().clone();
 
         for (FieldMapper fieldMapper : newMappers) {
-            FieldMappers mappers = tempNameFieldMappers.get(fieldMapper.names().name());
-            if (mappers == null) {
-                mappers = new FieldMappers(fieldMapper);
-            } else {
-                mappers = mappers.concat(fieldMapper);
-            }
-            tempNameFieldMappers.put(fieldMapper.names().name(), mappers);
-
-            mappers = tempIndexNameFieldMappers.get(fieldMapper.names().indexName());
-            if (mappers == null) {
-                mappers = new FieldMappers(fieldMapper);
-            } else {
-                mappers = mappers.concat(fieldMapper);
-            }
-            tempIndexNameFieldMappers.put(fieldMapper.names().indexName(), mappers);
-
-            mappers = tempFullNameFieldMappers.get(fieldMapper.names().fullName());
-            if (mappers == null) {
-                mappers = new FieldMappers(fieldMapper);
-            } else {
-                mappers = mappers.concat(fieldMapper);
-            }
-            tempFullNameFieldMappers.put(fieldMapper.names().fullName(), mappers);
-
             if (fieldMapper.indexAnalyzer() != null) {
                 indexAnalyzers.put(fieldMapper.names().indexName(), fieldMapper.indexAnalyzer());
             }
@@ -105,10 +66,6 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
                 searchQuoteAnalyzers.put(fieldMapper.names().indexName(), fieldMapper.searchQuoteAnalyzer());
             }
         }
-        this.fieldMappers = ImmutableList.<FieldMapper>builder().addAll(copyFrom.fieldMappers).addAll(newMappers).build();
-        this.nameFieldMappers = tempNameFieldMappers;
-        this.indexNameFieldMappers = tempIndexNameFieldMappers;
-        this.fullNameFieldMappers = tempFullNameFieldMappers;
 
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers, docMapper.indexAnalyzer());
         this.searchAnalyzer = new FieldNameAnalyzer(searchAnalyzers, docMapper.searchAnalyzer());
@@ -121,51 +78,31 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     public ImmutableList<FieldMapper> mappers() {
-        return this.fieldMappers;
+        return this.fieldMappers.mappers();
     }
 
     public boolean hasMapper(FieldMapper fieldMapper) {
-        return fieldMappers.contains(fieldMapper);
+        return fieldMappers.mappers().contains(fieldMapper);
     }
 
     public FieldMappers name(String name) {
-        return nameFieldMappers.get(name);
+        return fieldMappers.name(name);
     }
 
     public FieldMappers indexName(String indexName) {
-        return indexNameFieldMappers.get(indexName);
+        return fieldMappers.indexName(indexName);
     }
 
     public FieldMappers fullName(String fullName) {
-        return fullNameFieldMappers.get(fullName);
+        return fieldMappers.fullName(fullName);
     }
 
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        Set<String> fields = Sets.newHashSet();
-        for (FieldMapper fieldMapper : fieldMappers) {
-            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
-                fields.add(fieldMapper.names().indexName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().indexName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
-                fields.add(fieldMapper.names().indexName());
-            }
-        }
-        return fields;
+        return fieldMappers.simpleMatchToIndexNames(pattern);
     }
 
     public Set<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = Sets.newHashSet();
-        for (FieldMapper fieldMapper : fieldMappers) {
-            if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
-                fields.add(fieldMapper.names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
-                fields.add(fieldMapper.names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
-                fields.add(fieldMapper.names().fullName());
-            }
-        }
-        return fields;
+        return fieldMappers.simpleMatchToFullName(pattern);
     }
 
     /**
@@ -173,23 +110,11 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
      * by {@link #name(String)}.
      */
     public FieldMappers smartName(String name) {
-        FieldMappers fieldMappers = fullName(name);
-        if (fieldMappers != null) {
-            return fieldMappers;
-        }
-        fieldMappers = indexName(name);
-        if (fieldMappers != null) {
-            return fieldMappers;
-        }
-        return name(name);
+        return fieldMappers.smartName(name);
     }
 
     public FieldMapper smartNameFieldMapper(String name) {
-        FieldMappers fieldMappers = smartName(name);
-        if (fieldMappers == null) {
-            return null;
-        }
-        return fieldMappers.mapper();
+        return fieldMappers.smartNameFieldMapper(name);
     }
 
     /**
@@ -218,13 +143,5 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
 
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuoteAnalyzer;
-    }
-
-    public DocumentFieldMappers concat(FieldMapper... fieldMappers) {
-        return concat(newArrayList(fieldMappers));
-    }
-
-    public DocumentFieldMappers concat(Iterable<FieldMapper> fieldMappers) {
-        return new DocumentFieldMappers(docMapper, this, fieldMappers);
     }
 }

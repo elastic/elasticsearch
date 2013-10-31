@@ -261,7 +261,7 @@ public class DocumentMapper implements ToXContent {
     private final NamedAnalyzer searchAnalyzer;
     private final NamedAnalyzer searchQuoteAnalyzer;
 
-    private volatile DocumentFieldMappers fieldMappers;
+    private final DocumentFieldMappers fieldMappers;
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
 
@@ -325,7 +325,8 @@ public class DocumentMapper implements ToXContent {
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this, fieldMappersAgg.mappers);
+        this.fieldMappers = new DocumentFieldMappers(this);
+        this.fieldMappers.addNewMappers(fieldMappersAgg.mappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -575,7 +576,7 @@ public class DocumentMapper implements ToXContent {
 
     public void addFieldMappers(FieldMapper... fieldMappers) {
         synchronized (mappersMutex) {
-            this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
+            this.fieldMappers.addNewMappers(Arrays.asList(fieldMappers));
         }
         for (FieldMapperListener listener : fieldMapperListeners) {
             listener.fieldMappers(fieldMappers);

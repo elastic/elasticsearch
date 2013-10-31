@@ -483,16 +483,16 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         void retry(boolean fromClusterEvent, @Nullable final Throwable failure) {
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
-
                 request.beforeLocalFork();
                 request.operationThreaded(true);
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
                     @Override
                     public void postAdded() {
-                        logger.trace("listener to cluster state added, trying to index again");
                         // check if state version changed while we were adding this listener
-                        if (clusterState.version() != clusterService.state().version()) {
-                            logger.trace("state change while we were trying to add listener, trying to index again");
+                        long sampledVersion = clusterState.version();
+                        long currentVersion = clusterService.state().version();
+                        if (sampledVersion != currentVersion) {
+                            logger.trace("state change while we were trying to add listener, trying to start again, sampled_version [{}], current_version [{}]", sampledVersion, currentVersion);
                             if (start(true)) {
                                 // if we managed to start and perform the operation on the primary, we can remove this listener
                                 clusterService.remove(this);
@@ -508,7 +508,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override
                     public void clusterChanged(ClusterChangedEvent event) {
-                        logger.trace("cluster changed (version {}), trying to index again", event.state().version());
+                        logger.trace("cluster changed (version {}), trying to start again", event.state().version());
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
                             clusterService.remove(this);
@@ -548,7 +548,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (retryPrimaryException(e)) {
                     primaryOperationStarted.set(false);
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
-                    retry(false, null);
+                    retry(false, e);
                     return;
                 }
                 if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {

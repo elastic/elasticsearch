@@ -80,10 +80,6 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) throws ElasticSearchException {
-        ClusterState clusterState = clusterService.state();
-
-        // update to concrete indices
-        request.indices(clusterState.metaData().concreteIndices(request.indices()));
 
         metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataMappingService.Listener() {
             @Override

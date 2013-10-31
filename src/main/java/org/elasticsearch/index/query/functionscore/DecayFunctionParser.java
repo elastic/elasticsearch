@@ -297,10 +297,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             GeoPoint other = getValue(docId, origin);
             double distance = Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
                     DistanceUnit.METERS)) - offset;
-            if (distance < 0.0d) {
-                distance = 0.0d;
-            }
-            return distance;
+            return Math.max(0.0d, distance);
         }
 
         @Override
@@ -345,10 +342,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         protected double distance(int docId) {
             double distance = Math.abs(getValue(docId, origin) - origin) - offset;
-            if (distance < 0.0) {
-                distance = 0.0;
-            }
-            return distance;
+            return Math.max(0.0d, distance);
         }
 
         @Override

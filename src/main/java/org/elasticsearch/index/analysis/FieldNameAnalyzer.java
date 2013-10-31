@@ -19,27 +19,25 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
-
-import java.util.Map;
 
 /**
  *
  */
 public final class FieldNameAnalyzer extends AnalyzerWrapper {
 
-    private final ImmutableMap<String, Analyzer> analyzers;
+    private final ObjectObjectOpenHashMap<String, Analyzer> analyzers;
 
     private final Analyzer defaultAnalyzer;
 
-    public FieldNameAnalyzer(Map<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
-        this.analyzers = ImmutableMap.copyOf(analyzers);
+    public FieldNameAnalyzer(ObjectObjectOpenHashMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+        this.analyzers = analyzers;
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
-    public ImmutableMap<String, Analyzer> analyzers() {
+    public ObjectObjectOpenHashMap<String, Analyzer> analyzers() {
         return analyzers;
     }
 

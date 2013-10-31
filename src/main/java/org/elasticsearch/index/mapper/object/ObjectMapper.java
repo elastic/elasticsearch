@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
@@ -29,6 +30,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,9 +44,7 @@ import org.elasticsearch.index.mapper.multifield.MultiFieldMapper;
 import java.io.IOException;
 import java.util.*;
 
-import static com.google.common.collect.ImmutableMap.copyOf;
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
@@ -291,7 +291,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private Boolean includeInAll;
 
-    private volatile ImmutableMap<String, Mapper> mappers = ImmutableMap.of();
+    private volatile ObjectObjectOpenHashMap<String, Mapper> mappers = HppcMaps.newMap();
 
     private final Object mutex = new Object();
 
@@ -303,7 +303,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         this.dynamic = dynamic;
         this.pathType = pathType;
         if (mappers != null) {
-            this.mappers = copyOf(mappers);
+            for (Map.Entry<String, Mapper> entry : mappers.entrySet()) {
+                this.mappers.put(entry.getKey(), entry.getValue());
+            }
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
@@ -322,9 +324,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         this.includeInAll = includeInAll;
         // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).includeInAll(includeInAll);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) cursor.value).includeInAll(includeInAll);
             }
         }
     }
@@ -335,9 +337,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             this.includeInAll = includeInAll;
         }
         // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) cursor.value).includeInAllIfNotSet(includeInAll);
             }
         }
     }
@@ -355,23 +357,25 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
-            mappers = newMapBuilder(mappers).put(mapper.name(), mapper).immutableMap();
+            ObjectObjectOpenHashMap<String, Mapper> mappers = this.mappers.clone();
+            mappers.put(mapper.name(), mapper);
+            this.mappers = mappers;
         }
         return this;
     }
 
     @Override
     public void traverse(FieldMapperListener fieldMapperListener) {
-        for (Mapper mapper : mappers.values()) {
-            mapper.traverse(fieldMapperListener);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            cursor.value.traverse(fieldMapperListener);
         }
     }
 
     @Override
     public void traverse(ObjectMapperListener objectMapperListener) {
         objectMapperListener.objectMapper(this);
-        for (Mapper mapper : mappers.values()) {
-            mapper.traverse(objectMapperListener);
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            cursor.value.traverse(objectMapperListener);
         }
     }
 
@@ -835,7 +839,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
         ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
         synchronized (mutex) {
-            for (Mapper mergeWithMapper : mergeWithObject.mappers.values()) {
+            for (ObjectObjectCursor<String, Mapper> cursor : mergeWithObject.mappers) {
+                Mapper mergeWithMapper = cursor.value;
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
@@ -882,8 +887,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     @Override
     public void close() {
-        for (Mapper mapper : mappers.values()) {
-            mapper.close();
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            cursor.value.close();
         }
     }
 
@@ -926,7 +931,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        TreeMap<String, Mapper> sortedMappers = new TreeMap<String, Mapper>(mappers);
+        TreeMap<String, Mapper> sortedMappers = new TreeMap<String, Mapper>();
+        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
+            sortedMappers.put(cursor.key, cursor.value);
+        }
 
         // check internal mappers first (this is only relevant for root object)
         for (Mapper mapper : sortedMappers.values()) {

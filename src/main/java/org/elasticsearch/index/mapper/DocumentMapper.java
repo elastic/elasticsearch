@@ -325,7 +325,7 @@ public class DocumentMapper implements ToXContent {
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this, fieldMappersAgg.mappers);
+        this.fieldMappers = new DocumentFieldMappers(this).concat(fieldMappersAgg.mappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -575,7 +575,7 @@ public class DocumentMapper implements ToXContent {
 
     public void addFieldMappers(FieldMapper... fieldMappers) {
         synchronized (mappersMutex) {
-            this.fieldMappers = this.fieldMappers.concat(this, fieldMappers);
+            this.fieldMappers = this.fieldMappers.concat(fieldMappers);
         }
         for (FieldMapperListener listener : fieldMapperListeners) {
             listener.fieldMappers(fieldMappers);

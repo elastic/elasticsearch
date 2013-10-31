@@ -53,4 +53,9 @@ public abstract class FilterBytesValues extends BytesValues {
     public int currentValueHash() {
         return delegate.currentValueHash();
     }
+
+    @Override
+    public AtomicFieldData.Order getOrder() {
+        return delegate.getOrder();
+    }
 }

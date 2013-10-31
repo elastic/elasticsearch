@@ -20,7 +20,10 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.LongValues;
 
@@ -125,6 +128,45 @@ public enum SortMode {
         public long startLong() {
             return Long.MAX_VALUE;
         }
+
+        /**
+         * Returns the first value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
+         * has no values.
+         */
+        @Override
+        public double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
+            assert values.getOrder() != AtomicFieldData.Order.NONE;
+            if (values.setDocument(docId) > 0) {
+                return values.nextValue();
+            }
+            return defaultValue;
+        }
+
+        /**
+         * Returns the first value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
+         * has no values.
+         */
+        @Override
+        public long getRelevantValue(LongValues values, int docId, long defaultValue) {
+            assert values.getOrder() != AtomicFieldData.Order.NONE;
+            if (values.setDocument(docId) > 0) {
+                return values.nextValue();
+            }
+            return defaultValue;
+        }
+
+        /**
+         * Returns the first value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
+         * has no values.
+         */
+        @Override
+        public BytesRef getRelevantValue(BytesValues values, int docId, BytesRef defaultValue) {
+            assert values.getOrder() != AtomicFieldData.Order.NONE;
+            if (values.setDocument(docId) > 0) {
+                return values.nextValue();
+            }
+            return defaultValue;
+        }
     },
 
     /**
@@ -162,6 +204,51 @@ public enum SortMode {
         @Override
         public long startLong() {
             return Long.MIN_VALUE;
+        }
+
+        /**
+         * Returns the last value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
+         * has no values.
+         */
+        @Override
+        public double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
+            assert values.getOrder() != AtomicFieldData.Order.NONE;
+            final int numValues = values.setDocument(docId);
+            double retVal = defaultValue;
+            for (int i = 0; i < numValues; i++) {
+                retVal = values.nextValue();
+            }
+            return retVal;
+        }
+
+        /**
+         * Returns the last value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
+         * has no values.
+         */
+        @Override
+        public long getRelevantValue(LongValues values, int docId, long defaultValue) {
+            assert values.getOrder() != AtomicFieldData.Order.NONE;
+            final int numValues = values.setDocument(docId);
+            long retVal = defaultValue;
+            for (int i = 0; i < numValues; i++) {
+                retVal = values.nextValue();
+            }
+            return retVal;
+        }
+
+        /**
+         * Returns the last value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
+         * has no values.
+         */
+        @Override
+        public BytesRef getRelevantValue(BytesValues values, int docId, BytesRef defaultValue) {
+            assert values.getOrder() != AtomicFieldData.Order.NONE;
+            final int numValues = values.setDocument(docId);
+            BytesRef currentVal = defaultValue;
+            for (int i = 0; i < numValues; i++) {
+                currentVal = values.nextValue();
+            }
+            return currentVal;
         }
     };
 
@@ -265,8 +352,17 @@ public enum SortMode {
         }
     }
 
-
-    public final double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
+    /**
+     * Returns the relevant value for the given document based on the {@link SortMode}. This
+     * method will apply each value for the given document to {@link #apply(double, double)} and returns
+     * the reduced value from {@link #reduce(double, int)} if the document has at least one value. Otherwise it will
+     * return the given default value.
+     * @param values the values to fetch the relevant value from.
+     * @param docId the doc id to fetch the relevant value for.
+     * @param defaultValue the default value if the document has no value
+     * @return the relevant value or the default value passed to the method.
+     */
+    public double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
         final int numValues = values.setDocument(docId);
         double relevantVal = startDouble();
         double result = defaultValue;
@@ -276,7 +372,17 @@ public enum SortMode {
         return reduce(result, numValues);
     }
 
-    public final long getRelevantValue(LongValues values, int docId, long defaultValue) {
+    /**
+     * Returns the relevant value for the given document based on the {@link SortMode}. This
+     * method will apply each value for the given document to {@link #apply(long, long)} and returns
+     * the reduced value from {@link #reduce(long, int)} if the document has at least one value. Otherwise it will
+     * return the given default value.
+     * @param values the values to fetch the relevant value from.
+     * @param docId the doc id to fetch the relevant value for.
+     * @param defaultValue the default value if the document has no value
+     * @return the relevant value or the default value passed to the method.
+     */
+    public long getRelevantValue(LongValues values, int docId, long defaultValue) {
         final int numValues = values.setDocument(docId);
         long relevantVal = startLong();
         long result = defaultValue;
@@ -284,6 +390,22 @@ public enum SortMode {
             result = relevantVal = apply(relevantVal, values.nextValue());
         }
         return reduce(result, numValues);
+    }
+
+
+    /**
+     * Returns the relevant value for the given document based on the {@link SortMode}
+     * if the document has at least one value. Otherwise it will return same object given as the default value.
+     * Note: This method is optional and will throw {@link UnsupportedOperationException} if the sort mode doesn't
+     * allow a relevant value.
+     *
+     * @param values the values to fetch the relevant value from.
+     * @param docId the doc id to fetch the relevant value for.
+     * @param defaultValue the default value if the document has no value. This object will never be modified.
+     * @return the relevant value or the default value passed to the method.
+     */
+    public BytesRef getRelevantValue(BytesValues values, int docId, BytesRef defaultValue) {
+        throw new UnsupportedOperationException("no relevant bytes value for sort mode: " + this.name());
     }
 
 }

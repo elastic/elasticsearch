@@ -58,6 +58,12 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
                     scratch.copyChars(Double.toString(values.nextValue()));
                     return scratch;
                 }
+
+                @Override
+                public Order getOrder() {
+                    return values.getOrder();
+                }
+
             };
         } else {
             final LongValues values = getLongValues();
@@ -73,6 +79,11 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
                 public BytesRef nextValue() {
                     scratch.copyChars(Long.toString(values.nextValue()));
                     return scratch;
+                }
+
+                @Override
+                public Order getOrder() {
+                    return values.getOrder();
                 }
             };
         }

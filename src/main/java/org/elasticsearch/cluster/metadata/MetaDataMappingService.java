@@ -309,7 +309,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
+                listener.onResponse(new ClusterStateUpdateResponse(false));
             }
 
             @Override

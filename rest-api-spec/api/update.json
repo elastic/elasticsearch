@@ -82,8 +82,9 @@
           "description" : "Explicit version number for concurrency control"
         },
         "version_type": {
-          "type" : "number",
-          "description" : "Explicit version number for concurrency control"
+          "type" : "enum",
+          "options" : ["internal","external"],
+          "description" : "Specific version type"
         }
       }
     },

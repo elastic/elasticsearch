@@ -273,24 +273,37 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
         }
 
-        // make sure we refresh on state change due to cluster state changes
-        if (newRouting.state() == ShardRoutingState.STARTED && (currentRouting == null || currentRouting.state() != ShardRoutingState.STARTED)) {
-            try {
-                engine.refresh(new Engine.Refresh("cluster_state_started").force(true));
-            } catch (Throwable t) {
-                logger.debug("failed to refresh due to move to cluster wide started", t);
-            }
-            synchronized (mutex) {
-                if (state != IndexShardState.POST_RECOVERY) {
-                    logger.debug("suspected wrong state when acting on cluster state started state, current state {}", state);
+        if (state == IndexShardState.POST_RECOVERY) {
+            // if the state is started or relocating (cause it might move right away from started to relocating)
+            // then move to STARTED
+            if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
+                // we want to refresh *before* we move to internal STARTED state
+                try {
+                    engine.refresh(new Engine.Refresh("cluster_state_started").force(true));
+                } catch (Throwable t) {
+                    logger.debug("failed to refresh due to move to cluster wide started", t);
                 }
-                logger.debug("state: [{}]->[{}], reason [global state moved to started]", state, IndexShardState.STARTED);
-                state = IndexShardState.STARTED;
+
+                boolean movedToStarted = false;
+                synchronized (mutex) {
+                    // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
+                    if (state == IndexShardState.POST_RECOVERY) {
+                        logger.debug("state: [{}]->[{}], reason [global state is [{}]]", state, IndexShardState.STARTED, newRouting.state());
+                        state = IndexShardState.STARTED;
+                        movedToStarted = true;
+                    } else {
+                        logger.debug("state [{}] not changed, not in POST_RECOVERY, global state is [{}]", state, newRouting.state());
+                    }
+                }
+                if (movedToStarted) {
+                    indicesLifecycle.afterIndexShardStarted(this);
+                }
             }
-            indicesLifecycle.afterIndexShardStarted(this);
         }
+
         this.shardRouting = newRouting;
         indicesLifecycle.shardRoutingChanged(this, currentRouting, newRouting);
+
         return this;
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
@@ -533,21 +534,18 @@ public class RecoveryTarget extends AbstractComponent {
             Exception failureToRename = null;
             if (!filesToRename.isEmpty()) {
                 // first, go and delete the existing ones
-                for (String fileToRename : filesToRename) {
-                    store.directory().deleteFile(fileToRename);
-                }
-                for (String fileToRename : filesToRename) {
-                    // now, rename the files...
+                final Directory directory = store.directory();
+                for (String file : filesToRename) {
                     try {
-                        store.renameFile(prefix + fileToRename, fileToRename);
-                    } catch (Exception e) {
-                        failureToRename = e;
-                        break;
+                        directory.deleteFile(file);
+                    } catch (Throwable ex) {
+                        logger.debug("failed to delete file [{}]", ex, file);
                     }
                 }
-            }
-            if (failureToRename != null) {
-                throw failureToRename;
+                for (String fileToRename : filesToRename) {
+                    // now, rename the files... and fail it it won't work
+                    store.renameFile(prefix + fileToRename, fileToRename);
+                }
             }
             // now write checksums
             store.writeChecksums(onGoingRecovery.checksums);

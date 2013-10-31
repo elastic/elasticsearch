@@ -14,10 +14,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.marvel.monitor.annotation.Annotation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,9 +49,10 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
     final Discovery discovery;
     final String hostname;
 
+    // TODO: logger name is not good now. Figure out why.
     final ESLogger logger = ESLoggerFactory.getLogger(ESExporter.class.getName());
 
-    public final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    public final static DateTimeFormatter defaultDatePrinter = Joda.forPattern("date_time").printer();
 
     boolean checkedForIndexTemplate = false;
 
@@ -59,6 +60,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
     final ShardStatsRenderer shardStatsRenderer;
     final IndexStatsRenderer indexStatsRenderer;
     final IndicesStatsRenderer indicesStatsRenderer;
+    final AnnotationsRenderer annotationsRenderer;
 
     public ESExporter(Settings settings, Discovery discovery) {
         super(settings);
@@ -79,6 +81,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         shardStatsRenderer = new ShardStatsRenderer();
         indexStatsRenderer = new IndexStatsRenderer();
         indicesStatsRenderer = new IndicesStatsRenderer();
+        annotationsRenderer = new AnnotationsRenderer();
 
         logger.info("ESExporter initialized. Targets: {}, index prefix [{}], index time format [{}]", hosts, indexPrefix, indexTimeFormat);
     }
@@ -92,13 +95,13 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
     @Override
     public void exportNodeStats(NodeStats nodeStats) {
         nodeStatsRenderer.reset(nodeStats);
-        exportXContent("node_stats", nodeStatsRenderer);
+        exportXContent(nodeStatsRenderer);
     }
 
     @Override
     public void exportShardStats(ShardStats[] shardStatsArray) {
         shardStatsRenderer.reset(shardStatsArray);
-        exportXContent("shard_stats", shardStatsRenderer);
+        exportXContent(shardStatsRenderer);
     }
 
     @Override
@@ -112,14 +115,21 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             return;
         }
         try {
-            addXContentRendererToConnection(conn, "index_stats", indexStatsRenderer);
-            addXContentRendererToConnection(conn, "indices_stats", indicesStatsRenderer);
+            addXContentRendererToConnection(conn, indexStatsRenderer);
+            addXContentRendererToConnection(conn, indicesStatsRenderer);
             sendCloseExportingConnection(conn);
         } catch (IOException e) {
             logger.error("error sending data", e);
             return;
         }
     }
+
+    @Override
+    public void exportAnnotations(Annotation[] annotations) {
+        annotationsRenderer.reset(annotations);
+        exportXContent(annotationsRenderer);
+    }
+
 
     private HttpURLConnection openExportingConnection() {
         if (!checkedForIndexTemplate) {
@@ -137,14 +147,14 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         return conn;
     }
 
-    private void addXContentRendererToConnection(HttpURLConnection conn, String type,
+    private void addXContentRendererToConnection(HttpURLConnection conn,
                                                  MultiXContentRenderer renderer) throws IOException {
         OutputStream os = conn.getOutputStream();
         // TODO: find a way to disable builder's substream flushing or something neat solution
         for (int i = 0; i < renderer.length(); i++) {
             XContentBuilder builder = XContentFactory.smileBuilder(os);
             builder.startObject().startObject("index")
-                    .field("_index", getIndexName()).field("_type", type).endObject().endObject();
+                    .field("_index", getIndexName()).field("_type", renderer.type(i)).endObject().endObject();
             builder.flush();
             os.write(SmileXContent.smileXContent.streamSeparator());
 
@@ -168,18 +178,17 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         }
     }
 
-    private void exportXContent(String type, MultiXContentRenderer xContentRenderer) {
+    private void exportXContent(MultiXContentRenderer xContentRenderer) {
         if (xContentRenderer.length() == 0) {
             return;
         }
 
-        logger.debug("exporting {}", type);
         HttpURLConnection conn = openExportingConnection();
         if (conn == null) {
             return;
         }
         try {
-            addXContentRendererToConnection(conn, type, xContentRenderer);
+            addXContentRendererToConnection(conn, xContentRenderer);
             sendCloseExportingConnection(conn);
         } catch (IOException e) {
             logger.error("error sending data", e);
@@ -300,6 +309,8 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
         int length();
 
+        String type(int i);
+
         void render(int index, XContentBuilder builder) throws IOException;
     }
 
@@ -354,6 +365,11 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         }
 
         @Override
+        public String type(int i) {
+            return "node_stats";
+        }
+
+        @Override
         public void render(int index, XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("@timestamp", defaultDatePrinter.print(stats.getTimestamp()));
@@ -377,6 +393,11 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         @Override
         public int length() {
             return stats == null ? 0 : stats.length;
+        }
+
+        @Override
+        public String type(int i) {
+            return "shard_stats";
         }
 
         @Override
@@ -408,6 +429,11 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         @Override
         public int length() {
             return stats == null ? 0 : stats.length;
+        }
+
+        @Override
+        public String type(int i) {
+            return "index_stats";
         }
 
         @Override
@@ -446,6 +472,11 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         }
 
         @Override
+        public String type(int i) {
+            return "indices_stats";
+        }
+
+        @Override
         public void render(int index, XContentBuilder builder) throws IOException {
             assert index == 0;
             builder.startObject();
@@ -457,6 +488,36 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             builder.startObject("total");
             totalStats.toXContent(builder, xContentParams);
             builder.endObject();
+            builder.endObject();
+        }
+    }
+
+
+    class AnnotationsRenderer implements MultiXContentRenderer {
+
+        Annotation[] annotations;
+        ToXContent.Params xContentParams = ToXContent.EMPTY_PARAMS;
+
+        public void reset(Annotation[] annotations) {
+            this.annotations = annotations;
+        }
+
+        @Override
+        public int length() {
+            return annotations == null ? 0 : annotations.length;
+        }
+
+        @Override
+        public String type(int i) {
+            return annotations[i].type();
+        }
+
+
+        @Override
+        public void render(int index, XContentBuilder builder) throws IOException {
+            builder.startObject();
+            addNodeInfo(builder, "node");
+            annotations[index].addXContentBody(builder, xContentParams);
             builder.endObject();
         }
     }

@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.marvel.monitor.annotation.Annotation;
 
 import java.util.Map;
 
@@ -23,4 +24,5 @@ public interface StatsExporter<T> extends LifecycleComponent<T> {
 
     void exportIndicesStats(IndicesStatsResponse indicesStats);
 
+    void exportAnnotations(Annotation[] annotations);
 }

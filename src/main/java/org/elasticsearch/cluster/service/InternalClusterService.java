@@ -336,14 +336,18 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                     if (updateTask instanceof AckedClusterStateUpdateTask) {
                         final AckedClusterStateUpdateTask ackedUpdateTask = (AckedClusterStateUpdateTask) updateTask;
-                        try {
-                            ackListener = new AckCountDownListener(ackedUpdateTask, newClusterState.version(), newClusterState.nodes(), threadPool);
-                        } catch(EsRejectedExecutionException ex) {
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("Couldn't schedule timeout thread - node might be shutting down", ex);
-                            }
-                            //timeout straightaway, otherwise we could wait forever as the timeout thread has not started
+                        if (ackedUpdateTask.ackTimeout() == null || ackedUpdateTask.ackTimeout().millis() == 0) {
                             ackedUpdateTask.onAckTimeout();
+                        } else {
+                            try {
+                                ackListener = new AckCountDownListener(ackedUpdateTask, newClusterState, threadPool);
+                            } catch(EsRejectedExecutionException ex) {
+                                if (logger.isDebugEnabled()) {
+                                    logger.debug("Couldn't schedule timeout thread - node might be shutting down", ex);
+                                }
+                                //timeout straightaway, otherwise we could wait forever as the timeout thread has not started
+                                ackedUpdateTask.onAckTimeout();
+                            }
                         }
                     }
                 } else {
@@ -624,21 +628,23 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private class AckCountDownListener implements Discovery.AckListener {
         private final AckedClusterStateUpdateTask ackedUpdateTask;
-        private final long version;
         private final CountDown countDown;
+        private final ClusterState clusterState;
         private final Future<?> ackTimeoutCallback;
         private Throwable lastFailure;
 
-        AckCountDownListener(AckedClusterStateUpdateTask ackedUpdateTask, long clusterStateVersion, DiscoveryNodes nodes, ThreadPool threadPool) {
+        AckCountDownListener(AckedClusterStateUpdateTask ackedUpdateTask, ClusterState clusterState, ThreadPool threadPool) {
             this.ackedUpdateTask = ackedUpdateTask;
-            this.version = clusterStateVersion;
+            this.clusterState = clusterState;
             int countDown = 0;
-            for (DiscoveryNode node : nodes) {
+            for (DiscoveryNode node : clusterState.nodes()) {
                 if (ackedUpdateTask.mustAck(node)) {
                     countDown++;
                 }
             }
-            logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, version);
+            //we always wait for at least 1 node (the master)
+            countDown = Math.max(1, countDown);
+            logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, clusterState.version());
             this.countDown = new CountDown(countDown);
             this.ackTimeoutCallback = threadPool.schedule(ackedUpdateTask.ackTimeout(), ThreadPool.Names.GENERIC, new Runnable() {
                 @Override
@@ -651,17 +657,20 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
             if (!ackedUpdateTask.mustAck(node)) {
-                return;
+                //we always wait for the master ack anyway
+                if (!node.equals(clusterState.nodes().masterNode())) {
+                    return;
+                }
             }
             if (t == null) {
-                logger.trace("ack received from node [{}], cluster_state update (version: {})", node, version);
+                logger.trace("ack received from node [{}], cluster_state update (version: {})", node, clusterState.version());
             } else {
                 this.lastFailure = t;
-                logger.debug("ack received from node [{}], cluster_state update (version: {})", t, node, version);
+                logger.debug("ack received from node [{}], cluster_state update (version: {})", t, node, clusterState.version());
             }
 
             if (countDown.countDown()) {
-                logger.trace("all expected nodes acknowledged cluster_state update (version: {})", version);
+                logger.trace("all expected nodes acknowledged cluster_state update (version: {})", clusterState.version());
                 ackTimeoutCallback.cancel(true);
                 ackedUpdateTask.onAllNodesAcked(lastFailure);
             }
@@ -670,7 +679,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         @Override
         public void onTimeout() {
             if (countDown.fastForward()) {
-                logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", version);
+                logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterState.version());
                 ackedUpdateTask.onAckTimeout();
             }
         }

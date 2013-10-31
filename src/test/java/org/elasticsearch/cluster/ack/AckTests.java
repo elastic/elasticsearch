@@ -73,6 +73,15 @@ public class AckTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testUpdateSettingsNoAcknowledgement() {
+        createIndex("test");
+
+        UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
+                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
+        assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
     public void testPutWarmerAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -90,6 +99,17 @@ public class AckTests extends AbstractIntegrationTest {
             IndexWarmersMetaData.Entry entry = warmersMetaData.entries().iterator().next();
             assertThat(entry.name(), equalTo("custom_warmer"));
         }
+    }
+
+    @Test
+    public void testPutWarmerNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(false));
     }
 
     @Test
@@ -114,6 +134,17 @@ public class AckTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testDeleteWarmerNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+
+        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+        assertThat(putWarmerResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
     public void testDeleteMappingAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=string").get();
@@ -133,6 +164,18 @@ public class AckTests extends AbstractIntegrationTest {
             mapping = clusterStateResponse.getState().metaData().index("test").mapping("type1");
             assertThat(mapping, nullValue());
         }
+    }
+
+    @Test
+    public void testDeleteMappingNoAcknowledgement() {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string").get();
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "value1");
+
+        DeleteMappingResponse deleteMappingResponse = client().admin().indices().prepareDeleteMapping("test").setTimeout("0s").setType("type1").get();
+        assertThat(deleteMappingResponse.isAcknowledged(), equalTo(false));
     }
 
     @Test
@@ -176,6 +219,20 @@ public class AckTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_replicas", 0)).get();
+        ensureGreen();
+
+        MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
+
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setTimeout("0s").add(moveAllocationCommand).get();
+        assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(false));
+    }
+
+    @Test
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -209,6 +266,21 @@ public class AckTests extends AbstractIntegrationTest {
                 fail("shard [" + mutableShardRouting + "] shouldn't be on node [" + moveAllocationCommand.toString() + "]");
             }
         }
+    }
+
+    @Test
+    public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_replicas", 0)).get();
+        ensureGreen();
+
+        MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
+
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setTimeout("0s").setDryRun(true).add(moveAllocationCommand).get();
+        //acknowledged anyway as no changes were made
+        assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
     }
 
     private MoveAllocationCommand getAllocationCommand() {
@@ -276,6 +348,36 @@ public class AckTests extends AbstractIntegrationTest {
                 }
             }
         }
+
+        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
+        waitForRelocation();
+
+        //removes the allocation exclude settings
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
+    }
+
+    @Test
+    public void testClusterUpdateSettingsNoAcknowledgement() {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_replicas", 0)).get();
+        ensureGreen();
+
+        NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
+        String excludedNodeId = null;
+        for (NodeInfo nodeInfo : nodesInfo) {
+            if (nodeInfo.getNode().isDataNode()) {
+                excludedNodeId = nodesInfo.getAt(0).getNode().id();
+                break;
+            }
+        }
+        assert excludedNodeId != null;
+
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
+                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
+        assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
+        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
 
         //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
         waitForRelocation();

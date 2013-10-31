@@ -18,7 +18,7 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 
 import java.util.Arrays;
 import java.util.Locale;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
 import java.util.Locale;

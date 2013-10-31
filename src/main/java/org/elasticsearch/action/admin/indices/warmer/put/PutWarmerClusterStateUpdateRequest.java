@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.Arrays;

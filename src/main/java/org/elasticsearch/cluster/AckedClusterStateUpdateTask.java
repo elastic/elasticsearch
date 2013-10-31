@@ -18,9 +18,9 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.action.support.master.ClusterStateUpdateListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;

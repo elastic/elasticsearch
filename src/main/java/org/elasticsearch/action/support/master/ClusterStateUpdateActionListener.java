@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.ack;
+package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Listener used for cluster state updates processing, supports acknowledgement logic

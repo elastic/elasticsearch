@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
 
 /**
  * Response obtained from a cluster state update that consisted of a reroute request

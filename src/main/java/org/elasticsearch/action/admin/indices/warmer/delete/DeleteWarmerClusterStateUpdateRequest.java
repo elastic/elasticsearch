@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 
 import java.util.Locale;
 

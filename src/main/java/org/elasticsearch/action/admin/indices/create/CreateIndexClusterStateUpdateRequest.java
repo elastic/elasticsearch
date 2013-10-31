@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.ack;
+package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.common.unit.TimeValue;
 

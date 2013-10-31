@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateActionListener;
 import org.elasticsearch.cluster.metadata.MetaDataClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;

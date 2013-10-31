@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.indices.settings;
 
 import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateActionListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.action.support.master.ClusterStateUpdateActionListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;

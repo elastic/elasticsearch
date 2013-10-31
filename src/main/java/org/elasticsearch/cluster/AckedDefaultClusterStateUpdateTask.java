@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.action.support.master.ClusterStateUpdateListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
 
 /**
  * Subclass of {@link AckedClusterStateUpdateTask} that uses {@link ClusterStateUpdateResponse} as response class

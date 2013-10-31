@@ -18,7 +18,7 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 
 import java.util.Arrays;

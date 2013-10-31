@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.settings;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;

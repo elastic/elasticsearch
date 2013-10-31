@@ -21,11 +21,8 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.FilterBytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
@@ -62,30 +59,26 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        int length = docTerms.setDocument(doc); // safes one hasValue lookup
-        BytesRef val2 = length == 0 ? missingValue : docTerms.nextValue();
+        BytesRef val2 = sortMode.getRelevantValue(docTerms, doc, missingValue);
         return compareValues(bottom, val2);
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        int length = docTerms.setDocument(doc); // safes one hasValue lookup
-        if (length == 0) {
+        BytesRef relevantValue = sortMode.getRelevantValue(docTerms, doc, missingValue);
+        if (relevantValue == missingValue) {
             values[slot] = missingValue;
         } else {
             if (values[slot] == null || values[slot] == missingValue) {
                 values[slot] = new BytesRef();
             }
-            values[slot].copyBytes(docTerms.nextValue());
+            values[slot].copyBytes(relevantValue);
         }
     }
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         docTerms = indexFieldData.load(context).getBytesValues(false);
-        if (docTerms.isMultiValued()) {
-            docTerms = new MultiValuedBytesWrapper(docTerms, sortMode);
-        }
         return this;
     }
 
@@ -114,53 +107,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public int compareDocToValue(int doc, BytesRef value) {
-        final int length = docTerms.setDocument(doc); // safes one hasValue lookup
-        return  (length == 0 ? missingValue : docTerms.nextValue()).compareTo(value);
-    }
-
-    private static final class MultiValuedBytesWrapper extends FilterBytesValues {
-
-        private final SortMode sortMode;
-        private int numValues;
-
-        public MultiValuedBytesWrapper(BytesValues delegate, SortMode sortMode) {
-            super(delegate);
-            this.sortMode = sortMode;
-        }
-
-        public int setDocument(int docId) {
-            // either 0 or 1
-            return Math.min(1, (numValues = delegate.setDocument(docId)));
-        }
-
-        public BytesRef nextValue() {
-            BytesRef currentVal = delegate.nextValue();
-            // We MUST allocate a new byte[] since relevantVal might have been filled by reference by a PagedBytes instance
-            // meaning that the BytesRef.bytes are shared and shouldn't be overwritten. We can't use the bytes of the iterator
-            // either because they will be overwritten by subsequent calls in the current thread
-            scratch.bytes = new byte[ArrayUtil.oversize(currentVal.length, RamUsageEstimator.NUM_BYTES_BYTE)];
-            scratch.offset = 0;
-            scratch.length = currentVal.length;
-            System.arraycopy(currentVal.bytes, currentVal.offset, scratch.bytes, 0, currentVal.length);
-            for (int i = 1; i < numValues; i++) {
-                currentVal = delegate.nextValue();
-                if (sortMode == SortMode.MAX) {
-                    if (currentVal.compareTo(scratch) > 0) {
-                        scratch.grow(currentVal.length);
-                        scratch.length = currentVal.length;
-                        System.arraycopy(currentVal.bytes, currentVal.offset, scratch.bytes, 0, currentVal.length);
-                    }
-                } else {
-                    if (currentVal.compareTo(scratch) < 0) {
-                        scratch.grow(currentVal.length);
-                        scratch.length = currentVal.length;
-                        System.arraycopy(currentVal.bytes, currentVal.offset, scratch.bytes, 0, currentVal.length);
-                    }
-                }
-            }
-            return scratch;
-        }
-
+        return  sortMode.getRelevantValue(docTerms, doc, missingValue).compareTo(value);
     }
 
     @Override

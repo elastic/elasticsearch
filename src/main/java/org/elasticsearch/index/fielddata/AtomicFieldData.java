@@ -79,4 +79,36 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
          */
         BytesValues.WithOrdinals getBytesValues(boolean needsHashes);
     }
+
+    /**
+     * This enum provides information about the order of the values for
+     * a given document. For instance {@link BytesValues} by default
+     * return values in {@link #BYTES} order but if the interface
+     * wraps a numeric variant the sort order might change to {@link #NUMERIC}.
+     * In that case the values might not be returned in byte sort order but in numeric
+     * order instead while maintaining the property of <tt>N < N+1</tt> during the
+     * value iterations.
+     *
+     * @see org.elasticsearch.index.fielddata.BytesValues#getOrder()
+     * @see org.elasticsearch.index.fielddata.DoubleValues#getOrder()
+     * @see org.elasticsearch.index.fielddata.LongValues#getOrder()
+     */
+    public enum Order {
+        /**
+         * Donates Byte sort order
+         */
+        BYTES,
+        /**
+         * Donates Numeric sort order
+         */
+        NUMERIC,
+        /**
+         * Donates custom sort order
+         */
+        CUSTOM,
+        /**
+         * Donates no sort order
+         */
+        NONE
+    }
 }

@@ -42,4 +42,9 @@ public class FilterLongValues extends LongValues {
         return delegate.nextValue();
     }
 
+    @Override
+    public AtomicFieldData.Order getOrder() {
+        return delegate.getOrder();
+    }
+
 }

@@ -93,6 +93,11 @@ public class SortedSetDVNumericAtomicFieldData extends SortedSetDVAtomicFieldDat
             public BytesRef getValueByOrd(long ord) {
                 return convert(values.getValueByOrd(ord), scratch);
             }
+
+            @Override
+            public Order getOrder() {
+                return Order.NUMERIC;
+            }
         };
     }
 }

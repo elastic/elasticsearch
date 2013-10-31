@@ -87,7 +87,13 @@ public abstract class BytesValues {
      * Returns the next value for the current docID set to {@link #setDocument(int)}.
      * This method should only be called <tt>N</tt> times where <tt>N</tt> is the number
      * returned from {@link #setDocument(int)}. If called more than <tt>N</tt> times the behavior
-     * is undefined.
+     * is undefined. This interface guarantees that the values are returned in order.
+     * <p>
+     * If this instance returns ordered values the <tt>Nth</tt> value is strictly less than the <tt>N+1</tt> value with
+     * respect to the {@link AtomicFieldData.Order} returned from {@link #getOrder()}. If this instance returns
+     * <i>unordered</i> values {@link #getOrder()} must return {@link AtomicFieldData.Order#NONE}
+     * Note: the values returned are de-duplicated, only unique values are returned.
+     * </p>
      *
      * Note: the returned {@link BytesRef} might be shared across invocations.
      *
@@ -102,6 +108,14 @@ public abstract class BytesValues {
      */
     public int currentValueHash() {
         return scratch.hashCode();
+    }
+
+    /**
+     * Returns the order the values are returned from {@link #nextValue()}.
+     * <p> Note: {@link BytesValues} have {@link AtomicFieldData.Order#BYTES} by default.</p>
+     */
+    public AtomicFieldData.Order getOrder() {
+        return AtomicFieldData.Order.BYTES;
     }
 
     /**

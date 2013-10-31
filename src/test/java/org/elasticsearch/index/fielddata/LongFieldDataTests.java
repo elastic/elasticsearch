@@ -35,9 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Tests for all integer types (byte, short, int, long).
@@ -358,8 +356,14 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
             doubleSet.clear();
             numValues = doubleData.setDocument(i);
+            double prev = 0;
             for (int j = 0; j < numValues; j++) {
-                doubleSet.add(doubleData.nextValue());
+                double current;
+                doubleSet.add(current = doubleData.nextValue());
+                if (j > 0) {
+                    assertThat(prev, lessThan(current));
+                }
+                prev = current;
             }
             assertThat(doubleSet, equalTo(doubleV));
         }

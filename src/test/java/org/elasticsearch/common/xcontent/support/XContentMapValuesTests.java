@@ -368,4 +368,17 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(filteredMap.get("field").toString(), equalTo("value"));
 
     }
+
+    @Test
+    public void testThatFilteringWithEmptyObjectAndExclusionWorks() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("emptyObject")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"nonExistingField"});
+
+        assertThat(mapTuple.v2(), equalTo(filteredSource));
+    }
 }

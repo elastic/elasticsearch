@@ -209,7 +209,7 @@ public class XContentMapValues {
                 Map<String, Object> innerInto = Maps.newHashMap();
                 // if we had an exact match, we want give deeper excludes their chance
                 filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
-                if (!innerInto.isEmpty()) {
+                if (!innerInto.isEmpty() || innerInto.size() == ((Map<String, Object>) entry.getValue()).size()) {
                     into.put(entry.getKey(), innerInto);
                 }
             } else if (entry.getValue() instanceof List) {

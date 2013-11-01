@@ -31,12 +31,12 @@ import java.util.Map;
  */
 public class Table {
 
-    private List<Cell> headers = new ArrayList<Cell>();
-    private List<List<Cell>> rows = new ArrayList<List<Cell>>();
+    protected List<Cell> headers = new ArrayList<Cell>();
+    protected List<List<Cell>> rows = new ArrayList<List<Cell>>();
 
-    private List<Cell> currentCells;
+    protected List<Cell> currentCells;
 
-    private boolean inHeaders = false;
+    protected boolean inHeaders = false;
 
     public Table startHeaders() {
         inHeaders = true;
@@ -117,7 +117,12 @@ public class Table {
         public final Object value;
         public final Map<String, String> attr;
 
-        Cell(Object value, Map<String, String> attr) {
+        public Cell(Object value) {
+            this.value = value;
+            this.attr = new HashMap<String, String>();
+        }
+
+        public Cell(Object value, Map<String, String> attr) {
             this.value = value;
             this.attr = attr;
         }

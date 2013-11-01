@@ -19,12 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.hppc.HppcMaps;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -37,24 +36,24 @@ import java.util.Set;
 public class FieldMappersLookup implements Iterable<FieldMapper> {
 
     private volatile ImmutableList<FieldMapper> mappers;
-    private volatile ObjectObjectOpenHashMap<String, FieldMappers> name;
-    private volatile ObjectObjectOpenHashMap<String, FieldMappers> indexName;
-    private volatile ObjectObjectOpenHashMap<String, FieldMappers> fullName;
+    private volatile ImmutableOpenMap<String, FieldMappers> name;
+    private volatile ImmutableOpenMap<String, FieldMappers> indexName;
+    private volatile ImmutableOpenMap<String, FieldMappers> fullName;
 
     public FieldMappersLookup() {
         this.mappers = ImmutableList.of();
-        this.fullName = HppcMaps.newMap();
-        this.name = HppcMaps.newMap();
-        this.indexName = HppcMaps.newMap();
+        this.fullName = ImmutableOpenMap.of();
+        this.name = ImmutableOpenMap.of();
+        this.indexName = ImmutableOpenMap.of();
     }
 
     /**
      * Adds a new set of mappers.
      */
     public void addNewMappers(Iterable<FieldMapper> newMappers) {
-        final ObjectObjectOpenHashMap<String, FieldMappers> tempName = this.name.clone();
-        final ObjectObjectOpenHashMap<String, FieldMappers> tempIndexName = this.indexName.clone();
-        final ObjectObjectOpenHashMap<String, FieldMappers> tempFullName = this.fullName.clone();
+        final ImmutableOpenMap.Builder<String, FieldMappers> tempName = ImmutableOpenMap.builder(name);
+        final ImmutableOpenMap.Builder<String, FieldMappers> tempIndexName = ImmutableOpenMap.builder(indexName);
+        final ImmutableOpenMap.Builder<String, FieldMappers> tempFullName = ImmutableOpenMap.builder(fullName);
 
         for (FieldMapper fieldMapper : newMappers) {
             FieldMappers mappers = tempName.get(fieldMapper.names().name());
@@ -82,9 +81,9 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
             tempFullName.put(fieldMapper.names().fullName(), mappers);
         }
         this.mappers = ImmutableList.<FieldMapper>builder().addAll(this.mappers).addAll(newMappers).build();
-        this.name = tempName;
-        this.indexName = tempIndexName;
-        this.fullName = tempFullName;
+        this.name = tempName.build();
+        this.indexName = tempIndexName.build();
+        this.fullName = tempFullName.build();
     }
 
     /**
@@ -92,9 +91,9 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
      */
     public void removeMappers(Iterable<FieldMapper> mappersToRemove) {
         List<FieldMapper> tempMappers = new ArrayList<FieldMapper>(this.mappers);
-        ObjectObjectOpenHashMap<String, FieldMappers> tempName = this.name.clone();
-        ObjectObjectOpenHashMap<String, FieldMappers> tempIndexName = this.indexName.clone();
-        ObjectObjectOpenHashMap<String, FieldMappers> tempFullName = this.fullName.clone();
+        ImmutableOpenMap.Builder<String, FieldMappers> tempName = ImmutableOpenMap.builder(this.name);
+        ImmutableOpenMap.Builder<String, FieldMappers> tempIndexName = ImmutableOpenMap.builder(this.indexName);
+        ImmutableOpenMap.Builder<String, FieldMappers> tempFullName = ImmutableOpenMap.builder(this.fullName);
 
         for (FieldMapper mapper : mappersToRemove) {
             FieldMappers mappers = tempName.get(mapper.names().name());
@@ -132,9 +131,9 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
 
 
         this.mappers = ImmutableList.copyOf(tempMappers);
-        this.name = tempName;
-        this.indexName = tempIndexName;
-        this.fullName = tempFullName;
+        this.name = tempName.build();
+        this.indexName = tempIndexName.build();
+        this.fullName = tempFullName.build();
     }
 
     @Override

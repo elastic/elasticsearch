@@ -36,7 +36,7 @@ import java.util.Set;
  */
 public final class CompletionTokenStream extends TokenStream {
 
-    private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);;
+    private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);
     private final PositionIncrementAttribute posAttr = addAttribute(PositionIncrementAttribute.class);
     private final ByteTermAttribute bytesAtt = addAttribute(ByteTermAttribute.class);
 
@@ -49,6 +49,7 @@ public final class CompletionTokenStream extends TokenStream {
     private final BytesRef scratch = new BytesRef();
 
     public CompletionTokenStream(TokenStream input, BytesRef payload, ToFiniteStrings toFiniteStrings) throws IOException {
+        super(input);
         this.input = input;
         this.payload = payload;
         this.toFiniteStrings = toFiniteStrings;
@@ -95,6 +96,7 @@ public final class CompletionTokenStream extends TokenStream {
 
     @Override
     public void close() throws IOException {
+        super.close();
         if (posInc == -1) {
             input.close();
         }
@@ -115,6 +117,7 @@ public final class CompletionTokenStream extends TokenStream {
         public void setBytesRef(BytesRef bytes);
     }
 
+    // Unused class, should this be removed?
     public static final class ByteTermAttributeImpl extends AttributeImpl implements ByteTermAttribute, TermToBytesRefAttribute {
         private BytesRef bytes;
 

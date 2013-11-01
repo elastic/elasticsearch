@@ -362,8 +362,10 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
         assertThat(failures, emptyIterable());
         stopLatch.await();
         logger.info("--> indexing threads stopped");
-
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().execute().actionGet().isTimedOut(), equalTo(false));
+        logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
+        allowNodes("test", 3);
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_replicas", 1));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("--> refreshing the index");
         refreshAndAssert();

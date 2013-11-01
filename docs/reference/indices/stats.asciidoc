@@ -34,9 +34,10 @@ are returned, other stats can be enabled as well:
 
 `get`:: 		Get statistics, including missing stats.
 
-`search`:: 		Search statistics, including custom grouping using the
-				`groups` parameter (search operations can be associated with one or more
-				groups).
+`search`:: 		Search statistics. You can include statistics for custom groups by adding
+                an extra `groups` parameter (search operations can be associated with one or more
+                groups). The `groups` parameter accepts a comma separated list of group names.
+                Use `_all` to return statistics for all groups.
 
 `warmer`:: 		Warmer statistics.
 `merge`:: 		Merge statistics.
@@ -63,6 +64,8 @@ curl 'localhost:9200/_stats?merge=true&refresh=true'
 curl 'localhost:9200/_stats?clear=true&flush=true'
 # Get back stats for type1 and type2 documents for the my_index index
 curl 'localhost:9200/my_index/_stats?clear=true&indexing=true&types=type1,type2
+# Get back just search stats for group1 and group2
+curl 'localhost:9200/_stats?clear=true&search=true&groups=group1,group2
 --------------------------------------------------
 
 The stats returned are aggregated on the index level, with
@@ -90,4 +93,6 @@ curl localhost:9200/my_index/_stats/merge
 curl localhost:9200/my_index/_stats/indexing
 # Indexing stats for my_index for my_type1 and my_type2
 curl localhost:9200/my_index/_stats/indexing/my_type1,my_type2
+# Search stats for group1 and group2
+curl 'localhost:9200/_stats/search/group1,group2
 --------------------------------------------------

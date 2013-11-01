@@ -117,7 +117,7 @@ public class RestNodesAction extends BaseRestHandler {
 
         Table table = new Table();
         table.startHeaders();
-        table.addCell("id");
+        table.addCell("nodeId");
         table.addCell("pid");
         table.addCell("ip");
         table.addCell("port");
@@ -133,45 +133,48 @@ public class RestNodesAction extends BaseRestHandler {
         table.addCell("uptime", "text-align:right;");
         table.addCell("data/client");
         table.addCell("master");
-        table.addCell("node");
+        table.addCell("name");
         table.endHeaders();
 
         for (DiscoveryNode node : state.getState().nodes()) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
-            
-            long heapUsed = stats.getJvm().mem().heapUsed().bytes();
-            long heapMax = info.getJvm().mem().heapMax().bytes();
-            float heapRatio = -1.0f;
-            
-            if (heapMax > 0) {
-                heapRatio = heapUsed / (heapMax * 1.0f);
-            }
-            
             long availableDisk = -1;
+            long heapUsed = -1;
+            long heapMax = -1;
+            float heapRatio = -1.0f;
 
-            if (!(stats.getFs() == null)) {
-                availableDisk = 0;
-                Iterator<FsStats.Info> it = stats.getFs().iterator();
-                while (it.hasNext()) {
-                    availableDisk += it.next().getAvailable().bytes();
+            if (null != stats && null != info) {
+                heapUsed = stats.getJvm().mem().heapUsed().bytes();
+                heapMax = info.getJvm().mem().heapMax().bytes();
+
+                if (heapMax > 0) {
+                    heapRatio = heapUsed / (heapMax * 1.0f);
+                }
+
+                if (!(stats.getFs() == null)) {
+                    availableDisk = 0;
+                    Iterator<FsStats.Info> it = stats.getFs().iterator();
+                    while (it.hasNext()) {
+                        availableDisk += it.next().getAvailable().bytes();
+                    }
                 }
             }
 
             table.startRow();
 
-            table.addCell(node.id());
-            table.addCell(info.getProcess().id());
+            table.addCell(node.id().substring(0, 4));
+            table.addCell(info == null ? null : info.getProcess().id());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
-            table.addCell(info.getVersion().number());
-            table.addCell(info.getJvm().version());
+            table.addCell(info == null ? null : info.getVersion().number());
+            table.addCell(info == null ? null : info.getJvm().version());
             table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
-            table.addCell(new ByteSizeValue(heapUsed));
-            table.addCell(new ByteSizeValue(heapMax));
+            table.addCell(heapUsed < 0 ? null : new ByteSizeValue(heapUsed));
+            table.addCell(heapMax < 0 ? null : new ByteSizeValue(heapMax));
             table.addCell(heapRatio < 0 ? null : String.format(Locale.ROOT, "%.1f%%", heapRatio*100.0));
-            table.addCell(info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
-            table.addCell(stats.getJvm().uptime());
+            table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+            table.addCell(stats == null ? null : stats.getJvm().uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : null);
             table.addCell(masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : null);
             table.addCell(node.name());

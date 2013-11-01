@@ -311,12 +311,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
             if (previousClusterState == newClusterState) {
                 logger.debug("processing [{}]: no change in cluster_state", source);
-                if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
-                }
                 if (updateTask instanceof AckedClusterStateUpdateTask) {
                     //no need to wait for ack if nothing changed, the update can be counted as acknowledged
-                    ((AckedClusterStateUpdateTask)updateTask).onAllNodesAcked(null);
+                    ((AckedClusterStateUpdateTask) updateTask).onAllNodesAcked(null);
+                }
+                if (updateTask instanceof ProcessedClusterStateUpdateTask) {
+                    ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
                 return;
             }
@@ -341,7 +341,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         } else {
                             try {
                                 ackListener = new AckCountDownListener(ackedUpdateTask, newClusterState, threadPool);
-                            } catch(EsRejectedExecutionException ex) {
+                            } catch (EsRejectedExecutionException ex) {
                                 if (logger.isDebugEnabled()) {
                                     logger.debug("Couldn't schedule timeout thread - node might be shutting down", ex);
                                 }
@@ -436,7 +436,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (newClusterState.nodes().localNodeMaster()) {
                     try {
                         ackListener.onNodeAck(localNode(), null);
-                    } catch(Throwable t) {
+                    } catch (Throwable t) {
                         logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().localNode());
                     }
                 }

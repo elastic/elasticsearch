@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -28,6 +29,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
+ * Rest listener that supports printing out ok and the acknowledged flag
+ * Used in all api that modify the cluster state on the master and support acknowledgement from the other nodes
  */
 public class AcknowledgedRestResponseActionListener<T extends AcknowledgedResponse> extends AbstractRestResponseActionListener<T> {
 
@@ -40,8 +43,8 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
         try {
             XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
             builder.startObject()
-                    .field("ok", true)
-                    .field("acknowledged", response.isAcknowledged());
+                    .field(Fields.OK, true)
+                    .field(Fields.ACK, response.isAcknowledged());
             addCustomFields(builder, response);
             builder.endObject();
             channel.sendResponse(new XContentRestResponse(request, OK, builder));
@@ -56,5 +59,10 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
      */
     protected void addCustomFields(XContentBuilder builder, T response) throws IOException {
 
+    }
+
+    private static class Fields {
+        static final XContentBuilderString OK = new XContentBuilderString("ok");
+        static final XContentBuilderString ACK = new XContentBuilderString("acknowledged");
     }
 }

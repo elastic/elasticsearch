@@ -47,8 +47,7 @@ public class RestDeleteMappingAction extends BaseRestHandler {
         DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteMappingRequest.listenerThreaded(false);
         deleteMappingRequest.type(request.param("type"));
-        deleteMappingRequest.timeout(request.paramAsTime("timeout", deleteMappingRequest.timeout()));
-        deleteMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteMappingRequest.masterNodeTimeout()));
+        readClusterStateUpdateParams(request, deleteMappingRequest);
         client.admin().indices().deleteMapping(deleteMappingRequest, new AcknowledgedRestResponseActionListener<DeleteMappingResponse>(request, channel, logger));
     }
 }

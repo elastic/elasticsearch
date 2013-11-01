@@ -58,8 +58,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             }
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
-        createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
+        readClusterStateUpdateParams(request, createIndexRequest);
 
         client.admin().indices().create(createIndexRequest, new AcknowledgedRestResponseActionListener<CreateIndexResponse>(request, channel, logger));
     }

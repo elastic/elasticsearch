@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
+import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -48,8 +49,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
                 .types(Strings.splitStringByCommaToArray(request.param("type")))
                 .source(request.content(), request.contentUnsafe());
         putWarmerRequest.searchRequest(searchRequest);
-        putWarmerRequest.timeout(request.paramAsTime("timeout", putWarmerRequest.timeout()));
-        putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));
-        client.admin().indices().putWarmer(putWarmerRequest,  new AcknowledgedRestResponseActionListener(request, channel, logger));
+        readClusterStateUpdateParams(request, putWarmerRequest);
+        client.admin().indices().putWarmer(putWarmerRequest,  new AcknowledgedRestResponseActionListener<PutWarmerResponse>(request, channel, logger));
     }
 }

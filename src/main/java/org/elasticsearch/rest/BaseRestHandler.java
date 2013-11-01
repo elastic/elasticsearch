@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -33,5 +34,11 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     protected BaseRestHandler(Settings settings, Client client) {
         super(settings);
         this.client = client;
+    }
+
+    protected static AcknowledgedRequest<?> readClusterStateUpdateParams(RestRequest request, AcknowledgedRequest<?> acknowledgedRequest) {
+        acknowledgedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", acknowledgedRequest.masterNodeTimeout()));
+        acknowledgedRequest.timeout(request.paramAsTime("timeout", acknowledgedRequest.timeout()));
+        return acknowledgedRequest;
     }
 }

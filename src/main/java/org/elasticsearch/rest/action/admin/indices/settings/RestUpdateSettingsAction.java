@@ -51,8 +51,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.listenerThreaded(false);
-        updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
-        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
+        readClusterStateUpdateParams(request, updateSettingsRequest);
 
         ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
         String bodySettingsStr = request.content().toUtf8();

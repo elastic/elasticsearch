@@ -50,8 +50,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
-        clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
-        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
+        readClusterStateUpdateParams(request, clusterRerouteRequest);
         if (request.hasContent()) {
             try {
                 clusterRerouteRequest.source(request.content());

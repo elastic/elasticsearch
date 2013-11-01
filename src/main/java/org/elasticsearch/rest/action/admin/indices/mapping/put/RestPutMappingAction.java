@@ -50,11 +50,10 @@ public class RestPutMappingAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.listenerThreaded(false);
+        readClusterStateUpdateParams(request, putMappingRequest);
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().toUtf8());
-        putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
-        putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestResponseActionListener<PutMappingResponse>(request, channel, logger));
     }
 }

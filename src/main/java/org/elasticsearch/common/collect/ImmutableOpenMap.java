@@ -145,12 +145,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         public Builder(ImmutableOpenMap<KType, VType> map) {
-            if (map == EMPTY) {
-                // create a new instance if this is the shared EMPTY one
-                this.map = new ObjectObjectOpenHashMap<KType, VType>();
-            } else {
-                this.map = map.map.clone();
-            }
+            this.map = map.map.clone();
         }
 
         /**

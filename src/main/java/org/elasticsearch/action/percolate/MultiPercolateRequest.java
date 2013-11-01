@@ -199,6 +199,20 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.ignoreIndices(IgnoreIndices.fromString((String) value));
                 }
             }
+
+            // Setting values based on get request, if needed...
+            if ((percolateRequest.indices() == null || percolateRequest.indices().length == 0) && getRequest.index() != null) {
+                percolateRequest.indices(getRequest.index());
+            }
+            if (percolateRequest.documentType() == null && getRequest.type() != null) {
+                percolateRequest.documentType(getRequest.type());
+            }
+            if (percolateRequest.routing() == null && getRequest.routing() != null) {
+                percolateRequest.routing(getRequest.routing());
+            }
+            if (percolateRequest.preference() == null && getRequest.preference() != null) {
+                percolateRequest.preference(getRequest.preference());
+            }
         } else {
             for (Map.Entry<String, Object> entry : header.entrySet()) {
                 Object value = entry.getValue();
@@ -218,20 +232,6 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.ignoreIndices(IgnoreIndices.fromString((String) value));
                 }
             }
-        }
-
-        // Setting defaults, if needed...
-        if ((percolateRequest.indices() == null || percolateRequest.indices().length == 0) && percolateRequest.getRequest().index() != null) {
-            percolateRequest.indices(percolateRequest.getRequest().index());
-        }
-        if (percolateRequest.documentType() == null && percolateRequest.getRequest().type() != null) {
-            percolateRequest.documentType(percolateRequest.getRequest().type());
-        }
-        if (percolateRequest.routing() == null && percolateRequest.getRequest().routing() != null) {
-            percolateRequest.routing(percolateRequest.getRequest().routing());
-        }
-        if (percolateRequest.preference() == null && percolateRequest.getRequest().preference() != null) {
-            percolateRequest.preference(percolateRequest.getRequest().preference());
         }
     }
 

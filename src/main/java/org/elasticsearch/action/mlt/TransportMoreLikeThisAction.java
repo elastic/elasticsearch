@@ -236,7 +236,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     // Redirects the request to a data node, that has the index meta data locally available.
     private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), request.routing(), null);
+        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, concreteIndex, request.type(), request.id(), request.routing(), null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
             throw new ElasticSearchException("No shards for index " + request.index());

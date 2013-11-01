@@ -31,6 +31,7 @@ import org.elasticsearch.rest.*;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
@@ -46,6 +47,10 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_mpercolate", this);
+
+        controller.registerHandler(GET, "/_mpercolate", this);
+        controller.registerHandler(GET, "/{index}/_mpercolate", this);
+        controller.registerHandler(GET, "/{index}/{type}/_mpercolate", this);
     }
 
     @Override

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.ClusterStateUpdateActionListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOperationAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
+public class TransportDeleteIndexTemplateAction extends TransportClusterStateUpdateAction<DeleteTemplateClusterStateUpdateRequest, ClusterStateUpdateResponse, DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
@@ -73,18 +73,17 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticSearchException {
-        indexTemplateService.removeTemplates(new MetaDataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexTemplateService.RemoveListener() {
-            @Override
-            public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
-                listener.onResponse(new DeleteIndexTemplateResponse(response.acknowledged()));
-            }
+    protected DeleteTemplateClusterStateUpdateRequest newClusterStateUpdateRequest(DeleteIndexTemplateRequest acknowledgedRequest) {
+        return new DeleteTemplateClusterStateUpdateRequest(acknowledgedRequest.name());
+    }
 
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to delete templates [{}]", t, request.name());
-                listener.onFailure(t);
-            }
-        });
+    @Override
+    protected DeleteIndexTemplateResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new DeleteIndexTemplateResponse(updateResponse.isAcknowledged());
+    }
+
+    @Override
+    protected void updateClusterState(DeleteTemplateClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, DeleteIndexTemplateResponse> listener) {
+        indexTemplateService.removeTemplates(updateRequest, listener);
     }
 }

@@ -19,14 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.support.master.ClusterStateUpdateActionListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
+import org.elasticsearch.action.support.master.TransportClusterStateUpdateAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Put index template action.
  */
-public class TransportPutIndexTemplateAction extends TransportMasterNodeOperationAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
+public class TransportPutIndexTemplateAction extends TransportClusterStateUpdateAction<PutTemplateClusterStateUpdateRequest, ClusterStateUpdateResponse, PutIndexTemplateRequest, PutIndexTemplateResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
@@ -73,32 +74,21 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) throws ElasticSearchException {
-        String cause = request.cause();
-        if (cause.length() == 0) {
-            cause = "api";
-        }
+    protected PutTemplateClusterStateUpdateRequest newClusterStateUpdateRequest(PutIndexTemplateRequest acknowledgedRequest) {
+        String cause = Strings.hasLength(acknowledgedRequest.cause()) ? acknowledgedRequest.cause() : "api";
+        return new PutTemplateClusterStateUpdateRequest(acknowledgedRequest.name(), cause)
+                .template(acknowledgedRequest.template()).order(acknowledgedRequest.order())
+                .settings(acknowledgedRequest.settings()).mappings(acknowledgedRequest.mappings())
+                .customs(acknowledgedRequest.customs()).create(acknowledgedRequest.create());
+    }
 
-        indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
-                .template(request.template())
-                .order(request.order())
-                .settings(request.settings())
-                .mappings(request.mappings())
-                .customs(request.customs())
-                .create(request.create())
-                .masterTimeout(request.masterNodeTimeout()),
+    @Override
+    protected PutIndexTemplateResponse newResponse(ClusterStateUpdateResponse updateResponse) {
+        return new PutIndexTemplateResponse(updateResponse.isAcknowledged());
+    }
 
-                new MetaDataIndexTemplateService.PutListener() {
-                    @Override
-                    public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
-                        listener.onResponse(new PutIndexTemplateResponse(response.acknowledged()));
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("failed to delete template [{}]", t, request.name());
-                        listener.onFailure(t);
-                    }
-                });
+    @Override
+    protected void updateClusterState(PutTemplateClusterStateUpdateRequest updateRequest, ClusterStateUpdateActionListener<ClusterStateUpdateResponse, PutIndexTemplateResponse> listener) {
+        indexTemplateService.putTemplate(updateRequest, listener);
     }
 }

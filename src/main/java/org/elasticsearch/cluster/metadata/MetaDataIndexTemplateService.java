@@ -19,11 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteTemplateClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutTemplateClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.ClusterStateUpdateListener;
+import org.elasticsearch.action.support.master.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
@@ -44,7 +46,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- *
+ * Service responsible for creating and removing index templates
  */
 public class MetaDataIndexTemplateService extends AbstractComponent {
 
@@ -56,12 +58,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         this.clusterService = clusterService;
     }
 
-    public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+    public void removeTemplates(final DeleteTemplateClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
+        //we don't need to wait for ack when putting a template
+        //since templates are internally read when creating an index, which always happens on the master
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name() + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -73,17 +77,17 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = Sets.newHashSet();
                 for (String templateName : currentState.metaData().templates().keySet()) {
-                    if (Regex.simpleMatch(request.name, templateName)) {
+                    if (Regex.simpleMatch(request.name(), templateName)) {
                         templateNames.add(templateName);
                     }
                 }
                 if (templateNames.isEmpty()) {
                     // if its a match all pattern, and no templates are found (we have none), don't
                     // fail with index missing...
-                    if (Regex.isMatchAllPattern(request.name)) {
+                    if (Regex.isMatchAllPattern(request.name())) {
                         return currentState;
                     }
-                    throw new IndexTemplateMissingException(request.name);
+                    throw new IndexTemplateMissingException(request.name());
                 }
                 MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData());
                 for (String templateName : templateNames) {
@@ -94,14 +98,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new RemoveResponse(true));
+                listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
     }
 
-    public void putTemplate(final PutRequest request, final PutListener listener) {
+    public void putTemplate(final PutTemplateClusterStateUpdateRequest request, final ClusterStateUpdateListener<ClusterStateUpdateResponse> listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings.getAsMap().entrySet()) {
+        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
             if (!entry.getKey().startsWith("index.")) {
                 updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
             } else {
@@ -110,11 +114,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         request.settings(updatedSettingsBuilder.build());
 
-        if (request.name == null) {
+        if (request.name() == null) {
             listener.onFailure(new ElasticSearchIllegalArgumentException("index_template must provide a name"));
             return;
         }
-        if (request.template == null) {
+        if (request.template() == null) {
             listener.onFailure(new ElasticSearchIllegalArgumentException("index_template must provide a template"));
             return;
         }
@@ -128,14 +132,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         IndexTemplateMetaData.Builder templateBuilder;
         try {
-            templateBuilder = IndexTemplateMetaData.builder(request.name);
-            templateBuilder.order(request.order);
-            templateBuilder.template(request.template);
-            templateBuilder.settings(request.settings);
-            for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+            templateBuilder = IndexTemplateMetaData.builder(request.name());
+            templateBuilder.order(request.order());
+            templateBuilder.template(request.template());
+            templateBuilder.settings(request.settings());
+            for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                 templateBuilder.putMapping(entry.getKey(), entry.getValue());
             }
-            for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
+            for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs().entrySet()) {
                 templateBuilder.putCustom(entry.getKey(), entry.getValue());
             }
         } catch (Throwable e) {
@@ -143,12 +147,13 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             return;
         }
         final IndexTemplateMetaData template = templateBuilder.build();
-
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
+        //we don't need to wait for ack when putting a template
+        //since templates are internally read when creating an index, which always happens on the master
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name() + "], cause [" + request.cause() + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.masterNodeTimeout();
             }
 
             @Override
@@ -158,168 +163,51 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (request.create && currentState.metaData().templates().containsKey(request.name)) {
-                    throw new IndexTemplateAlreadyExistsException(request.name);
+                if (request.create() && currentState.metaData().templates().containsKey(request.name())) {
+                    throw new IndexTemplateAlreadyExistsException(request.name());
                 }
-                MetaData.Builder builder = MetaData.builder().metaData(currentState.metaData())
-                        .put(template);
+                MetaData.Builder builder = MetaData.builder().metaData(currentState.metaData()).put(template);
 
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new PutResponse(true, template));
+                listener.onResponse(new ClusterStateUpdateResponse(true));
             }
         });
     }
 
-    private void validate(PutRequest request) throws ElasticSearchException {
-        if (request.name.contains(" ")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not contain a space");
+    private void validate(PutTemplateClusterStateUpdateRequest request) throws ElasticSearchException {
+        if (request.name().contains(" ")) {
+            throw new InvalidIndexTemplateException(request.name(), "name must not contain a space");
         }
-        if (request.name.contains(",")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not contain a ','");
+        if (request.name().contains(",")) {
+            throw new InvalidIndexTemplateException(request.name(), "name must not contain a ','");
         }
-        if (request.name.contains("#")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not contain a '#'");
+        if (request.name().contains("#")) {
+            throw new InvalidIndexTemplateException(request.name(), "name must not contain a '#'");
         }
-        if (request.name.startsWith("_")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not start with '_'");
+        if (request.name().startsWith("_")) {
+            throw new InvalidIndexTemplateException(request.name(), "name must not start with '_'");
         }
-        if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {
-            throw new InvalidIndexTemplateException(request.name, "name must be lower cased");
+        if (!request.name().toLowerCase(Locale.ROOT).equals(request.name())) {
+            throw new InvalidIndexTemplateException(request.name(), "name must be lower cased");
         }
-        if (request.template.contains(" ")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not contain a space");
+        if (request.template().contains(" ")) {
+            throw new InvalidIndexTemplateException(request.name(), "template must not contain a space");
         }
-        if (request.template.contains(",")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not contain a ','");
+        if (request.template().contains(",")) {
+            throw new InvalidIndexTemplateException(request.name(), "template must not contain a ','");
         }
-        if (request.template.contains("#")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not contain a '#'");
+        if (request.template().contains("#")) {
+            throw new InvalidIndexTemplateException(request.name(), "template must not contain a '#'");
         }
-        if (request.template.startsWith("_")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not start with '_'");
+        if (request.template().startsWith("_")) {
+            throw new InvalidIndexTemplateException(request.name(), "template must not start with '_'");
         }
-        if (!Strings.validFileNameExcludingAstrix(request.template)) {
-            throw new InvalidIndexTemplateException(request.name, "template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
+        if (!Strings.validFileNameExcludingAstrix(request.template())) {
+            throw new InvalidIndexTemplateException(request.name(), "template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
-    }
-
-    public static interface PutListener {
-
-        void onResponse(PutResponse response);
-
-        void onFailure(Throwable t);
-    }
-
-    public static class PutRequest {
-        final String name;
-        final String cause;
-        boolean create;
-        int order;
-        String template;
-        Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-        Map<String, String> mappings = Maps.newHashMap();
-        Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
-
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public PutRequest(String cause, String name) {
-            this.cause = cause;
-            this.name = name;
-        }
-
-        public PutRequest order(int order) {
-            this.order = order;
-            return this;
-        }
-
-        public PutRequest template(String template) {
-            this.template = template;
-            return this;
-        }
-
-        public PutRequest create(boolean create) {
-            this.create = create;
-            return this;
-        }
-
-        public PutRequest settings(Settings settings) {
-            this.settings = settings;
-            return this;
-        }
-
-        public PutRequest mappings(Map<String, String> mappings) {
-            this.mappings.putAll(mappings);
-            return this;
-        }
-
-        public PutRequest customs(Map<String, IndexMetaData.Custom> customs) {
-            this.customs.putAll(customs);
-            return this;
-        }
-
-        public PutRequest putMapping(String mappingType, String mappingSource) {
-            mappings.put(mappingType, mappingSource);
-            return this;
-        }
-
-        public PutRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class PutResponse {
-        private final boolean acknowledged;
-        private final IndexTemplateMetaData template;
-
-        public PutResponse(boolean acknowledged, IndexTemplateMetaData template) {
-            this.acknowledged = acknowledged;
-            this.template = template;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-
-        public IndexTemplateMetaData template() {
-            return template;
-        }
-    }
-
-    public static class RemoveRequest {
-        final String name;
-        TimeValue masterTimeout = MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public RemoveRequest(String name) {
-            this.name = name;
-        }
-
-        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class RemoveResponse {
-        private final boolean acknowledged;
-
-        public RemoveResponse(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
-    public static interface RemoveListener {
-
-        void onResponse(RemoveResponse response);
-
-        void onFailure(Throwable t);
     }
 }

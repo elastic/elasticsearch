@@ -20,15 +20,14 @@
 package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
 
 /**
- *
+ * Builder for a delete index template request
  */
-public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
+public class DeleteIndexTemplateRequestBuilder extends AcknowledgedRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest());
@@ -36,24 +35,6 @@ public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationReques
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
         super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest(name));
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public DeleteIndexTemplateRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
-     */
-    public DeleteIndexTemplateRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return this;
     }
 
     @Override

@@ -137,7 +137,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
     public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
 
-        private final ObjectObjectOpenHashMap<KType, VType> map;
+        private ObjectObjectOpenHashMap<KType, VType> map;
 
         public Builder() {
             //noinspection unchecked
@@ -152,6 +152,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
          * Builds a new instance of the
          */
         public ImmutableOpenMap<KType, VType> build() {
+            ObjectObjectOpenHashMap<KType, VType> map = this.map;
+            this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
             return new ImmutableOpenMap<KType, VType>(map);
         }
 

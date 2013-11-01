@@ -70,12 +70,7 @@ import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarme
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
-import org.elasticsearch.rest.action.cat.RestAllocationAction;
-import org.elasticsearch.rest.action.cat.RestShardsAction;
-import org.elasticsearch.rest.action.cat.RestIndicesAction;
-import org.elasticsearch.rest.action.cat.RestMasterAction;
-import org.elasticsearch.rest.action.cat.RestNodesAction;
-import org.elasticsearch.rest.action.cat.RestRecoveryAction;
+import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
@@ -189,6 +184,7 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestSearchAction.class).asEagerSingleton();
         bind(RestSearchScrollAction.class).asEagerSingleton();
+        bind(RestClearScrollAction.class).asEagerSingleton();
         bind(RestMultiSearchAction.class).asEagerSingleton();
 
         bind(RestValidateQueryAction.class).asEagerSingleton();
@@ -205,6 +201,6 @@ public class RestActionModule extends AbstractModule {
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         bind(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
         bind(RestRecoveryAction.class).asEagerSingleton();
-        bind(RestClearScrollAction.class).asEagerSingleton();
+        bind(RestHealthAction.class).asEagerSingleton();
     }
 }

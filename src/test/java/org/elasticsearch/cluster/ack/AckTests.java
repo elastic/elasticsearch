@@ -186,30 +186,30 @@ public class AckTests extends AbstractIntegrationTest {
         ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setDryRun(true).add(moveAllocationCommand).get();
         assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(true));
 
-        for (Client client : clients()) {
-            ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setLocal(true).get();
-            RoutingNode routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
-            for (MutableShardRouting mutableShardRouting : routingNode) {
-                //the shard that we wanted to move is still on the same node, as we had dryRun flag
-                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
-                    assertThat(mutableShardRouting.started(), equalTo(true));
-                }
-
+        //testing only on master with the latest cluster state as we didn't make any change thus we cannot guarantee that
+        //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        RoutingNode routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.fromNode());
+        boolean found = false;
+        for (MutableShardRouting mutableShardRouting : routingNode) {
+            //the shard that we wanted to move is still on the same node, as we had dryRun flag
+            if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                assertThat(mutableShardRouting.started(), equalTo(true));
+                found = true;
+                break;
             }
+        }
+        assertThat(found, equalTo(true));
 
-            routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
-            boolean found = false;
-            for (MutableShardRouting mutableShardRouting : routingNode) {
-                if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
-                    found = true;
-                    break;
-                }
+        routingNode = clusterStateResponse.getState().routingNodes().nodesToShards().get(moveAllocationCommand.toNode());
+        for (MutableShardRouting mutableShardRouting : routingNode) {
+            if (mutableShardRouting.shardId().equals(moveAllocationCommand.shardId())) {
+                fail("shard [" + mutableShardRouting + "] shouldn't be on node [" + moveAllocationCommand.toString() + "]");
             }
-            assertThat(found, equalTo(false));
         }
     }
 
-    private static MoveAllocationCommand getAllocationCommand() {
+    private MoveAllocationCommand getAllocationCommand() {
         String fromNodeId = null;
         String toNodeId = null;
         MutableShardRouting shardToBeMoved = null;
@@ -218,7 +218,7 @@ public class AckTests extends AbstractIntegrationTest {
             if (routingNode.node().isDataNode()) {
                 if (fromNodeId == null && routingNode.numberOfOwningShards() > 0) {
                     fromNodeId = routingNode.nodeId();
-                    shardToBeMoved = routingNode.shards().get(0);
+                    shardToBeMoved = routingNode.shards().get(randomInt(routingNode.shards().size()-1));
                 } else {
                     toNodeId = routingNode.nodeId();
                 }
@@ -233,6 +233,7 @@ public class AckTests extends AbstractIntegrationTest {
         assert toNodeId != null;
         assert shardToBeMoved != null;
 
+        logger.info("==> going to move shard [{}] from [{}] to [{}]", shardToBeMoved, fromNodeId, toNodeId);
         return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);
     }
 

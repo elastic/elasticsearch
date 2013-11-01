@@ -3,7 +3,7 @@
 
 coming[1.0.0.Beta1]
 
-Tradionally you design documents based on your data and store them into an index and then define queries via the search api
+Traditionally you design documents based on your data and store them into an index and then define queries via the search api
 in order to retrieve these documents. The percolator works in the opposite direction, first you store queries into an
 index and then via the percolate api you define documents in order to retrieve these queries.
 
@@ -68,7 +68,7 @@ The percolate api returns matches that refer to percolate queries that have matc
 [float]
 === Indexing percolator queries
 
-Percolate queries are stored as documents in a specific format and in an aribitrary index under a reserved type with the
+Percolate queries are stored as documents in a specific format and in an arbitrary index under a reserved type with the
 name `_percolator`. The query itself is placed as is in a json objects under the top level field `query`.
 
 [source,js]
@@ -173,9 +173,9 @@ curl -XGET 'localhost:9200/twitter/tweet/_percolate' -d '{
 
 .Additional supported query string options
 * `routing` - In the case the percolate queries are partitioned by a custom routing value, that routing option make sure
-that the percolate request only gets executed on the shard where the routing value is partioned to. This means that
+that the percolate request only gets executed on the shard where the routing value is partitioned to. This means that
 the percolate request only gets executed on one shard instead of all shards. Multiple values can be specified as a
-comma seperated string, in that case the request can be be executed on more than one shard.
+comma separated string, in that case the request can be be executed on more than one shard.
 * `preference` - Controls which shard replicas are preferred to execute the request on. Works the same as in the search api.
 * `ignore_indices` - Controls if missing indices should silently be ignored. Same as is in the search api.
 * `percolate_format` - If `ids` is specified then the matches array in the percolate response will contain a string
@@ -321,9 +321,9 @@ Depending on the percolate action different parameters can be specified. For exa
 document actions support different parameters.
 
 .The following endpoints are supported
-* POST /[index]/[type]/_mpercolate
-* POST /[index]/_mpercolate
-* POST /_mpercolate
+* GET|POST /[index]/[type]/_mpercolate
+* GET}POST /[index]/_mpercolate
+* GET|POST /_mpercolate
 
 The `index` and `type` defined in the url path are the default index and type.
 
@@ -346,13 +346,13 @@ requests.txt:
 --------------------------------------------------
 {"percolate" : {"index" : twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
-{"percolate" : "index" : twitter", "type" : "tweet", "id" : "1"}
+{"percolate" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
 {}
-{"percolate" : "index" : users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }
+{"percolate" : {"index" : users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
 {"count" : {"index" : twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
-{"count" : "index" : twitter", "type" : "tweet", "id" : "1"}
+{"count" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
 {}
 --------------------------------------------------
 

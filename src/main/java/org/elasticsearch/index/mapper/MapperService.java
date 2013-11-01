@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
@@ -32,7 +31,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.hppc.HppcMaps;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -88,7 +87,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final Object mappersMutex = new Object();
 
     private final FieldMappersLookup fieldMappers = new FieldMappersLookup();
-    private volatile ObjectObjectOpenHashMap<String, ObjectMappers> fullPathObjectMappers = HppcMaps.newMap();
+    private volatile ImmutableOpenMap<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.of();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
@@ -247,7 +246,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     private void addObjectMappers(ObjectMapper[] objectMappers) {
         synchronized (mappersMutex) {
-            ObjectObjectOpenHashMap<String, ObjectMappers> fullPathObjectMappers = this.fullPathObjectMappers.clone();
+            ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
             for (ObjectMapper objectMapper : objectMappers) {
                 ObjectMappers mappers = fullPathObjectMappers.get(objectMapper.fullPath());
                 if (mappers == null) {
@@ -261,7 +260,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     hasNested = true;
                 }
             }
-            this.fullPathObjectMappers = fullPathObjectMappers;
+            this.fullPathObjectMappers = fullPathObjectMappers.build();
         }
     }
 
@@ -287,7 +286,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         synchronized (mappersMutex) {
             fieldMappers.removeMappers(docMapper.mappers());
 
-            ObjectObjectOpenHashMap<String, ObjectMappers> fullPathObjectMappers = this.fullPathObjectMappers.clone();
+            ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
             for (ObjectMapper mapper : docMapper.objectMappers().values()) {
                 ObjectMappers mappers = fullPathObjectMappers.get(mapper.fullPath());
                 if (mappers != null) {
@@ -300,7 +299,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
             }
 
-            this.fullPathObjectMappers = fullPathObjectMappers;
+            this.fullPathObjectMappers = fullPathObjectMappers.build();
         }
     }
 

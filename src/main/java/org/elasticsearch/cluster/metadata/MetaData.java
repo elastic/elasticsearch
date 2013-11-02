@@ -231,9 +231,8 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
      * that point to the specified concrete indices or match partially with the indices via wildcards.
      *
-     * @param aliases The names of the index aliases to find
+     * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     *
      * @return the found index aliases grouped by index
      */
     public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
@@ -249,8 +248,8 @@ public class MetaData implements Iterable<IndexMetaData> {
             IndexMetaData indexMetaData = indices.get(index);
             Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
                 public boolean apply(String alias) {
-                // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
-                return Regex.simpleMatch(aliases, alias);
+                    // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
+                    return Regex.simpleMatch(aliases, alias);
                 }
             }).values();
             if (!filteredValues.isEmpty()) {
@@ -264,9 +263,8 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Checks if at least one of the specified aliases exists in the specified concrete indices. Wildcards are supported in the
      * alias names for partial matches.
      *
-     * @param aliases The names of the index aliases to find
+     * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     *
      * @return whether at least one of the specified aliases exists in one of the specified concrete indices.
      */
     public boolean hasAliases(final String[] aliases, String[] concreteIndices) {
@@ -281,7 +279,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             IndexMetaData indexMetaData = indices.get(index);
             Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
                 public boolean apply(String alias) {
-                return Regex.simpleMatch(aliases, alias);
+                    return Regex.simpleMatch(aliases, alias);
                 }
             }).values();
             if (!filteredValues.isEmpty()) {
@@ -554,9 +552,9 @@ public class MetaData implements Iterable<IndexMetaData> {
                 }
             }
         }
-        
+
         if (actualIndices.isEmpty()) {
-        	throw new IndexMissingException(new Index(Arrays.toString(aliasesOrIndices)));
+            throw new IndexMissingException(new Index(Arrays.toString(aliasesOrIndices)));
         }
         return actualIndices.toArray(new String[actualIndices.size()]);
     }

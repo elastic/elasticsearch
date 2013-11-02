@@ -21,10 +21,11 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoringRewrite;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
 import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
@@ -67,9 +68,10 @@ public class PostingsHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
+            //get the non rewritten query and rewrite it
             Query query;
             try {
-                query = rewrite(context.query());
+                query = rewrite(context, hitContext.topLevelReader());
             } catch (IOException e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
@@ -107,7 +109,7 @@ public class PostingsHighlighter implements Highlighter {
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
             for (int i = 0; i < values; i++) {
-                Snippet[] fieldSnippets = highlighter.highlightDoc(highlighterContext.fieldName, mapperHighlighterEntry.filteredQueryTerms, new IndexSearcher(hitContext.reader()), hitContext.docId(), numberOfFragments);
+                Snippet[] fieldSnippets = highlighter.highlightDoc(highlighterContext.fieldName, mapperHighlighterEntry.filteredQueryTerms, context.searcher(), hitContext.docId(), numberOfFragments);
                 if (fieldSnippets != null) {
                     for (Snippet fieldSnippet : fieldSnippets) {
                         if (Strings.hasText(fieldSnippet.getText())) {
@@ -144,15 +146,47 @@ public class PostingsHighlighter implements Highlighter {
         return null;
     }
 
-    private static final IndexReader EMPTY_INDEXREADER = new MultiReader();
+    private static Query rewrite(SearchContext searchContext, IndexReader reader) throws IOException {
+        //rewrite is expensive: if the query was already rewritten we try not to rewrite
+        boolean mustRewrite = !searchContext.queryRewritten();
 
-    private static Query rewrite(Query original) throws IOException {
+        Query original = searchContext.parsedQuery().query();
+
+        MultiTermQuery originalMultiTermQuery = null;
+        MultiTermQuery.RewriteMethod originalRewriteMethod = null;
+        if (original instanceof MultiTermQuery) {
+            originalMultiTermQuery = (MultiTermQuery) original;
+            if (!allowsForTermExtraction(originalMultiTermQuery.getRewriteMethod())) {
+                originalRewriteMethod = originalMultiTermQuery.getRewriteMethod();
+                originalMultiTermQuery.setRewriteMethod(new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(50));
+                //we need to rewrite anyway if it is a multi term query which was rewritten with the wrong rewrite method
+                mustRewrite = true;
+            }
+        }
+
+        if (!mustRewrite) {
+            //return the rewritten query
+            return searchContext.query();
+        }
+
         Query query = original;
-        for (Query rewrittenQuery = query.rewrite(EMPTY_INDEXREADER); rewrittenQuery != query;
-             rewrittenQuery = query.rewrite(EMPTY_INDEXREADER)) {
+        for (Query rewrittenQuery = query.rewrite(reader); rewrittenQuery != query;
+             rewrittenQuery = query.rewrite(reader)) {
             query = rewrittenQuery;
         }
+
+        if (originalMultiTermQuery != null) {
+            if (originalRewriteMethod != null) {
+                //set back the original rewrite method after the rewrite is done
+                originalMultiTermQuery.setRewriteMethod(originalRewriteMethod);
+            }
+        }
+
         return query;
+    }
+
+    private static boolean allowsForTermExtraction(MultiTermQuery.RewriteMethod rewriteMethod) {
+        return rewriteMethod instanceof TopTermsRewrite || rewriteMethod instanceof ScoringRewrite;
     }
 
     private static SortedSet<Term> extractTerms(Query query) {

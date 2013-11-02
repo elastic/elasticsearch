@@ -158,7 +158,7 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 executed.set(true);
-                return ClusterState.newClusterStateBuilder().state(currentState).build();
+                return ClusterState.builder(currentState).build();
             }
 
             @Override
@@ -298,7 +298,7 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 executed.set(true);
-                return ClusterState.newClusterStateBuilder().state(currentState).build();
+                return ClusterState.builder(currentState).build();
             }
 
             @Override
@@ -367,7 +367,7 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 executed.set(true);
-                return ClusterState.newClusterStateBuilder().state(currentState).build();
+                return ClusterState.builder(currentState).build();
             }
 
             @Override

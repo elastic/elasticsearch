@@ -33,7 +33,6 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,10 +52,10 @@ public class ClusterSerializationTests extends ElasticsearchTestCase {
 
         DiscoveryNodes nodes = DiscoveryNodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
 
-        ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         AllocationService strategy = new AllocationService();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
 
@@ -76,7 +75,7 @@ public class ClusterSerializationTests extends ElasticsearchTestCase {
 
         DiscoveryNodes nodes = DiscoveryNodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).build();
 
-        ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         AllocationService strategy = new AllocationService();
         RoutingTable source = strategy.reroute(clusterState).routingTable();

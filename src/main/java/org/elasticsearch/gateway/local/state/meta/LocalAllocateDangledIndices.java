@@ -41,8 +41,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  */
 public class LocalAllocateDangledIndices extends AbstractComponent {
@@ -141,12 +139,12 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     }
                     logger.info("auto importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
 
-                    ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaData).blocks(blocks).routingTable(routingTableBuilder).build();
+                    ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks).routingTable(routingTableBuilder).build();
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
 
-                    return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
                 @Override

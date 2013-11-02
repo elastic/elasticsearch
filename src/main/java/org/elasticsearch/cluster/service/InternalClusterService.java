@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
@@ -80,7 +79,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
 
-    private volatile ClusterState clusterState = newClusterStateBuilder().build();
+    private volatile ClusterState clusterState = ClusterState.builder().build();
 
     private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder().addGlobalBlock(Discovery.NO_MASTER_BLOCK);
 
@@ -117,7 +116,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override
     protected void doStart() throws ElasticSearchException {
         add(localNodeMasterListeners);
-        this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
+        this.clusterState = ClusterState.builder().blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
     }
@@ -325,7 +324,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 Discovery.AckListener ackListener = new NoOpAckListener();
                 if (newClusterState.nodes().localNodeMaster()) {
                     // only the master controls the version numbers
-                    Builder builder = ClusterState.builder().state(newClusterState).version(newClusterState.version() + 1);
+                    Builder builder = ClusterState.builder(newClusterState).version(newClusterState.version() + 1);
                     if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                         builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
                     }
@@ -354,7 +353,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     if (previousClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK) && !newClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
                         // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
                         // have a fresh instances of routing and metadata to remove the chance that version might be the same
-                        Builder builder = ClusterState.builder().state(newClusterState);
+                        Builder builder = ClusterState.builder(newClusterState);
                         builder.routingTable(RoutingTable.builder(newClusterState.routingTable()));
                         builder.metaData(MetaData.builder(newClusterState.metaData()));
                         newClusterState = builder.build();

@@ -34,7 +34,6 @@ import org.junit.Test;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -64,26 +63,26 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding four nodes and performing rerouting");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1", ImmutableMap.of("tag1", "value1")))
                 .put(newNode("node2", ImmutableMap.of("tag1", "value2")))
                 .put(newNode("node3", ImmutableMap.of("tag1", "value3")))
                 .put(newNode("node4", ImmutableMap.of("tag1", "value4")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> make sure shards are only allocated on tag1 with value1 and value2");
         List<MutableShardRouting> startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
@@ -113,26 +112,26 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes and performing rerouting");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1", ImmutableMap.of("tag1", "value1")))
                 .put(newNode("node2", ImmutableMap.of("tag1", "value2")))
                 .put(newNode("node3", ImmutableMap.of("tag1", "value3")))
                 .put(newNode("node4", ImmutableMap.of("tag1", "value4")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> make sure shards are only allocated on tag1 with value1 and value2");
         List<MutableShardRouting> startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
@@ -151,15 +150,15 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
                         .put("index.routing.allocation.exclude.tag1", "value2,value3")
                         .build()))
                 .build();
-        clusterState = newClusterStateBuilder().state(clusterState).metaData(metaData).build();
+        clusterState = ClusterState.builder(clusterState).metaData(metaData).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(2));
 
         logger.info("--> finish relocation");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         startedShards = clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));

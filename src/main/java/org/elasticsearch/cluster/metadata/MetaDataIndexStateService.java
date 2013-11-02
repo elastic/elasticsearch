@@ -43,8 +43,6 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 
 /**
  *
@@ -109,14 +107,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .addIndexBlock(request.index, INDEX_CLOSED_BLOCK);
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocks).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable())
                         .remove(request.index);
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
 
-                ClusterState newClusterState = ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                ClusterState newClusterState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 waitForOtherNodes(newClusterState, listener, request.timeout);
 
@@ -164,14 +162,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .removeIndexBlock(request.index, INDEX_CLOSED_BLOCK);
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocks).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable())
                         .addAsRecovery(updatedState.metaData().index(request.index));
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
 
-                ClusterState newClusterState = ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                ClusterState newClusterState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 waitForOtherNodes(newClusterState, listener, request.timeout);
 

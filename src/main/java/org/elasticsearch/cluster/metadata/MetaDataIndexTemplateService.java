@@ -89,7 +89,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 for (String templateName : templateNames) {
                     metaData.removeTemplate(templateName);
                 }
-                return ClusterState.builder().state(currentState).metaData(metaData).build();
+                return ClusterState.builder(currentState).metaData(metaData).build();
             }
 
             @Override
@@ -163,7 +163,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 }
                 MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
 
-                return ClusterState.builder().state(currentState).metaData(builder).build();
+                return ClusterState.builder(currentState).metaData(builder).build();
             }
 
             @Override

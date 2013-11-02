@@ -28,7 +28,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -59,12 +58,12 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("start one node, do reroute, only 3 should initialize");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(0));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(3));
@@ -72,7 +71,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing, another 3 should initialize");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(3));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(3));
@@ -80,7 +79,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing, another 3 should initialize");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(6));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(3));
@@ -88,7 +87,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing, another 1 should initialize");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(9));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(1));
@@ -96,7 +95,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing, all primaries should be started");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(10));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(0));
@@ -120,12 +119,12 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("start one node, do reroute, only 3 should initialize");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(0));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(3));
@@ -133,7 +132,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing, another 2 should initialize");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(3));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -141,16 +140,16 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing, all primaries should be started");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(5));
 
         logger.info("start another node, replicas should start being allocated");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node2"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(3));
@@ -158,7 +157,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing replicas");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(8));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -166,7 +165,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
 
         logger.info("start initializing replicas, all should be started");
         routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(10));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(0));

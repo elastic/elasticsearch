@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -88,8 +87,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
         final boolean frequentNodes = randomBoolean();
         for (int i = 0; i < numIters; i++) {
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
-            DiscoveryNodes.Builder newNodesBuilder = newNodesBuilder();
-            newNodesBuilder.putAll(clusterState.nodes());
+            DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
 
             if (clusterState.nodes().size() <= atMostNodes &&
                     (nodeIdCounter == 0 || (frequentNodes ? frequently() : rarely()))) {
@@ -119,8 +117,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
         logger.info("Fill up nodes such that every shard can be allocated");
         if (clusterState.nodes().size() < maxNumReplicas) {
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
-            DiscoveryNodes.Builder newNodesBuilder = newNodesBuilder();
-            newNodesBuilder.putAll(clusterState.nodes());
+            DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
             for (int j = 0; j < (maxNumReplicas - clusterState.nodes().size()); j++) {
                 logger.info("adding node [{}]", nodeIdCounter);
                 newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));

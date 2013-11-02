@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -59,7 +59,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding 2 nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
@@ -83,7 +83,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         logger.info("--> fail node with primary");
         String nodeIdToFail = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
         String nodeIdRemaining = nodeIdToFail.equals("node1") ? "node2" : "node1";
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode(nodeIdRemaining))
         ).build();
 
@@ -111,7 +111,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding 2 nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
@@ -133,7 +133,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
 
         logger.info("--> adding additional node");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3"))
         ).build();
         rerouteResult = allocation.reroute(clusterState);
@@ -158,7 +158,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on node3 being initialized by killing node3");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode(origPrimaryNodeId))
                 .put(newNode(origReplicaNodeId))
         ).build();
@@ -186,7 +186,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding 2 nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
@@ -208,7 +208,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().node("node2").shards().get(0).state(), equalTo(STARTED));
 
         logger.info("--> adding additional node");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3"))
         ).build();
         rerouteResult = allocation.reroute(clusterState);
@@ -233,7 +233,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().node("node3").shards().get(0).state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on 'origPrimaryNodeId' being relocated");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node3"))
                 .put(newNode(origReplicaNodeId))
         ).build();

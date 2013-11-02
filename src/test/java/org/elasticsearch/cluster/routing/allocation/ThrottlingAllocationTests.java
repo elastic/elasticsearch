@@ -22,13 +22,13 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -61,7 +61,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("start one node, do reroute, only 3 should initialize");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
@@ -122,7 +122,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("start one node, do reroute, only 3 should initialize");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
@@ -147,7 +147,7 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(5));
 
         logger.info("start another node, replicas should start being allocated");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 

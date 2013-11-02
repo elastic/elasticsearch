@@ -117,7 +117,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
                 for (String index : indicesToClose) {
-                    mdBuilder.put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(index)).state(IndexMetaData.State.CLOSE));
+                    mdBuilder.put(IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.CLOSE));
                     blocksBuilder.addIndexBlock(index, INDEX_CLOSED_BLOCK);
                 }
 
@@ -187,7 +187,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
                 for (String index : indicesToOpen) {
-                    mdBuilder.put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN));
+                    mdBuilder.put(IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN));
                     blocksBuilder.removeIndexBlock(index, INDEX_CLOSED_BLOCK);
                 }
 

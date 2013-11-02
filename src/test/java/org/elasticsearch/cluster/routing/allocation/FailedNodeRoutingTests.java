@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -31,7 +32,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -48,8 +48,8 @@ public class FailedNodeRoutingTests extends ElasticsearchTestCase {
         AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -108,8 +108,8 @@ public class FailedNodeRoutingTests extends ElasticsearchTestCase {
         AllocationService strategy = new AllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

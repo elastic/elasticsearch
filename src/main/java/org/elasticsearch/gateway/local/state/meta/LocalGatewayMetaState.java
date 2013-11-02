@@ -284,10 +284,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     // we might have someone copying over an index, renaming the directory, handle that
                     if (!indexMetaData.index().equals(indexName)) {
                         logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.index());
-                        indexMetaData = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).index(indexName).build();
+                        indexMetaData = IndexMetaData.builder(indexMetaData).index(indexName).build();
                     }
                     if (autoImportDangled == AutoImportDangledState.CLOSED) {
-                        indexMetaData = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).state(IndexMetaData.State.CLOSE).build();
+                        indexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
                     if (indexMetaData != null) {
                         dangled.add(indexMetaData);
@@ -622,7 +622,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build(), null);
         for (IndexMetaData indexMetaData : metaData) {
-            IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).version(version);
+            IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData).version(version);
             // set the created version to 0.18
             indexMetaDataBuilder.settings(ImmutableSettings.settingsBuilder().put(indexMetaData.settings()).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_18_0));
             writeIndex("upgrade", indexMetaDataBuilder.build(), null);

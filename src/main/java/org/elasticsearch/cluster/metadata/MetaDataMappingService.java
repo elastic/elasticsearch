@@ -55,7 +55,6 @@ import java.util.concurrent.BlockingQueue;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
@@ -178,7 +177,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 }
                             }
                         }
-                        IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
+                        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                         List<String> updatedTypes = Lists.newArrayList();
                         for (String type : refreshTask.types) {
                             if (processedRefreshes.contains(type)) {
@@ -237,7 +236,7 @@ public class MetaDataMappingService extends AbstractComponent {
                             logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
                         }
 
-                        mdBuilder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
+                        mdBuilder.put(IndexMetaData.builder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
                         dirty = true;
                     } else {
                         logger.warn("illegal state, got wrong mapping task type [{}]", task);
@@ -340,7 +339,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                     if (indexMetaData != null) {
                         if (indexMetaData.mappings().containsKey(request.type())) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.type()));
+                            builder.put(IndexMetaData.builder(indexMetaData).removeMapping(request.type()));
                             changed = true;
                         } else {
                             latestIndexWithout = indexMetaData.index();
@@ -499,7 +498,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                         MappingMetaData mappingMd = mappings.get(indexName);
                         if (mappingMd != null) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mappingMd));
+                            builder.put(IndexMetaData.builder(indexMetaData).putMapping(mappingMd));
                         }
                     }
 

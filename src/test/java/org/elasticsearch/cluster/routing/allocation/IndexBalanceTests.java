@@ -31,7 +31,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -56,8 +55,8 @@ public class IndexBalanceTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder().put(newIndexMetaDataBuilder("test").numberOfShards(3).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(3).numberOfReplicas(1)).build();
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(3).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").numberOfShards(3).numberOfReplicas(1)).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
@@ -187,8 +186,8 @@ public class IndexBalanceTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder().put(newIndexMetaDataBuilder("test").numberOfShards(3).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(3).numberOfReplicas(1)).build();
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(3).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").numberOfShards(3).numberOfReplicas(1)).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
@@ -350,7 +349,7 @@ public class IndexBalanceTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder().put(newIndexMetaDataBuilder("test").numberOfShards(3).numberOfReplicas(1)).build();
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(3).numberOfReplicas(1)).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
 
@@ -449,7 +448,7 @@ public class IndexBalanceTests extends ElasticsearchTestCase {
 
         prevRoutingTable = routingTable;
         metaData = MetaData.builder(metaData)
-                .put(newIndexMetaDataBuilder("test1").settings(ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.builder("test1").settings(ImmutableSettings.settingsBuilder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 ))

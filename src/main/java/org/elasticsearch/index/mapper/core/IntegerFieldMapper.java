@@ -313,7 +313,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 }
             }
         }
+        addIntegerFields(fields, value, boost);
+    }
 
+    protected void addIntegerFields(List<Field> fields, int value, float boost) {
         if (fieldType.indexed() || fieldType.stored()) {
             CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
             field.setBoost(boost);
@@ -324,6 +327,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             NumericUtils.intToPrefixCoded(value, 0, bytes);
             fields.add(new SortedSetDocValuesField(names.indexName(), bytes));
         }
+    }
+
+    protected Integer nullValue() {
+        return nullValue;
     }
 
     @Override

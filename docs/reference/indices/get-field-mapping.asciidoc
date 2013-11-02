@@ -86,7 +86,7 @@ For example, consider the following mapping:
  }
 --------------------------------------------------
 
-To select the `id` of the `author` field, you can use it's full name `author.id`. Using `text` will return
+To select the `id` of the `author` field, you can use its full name `author.id`. Using `text` will return
 the mapping of `abstract` as it is one of the fields which map to the Lucene field `text`. `name` will return
 the field `author.name`:
 

@@ -2,7 +2,7 @@
 
 == Overview
 
-Official low-level client for Elasticsearch. It's goal is to provide common
+Official low-level client for Elasticsearch. Its goal is to provide common
 ground for all Elasticsearch-related code in Python; because of this it tries
 to be opinion-free and very extendable. The full documentation is available at
 http://elasticsearch-py.rtfd.org/

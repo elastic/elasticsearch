@@ -204,7 +204,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         CompressedString mappingSource = updateTask.mappingSource;
 
                         if (indexMetaData.mappings().containsKey(type) && indexMetaData.mapping(type).source().equals(mappingSource)) {
-                            logger.debug("[{}] update_mapping [{}] ignoring mapping update task as it's source is equal to ours", index, updateTask.type);
+                            logger.debug("[{}] update_mapping [{}] ignoring mapping update task as its source is equal to ours", index, updateTask.type);
                             continue;
                         }
 
@@ -520,7 +520,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     // TODO: adding one to the version is based on knowledge on how the parent class will increment the version
                     //       move this to the base class or add another callback before publishing the new cluster state so we
-                    //       capture it's version.
+                    //       capture its version.
                     countDownListener = new CountDownListener(counter, currentState.version() + 1, listener);
                     mappingCreatedAction.add(countDownListener, request.timeout);
 

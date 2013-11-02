@@ -99,7 +99,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
-    public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
+    public static final MetaData EMPTY_META_DATA = builder().build();
 
     private final long version;
 
@@ -920,9 +920,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         return new Builder();
     }
 
-
-    public static Builder newMetaDataBuilder() {
-        return new Builder();
+    public static Builder builder(MetaData metaData) {
+        return new Builder(metaData);
     }
 
     public static class Builder {
@@ -933,19 +932,20 @@ public class MetaData implements Iterable<IndexMetaData> {
         private Settings persistentSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
         private MapBuilder<String, IndexMetaData> indices = newMapBuilder();
-
         private MapBuilder<String, IndexTemplateMetaData> templates = newMapBuilder();
-
         private MapBuilder<String, Custom> customs = newMapBuilder();
 
-        public Builder metaData(MetaData metaData) {
+        public Builder() {
+
+        }
+
+        public Builder(MetaData metaData) {
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
             this.indices.putAll(metaData.indices);
             this.templates.putAll(metaData.templates);
             this.customs.putAll(metaData.customs);
-            return this;
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {

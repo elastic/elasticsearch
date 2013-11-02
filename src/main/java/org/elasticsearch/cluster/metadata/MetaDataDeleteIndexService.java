@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
  *
@@ -126,8 +125,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                 routingTableBuilder.remove(request.index);
 
-                MetaData newMetaData = newMetaDataBuilder()
-                        .metaData(currentState.metaData())
+                MetaData newMetaData = MetaData.builder(currentState.metaData())
                         .remove(request.index)
                         .build();
 

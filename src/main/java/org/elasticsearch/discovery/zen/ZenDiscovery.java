@@ -601,7 +601,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             builder.metaData(currentState.metaData());
                         } else {
                             // if its not the same version, only copy over new indices or ones that changed the version
-                            MetaData.Builder metaDataBuilder = MetaData.builder().metaData(newState.metaData()).removeAllIndices();
+                            MetaData.Builder metaDataBuilder = MetaData.builder(newState.metaData()).removeAllIndices();
                             for (IndexMetaData indexMetaData : newState.metaData()) {
                                 IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
                                 if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {

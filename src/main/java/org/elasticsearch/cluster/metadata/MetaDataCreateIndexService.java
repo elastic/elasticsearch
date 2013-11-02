@@ -76,7 +76,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -311,8 +310,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         throw e;
                     }
 
-                    MetaData newMetaData = newMetaDataBuilder()
-                            .metaData(currentState.metaData())
+                    MetaData newMetaData = MetaData.builder(currentState.metaData())
                             .put(indexMetaData, false)
                             .build();
 

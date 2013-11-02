@@ -135,7 +135,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             }
         }
 
-        MetaData.Builder metaDataBuilder = MetaData.builder();
         ObjectFloatOpenHashMap<String> indices = new ObjectFloatOpenHashMap<String>();
         MetaData electedGlobalState = null;
         int found = 0;
@@ -158,7 +157,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             return;
         }
         // update the global state, and clean the indices, we elect them in the next phase
-        metaDataBuilder.metaData(electedGlobalState).removeAllIndices();
+        MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState).removeAllIndices();
         final boolean[] states = indices.allocated;
         final Object[] keys = indices.keys;
         for (int i = 0; i < states.length; i++) {

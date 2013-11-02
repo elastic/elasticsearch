@@ -35,13 +35,11 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class RoutingIteratorTests extends ElasticsearchTestCase {
@@ -87,7 +85,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testIterator1() {
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = routingTable()
@@ -121,7 +119,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testIterator2() {
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
                 .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
@@ -224,7 +222,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testRandomRouting() {
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
                 .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
@@ -258,7 +256,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id,zone")
                 .build());
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -307,7 +305,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .build());
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(5).numberOfReplicas(1))
                 .build();
 

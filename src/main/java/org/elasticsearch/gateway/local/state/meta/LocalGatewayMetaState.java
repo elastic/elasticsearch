@@ -387,7 +387,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private void writeGlobalState(String reason, MetaData metaData, @Nullable MetaData previousMetaData) throws Exception {
         logger.trace("[_global] writing state, reason [{}]", reason);
         // create metadata to write with just the global state
-        MetaData globalMetaData = MetaData.builder().metaData(metaData).removeAllIndices().build();
+        MetaData globalMetaData = MetaData.builder(metaData).removeAllIndices().build();
 
         XContentBuilder builder = XContentFactory.contentBuilder(format);
         builder.startObject();
@@ -442,10 +442,12 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     }
 
     private MetaData loadState() throws Exception {
-        MetaData.Builder metaDataBuilder = MetaData.builder();
         MetaData globalMetaData = loadGlobalState();
+        MetaData.Builder metaDataBuilder;
         if (globalMetaData != null) {
-            metaDataBuilder.metaData(globalMetaData);
+            metaDataBuilder = MetaData.builder(globalMetaData);
+        } else {
+            metaDataBuilder = MetaData.builder();
         }
 
         Set<String> indices = nodeEnv.findAllIndices();
@@ -618,7 +620,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and strucutre...", metaDataFile.getAbsolutePath());
 
-        writeGlobalState("upgrade", MetaData.builder().metaData(metaData).version(version).build(), null);
+        writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build(), null);
         for (IndexMetaData indexMetaData : metaData) {
             IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).version(version);
             // set the created version to 0.18

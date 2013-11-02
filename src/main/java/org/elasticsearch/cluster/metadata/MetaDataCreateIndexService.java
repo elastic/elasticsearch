@@ -294,7 +294,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         mappingsMetaData.put(mapper.type(), mappingMd);
                     }
 
-                    final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
+                    final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index).settings(actualIndexSettings);
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
                     }

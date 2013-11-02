@@ -174,7 +174,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                                 }
                                 warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
                             }
-                            IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
+                            IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
                             mdBuilder.put(indexBuilder);
                         }
 

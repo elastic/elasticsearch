@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.structure;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -34,7 +35,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -85,7 +85,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
     @Test
     public void testIterator1() {
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test1"))
@@ -119,8 +119,8 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
     @Test
     public void testIterator2() {
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -222,8 +222,8 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
     @Test
     public void testRandomRouting() {
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -256,7 +256,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
                 .build());
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -305,7 +305,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
                 .build());
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

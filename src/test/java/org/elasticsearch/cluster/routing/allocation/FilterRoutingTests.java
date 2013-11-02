@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -34,7 +35,6 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -57,7 +57,7 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(2).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -101,7 +101,7 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").settings(settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settingsBuilder()
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.routing.allocation.include.tag1", "value1,value2")
@@ -144,7 +144,7 @@ public class FilterRoutingTests extends ElasticsearchTestCase {
         logger.info("--> switch between value2 and value4, shards should be relocating");
 
         metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").settings(settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settingsBuilder()
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.routing.allocation.include.tag1", "value1,value4")

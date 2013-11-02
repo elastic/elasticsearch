@@ -395,28 +395,18 @@ public class IndexMetaData {
         return new Builder(index);
     }
 
-    public static Builder newIndexMetaDataBuilder(String index) {
-        return new Builder(index);
-    }
-
-    public static Builder newIndexMetaDataBuilder(IndexMetaData indexMetaData) {
+    public static Builder builder(IndexMetaData indexMetaData) {
         return new Builder(indexMetaData);
     }
 
     public static class Builder {
 
         private String index;
-
         private State state = State.OPEN;
-
         private long version = 1;
-
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-
         private MapBuilder<String, MappingMetaData> mappings = MapBuilder.newMapBuilder();
-
         private MapBuilder<String, AliasMetaData> aliases = MapBuilder.newMapBuilder();
-
         private MapBuilder<String, Custom> customs = MapBuilder.newMapBuilder();
 
         public Builder(String index) {

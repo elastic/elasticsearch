@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Builder;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -43,7 +44,6 @@ import java.util.HashSet;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -72,7 +72,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
             maxNumReplicas = Math.max(maxNumReplicas, replicas + 1);
             int numShards = between(1, 20);
             totalNumShards += numShards * (replicas + 1);
-            metaBuilder.put(newIndexMetaDataBuilder("INDEX_" + i).numberOfShards(numShards).numberOfReplicas(replicas));
+            metaBuilder.put(IndexMetaData.builder("INDEX_" + i).numberOfShards(numShards).numberOfReplicas(replicas));
 
         }
         MetaData metaData = metaBuilder.build();

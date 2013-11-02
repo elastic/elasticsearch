@@ -54,7 +54,6 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
@@ -257,7 +256,7 @@ public class MetaDataMappingService extends AbstractComponent {
         if (!dirty) {
             return currentState;
         }
-        return newClusterStateBuilder().state(currentState).metaData(mdBuilder).build();
+        return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 
     /**
@@ -353,7 +352,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                 logger.info("[{}] remove_mapping [{}]", request.indices(), request.type());
 
-                return ClusterState.builder().state(currentState).metaData(builder).build();
+                return ClusterState.builder(currentState).metaData(builder).build();
             }
 
             @Override
@@ -502,7 +501,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
+                    ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
 
                     int counter = 1; // we want to wait on the master node to apply it on its cluster state
                     // also wait for nodes that actually have the index created on them to apply the mappings internally

@@ -74,7 +74,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -326,13 +325,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         blocks.addIndexBlock(request.index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
                     }
 
-                    ClusterState updatedState = newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
+                    ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
 
                     if (request.state == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                 .addAsNew(updatedState.metaData().index(request.index));
-                        RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
-                        updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                        RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
+                        updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 
                     // we wait for events from all nodes that the index has been added to the metadata

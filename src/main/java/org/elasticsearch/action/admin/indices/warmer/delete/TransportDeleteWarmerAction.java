@@ -178,7 +178,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                     }
                 }
 
-                return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
+                return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
 
             @Override

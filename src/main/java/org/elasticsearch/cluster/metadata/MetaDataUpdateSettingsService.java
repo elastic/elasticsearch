@@ -43,8 +43,6 @@ import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.*;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  * Service responsible for submitting update index settings requests
  */
@@ -316,11 +314,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
                 RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
-                updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 return updatedState;
             }

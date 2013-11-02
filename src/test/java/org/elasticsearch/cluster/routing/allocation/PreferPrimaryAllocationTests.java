@@ -28,7 +28,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -61,25 +60,25 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test2"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         while (!clusterState.routingNodes().shardsWithState(INITIALIZING).isEmpty()) {
             routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         }
 
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
         routingTable = RoutingTable.builder(routingTable).updateNumberOfReplicas(1).build();
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("2 replicas should be initializing now for the existing indices (we throttle to 1)");
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -93,11 +92,11 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("new_index"))
                 .build();
 
-        clusterState = newClusterStateBuilder().state(clusterState).metaData(metaData).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("reroute, verify that primaries for the new index primary shards are allocated");
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.routingTable().index("new_index").shardsWithState(INITIALIZING).size(), equalTo(2));
     }

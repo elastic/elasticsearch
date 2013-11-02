@@ -43,8 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  *
  */
@@ -130,7 +128,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                         .build();
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(
-                        newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
+                        ClusterState.builder(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
 
                 ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
 
@@ -171,7 +169,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     }
                 });
 
-                return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
+                return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
             }
 
             @Override

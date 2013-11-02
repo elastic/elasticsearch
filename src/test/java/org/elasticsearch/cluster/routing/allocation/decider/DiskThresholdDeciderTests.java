@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -94,15 +93,15 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
         // Primary shard should be initializing, replica should not
@@ -110,7 +109,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> start the shards (primaries)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary
@@ -120,7 +119,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
@@ -128,11 +127,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node3");
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
                 .put(newNode("node3"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that the replica is initialized now that node3 is available with enough space
@@ -141,7 +140,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
@@ -172,7 +171,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
         // Shards remain started
@@ -203,7 +202,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Shards remain started
@@ -215,11 +214,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node4");
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
                 .put(newNode("node4"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Shards remain started
@@ -228,7 +227,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> apply INITIALIZING shards");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
@@ -283,15 +282,15 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
         // Primary shard should be initializing, replica should not
@@ -299,7 +298,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> start the shards (primaries)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary
@@ -309,7 +308,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
@@ -317,11 +316,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node3");
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
                 .put(newNode("node3"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that the replica is initialized now that node3 is available with enough space
@@ -330,7 +329,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> start the shards (replicas)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
@@ -361,7 +360,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
         // Shards remain started
@@ -392,7 +391,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Shards remain started
@@ -404,11 +403,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node4");
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
                 .put(newNode("node4"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         // Shards remain started
@@ -417,7 +416,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> apply INITIALIZING shards");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logShardStates(clusterState);
         assertThat(clusterState.getRoutingNodes().node("node1").shards().size(), equalTo(0));
@@ -469,17 +468,17 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         logger.info("--> adding node1");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1"))
                 .put(newNode("node2")) // node2 is added because DiskThresholdDecider automatically ignore single-node clusters
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logger.info("--> start the shards (primaries)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
         // Shard can't be allocated to node1 (or node2) because it would cause too much usage
@@ -531,17 +530,17 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         logger.info("--> adding node1");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
                 .put(newNode("node1"))
                 .put(newNode("node3")) // node3 is added because DiskThresholdDecider automatically ignore single-node clusters
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logger.info("--> start the shards (primaries)");
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
         // Shard can't be allocated to node1 (or node2) because the average usage is 75% > 70%

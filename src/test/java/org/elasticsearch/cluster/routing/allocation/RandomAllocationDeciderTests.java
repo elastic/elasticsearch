@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -82,13 +81,13 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
         }
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         int numIters = atLeast(20);
         int nodeIdCounter = 0;
         int atMostNodes = between(Math.max(1, maxNumReplicas), numIters);
         final boolean frequentNodes = randomBoolean();
         for (int i = 0; i < numIters; i++) {
-            ClusterState.Builder stateBuilder = newClusterStateBuilder().state(clusterState);
+            ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
             DiscoveryNodes.Builder newNodesBuilder = newNodesBuilder();
             newNodesBuilder.putAll(clusterState.nodes());
 
@@ -110,16 +109,16 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
             routingTable = strategy.reroute(clusterState).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.routingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))
                         .routingTable();
-                clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+                clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             }
         }
         logger.info("Fill up nodes such that every shard can be allocated");
         if (clusterState.nodes().size() < maxNumReplicas) {
-            ClusterState.Builder stateBuilder = newClusterStateBuilder().state(clusterState);
+            ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
             DiscoveryNodes.Builder newNodesBuilder = newNodesBuilder();
             newNodesBuilder.putAll(clusterState.nodes());
             for (int j = 0; j < (maxNumReplicas - clusterState.nodes().size()); j++) {
@@ -137,11 +136,11 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
         do {
             iterations++;
             routingTable = strategy.reroute(clusterState).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.routingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))
                         .routingTable();
-                clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+                clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             }
 
         } while (clusterState.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||

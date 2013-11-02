@@ -42,8 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  *
  */
@@ -259,7 +257,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     }
 
                     // update the state to reflect the new metadata and routing
-                    ClusterState updatedState = newClusterStateBuilder().state(currentState)
+                    ClusterState updatedState = ClusterState.builder(currentState)
                             .blocks(blocks)
                             .metaData(metaDataBuilder)
                             .build();
@@ -273,9 +271,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
 
-                    return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
                 @Override

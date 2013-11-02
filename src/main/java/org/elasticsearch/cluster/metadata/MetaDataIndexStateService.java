@@ -121,16 +121,16 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     blocksBuilder.addIndexBlock(index, INDEX_CLOSED_BLOCK);
                 }
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                 for (String index : indicesToClose) {
                     rtBuilder.remove(index);
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
 
-                ClusterState newClusterState = ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                ClusterState newClusterState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 waitForOtherNodes(newClusterState, listener, request.timeout);
 
@@ -191,16 +191,16 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     blocksBuilder.removeIndexBlock(index, INDEX_CLOSED_BLOCK);
                 }
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable());
                 for (String index : indicesToOpen) {
                     rtBuilder.addAsRecovery(updatedState.metaData().index(index));
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
 
-                ClusterState newClusterState = ClusterState.builder().state(updatedState).routingResult(routingResult).build();
+                ClusterState newClusterState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 waitForOtherNodes(newClusterState, listener, request.timeout);
 

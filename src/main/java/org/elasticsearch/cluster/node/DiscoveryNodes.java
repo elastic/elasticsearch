@@ -42,11 +42,11 @@ import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convinience methods to
- * access, modify merge / diff discovery nodes.  
+ * access, modify merge / diff discovery nodes.
  */
 public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
-    public static final DiscoveryNodes EMPTY_NODES = newNodesBuilder().build();
+    public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
     private final ImmutableMap<String, DiscoveryNode> nodes;
 
@@ -91,7 +91,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the number of known nodes 
+     * Get the number of known nodes
+     *
      * @return number of nodes
      */
     public int size() {
@@ -99,7 +100,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the number of known nodes 
+     * Get the number of known nodes
+     *
      * @return number of nodes
      */
     public int getSize() {
@@ -107,7 +109,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered nodes arranged by their ids 
+     * Get a {@link Map} of the discovered nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> nodes() {
@@ -115,7 +118,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered nodes arranged by their ids 
+     * Get a {@link Map} of the discovered nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> getNodes() {
@@ -123,7 +127,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered data nodes arranged by their ids 
+     * Get a {@link Map} of the discovered data nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered data nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> dataNodes() {
@@ -131,7 +136,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered data nodes arranged by their ids 
+     * Get a {@link Map} of the discovered data nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered data nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> getDataNodes() {
@@ -139,7 +145,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered master nodes arranged by their ids 
+     * Get a {@link Map} of the discovered master nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered master nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> masterNodes() {
@@ -147,7 +154,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered master nodes arranged by their ids 
+     * Get a {@link Map} of the discovered master nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered master nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> getMasterNodes() {
@@ -155,7 +163,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a {@link Map} of the discovered master and data nodes arranged by their ids 
+     * Get a {@link Map} of the discovered master and data nodes arranged by their ids
+     *
      * @return {@link Map} of the discovered master and data nodes arranged by their ids
      */
     public ImmutableMap<String, DiscoveryNode> masterAndDataNodes() {
@@ -164,7 +173,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     /**
      * Get a node by its id
-     * @param nodeId id of the wanted node 
+     *
+     * @param nodeId id of the wanted node
      * @return wanted node if it exists. Otherwise <code>null</code>
      */
     public DiscoveryNode get(String nodeId) {
@@ -173,6 +183,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     /**
      * Determine if a given node exists
+     *
      * @param nodeId id of the node which existence should be verified
      * @return <code>true</code> if the node exists. Otherwise <code>false</code>
      */
@@ -181,7 +192,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the id of the master node 
+     * Get the id of the master node
+     *
      * @return id of the master
      */
     public String masterNodeId() {
@@ -189,7 +201,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the id of the master node 
+     * Get the id of the master node
+     *
      * @return id of the master
      */
     public String getMasterNodeId() {
@@ -197,7 +210,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the id of the local node 
+     * Get the id of the local node
+     *
      * @return id of the local node
      */
     public String localNodeId() {
@@ -205,7 +219,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the id of the local node 
+     * Get the id of the local node
+     *
      * @return id of the local node
      */
     public String getLocalNodeId() {
@@ -213,7 +228,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the local node 
+     * Get the local node
+     *
      * @return local node
      */
     public DiscoveryNode localNode() {
@@ -221,7 +237,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the local node 
+     * Get the local node
+     *
      * @return local node
      */
     public DiscoveryNode getLocalNode() {
@@ -229,7 +246,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the master node 
+     * Get the master node
+     *
      * @return master node
      */
     public DiscoveryNode masterNode() {
@@ -237,7 +255,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get the master node 
+     * Get the master node
+     *
      * @return master node
      */
     public DiscoveryNode getMasterNode() {
@@ -245,7 +264,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
     }
 
     /**
-     * Get a node by its address 
+     * Get a node by its address
+     *
      * @param address {@link TransportAddress} of the wanted node
      * @return node identified by the given address or <code>null</code> if no such node exists
      */
@@ -264,9 +284,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     /**
      * Resolve a node with a given id
+     *
      * @param node id of the node to discover
      * @return discovered node matching the given id
-     * @throws ElasticSearchIllegalArgumentException if more than one node matches the request or no nodes have been resolved
+     * @throws ElasticSearchIllegalArgumentException
+     *          if more than one node matches the request or no nodes have been resolved
      */
     public DiscoveryNode resolveNode(String node) {
         String[] resolvedNodeIds = resolveNodesIds(node);
@@ -278,7 +300,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         }
         return nodes.get(resolvedNodeIds[0]);
     }
-    
+
     public String[] resolveNodesIds(String... nodesIds) {
         if (isAllNodes(nodesIds)) {
             int index = 0;
@@ -347,7 +369,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             return resolvedNodesIds.toArray(new String[resolvedNodesIds.size()]);
         }
     }
-    
+
     public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {
         Builder builder = new Builder().masterNodeId(masterNodeId).localNodeId(localNodeId);
         for (DiscoveryNode node : this) {
@@ -357,9 +379,9 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         }
         return builder.build();
     }
-    
+
     public DiscoveryNodes newNode(DiscoveryNode node) {
-        return new Builder().putAll(this).put(node).build();
+        return new Builder(this).put(node).build();
     }
 
     /**
@@ -415,7 +437,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         }
         return sb.toString();
     }
-    
+
     public Delta emptyDelta() {
         return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
     }
@@ -520,37 +542,33 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             return sb.toString();
         }
     }
-    
-    public static Builder newNodesBuilder() {
+
+    public static Builder builder() {
         return new Builder();
     }
-    
+
+    public static Builder builder(DiscoveryNodes nodes) {
+        return new Builder(nodes);
+    }
+
     public static class Builder {
 
         private Map<String, DiscoveryNode> nodes = newHashMap();
-
         private String masterNodeId;
-
         private String localNodeId;
 
-        public Builder putAll(DiscoveryNodes nodes) {
+        public Builder() {
+
+        }
+
+        public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.masterNodeId();
             this.localNodeId = nodes.localNodeId();
-            for (DiscoveryNode node : nodes) {
-                put(node);
-            }
-            return this;
+            this.nodes.putAll(nodes.nodes());
         }
 
         public Builder put(DiscoveryNode node) {
             nodes.put(node.id(), node);
-            return this;
-        }
-
-        public Builder putAll(Iterable<DiscoveryNode> nodes) {
-            for (DiscoveryNode node : nodes) {
-                put(node);
-            }
             return this;
         }
 

@@ -68,7 +68,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -252,7 +251,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return latestNodes;
         }
         // have not decided yet, just send the local node
-        return newNodesBuilder().put(localNode).localNodeId(localNode.id()).build();
+        return DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id()).build();
     }
 
     @Override
@@ -371,8 +370,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.URGENT, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                            .putAll(currentState.nodes())
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
                             .remove(node.id());
                     latestDiscoNodes = builder.build();
                     currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
@@ -407,8 +405,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                        .putAll(currentState.nodes())
+                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
                         .remove(node.id());
                 latestDiscoNodes = builder.build();
                 currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
@@ -486,9 +483,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return currentState;
                 }
 
-                DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder()
-                        .putAll(currentState.nodes())
-                                // make sure the old master node, which has failed, is not part of the nodes we publish
+                DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes())
+                        // make sure the old master node, which has failed, is not part of the nodes we publish
                         .remove(masterNode.id())
                         .masterNodeId(null);
 

@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -264,7 +264,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "rack_1", "zone", "zone1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "rack_2", "zone", "zone2")))
                 .localNodeId("node1")
@@ -313,7 +313,7 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
                 .localNodeId("node1")

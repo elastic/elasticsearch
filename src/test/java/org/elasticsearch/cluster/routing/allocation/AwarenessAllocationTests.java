@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -64,7 +64,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
         ).build();
@@ -83,7 +83,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -103,7 +103,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, make sure nothing moves");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -133,7 +133,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node3", ImmutableMap.of("rack_id", "1")))
@@ -153,7 +153,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -173,7 +173,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, make sure nothing moves");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node5", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -208,7 +208,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
         ).build();
@@ -241,7 +241,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -266,7 +266,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, some more relocation should happen");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -308,7 +308,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
         ).build();
@@ -327,7 +327,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(20));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -356,7 +356,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, some more relocation should happen");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -400,7 +400,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
         ).build();
@@ -419,7 +419,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -439,7 +439,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, we will have another relocation");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -479,7 +479,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node3", ImmutableMap.of("rack_id", "1")))
@@ -500,7 +500,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node5", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -520,7 +520,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, we will have another relocation");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node6", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -561,7 +561,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
         ).build();
@@ -578,7 +578,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -598,7 +598,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, make sure nothing moves");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -629,7 +629,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node3", ImmutableMap.of("rack_id", "1")))
@@ -647,7 +647,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -667,7 +667,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, make sure nothing moves");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node5", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -705,7 +705,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "1")))
         ).build();
@@ -720,7 +720,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> add a new node with a new rack and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", ImmutableMap.of("rack_id", "2")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -744,7 +744,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
 
         logger.info("--> add another node with a new rack, some more relocation should happen");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4", ImmutableMap.of("rack_id", "3")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -785,7 +785,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("A-0", ImmutableMap.of("zone", "a")))
                 .put(newNode("B-0", ImmutableMap.of("zone", "b")))
         ).build();
@@ -807,7 +807,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
         logger.info("--> add a new node in zone 'a' and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("A-1", ImmutableMap.of("zone", "a")))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();

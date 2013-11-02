@@ -17,7 +17,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -88,7 +87,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(3));
 
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
-        DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         nodes.put(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
@@ -159,7 +158,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(3));
 
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
-        DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         nodes.put(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
@@ -237,7 +236,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
     private ClusterState addNodes(ClusterState clusterState, AllocationService service, int numNodes, int nodeOffset) {
         logger.info("now, start [{}] more node, check that rebalancing will happen because we set it to always", numNodes);
-        DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         for (int i = 0; i < numNodes; i++) {
             nodes.put(newNode("node" + (i + nodeOffset)));
         }
@@ -284,7 +283,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         RoutingTable routingTable = routingTableBuilder.build();
 
         logger.info("start " + numberOfNodes + " nodes");
-        DiscoveryNodes.Builder nodes = newNodesBuilder();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.put(newNode("node" + i));
         }
@@ -364,7 +363,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
     private ClusterState removeNodes(ClusterState clusterState, AllocationService service, int numNodes) {
         logger.info("Removing [{}] nodes", numNodes);
-        DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
 
         for (DiscoveryNode node : clusterState.nodes()) {
             nodes.remove(node.id());

@@ -6,9 +6,9 @@
 
   - do:
       catch: missing
-      indices.get_mapping:
+      indices.get_field_mapping:
         index: test_index
         type: type
         field: field
-  
+
 

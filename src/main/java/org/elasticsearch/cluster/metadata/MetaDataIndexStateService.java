@@ -111,8 +111,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder()
-                        .routingTable(currentState.routingTable())
+                RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable())
                         .remove(request.index);
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
@@ -167,7 +166,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder().routingTable(updatedState.routingTable())
+                RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable())
                         .addAsRecovery(updatedState.metaData().index(request.index));
 
                 RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());

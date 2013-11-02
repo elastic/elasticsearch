@@ -445,25 +445,33 @@ public class ClusterState implements ToXContent {
         return new Builder();
     }
 
-    public static Builder newClusterStateBuilder() {
-        return new Builder();
+    public static Builder builder(ClusterState state) {
+        return new Builder(state);
     }
 
     public static class Builder {
 
         private long version = 0;
-
         private MetaData metaData = MetaData.EMPTY_META_DATA;
-
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
-
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
-
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
-
         private AllocationExplanation allocationExplanation = AllocationExplanation.EMPTY;
-
         private MapBuilder<String, Custom> customs = newMapBuilder();
+
+        public Builder() {
+
+        }
+
+        public Builder(ClusterState state) {
+            this.version = state.version();
+            this.nodes = state.nodes();
+            this.routingTable = state.routingTable();
+            this.metaData = state.metaData();
+            this.blocks = state.blocks();
+            this.allocationExplanation = state.allocationExplanation();
+            this.customs.putAll(state.customs());
+        }
 
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
             return nodes(nodesBuilder.build());
@@ -528,17 +536,6 @@ public class ClusterState implements ToXContent {
 
         public Builder removeCustom(String type) {
             customs.remove(type);
-            return this;
-        }
-
-        public Builder state(ClusterState state) {
-            this.version = state.version();
-            this.nodes = state.nodes();
-            this.routingTable = state.routingTable();
-            this.metaData = state.metaData();
-            this.blocks = state.blocks();
-            this.allocationExplanation = state.allocationExplanation();
-            this.customs.clear().putAll(state.customs());
             return this;
         }
 

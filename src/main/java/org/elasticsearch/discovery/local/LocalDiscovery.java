@@ -35,7 +35,10 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.*;
+import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.ClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,7 +51,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.Builder;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
  *
@@ -137,7 +139,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
                         // remove the NO_MASTER block in this case
                         ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(Discovery.NO_MASTER_BLOCK);
-                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).blocks(blocks).build();
+                        return ClusterState.builder(currentState).nodes(nodesBuilder).blocks(blocks).build();
                     }
 
                     @Override
@@ -158,7 +160,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     public ClusterState execute(ClusterState currentState) {
                         // make sure we have the local node id set, we might need it as a result of the new metadata
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
-                        return ClusterState.builder().state(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
+                        return ClusterState.builder(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
                     }
 
                     @Override
@@ -177,7 +179,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             nodesBuilder.put(discovery.localNode);
                         }
                         nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
-                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).build();
+                        return ClusterState.builder(currentState).nodes(nodesBuilder).build();
                     }
 
                     @Override
@@ -238,9 +240,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             logger.warn("No new nodes should be created when a new discovery view is accepted");
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
-                        ClusterState updatedState = newClusterStateBuilder().state(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.reroute(newClusterStateBuilder().state(updatedState).build());
-                        return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                        ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
+                        RoutingAllocation.Result routingResult = master.allocationService.reroute(ClusterState.builder(updatedState).build());
+                        return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 
                     @Override
@@ -311,7 +313,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            ClusterState.Builder builder = ClusterState.builder().state(nodeSpecificClusterState);
+                            ClusterState.Builder builder = ClusterState.builder(nodeSpecificClusterState);
                             // if the routing table did not change, use the original one
                             if (nodeSpecificClusterState.routingTable().version() == currentState.routingTable().version()) {
                                 builder.routingTable(currentState.routingTable());

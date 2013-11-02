@@ -36,8 +36,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  */
 public class TransportClusterRerouteAction extends TransportMasterNodeOperationAction<ClusterRerouteRequest, ClusterRerouteResponse> {
@@ -112,7 +110,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
             @Override
             public ClusterState execute(ClusterState currentState) {
                 RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands);
-                ClusterState newState = newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                ClusterState newState = ClusterState.builder(currentState).routingResult(routingResult).build();
                 clusterStateToSend = newState;
                 if (request.dryRun) {
                     return currentState;

@@ -46,8 +46,6 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  *
  */
@@ -167,7 +165,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
 
                     if (changed) {
-                        ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
+                        ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
                         // even though changes happened, they resulted in 0 actual changes to metadata
                         // i.e. remove and add the same alias to the same index
                         if (updatedState.metaData().aliases().equals(currentState.metaData().aliases())) {

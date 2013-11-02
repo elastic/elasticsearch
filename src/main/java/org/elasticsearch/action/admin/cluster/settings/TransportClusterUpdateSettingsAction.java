@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.builder;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 
 /**
  *
@@ -160,7 +159,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                         if (!routingResult.changed()) {
                             return currentState;
                         }
-                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                        return ClusterState.builder(currentState).routingResult(routingResult).build();
                     }
 
                     @Override
@@ -237,7 +236,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                 }
 
-                return builder().state(currentState).metaData(metaData).blocks(blocks).build();
+                return builder(currentState).metaData(metaData).blocks(blocks).build();
             }
 
             @Override

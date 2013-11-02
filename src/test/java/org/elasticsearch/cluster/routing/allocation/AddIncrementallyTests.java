@@ -17,7 +17,6 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -91,10 +90,10 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
         DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
         nodes.put(newNode("node2"));
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(nodes.build()).build();
+        clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
         RoutingTable routingTable = service.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
@@ -103,7 +102,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         RoutingTable prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(2));
@@ -114,7 +113,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(4));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
@@ -124,7 +123,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(6));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
@@ -134,7 +133,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(prev, Matchers.sameInstance(routingTable));
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(2));
@@ -162,10 +161,10 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
         DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
         nodes.put(newNode("node2"));
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(nodes.build()).build();
+        clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
         RoutingTable routingTable = service.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
@@ -174,7 +173,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         RoutingTable prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(2));
@@ -185,7 +184,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(4));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
@@ -195,7 +194,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(6));
         assertThat(clusterState.routingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
@@ -205,7 +204,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         prev = routingTable;
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
         assertThat(prev, Matchers.sameInstance(routingTable));
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(2));
@@ -243,10 +242,10 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
             nodes.put(newNode("node" + (i + nodeOffset)));
         }
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(nodes.build()).build();
+        clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
         RoutingTable routingTable = service.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         // move initializing to started
@@ -255,7 +254,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         while (true) {
             logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
             if (routingTable == prev)
                 break;
@@ -289,28 +288,28 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.put(newNode("node" + i));
         }
-        ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
         routingTable = service.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         logger.info("restart all the primary shards, replicas will start initializing");
         routingNodes = clusterState.routingNodes();
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("start the replica shards");
         routingNodes = clusterState.routingNodes();
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
             if (routingTable == prev)
                 break;
@@ -332,28 +331,28 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         MetaData metaData = metaDataBuilder.build();
         RoutingTable routingTable = routingTableBuilder.build();
-        clusterState = newClusterStateBuilder().state(clusterState).metaData(metaData).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
         routingTable = service.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         logger.info("restart all the primary shards, replicas will start initializing");
         routingNodes = clusterState.routingNodes();
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("start the replica shards");
         routingNodes = clusterState.routingNodes();
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
             if (routingTable == prev)
                 break;
@@ -375,29 +374,29 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
             }
         }
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(nodes.build()).build();
+        clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         logger.info("start all the primary shards, replicas will start initializing");
         RoutingTable routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("start the replica shards");
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("rebalancing");
         routingTable = service.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
         logger.info("complete rebalancing");
         RoutingTable prev = routingTable;
         while (true) {
             routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             routingNodes = clusterState.routingNodes();
             if (routingTable == prev)
                 break;

@@ -108,6 +108,9 @@ See the http://www.elasticsearch.org/guide/en/elasticsearch/client/ruby-api/curr
 * https://github.com/bsadeh/scalastic[scalastic]:
   Scala client.
 
+* https://github.com/gphat/wabisabi[wabisabi]:
+  Asynchronous REST API Scala client.
+
 
 [[community-clojure]]
 === Clojure

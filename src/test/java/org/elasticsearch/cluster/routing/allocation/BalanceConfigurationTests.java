@@ -42,7 +42,6 @@ import org.junit.Test;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -159,7 +158,7 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
 
 
         logger.info("start " + numberOfNodes + " nodes");
-        DiscoveryNodes.Builder nodes = newNodesBuilder();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.put(newNode("node" + i));
         }
@@ -196,7 +195,7 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
 
     private ClusterState addNode(ClusterState clusterState, AllocationService strategy) {
         logger.info("now, start 1 more node, check that rebalancing will happen because we set it to always");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node" + numberOfNodes)))
                 .build();
 
@@ -221,7 +220,7 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
 
     private ClusterState removeNodes(ClusterState clusterState, AllocationService strategy) {
         logger.info("Removing half the nodes (" + (numberOfNodes + 1) / 2 + ")");
-        DiscoveryNodes.Builder nodes = newNodesBuilder().putAll(clusterState.nodes());
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
 
         for (int i = (numberOfNodes + 1) / 2; i <= numberOfNodes; i++) {
             nodes.remove("node" + i);
@@ -458,7 +457,7 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
             routingTableBuilder.addAsNew(index);
         }
         RoutingTable routingTable = routingTableBuilder.build();
-        DiscoveryNodes.Builder nodes = newNodesBuilder();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < 4; i++) {
             DiscoveryNode node = newNode("node" + i);
             nodes.put(node);

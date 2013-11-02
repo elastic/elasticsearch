@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
@@ -40,7 +41,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -96,7 +96,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
@@ -127,7 +127,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node3");
 
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -214,7 +214,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node4");
 
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -285,7 +285,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
@@ -316,7 +316,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node3");
 
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -403,7 +403,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         logger.info("--> adding node4");
 
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes())
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4"))
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -470,7 +470,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         logger.info("--> adding node1");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2")) // node2 is added because DiskThresholdDecider automatically ignore single-node clusters
         ).build();
@@ -532,7 +532,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
 
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         logger.info("--> adding node1");
-        clusterState = ClusterState.builder(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node3")) // node3 is added because DiskThresholdDecider automatically ignore single-node clusters
         ).build();

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -30,7 +31,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -52,7 +52,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ElasticsearchTes
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(2).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

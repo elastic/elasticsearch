@@ -27,7 +27,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -40,24 +39,24 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
     @Test
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test1")
+                .put(IndexMetaData.builder("test1")
                         .numberOfShards(1)
                         .numberOfReplicas(2))
-                .put(newIndexMetaDataBuilder("test2")
+                .put(IndexMetaData.builder("test2")
                         .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(2)
                         .numberOfReplicas(3))
-                .put(newIndexMetaDataBuilder("test3")
+                .put(IndexMetaData.builder("test3")
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1))
-                .put(newIndexMetaDataBuilder("test4")
+                .put(IndexMetaData.builder("test4")
                         .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
                         .putMapping("mapping2", MAPPING_SOURCE2))
-                .put(newIndexMetaDataBuilder("test5")
+                .put(IndexMetaData.builder("test5")
                         .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
@@ -65,7 +64,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putMapping("mapping2", MAPPING_SOURCE2)
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
-                .put(newIndexMetaDataBuilder("test6")
+                .put(IndexMetaData.builder("test6")
                         .settings(settingsBuilder()
                                 .put("setting1", "value1")
                                 .put("setting2", "value2")
@@ -77,7 +76,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putMapping("mapping2", MAPPING_SOURCE2)
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
-                .put(newIndexMetaDataBuilder("test7")
+                .put(IndexMetaData.builder("test7")
                         .settings(settingsBuilder()
                                 .put("setting1", "value1")
                                 .put("setting2", "value2")

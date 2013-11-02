@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -40,7 +41,6 @@ import java.util.HashSet;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -87,7 +87,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -276,7 +276,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -462,7 +462,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -524,7 +524,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .build(), deciders, new ShardsAllocators(), cis);
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

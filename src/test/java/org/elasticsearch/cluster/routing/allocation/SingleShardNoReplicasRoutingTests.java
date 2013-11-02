@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -38,7 +39,6 @@ import java.util.Set;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -59,7 +59,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -161,7 +161,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -217,7 +217,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metaDataBuilder.put(newIndexMetaDataBuilder("test" + i).numberOfShards(1).numberOfReplicas(0));
+            metaDataBuilder.put(IndexMetaData.builder("test" + i).numberOfShards(1).numberOfReplicas(0));
         }
         MetaData metaData = metaDataBuilder.build();
 
@@ -330,7 +330,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metaDataBuilder.put(newIndexMetaDataBuilder("test" + i).numberOfShards(1).numberOfReplicas(0));
+            metaDataBuilder.put(IndexMetaData.builder("test" + i).numberOfShards(1).numberOfReplicas(0));
         }
         MetaData metaData = metaDataBuilder.build();
 

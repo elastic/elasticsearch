@@ -104,7 +104,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 logger.info("[{}] closing index", request.index);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData())
-                        .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.CLOSE));
+                        .put(IndexMetaData.builder(currentState.metaData().index(request.index)).state(IndexMetaData.State.CLOSE));
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .addIndexBlock(request.index, INDEX_CLOSED_BLOCK);
@@ -159,7 +159,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 logger.info("[{}] opening index", request.index);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData())
-                        .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.OPEN));
+                        .put(IndexMetaData.builder(currentState.metaData().index(request.index)).state(IndexMetaData.State.OPEN));
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .removeIndexBlock(request.index, INDEX_CLOSED_BLOCK);

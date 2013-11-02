@@ -18,7 +18,6 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -272,7 +271,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetaData.Builder index = newIndexMetaDataBuilder("test" + i).numberOfShards(numberOfShards).numberOfReplicas(
+            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).numberOfShards(numberOfShards).numberOfReplicas(
                     numberOfReplicas);
             metaDataBuilder = metaDataBuilder.put(index);
         }
@@ -326,7 +325,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
         MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.getMetaData());
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
 
-        IndexMetaData.Builder index = newIndexMetaDataBuilder("test" + indexOrdinal).numberOfShards(numberOfShards).numberOfReplicas(
+        IndexMetaData.Builder index = IndexMetaData.builder("test" + indexOrdinal).numberOfShards(numberOfShards).numberOfReplicas(
                 numberOfReplicas);
         metaDataBuilder = metaDataBuilder.put(index);
         routingTableBuilder.addAsNew(index.build());

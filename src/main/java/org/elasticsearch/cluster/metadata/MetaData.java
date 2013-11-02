@@ -838,7 +838,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
-                indexMetaData = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).version(indexMetaData.version() + 1).build();
+                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.version() + 1).build();
             }
             indices.put(indexMetaData.index(), indexMetaData);
             return this;
@@ -895,7 +895,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 if (indexMetaData == null) {
                     throw new IndexMissingException(new Index(index));
                 }
-                put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData)
+                put(IndexMetaData.builder(indexMetaData)
                         .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
             }
             return this;
@@ -910,7 +910,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 if (indexMetaData == null) {
                     throw new IndexMissingException(new Index(index));
                 }
-                put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData).numberOfReplicas(numberOfReplicas));
+                put(IndexMetaData.builder(indexMetaData).numberOfReplicas(numberOfReplicas));
             }
             return this;
         }

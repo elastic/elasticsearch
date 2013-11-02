@@ -144,7 +144,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                         }
 
                         // now replace it on the metadata
-                        MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
+                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                         for (String index : concreteIndices) {
                             IndexMetaData indexMetaData = metaData.index(index);

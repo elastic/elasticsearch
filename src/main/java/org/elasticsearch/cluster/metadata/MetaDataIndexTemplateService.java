@@ -85,7 +85,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     }
                     throw new IndexTemplateMissingException(request.name);
                 }
-                MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData());
+                MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                 for (String templateName : templateNames) {
                     metaData.removeTemplate(templateName);
                 }
@@ -161,8 +161,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {
                     throw new IndexTemplateAlreadyExistsException(request.name);
                 }
-                MetaData.Builder builder = MetaData.builder().metaData(currentState.metaData())
-                        .put(template);
+                MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
 
                 return ClusterState.builder().state(currentState).metaData(builder).build();
             }

@@ -91,7 +91,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 }
 
                 IndexRoutingTable indexRoutingTable = currentState.routingTable().index(request.index);
-                for (IndexShardRoutingTable shard: indexRoutingTable) {
+                for (IndexShardRoutingTable shard : indexRoutingTable) {
                     if (!shard.primaryAllocatedPostApi()) {
                         throw new IndexPrimaryShardNotAllocatedException(new Index(request.index));
                     }
@@ -103,8 +103,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 logger.info("[{}] closing index", request.index);
 
-                MetaData.Builder mdBuilder = MetaData.builder()
-                        .metaData(currentState.metaData())
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData())
                         .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.CLOSE));
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
@@ -160,8 +159,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 logger.info("[{}] opening index", request.index);
 
-                MetaData.Builder mdBuilder = MetaData.builder()
-                        .metaData(currentState.metaData())
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData())
                         .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.OPEN));
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())

@@ -125,7 +125,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
                 for (String index : request.indices()) {

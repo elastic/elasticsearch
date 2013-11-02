@@ -225,7 +225,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     return currentState;
                 }
 
-                MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData())
+                MetaData.Builder metaData = MetaData.builder(currentState.metaData())
                         .persistentSettings(persistentSettings.build())
                         .transientSettings(transientSettings.build());
 

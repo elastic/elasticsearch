@@ -29,7 +29,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -53,7 +52,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
 
         logger.info("create several indices with no replicas, and wait till all are allocated");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(10).numberOfReplicas(0))
                 .put(newIndexMetaDataBuilder("test2").numberOfShards(10).numberOfReplicas(0))
                 .build();
@@ -77,7 +76,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
 
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
         routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(1).build();
-        metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(1).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
 
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -87,7 +86,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
         logger.info("create a new index");
-        metaData = newMetaDataBuilder().metaData(clusterState.metaData())
+        metaData = MetaData.builder(clusterState.metaData())
                 .put(newIndexMetaDataBuilder("new_index").numberOfShards(4).numberOfReplicas(0))
                 .build();
 

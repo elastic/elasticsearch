@@ -14,7 +14,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -32,7 +31,7 @@ public class SameShardRoutingTests extends ElasticsearchTestCase {
     public void sameHost() {
         AllocationService strategy = new AllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(2).numberOfReplicas(1))
                 .build();
 

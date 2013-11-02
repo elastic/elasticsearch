@@ -48,7 +48,6 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
  *
@@ -103,7 +102,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
 
                     boolean changed = false;
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    MetaData.Builder builder = MetaData.builder(currentState.metaData());
                     for (AliasAction aliasAction : request.actions) {
                         IndexMetaData indexMetaData = builder.get(aliasAction.index());
                         if (indexMetaData == null) {

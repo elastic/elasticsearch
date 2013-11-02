@@ -411,7 +411,7 @@ public class ChildrenQuery extends Query {
                     }
                     break;
                 case AVG:
-                    assert false : "AVG has it's own collector";
+                    assert false : "AVG has its own collector";
 
                 default:
                     assert false : "Are we missing a score type here? -- " + scoreType;

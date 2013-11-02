@@ -58,7 +58,7 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
 
-        logger.info("--> making sure that shard and it's replica are allocated on node_1 and node_2");
+        logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
         assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
 
@@ -78,7 +78,7 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        logger.info("--> making sure that shard and it's replica exist on server1, server2 and server3");
+        logger.info("--> making sure that shard and its replica exist on server1, server2 and server3");
         assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(server2Shard.exists(), equalTo(true));
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
@@ -91,7 +91,7 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");
+        logger.info("--> making sure that shard and its replica are allocated on server1 and server3 but not on server2");
         assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));

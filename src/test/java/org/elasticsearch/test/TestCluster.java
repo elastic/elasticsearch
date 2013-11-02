@@ -525,7 +525,7 @@ public final class TestCluster implements Iterable<Client> {
         logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
         this.transportClientRatio = transportClientRatio;
         this.random = new Random(random.nextLong());
-        resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
+        resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
         if (wipeData) {
             wipeDataDirectories();
         }
@@ -583,7 +583,7 @@ public final class TestCluster implements Iterable<Client> {
      */
     synchronized void afterTest() {
         wipeDataDirectories();
-        resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
+        resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
 
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -62,6 +63,11 @@ import static org.junit.Assert.fail;
  *
  */
 public class ElasticsearchAssertions {
+
+    public static void assertAcked(AcknowledgedResponse response) {
+        assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
+        assertVersionSerializable(response);
+    }
 
     public static void assertAcked(PutMappingRequestBuilder builder) {
         assertAcked(builder.get());

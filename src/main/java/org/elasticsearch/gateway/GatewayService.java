@@ -265,7 +265,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .build();
 
                     // initialize all index routing tables as empty
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable());
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable());
                     for (IndexMetaData indexMetaData : updatedState.metaData().indices().values()) {
                         routingTableBuilder.addAsRecovery(indexMetaData);
                     }

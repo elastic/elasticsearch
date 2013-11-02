@@ -40,7 +40,6 @@ import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -63,7 +62,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
@@ -165,7 +164,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
@@ -222,7 +221,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
         }
         MetaData metaData = metaDataBuilder.build();
 
-        RoutingTable.Builder routingTableBuilder = routingTable();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < numberOfIndices; i++) {
             routingTableBuilder.addAsNew(metaData.index("test" + i));
         }
@@ -335,7 +334,7 @@ public class SingleShardNoReplicasRoutingTests extends ElasticsearchTestCase {
         }
         MetaData metaData = metaDataBuilder.build();
 
-        RoutingTable.Builder routingTableBuilder = routingTable();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < numberOfIndices; i++) {
             routingTableBuilder.addAsNew(metaData.index("test" + i));
         }

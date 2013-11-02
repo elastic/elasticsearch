@@ -122,7 +122,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
                 logger.info("[{}] deleting index", request.index);
 
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
+                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 routingTableBuilder.remove(request.index);
 
                 MetaData newMetaData = MetaData.builder(currentState.metaData())

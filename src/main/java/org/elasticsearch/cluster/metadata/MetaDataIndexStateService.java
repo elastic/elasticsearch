@@ -123,8 +123,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder()
-                        .routingTable(currentState.routingTable());
+                RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                 for (String index : indicesToClose) {
                     rtBuilder.remove(index);
                 }
@@ -194,8 +193,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder()
-                        .routingTable(updatedState.routingTable());
+                RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable());
                 for (String index : indicesToOpen) {
                     rtBuilder.addAsRecovery(updatedState.metaData().index(index));
                 }

@@ -45,7 +45,6 @@ import java.util.Random;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -77,7 +76,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchTestCase {
 
         }
         MetaData metaData = metaBuilder.build();
-        RoutingTable.Builder routingTableBuilder = routingTable();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < indices; i++) {
             routingTableBuilder.addAsNew(metaData.index("INDEX_" + i));
         }

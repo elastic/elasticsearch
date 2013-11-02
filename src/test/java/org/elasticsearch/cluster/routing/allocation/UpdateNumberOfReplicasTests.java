@@ -12,7 +12,6 @@ import org.junit.Test;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -35,7 +34,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
@@ -82,7 +81,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         logger.info("add another replica");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(2).build();
+        routingTable = RoutingTable.builder(routingTable).updateNumberOfReplicas(2).build();
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2).build();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
 
@@ -134,7 +133,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         logger.info("now remove a replica");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(1).build();
+        routingTable = RoutingTable.builder(routingTable).updateNumberOfReplicas(1).build();
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
 

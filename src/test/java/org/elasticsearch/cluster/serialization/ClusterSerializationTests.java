@@ -34,7 +34,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -48,7 +47,7 @@ public class ClusterSerializationTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(10).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
@@ -71,7 +70,7 @@ public class ClusterSerializationTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("test").numberOfShards(10).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 

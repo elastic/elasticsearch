@@ -30,7 +30,6 @@ import org.junit.Test;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -57,7 +56,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("test2").numberOfShards(10).numberOfReplicas(0))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test1"))
                 .addAsNew(metaData.index("test2"))
                 .build();
@@ -75,7 +74,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
         }
 
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
-        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(1).build();
+        routingTable = RoutingTable.builder(routingTable).updateNumberOfReplicas(1).build();
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
 
@@ -90,7 +89,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchTestCase {
                 .put(newIndexMetaDataBuilder("new_index").numberOfShards(4).numberOfReplicas(0))
                 .build();
 
-        routingTable = routingTable().routingTable(clusterState.routingTable())
+        routingTable = RoutingTable.builder(clusterState.routingTable())
                 .addAsNew(metaData.index("new_index"))
                 .build();
 

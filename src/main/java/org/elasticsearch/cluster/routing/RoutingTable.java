@@ -262,18 +262,24 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return new Builder();
     }
 
+    public static Builder builder(RoutingTable routingTable) {
+        return new Builder(routingTable);
+    }
+
     public static class Builder {
 
         private long version;
-
         private final Map<String, IndexRoutingTable> indicesRouting = newHashMap();
 
-        public Builder routingTable(RoutingTable routingTable) {
+        public Builder() {
+
+        }
+
+        public Builder(RoutingTable routingTable) {
             version = routingTable.version;
             for (IndexRoutingTable indexRoutingTable : routingTable) {
                 indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
             }
-            return this;
         }
 
         public Builder updateNodes(RoutingNodes routingNodes) {

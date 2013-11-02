@@ -327,7 +327,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     // only the master controls the version numbers
                     Builder builder = ClusterState.builder().state(newClusterState).version(newClusterState.version() + 1);
                     if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                        builder.routingTable(RoutingTable.builder().routingTable(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
+                        builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
                     }
                     if (previousClusterState.metaData() != newClusterState.metaData()) {
                         builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
@@ -355,7 +355,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
                         // have a fresh instances of routing and metadata to remove the chance that version might be the same
                         Builder builder = ClusterState.builder().state(newClusterState);
-                        builder.routingTable(RoutingTable.builder().routingTable(newClusterState.routingTable()));
+                        builder.routingTable(RoutingTable.builder(newClusterState.routingTable()));
                         builder.metaData(MetaData.builder(newClusterState.metaData()));
                         newClusterState = builder.build();
                         logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());

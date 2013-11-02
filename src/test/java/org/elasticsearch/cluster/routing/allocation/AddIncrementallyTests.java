@@ -20,7 +20,6 @@ import org.junit.Test;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
@@ -270,7 +269,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
     private ClusterState initCluster(AllocationService service, int numberOfNodes, int numberOfIndices, int numberOfShards,
                                      int numberOfReplicas) {
         MetaData.Builder metaDataBuilder = MetaData.builder();
-        RoutingTable.Builder routingTableBuilder = routingTable();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetaData.Builder index = newIndexMetaDataBuilder("test" + i).numberOfShards(numberOfShards).numberOfReplicas(
@@ -325,7 +324,7 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
     private ClusterState addIndex(ClusterState clusterState, AllocationService service, int indexOrdinal, int numberOfShards,
                                   int numberOfReplicas) {
         MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.getMetaData());
-        RoutingTable.Builder routingTableBuilder = routingTable().routingTable(clusterState.routingTable());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
 
         IndexMetaData.Builder index = newIndexMetaDataBuilder("test" + indexOrdinal).numberOfShards(numberOfShards).numberOfReplicas(
                 numberOfReplicas);

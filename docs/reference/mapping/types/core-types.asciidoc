@@ -213,6 +213,49 @@ defaults to `true` or to the parent `object` type setting.
 |=======================================================================
 
 [float]
+[[token_count]]
+==== Token Count
+added[0.90.8]
+The `token_count` type maps to the JSON string type but indexes and stores
+the number of tokens in the string rather than the string itself.  For
+example:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "properties" : {
+            "message" : {
+                "type" : "multi_field",
+                "fields" : {
+                    "name": {
+                        "type": "string"
+                    },
+                    "word_count": {
+                        "type" : "token_count",
+                        "store" : "yes",
+                        "analyzer" : "standard"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+All the configuration that can be specified for a number can be specified
+for a token_count.  The only extra configuration is the required
+`analyzer` field which specifies which analyzer to use to break the string
+into tokens.  For best performance, use an analyzer with no token filters.
+
+[NOTE]
+===================================================================
+Technically the `token_count` type sums position increments rather than
+counting tokens. This means that even if the analyzer filters out stop
+words they are included in the count.
+===================================================================
+
+[float]
 [[date]]
 ==== Date
 

@@ -259,55 +259,67 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        String value = nullValue;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            value = (String) context.externalValue();
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            value = parser.textOrNull();
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-            } else {
-                value = parser.textOrNull();
-            }
-        }
-        if (value == null) {
+        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, boost);
+        if (valueAndBoost.value() == null) {
             return;
         }
-        if (ignoreAbove > 0 && value.length() > ignoreAbove) {
+        if (ignoreAbove > 0 && valueAndBoost.value().length() > ignoreAbove) {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(names.fullName(), value, boost);
+            context.allEntries().addText(names.fullName(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new StringField(names.indexName(), value, fieldType);
-            field.setBoost(boost);
+            Field field = new StringField(names.indexName(), valueAndBoost.value(), fieldType);
+            field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
         if (hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(value)));
+            fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(valueAndBoost.value())));
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(names.indexName(), value);
+            context.ignoredValue(names.indexName(), valueAndBoost.value());
         }
+    }
+
+    /**
+     * Parse a field as though it were a string.
+     * @param context parse context used during parsing
+     * @param nullValue value to use for null
+     * @param defaultBoost default boost value returned unless overwritten in the field
+     * @return the parsed field and the boost either parsed or defaulted
+     * @throws IOException if thrown while parsing
+     */
+    public static ValueAndBoost parseCreateFieldForString(ParseContext context, String nullValue, float defaultBoost) throws IOException {
+        if (context.externalValueSet()) {
+            return new ValueAndBoost((String) context.externalValue(), defaultBoost);
+        }
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return new ValueAndBoost(nullValue, defaultBoost);
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            String value = nullValue;
+            float boost = defaultBoost;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else {
+                    if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                        value = parser.textOrNull();
+                    } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
+                        boost = parser.floatValue();
+                    } else {
+                        throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
+                    }
+                }
+            }
+            return new ValueAndBoost(value, boost);
+        }
+        return new ValueAndBoost(parser.textOrNull(), defaultBoost);
     }
 
     @Override
@@ -435,6 +447,35 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         @Override
         public void close() {
             value = null;
+        }
+    }
+
+    /**
+     * Parsed value and boost to be returned from {@link #parseCreateFieldForString}.
+     */
+    public static class ValueAndBoost {
+        private final String value;
+        private final float boost;
+
+        public ValueAndBoost(String value, float boost) {
+            this.value = value;
+            this.boost = boost;
+        }
+
+        /**
+         * Value of string field.
+         * @return value of string field
+         */
+        public String value() {
+            return value;
+        }
+
+        /**
+         * Boost either parsed from the document or defaulted.
+         * @return boost either parsed from the document or defaulted
+         */
+        public float boost() {
+            return boost;
         }
     }
 }

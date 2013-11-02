@@ -2019,7 +2019,7 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         ensureGreen();
 
         client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").setRefresh(true).get();
+                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy quick dog").setRefresh(true).get();
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
@@ -2049,28 +2049,28 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1l);
 
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy <xxx>quick</xxx> dog"));
 
         logger.info("--> searching on _all, highlighting on field2");
         source = searchSource()
-                .query(prefixQuery("_all", "qui"))
+                .query(matchPhraseQuery("_all", "quick brown"))
                 .highlight(highlight().field("field2").preTags("<xxx>").postTags("</xxx>"));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1l);
-        //no snippets produced for prefix query, not supported by postings highlighter
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().size(), equalTo(0));
+        //phrase query results in highlighting all different terms regardless of their positions
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy <xxx>quick</xxx> dog"));
 
-        //lets fall back to the standard highlighter then, what people would do with unsupported queries
+        //lets fall back to the standard highlighter then, what people would do to highlight query matches
         logger.info("--> searching on _all, highlighting on field2, falling back to the plain highlighter");
         source = searchSource()
-                .query(prefixQuery("_all", "qui"))
+                .query(matchPhraseQuery("_all", "quick brown"))
                 .highlight(highlight().field("field2").preTags("<xxx>").postTags("</xxx>").highlighterType("highlighter"));
 
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1l);
 
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy quick dog"));
     }
 
     @Test
@@ -2484,6 +2484,136 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
                 .startObject("field2").field("type", "string").field("index_options", "offsets").endObject()
                 .endObject()
                 .endObject().endObject();
+    }
+
+    private static final String[] REWRITE_METHODS = new String[]{"constant_score_auto", "scoring_boolean", "constant_score_boolean",
+            "constant_score_filter", "top_terms_boost_50", "top_terms_50"};
+
+    @Test
+    public void testPostingsHighlighterPrefixQuery() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
+        refresh();
+        logger.info("--> highlighting and searching on field2");
+
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(prefixQuery("field2", "qui").rewrite(rewriteMethod))
+                    .highlight(highlight().field("field2"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHitCount(searchResponse, 1l);
+
+            assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                    equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterFuzzyQuery() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
+        refresh();
+        logger.info("--> highlighting and searching on field2");
+        SearchSourceBuilder source = searchSource().query(fuzzyQuery("field2", "quck"))
+                .highlight(highlight().field("field2"));
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+        assertHitCount(searchResponse, 1l);
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+    }
+
+    @Test
+    public void testPostingsHighlighterRegexpQuery() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
+        refresh();
+        logger.info("--> highlighting and searching on field2");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(regexpQuery("field2", "qu[a-l]+k").rewrite(rewriteMethod))
+                    .highlight(highlight().field("field2"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHitCount(searchResponse, 1l);
+
+            assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                    equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterWildcardQuery() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
+        refresh();
+        logger.info("--> highlighting and searching on field2");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(wildcardQuery("field2", "qui*").rewrite(rewriteMethod))
+                    .highlight(highlight().field("field2"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHitCount(searchResponse, 1l);
+
+            assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                    equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+
+            source = searchSource().query(wildcardQuery("field2", "qu*k").rewrite(rewriteMethod))
+                    .highlight(highlight().field("field2"));
+            searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHitCount(searchResponse, 1l);
+
+            assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                    equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighterTermRangeQuery() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "aaab").get();
+        refresh();
+        logger.info("--> highlighting and searching on field2");
+        SearchSourceBuilder source = searchSource().query(rangeQuery("field2").gte("aaaa").lt("zzzz"))
+                .highlight(highlight().field("field2"));
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+        assertHitCount(searchResponse, 1l);
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                equalTo("<em>aaab</em>"));
+    }
+
+    @Test
+    public void testPostingsHighlighterQueryString() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
+        refresh();
+        logger.info("--> highlighting and searching on field2");
+        for (String rewriteMethod : REWRITE_METHODS) {
+            SearchSourceBuilder source = searchSource().query(queryString("qui*").defaultField("field2").rewrite(rewriteMethod))
+                    .highlight(highlight().field("field2"));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)
+                    .searchType(randomBoolean() ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)).get();
+            assertHitCount(searchResponse, 1l);
+
+            assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                    equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
+        }
     }
 
     @Test

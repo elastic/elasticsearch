@@ -129,6 +129,10 @@ public final class MapperBuilders {
         return new IntegerFieldMapper.Builder(name);
     }
 
+    public static TokenCountFieldMapper.Builder tokenCountField(String name) {
+        return new TokenCountFieldMapper.Builder(name);
+    }
+
     public static LongFieldMapper.Builder longField(String name) {
         return new LongFieldMapper.Builder(name);
     }

@@ -309,10 +309,20 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 }
             }
         }
+        return intField(value, boost);
+    }
 
-        CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
-        field.setBoost(boost);
-        return field;
+    protected Field intField(int value, float boost) {
+        if (fieldType.indexed() || fieldType.stored()) {
+            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
+            field.setBoost(boost);
+            return field;
+        }
+        return null;
+    }
+
+    protected Integer nullValue() {
+        return nullValue;
     }
 
     @Override

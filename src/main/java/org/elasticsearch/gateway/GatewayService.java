@@ -43,7 +43,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 
 /**
  *
@@ -248,8 +247,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .blocks(recoveredState.blocks())
                             .removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
-                    MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                            .metaData(recoveredState.metaData());
+                    MetaData.Builder metaDataBuilder = MetaData.builder(recoveredState.metaData());
 
                     if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);

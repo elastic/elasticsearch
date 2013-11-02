@@ -330,7 +330,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         builder.routingTable(RoutingTable.builder().routingTable(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
                     }
                     if (previousClusterState.metaData() != newClusterState.metaData()) {
-                        builder.metaData(MetaData.builder().metaData(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
+                        builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
                     }
                     newClusterState = builder.build();
 
@@ -356,7 +356,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         // have a fresh instances of routing and metadata to remove the chance that version might be the same
                         Builder builder = ClusterState.builder().state(newClusterState);
                         builder.routingTable(RoutingTable.builder().routingTable(newClusterState.routingTable()));
-                        builder.metaData(MetaData.builder().metaData(newClusterState.metaData()));
+                        builder.metaData(MetaData.builder(newClusterState.metaData()));
                         newClusterState = builder.build();
                         logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());
                     } else if (newClusterState.version() < previousClusterState.version()) {

@@ -28,9 +28,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -41,7 +39,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleJsonFromAndTo() throws IOException {
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1")
                         .numberOfShards(1)
                         .numberOfReplicas(2))

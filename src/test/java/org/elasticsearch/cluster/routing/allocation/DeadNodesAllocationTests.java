@@ -31,13 +31,11 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -54,7 +52,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
                 .build());
 
         logger.info("--> building initial routing table");
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = routingTable()
@@ -106,7 +104,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
                 .build());
 
         logger.info("--> building initial routing table");
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = routingTable()
@@ -181,7 +179,7 @@ public class DeadNodesAllocationTests extends ElasticsearchTestCase {
                 .build());
 
         logger.info("--> building initial routing table");
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = routingTable()

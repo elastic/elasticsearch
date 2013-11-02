@@ -113,8 +113,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 logger.info("closing indices [{}]", indicesAsString);
 
-                MetaData.Builder mdBuilder = MetaData.builder()
-                        .metaData(currentState.metaData());
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
                 for (String index : indicesToClose) {
@@ -185,8 +184,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 logger.info("opening indices [{}]", indicesAsString);
 
-                MetaData.Builder mdBuilder = MetaData.builder()
-                        .metaData(currentState.metaData());
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
                         .blocks(currentState.blocks());
                 for (String index : indicesToOpen) {

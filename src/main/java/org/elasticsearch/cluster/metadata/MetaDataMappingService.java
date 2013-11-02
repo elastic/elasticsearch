@@ -56,7 +56,6 @@ import java.util.concurrent.BlockingQueue;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
@@ -142,7 +141,7 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         boolean dirty = false;
-        MetaData.Builder mdBuilder = newMetaDataBuilder().metaData(currentState.metaData());
+        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
         for (Map.Entry<String, List<MappingTask>> entry : tasksPerIndex.entrySet()) {
             String index = entry.getKey();
             List<MappingTask> tasks = entry.getValue();
@@ -334,7 +333,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     throw new IndexMissingException(new Index("_all"));
                 }
 
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 boolean changed = false;
                 String latestIndexWithout = null;
                 for (String indexName : request.indices()) {
@@ -492,7 +491,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         return currentState;
                     }
 
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    MetaData.Builder builder = MetaData.builder(currentState.metaData());
                     for (String indexName : request.indices) {
                         IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                         if (indexMetaData == null) {

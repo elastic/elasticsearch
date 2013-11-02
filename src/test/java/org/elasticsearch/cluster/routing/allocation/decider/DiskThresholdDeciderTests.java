@@ -41,7 +41,6 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -88,7 +87,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build(), deciders, new ShardsAllocators(), cis);
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -277,7 +276,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build(), deciders, new ShardsAllocators(), cis);
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -463,7 +462,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build(), deciders, new ShardsAllocators(), cis);
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 
@@ -525,7 +524,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build(), deciders, new ShardsAllocators(), cis);
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(0))
                 .build();
 

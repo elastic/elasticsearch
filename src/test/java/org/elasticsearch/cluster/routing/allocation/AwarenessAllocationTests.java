@@ -32,7 +32,6 @@ import org.junit.Test;
 
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -56,7 +55,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded1'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -125,7 +124,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded2'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -200,7 +199,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded3'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(5).numberOfReplicas(1))
                 .build();
 
@@ -298,7 +297,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded4'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(5).numberOfReplicas(1))
                 .put(newIndexMetaDataBuilder("test2").numberOfShards(5).numberOfReplicas(1))
                 .build();
@@ -381,6 +380,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
+
     @Test
     public void moveShardOnceNewNodeWithAttributeAdded5() {
         AllocationService strategy = new AllocationService(settingsBuilder()
@@ -391,7 +391,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded5'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(2))
                 .build();
 
@@ -470,7 +470,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded6'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(3))
                 .build();
 
@@ -552,7 +552,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'fullAwareness1'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -620,7 +620,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'fullAwareness2'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
@@ -694,7 +694,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'fullAwareness3'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test1").numberOfShards(5).numberOfReplicas(1))
                 .put(newIndexMetaDataBuilder("test2").numberOfShards(5).numberOfReplicas(1))
                 .build();
@@ -762,7 +762,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         logger.info("--> do another reroute, make sure nothing moves");
         assertThat(strategy.reroute(clusterState).routingTable(), sameInstance(clusterState.routingTable()));
     }
-    
+
     @Test
     public void testUnbalancedZones() {
         AllocationService strategy = new AllocationService(settingsBuilder()
@@ -776,7 +776,7 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table for 'testUnbalancedZones'");
 
-        MetaData metaData = newMetaDataBuilder()
+        MetaData metaData = MetaData.builder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(5).numberOfReplicas(1))
                 .build();
 
@@ -817,11 +817,11 @@ public class AwarenessAllocationTests extends ElasticsearchTestCase {
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(2));
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo("A-1"));
-        logger.info("--> starting inizializing shards on the new node");
+        logger.info("--> starting initializing shards on the new node");
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        
+
         assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
         assertThat(clusterState.getRoutingNodes().node("A-1").shards().size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("A-0").shards().size(), equalTo(3));

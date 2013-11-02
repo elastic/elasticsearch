@@ -120,8 +120,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     if (currentState.blocks().disableStatePersistence()) {
                         return currentState;
                     }
-                    MetaData.Builder metaData = MetaData.builder()
-                            .metaData(currentState.metaData());
+                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
 

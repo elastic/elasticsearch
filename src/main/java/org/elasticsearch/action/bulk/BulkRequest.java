@@ -235,17 +235,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null, true);
+        return add(data, contentUnsafe, defaultIndex, defaultType, null, null, true);
     }
 
     /**
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null, allowExplicitIndex);
+        return add(data, contentUnsafe, defaultIndex, defaultType, null, null, allowExplicitIndex);
     }
 
-    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
+    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -276,7 +276,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 String index = defaultIndex;
                 String type = defaultType;
                 String id = null;
-                String routing = null;
+                String routing = defaultRouting;
                 String parent = null;
                 String timestamp = null;
                 Long ttl = null;

@@ -233,7 +233,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             } finally {
                 output.close();
             }
-            
+
         }
         for (StoreFileMetaData metaData : files.values()) {
             if (metaData.name().startsWith(CHECKSUMS_PREFIX) && !checksumName.equals(metaData.name())) {
@@ -334,21 +334,25 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         @Override
         public void copy(Directory to, String src, String dest, IOContext context) throws IOException {
+            ensureOpen();
             // lets the default implementation happen, so we properly open an input and create an output
             super.copy(to, src, dest, context);
         }
 
         @Override
         public String[] listAll() throws IOException {
+            ensureOpen();
             return files;
         }
 
         @Override
         public boolean fileExists(String name) throws IOException {
+            ensureOpen();
             return filesMetadata.containsKey(name);
         }
 
         public void deleteFileChecksum(String name) throws IOException {
+            ensureOpen();
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData != null) {
                 try {
@@ -367,6 +371,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         @Override
         public void deleteFile(String name) throws IOException {
+            ensureOpen();
             // we don't allow to delete the checksums files, only using the deleteChecksum method
             if (isChecksum(name)) {
                 return;
@@ -393,6 +398,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
          */
         @Override
         public long fileLength(String name) throws IOException {
+            ensureOpen();
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -410,6 +416,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         public IndexOutput createOutput(String name, IOContext context, boolean raw) throws IOException {
+            ensureOpen();
             Directory directory;
             if (isChecksum(name)) {
                 directory = distributor.primary();
@@ -433,7 +440,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     if (computeChecksum) {
                         out = new BufferedChecksumIndexOutput(out, new Adler32());
                     }
-                    
+
                     final StoreIndexOutput storeIndexOutput = new StoreIndexOutput(metaData, out, name);
                     success = true;
                     return storeIndexOutput;
@@ -447,6 +454,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
+            ensureOpen();
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -472,6 +480,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         @Override
         public IndexInputSlicer createSlicer(String name, IOContext context) throws IOException {
+            ensureOpen();
             StoreFileMetaData metaData = filesMetadata.get(name);
             if (metaData == null) {
                 throw new FileNotFoundException(name);
@@ -486,7 +495,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
+            isOpen = false;
             for (Directory delegate : distributor.all()) {
                 delegate.close();
             }
@@ -523,6 +533,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         @Override
         public void sync(Collection<String> names) throws IOException {
+            ensureOpen();
             if (sync) {
                 Map<Directory, Collection<String>> map = Maps.newHashMap();
                 for (String name : names) {

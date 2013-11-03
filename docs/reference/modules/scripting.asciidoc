@@ -169,8 +169,10 @@ loaded into memory. They can be simply accessed using
 
 The source field can also be accessed when executing a script. The
 source field is loaded per doc, parsed, and then provided to the script
-for evaluation. The `_source` forms the context under which the source
-field can be accessed, for example `_source.obj2.obj1.field3`.
+for evaluation. _source is slower than _fields or _doc and thus should
+be used only when a field is not available via _fields. The `_source`
+forms the context under which the source field can be accessed, for
+example `_source.obj2.obj1.field3`.
 
 [float]
 === mvel Built In Functions

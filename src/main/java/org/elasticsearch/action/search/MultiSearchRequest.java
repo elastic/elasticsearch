@@ -70,14 +70,14 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
                                   @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, IgnoreIndices.NONE, true);
+        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IgnoreIndices.NONE, true);
     }
 
     public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IgnoreIndices ignoreIndices) throws Exception {
-        return add(data, contentUnsafe, indices, types, searchType, ignoreIndices, true);
+        return add(data, contentUnsafe, indices, types, searchType, null, ignoreIndices, true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IgnoreIndices ignoreIndices, boolean allowExplicitIndex) throws Exception {
+    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IgnoreIndices ignoreIndices, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -102,6 +102,9 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
             }
             if (types != null && types.length > 0) {
                 searchRequest.types(types);
+            }
+            if (routing != null) {
+                searchRequest.routing(routing);
             }
             searchRequest.searchType(searchType);
 

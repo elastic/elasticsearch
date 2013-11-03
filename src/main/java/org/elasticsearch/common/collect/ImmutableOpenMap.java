@@ -97,6 +97,21 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return map.iterator();
     }
 
+    /**
+     * Returns a specialized view of the keys of this associated container.
+     * The view additionally implements {@link ObjectLookupContainer}.
+     */
+    public ObjectLookupContainer<KType> keys() {
+        return map.keys();
+    }
+
+    /**
+     * @return Returns a container with all values stored in this map.
+     */
+    public ObjectContainer<VType> values() {
+        return map.values();
+    }
+
     @Override
     public String toString() {
         return map.toString();

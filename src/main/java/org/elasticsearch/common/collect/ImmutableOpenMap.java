@@ -172,6 +172,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return new ImmutableOpenMap<KType, VType>(map);
         }
 
+        /**
+         * A put operation that can be used in the fluent pattern.
+         */
+        public Builder<KType, VType> fPut(KType key, VType value) {
+            map.put(key, value);
+            return this;
+        }
+
         @Override
         public VType put(KType key, VType value) {
             return map.put(key, value);
@@ -190,6 +198,14 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         @Override
         public int putAll(Iterable<? extends ObjectObjectCursor<? extends KType, ? extends VType>> iterable) {
             return map.putAll(iterable);
+        }
+
+        /**
+         * Remove that can be used in the fluent pattern.
+         */
+        public Builder<KType, VType> fRemove(KType key) {
+            map.remove(key);
+            return this;
         }
 
         @Override

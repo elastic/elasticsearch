@@ -25,7 +25,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -61,15 +61,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     private final IndexStore indexStore;
-
     private final DirectoryService directoryService;
-
     private final StoreDirectory directory;
 
-    private volatile ImmutableMap<String, StoreFileMetaData> filesMetadata = ImmutableMap.of();
-
+    private volatile ImmutableOpenMap<String, StoreFileMetaData> filesMetadata = ImmutableOpenMap.of();
     private volatile String[] files = Strings.EMPTY_ARRAY;
-
     private final Object mutex = new Object();
 
     private final boolean sync;
@@ -158,8 +154,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             directoryService.renameFile(fromMetaData.directory(), from, to);
             StoreFileMetaData toMetaData = new StoreFileMetaData(to, fromMetaData.length(), fromMetaData.checksum(), fromMetaData.directory());
-            filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(from).put(to, toMetaData).immutableMap();
-            files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+            filesMetadata = ImmutableOpenMap.builder(filesMetadata).fRemove(from).fPut(to, toMetaData).build();
+            files = filesMetadata.keys().toArray(String.class);
         }
     }
 
@@ -284,7 +280,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         synchronized (mutex) {
             StoreFileMetaData metaData = filesMetadata.get(name);
             metaData = new StoreFileMetaData(metaData.name(), metaData.length(), checksum, metaData.directory());
-            filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
+            filesMetadata = ImmutableOpenMap.builder(filesMetadata).fPut(name, metaData).build();
             writeChecksums();
         }
     }
@@ -295,7 +291,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             for (Map.Entry<String, String> entry : checksums.entrySet()) {
                 StoreFileMetaData metaData = filesMetadata.get(entry.getKey());
                 metaData = new StoreFileMetaData(metaData.name(), metaData.length(), entry.getValue(), metaData.directory());
-                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(entry.getKey(), metaData).immutableMap();
+                filesMetadata = ImmutableOpenMap.builder(filesMetadata).fPut(entry.getKey(), metaData).build();
             }
             writeChecksums();
         }
@@ -311,7 +307,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         StoreDirectory(Distributor distributor) throws IOException {
             this.distributor = distributor;
             synchronized (mutex) {
-                MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
+                ImmutableOpenMap.Builder<String, StoreFileMetaData> builder = ImmutableOpenMap.builder();
                 Map<String, String> checksums = readChecksums(distributor.all(), new HashMap<String, String>());
                 for (Directory delegate : distributor.all()) {
                     for (String file : delegate.listAll()) {
@@ -319,8 +315,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                         builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), checksum, delegate));
                     }
                 }
-                filesMetadata = builder.immutableMap();
-                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+                filesMetadata = builder.build();
+                files = filesMetadata.keys().toArray(String.class);
             }
         }
 
@@ -364,8 +360,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 }
             }
             synchronized (mutex) {
-                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
-                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+                filesMetadata = ImmutableOpenMap.builder(filesMetadata).fRemove(name).build();
+                files = filesMetadata.keys().toArray(String.class);
             }
         }
 
@@ -387,8 +383,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 }
             }
             synchronized (mutex) {
-                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
-                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+                filesMetadata = ImmutableOpenMap.builder(filesMetadata).fRemove(name).build();
+                files = filesMetadata.keys().toArray(String.class);
             }
         }
 
@@ -428,8 +424,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             try {
                 synchronized (mutex) {
                     StoreFileMetaData metaData = new StoreFileMetaData(name, -1, null, directory);
-                    filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, metaData).immutableMap();
-                    files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+                    filesMetadata = ImmutableOpenMap.builder(filesMetadata).fPut(name, metaData).build();
+                    files = filesMetadata.keys().toArray(String.class);
                     boolean computeChecksum = !raw;
                     if (computeChecksum) {
                         // don't compute checksum for segment based files
@@ -501,7 +497,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 delegate.close();
             }
             synchronized (mutex) {
-                filesMetadata = ImmutableMap.of();
+                filesMetadata = ImmutableOpenMap.of();
                 files = Strings.EMPTY_ARRAY;
             }
         }
@@ -598,8 +594,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             synchronized (mutex) {
                 StoreFileMetaData md = new StoreFileMetaData(name, metaData.directory().fileLength(name), checksum, metaData.directory());
-                filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, md).immutableMap();
-                files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
+                filesMetadata = ImmutableOpenMap.builder(filesMetadata).fPut(name, md).build();
+                files = filesMetadata.keys().toArray(String.class);
             }
         }
 

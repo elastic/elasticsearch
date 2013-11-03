@@ -75,6 +75,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
+        String defaultRouting = request.param("routing");
 
         String replicationType = request.param("replication");
         if (replicationType != null) {
@@ -86,7 +87,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         try {
-            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, allowExplicitIndex);
+            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, defaultRouting, null, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

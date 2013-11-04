@@ -26,6 +26,27 @@ import hmac
 import urllib
 from http.client import HTTPConnection
 
+""" 
+ This tool builds a release from the a given elasticsearch branch.
+ In order to execute it go in the top level directory and run:
+   $ python3 dev_tools/build_release.py --branch 0.90 --publish --remote origin
+
+ By default this script runs in 'dry' mode which essentially simulates a release. If the
+ '--publish' option is set the actual release is done. The script takes over almost all
+ steps necessary for a release from a high level point of view it does the following things:
+
+  - run prerequisit checks ie. check for Java 1.6 being presend or S3 credentials available as env variables
+  - detect the version to release from the specified branch (--branch) or the current branch
+  - creates a release branch & updates pom.xml and Version.java to point to a release version rather than a snapshot
+  - builds the artifacts and runs smoke-tests on the build zip & tar.gz files
+  - commits the new version and merges the release branch into the source branch
+  - creates a tag and pushes the commit to the specified origin (--remote)
+  - publishes the releases to sonar-type and S3
+
+Once it's done it will print all the remaining steps.
+
+"""
+
 LOG = '/tmp/release.log'
 
 def log(msg):
@@ -103,14 +124,11 @@ def process_file(file_path, line_callback):
     with open(file_path) as old_file:
       for line in old_file:
         new_file.write(line_callback(line))
-      #close temp file
-      new_file.close()
-      os.close(fh)
-      old_file.close()
-      #Remove original file
-      os.remove(file_path)
-      #Move new file
-      shutil.move(abs_path, file_path)
+  os.close(fh)
+  #Remove original file
+  os.remove(file_path)
+  #Move new file
+  shutil.move(abs_path, file_path)
   
 
 def remove_maven_snapshot(pom, release):
@@ -206,7 +224,8 @@ def smoke_test_release(release, files):
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
-    run('%s; %s -Des.node.name=smoke_tester' % (java_exe(), es_run_path))
+    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false'
+         % (java_exe(), es_run_path))
     conn = HTTPConnection('127.0.0.1', 9200, 20);
     wait_for_node_startup()
     try:
@@ -292,7 +311,9 @@ POM_FILE = 'pom.xml'
 
 # we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml 
 print_sonartype_notice()
+
 if __name__ == '__main__':
+  release_version = "090.7"
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
   parser.add_argument('--branch', '-b', metavar='master', default=get_current_branch(),
                        help='The branch to release from. Defaults to the current branch.')
@@ -339,8 +360,8 @@ if __name__ == '__main__':
     print(''.join(['-' for _ in range(80)]))
     print('Building Release candidate')
     input('Press Enter to continue...')
-    print('  Running maven builds now - run-tests [%s]' % run_tests)
-    build_release(run_tests=run_tests, dry_run=True, cpus=cpus)
+    print('  Running maven builds now and publish to sonartype- run-tests [%s]' % run_tests)
+    build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus)
     artifacts = get_artifacts(release_version)
     artifacts_and_checksum = generate_checksums(artifacts)
     smoke_test_release(release_version, artifacts)
@@ -351,9 +372,18 @@ if __name__ == '__main__':
     merge_tag_push(remote, src_branch, release_version, dry_run)
     print('  publish artifacts to S3 -- dry_run: %s' % dry_run)
     publish_artifacts(artifacts_and_checksum, dry_run=dry_run)
-    print('  publish maven artifacts -- dry_run: %s' % dry_run)
-    if not dry_run:
-      build_release(run_tests=False, dry_run=dry_run)
+    pending_msg = """
+    Release successful pending steps: 
+      * create a version tag on github for version 'v%(version)s'
+      * check if there are pending issues for this version (https://github.com/elasticsearch/elasticsearch/issues?labels=v%(version)s&page=1&state=open)
+      * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
+         - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
+      * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
+      * build and publish the RPMs
+      * announce the release on the website / blog post
+      * tweet about the release
+    """
+    print(pending_msg % { 'version' : release_version} )
     success = True
   finally:
     if not success:

@@ -69,6 +69,18 @@ _native_ Java scripts registered through plugins, however it will prevent
 users from running arbitrary scripts via the API.
 
 [float]
+=== Automatic Script Reloading
+
+added[0.90.6]
+
+The `config/scripts` directory is scanned periodically for changes.
+New and changed scripts are reloaded and deleted script are removed
+from preloaded scripts cache. The reload frequency can be specified
+using `watcher.interval` setting, which defaults to `60s`.
+To disable script reloading completely set `script.auto_reload_enabled`
+to `false`.
+
+[float]
 === Native (Java) Scripts
 
 Even though `mvel` is pretty fast, allow to register native Java based

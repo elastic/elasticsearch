@@ -154,24 +154,18 @@ public class XContentMapValues {
             }
             sb.append(key);
             String path = sb.toString();
-            boolean excluded = false;
-            for (String exclude : excludes) {
-                if (Regex.simpleMatch(exclude, path)) {
-                    excluded = true;
-                    break;
-                }
-            }
-            if (excluded) {
+
+            if (Regex.simpleMatch(excludes, path)) {
                 sb.setLength(mark);
                 continue;
             }
-            boolean exactIncludeMatch;
+
+            boolean exactIncludeMatch = false; // true if the current position was specifically mentioned
+            boolean pathIsPrefixOfAnInclude = false; // true if potentially a sub scope can be included
             if (includes.length == 0) {
                 // implied match anything
                 exactIncludeMatch = true;
             } else {
-                exactIncludeMatch = false;
-                boolean pathIsPrefixOfAnInclude = false;
                 for (String include : includes) {
                     // check for prefix matches as well to see if we need to zero in, something like: obj1.arr1.* or *.field
                     // note, this does not work well with middle matches, like obj1.*.obj3
@@ -198,11 +192,12 @@ public class XContentMapValues {
                         break;
                     }
                 }
-                if (!pathIsPrefixOfAnInclude && !exactIncludeMatch) {
-                    // skip subkeys, not interesting.
-                    sb.setLength(mark);
-                    continue;
-                }
+            }
+
+            if (!(pathIsPrefixOfAnInclude || exactIncludeMatch)) {
+                // skip subkeys, not interesting.
+                sb.setLength(mark);
+                continue;
             }
 
 
@@ -210,7 +205,7 @@ public class XContentMapValues {
                 Map<String, Object> innerInto = Maps.newHashMap();
                 // if we had an exact match, we want give deeper excludes their chance
                 filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
-                if (!innerInto.isEmpty()) {
+                if (exactIncludeMatch || !innerInto.isEmpty()) {
                     into.put(entry.getKey(), innerInto);
                 }
             } else if (entry.getValue() instanceof List) {

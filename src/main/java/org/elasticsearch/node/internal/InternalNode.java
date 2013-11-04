@@ -90,6 +90,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.ResourceWatcherModule;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -170,6 +172,7 @@ public final class InternalNode implements Node {
         modules.add(new BulkUdpModule());
         modules.add(new ShapeModule());
         modules.add(new PercolatorModule());
+        modules.add(new ResourceWatcherModule());
 
         injector = modules.createInjector();
 
@@ -223,6 +226,7 @@ public final class InternalNode implements Node {
             injector.getInstance(HttpServer.class).start();
         }
         injector.getInstance(BulkUdpService.class).start();
+        injector.getInstance(ResourceWatcherService.class).start();
 
         logger.info("started");
 
@@ -238,6 +242,7 @@ public final class InternalNode implements Node {
         logger.info("stopping ...");
 
         injector.getInstance(BulkUdpService.class).stop();
+        injector.getInstance(ResourceWatcherService.class).stop();
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
         }

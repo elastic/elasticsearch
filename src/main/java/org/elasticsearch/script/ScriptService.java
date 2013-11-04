@@ -23,9 +23,9 @@ import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -35,8 +35,10 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.mvel.MvelScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -59,18 +61,13 @@ public class ScriptService extends AbstractComponent {
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
     private final Cache<CacheKey, CompiledScript> cache;
+    private final File scriptsDirectory;
 
     private final boolean disableDynamic;
 
-    public ScriptService(Settings settings) {
-        this(settings, new Environment(), ImmutableSet.<ScriptEngineService>builder()
-                .add(new MvelScriptEngineService(settings))
-                .build()
-        );
-    }
-
     @Inject
-    public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines) {
+    public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
+                         ResourceWatcherService resourceWatcherService) {
         super(settings);
 
         int cacheMaxSize = componentSettings.getAsInt("cache.max_size", 500);
@@ -100,45 +97,17 @@ public class ScriptService extends AbstractComponent {
         // put some default optimized scripts
         staticCache.put("doc.score", new CompiledScript("native", new DocScoreNativeScriptFactory()));
 
-        // compile static scripts
-        File scriptsFile = new File(env.configFile(), "scripts");
-        if (scriptsFile.exists()) {
-            processScriptsDirectory("", scriptsFile);
-        }
-    }
+        // add file watcher for static scripts
+        scriptsDirectory = new File(env.configFile(), "scripts");
+        FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
+        fileWatcher.addListener(new ScriptChangesListener());
 
-    private void processScriptsDirectory(String prefix, File dir) {
-        for (File file : dir.listFiles()) {
-            if (file.isDirectory()) {
-                processScriptsDirectory(prefix + file.getName() + "_", file);
-            } else {
-                int extIndex = file.getName().lastIndexOf('.');
-                if (extIndex != -1) {
-                    String ext = file.getName().substring(extIndex + 1);
-                    String scriptName = prefix + file.getName().substring(0, extIndex);
-                    boolean found = false;
-                    for (ScriptEngineService engineService : scriptEngines.values()) {
-                        for (String s : engineService.extensions()) {
-                            if (s.equals(ext)) {
-                                found = true;
-                                try {
-                                    String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
-                                    staticCache.put(scriptName, new CompiledScript(engineService.types()[0], engineService.compile(script)));
-                                } catch (Exception e) {
-                                    logger.warn("failed to load/compile script [{}]", e, scriptName);
-                                }
-                                break;
-                            }
-                        }
-                        if (found) {
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        logger.warn("no script engine found for [{}]", ext);
-                    }
-                }
-            }
+        if (componentSettings.getAsBoolean("auto_reload_enabled", true)) {
+            // automatic reload is enabled - register scripts
+            resourceWatcherService.add(fileWatcher);
+        } else {
+            // automatic reload is disable just load scripts once
+            fileWatcher.init();
         }
     }
 
@@ -212,6 +181,68 @@ public class ScriptService extends AbstractComponent {
         }
         // we allow "native" executions since they register through plugins, so they are "allowed"
         return !"native".equals(lang);
+    }
+
+    private class ScriptChangesListener extends FileChangesListener {
+
+        private Tuple<String, String> scriptNameExt(File file) {
+            String scriptPath = scriptsDirectory.toURI().relativize(file.toURI()).getPath();
+            int extIndex = scriptPath.lastIndexOf('.');
+            if (extIndex != -1) {
+                String ext = scriptPath.substring(extIndex + 1);
+                String scriptName = scriptPath.substring(0, extIndex).replace(File.separatorChar, '_');
+                return new Tuple<String, String>(scriptName, ext);
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public void onFileInit(File file) {
+            Tuple<String, String> scriptNameExt = scriptNameExt(file);
+            if (scriptNameExt != null) {
+                boolean found = false;
+                for (ScriptEngineService engineService : scriptEngines.values()) {
+                    for (String s : engineService.extensions()) {
+                        if (s.equals(scriptNameExt.v2())) {
+                            found = true;
+                            try {
+                                logger.trace("compiling script file " + file.getAbsolutePath());
+                                String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
+                                staticCache.put(scriptNameExt.v1(), new CompiledScript(engineService.types()[0], engineService.compile(script)));
+                            } catch (Throwable e) {
+                                logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
+                            }
+                            break;
+                        }
+                    }
+                    if (found) {
+                        break;
+                    }
+                }
+                if (!found) {
+                    logger.warn("no script engine found for [{}]", scriptNameExt.v2());
+                }
+            }
+        }
+
+        @Override
+        public void onFileCreated(File file) {
+            onFileInit(file);
+        }
+
+        @Override
+        public void onFileDeleted(File file) {
+            Tuple<String, String> scriptNameExt = scriptNameExt(file);
+            logger.trace("removing script file " + file.getAbsolutePath());
+            staticCache.remove(scriptNameExt.v1());
+        }
+
+        @Override
+        public void onFileChanged(File file) {
+            onFileInit(file);
+        }
+
     }
 
     public static class CacheKey {

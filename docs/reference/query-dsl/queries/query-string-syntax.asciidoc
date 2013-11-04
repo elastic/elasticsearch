@@ -151,8 +151,33 @@ curly brackets `{min TO max}`.
 
     date:{* TO 2012/01/01}
 
+Curly and square brackets can be combined:
+
+* Numbers from 1 up to but not including 5
+
+    count:[1..5}
+
+
+Ranges with one side unbounded can use the following syntax:
+
+    age:>10
+    age:>=10
+    age:<10
+    age:<=10
+
+[NOTE]
+===================================================================
+To combine an upper and lower bound with the simplified syntax, you
+would need to join two clauses with an `AND` operator:
+
+    age:(>=10 AND < 20)
+    age:(+>=10 +<20)
+
+===================================================================
+
 The parsing of ranges in query strings can be complex and error prone. It is
 much more reliable to use an explicit <<query-dsl-range-filter,`range` filter>>.
+
 
 ===== Boosting
 

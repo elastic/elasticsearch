@@ -381,4 +381,81 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
+
+    @Test
+    public void testThatFilterOmitsObjectsWithExcludedProperties() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("someObject")
+                .field("someField", "someValue")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"someObject.someField"});
+
+        assertThat(filteredSource.size(), equalTo(0));
+    }
+
+    @Test
+    public void testThatFilterIncludesObjectsWithSomeExcludedProperties() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("someObject")
+                .field("someField", "someValue")
+                .field("someOtherField", "someOtherValue")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"someObject.someField"});
+
+        assertThat(filteredSource.size(), equalTo(1));
+        assertThat(filteredSource, hasKey("someObject"));
+        assertThat(((Map) filteredSource.get("someObject")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("someObject")), hasKey("someOtherField"));
+    }
+
+    @Test
+    public void testThatFilteringWithEmptyObjectAndInclusionWorks() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("emptyObject")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"emptyObject"}, Strings.EMPTY_ARRAY);
+
+        assertThat(mapTuple.v2(), equalTo(filteredSource));
+    }
+
+    @Test
+    public void testThatFilterOmitsObjectsWithoutIncludedProperties() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("someObject")
+                .field("someField", "someValue")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"someObject.someOtherField"}, Strings.EMPTY_ARRAY);
+
+        assertThat(filteredSource.size(), equalTo(0));
+    }
+
+    @Test
+    public void testThatFilterIncludesObjectsWithSomeIncludedProperties() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("someObject")
+                .field("someField", "someValue")
+                .field("someOtherField", "someOtherValue")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"someObject.someOtherField"}, Strings.EMPTY_ARRAY);
+
+        assertThat(filteredSource.size(), equalTo(1));
+        assertThat(filteredSource, hasKey("someObject"));
+        assertThat(((Map) filteredSource.get("someObject")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("someObject")), hasKey("someOtherField"));
+    }
 }

@@ -297,7 +297,11 @@ public class ClusterState implements ToXContent {
                 builder.field("order", templateMetaData.order());
 
                 builder.startObject("settings");
-                Settings settings = settingsFilter.filterSettings(templateMetaData.settings());
+                Settings settings = templateMetaData.settings();
+                if (settingsFilter != null) {
+                    settings = settingsFilter.filterSettings(settings);
+                }
+
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
                 }
@@ -331,7 +335,7 @@ public class ClusterState implements ToXContent {
                 builder.startObject("settings");
                 Settings settings = indexMetaData.settings();
                 if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(indexMetaData.settings());
+                    settings = settingsFilter.filterSettings(settings);
                 }
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());

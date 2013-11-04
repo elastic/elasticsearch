@@ -383,6 +383,21 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testThatFilterIncludesEmptyObjectsWithoutExcludedProperties() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("someObject")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"someObject.*"});
+
+        assertThat(filteredSource.size(), equalTo(1));
+        assertThat(filteredSource, hasKey("someObject"));
+        assertThat(((Map) filteredSource.get("someObject")).size(), equalTo(0));
+    }
+
+    @Test
     public void testThatFilterOmitsObjectsWithExcludedProperties() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("someObject")
@@ -425,6 +440,19 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"emptyObject"}, Strings.EMPTY_ARRAY);
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
+    }
+
+    @Test
+    public void testThatFilterOmitsEmptyObjectsWithoutIncludedProperties() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("someObject")
+                .endObject()
+                .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"someObject.*"}, Strings.EMPTY_ARRAY);
+
+        assertThat(filteredSource.size(), equalTo(0));
     }
 
     @Test

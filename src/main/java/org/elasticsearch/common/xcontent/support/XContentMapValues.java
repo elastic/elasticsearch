@@ -205,16 +205,12 @@ public class XContentMapValues {
             }
 
 
-            if (entry.getValue() instanceof Map) {
-                if (((Map<String, Object>) entry.getValue()).isEmpty()) {
-                    into.put(entry.getKey(), entry.getValue());
-                } else {
-                    Map<String, Object> innerInto = Maps.newHashMap();
-                    // if we had an exact match, we want give deeper excludes their chance
-                    filter(((Map<String, Object>) entry.getValue()), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
-                    if (!innerInto.isEmpty()) {
-                        into.put(entry.getKey(), innerInto);
-                    }
+            if (entry.getValue() instanceof Map && !((Map<String, Object>) entry.getValue()).isEmpty()) {
+                Map<String, Object> innerInto = Maps.newHashMap();
+                // if we had an exact match, we want give deeper excludes their chance
+                filter(((Map<String, Object>) entry.getValue()), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
+                if (!innerInto.isEmpty()) {
+                    into.put(entry.getKey(), innerInto);
                 }
             } else if (entry.getValue() instanceof List) {
                 List<Object> list = (List<Object>) entry.getValue();

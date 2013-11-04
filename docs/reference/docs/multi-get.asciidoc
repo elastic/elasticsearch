@@ -101,7 +101,7 @@ curl 'localhost:9200/_mget' -d '{
 [[mget-routing]]
 === Routing
 
-coming[0.90.6]
+added[0.90.6]
 
 You can specify also specify routing value as a parameter:
 

@@ -33,7 +33,7 @@ Since `0.20.2` the field name supports wildcard notation. For example, using
 
 ==== Postings highlighter
 
-coming[0.90.6]
+added[0.90.6]
 
 If `index_options` is set to `offsets` in the mapping the postings highlighter
 will be used instead of the plain highlighter. The postings highlighter:
@@ -243,7 +243,7 @@ is required. Note that `fragment_size` is ignored in this case.
 When using `fast-vector-highlighter` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
-coming[0.90.6]
+added[0.90.6]
 
 In the case where there is no matching fragment to highlight, the default is
 to not return anything. Instead, we can return a snippet of text from the
@@ -273,7 +273,7 @@ greater than `0`.
 
 ==== Highlight query
 
-coming[0.90.6]
+added[0.90.6]
 
 It is also possible to highlight against a query other than the search
 query by setting `highlight_query`.  This is especially useful if you

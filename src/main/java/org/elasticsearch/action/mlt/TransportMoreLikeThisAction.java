@@ -98,7 +98,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
         RoutingNode routingNode = clusterState.getRoutingNodes().nodesToShards().get(clusterService.localNode().getId());
         if (routingNode == null) {
-            redirect(request, listener, clusterState);
+            redirect(request, concreteIndex, listener, clusterState);
             return;
         }
         boolean hasIndexLocally = false;
@@ -109,7 +109,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
             }
         }
         if (!hasIndexLocally) {
-            redirect(request, listener, clusterState);
+            redirect(request, concreteIndex, listener, clusterState);
             return;
         }
         Set<String> getFields = newHashSet();
@@ -235,8 +235,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     }
 
     // Redirects the request to a data node, that has the index meta data locally available.
-    private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
+    private void redirect(MoreLikeThisRequest request, String concreteIndex, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
         ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, concreteIndex, request.type(), request.id(), request.routing(), null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {

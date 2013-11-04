@@ -21,11 +21,8 @@ package org.elasticsearch.search;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.SimpleMergedSegmentWarmer;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -137,7 +134,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
 
-        this.indicesWarmer.addListener(new IndexReaderWarmer());
         this.indicesWarmer.addListener(new FieldDataWarmer());
         this.indicesWarmer.addListener(new SearchWarmer());
     }
@@ -630,27 +626,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
             context.keepAlive(request.scroll().keepAlive().millis());
         }
-    }
-
-    static class IndexReaderWarmer extends IndicesWarmer.Listener {
-
-        private final SimpleMergedSegmentWarmer warmer = new SimpleMergedSegmentWarmer(InfoStream.NO_OUTPUT);
-
-        @Override
-        public void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            long start = System.nanoTime();
-            try {
-                for (AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
-                    warmer.warm(ctx.reader());
-                }
-                if (indexShard.warmerService().logger().isTraceEnabled()) {
-                    indexShard.warmerService().logger().trace("warmed readers, took [{}]", TimeValue.timeValueNanos(System.nanoTime() - start));
-                }
-            } catch (Throwable t) {
-                throw new ElasticSearchIllegalStateException("Unexpected exception while warming-up segment", t);
-            }
-        }
-
     }
 
     static class FieldDataWarmer extends IndicesWarmer.Listener {

@@ -1,0 +1,62 @@
+= elasticsearch-ruby
+
+== Overview
+
+There's a suite of official Ruby libraries for Elasticsearch, which provide a client for connecting
+to Elasticsearch clusters, Ruby interface to the REST API, and more.
+
+See the full documentation at http://github.com/elasticsearch/elasticsearch-ruby.
+
+
+=== Installation
+
+Install the Ruby gem with:
+
+[source,sh]
+------------------------------------
+gem install elasticsearch
+------------------------------------
+
+or add it do your Gemfile:
+
+[source,ruby]
+------------------------------------
+gem 'elasticsearch'
+------------------------------------
+
+
+=== Example Usage
+
+[source,ruby]
+------------------------------------
+require 'elasticsearch'
+
+client = Elasticsearch::Client.new log: true
+
+client.cluster.health
+
+client.index index: 'my-index', type: 'my-document', id: 1, body: { title: 'Test' }
+
+client.indices.refresh index: 'my-index'
+
+client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
+------------------------------------
+
+
+=== Features at a Glance
+
+* Pluggable logging and tracing
+* Plugabble connection selection strategies (round-robin, random, custom)
+* Pluggable transport implementation, customizable and extendable
+* Pluggable serializer implementation
+* Request retries and dead connections handling
+* Node reloading (based on cluster state) on errors or on demand
+* Modular API implementation
+* 100% REST API coverage
+
+
+== Copyright and License
+
+This software is Copyright (c) 2013 by Elasticsearch BV.
+
+This is free software, licensed under The Apache License Version 2.0.

@@ -149,8 +149,8 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
     target = 'package'
   if run_tests:
     run_mvn('clean',
-            'test -Dtests.cpu=%s -Des.node.mode=local' % (cpus),
-            'test -Dtests.cpu=%s -Des.node.mode=network' % (cpus))
+            'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
+            'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
   run_mvn('clean %s -DskipTests' %(target))
 
 

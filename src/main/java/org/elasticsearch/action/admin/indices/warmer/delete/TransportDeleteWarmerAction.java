@@ -125,7 +125,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
                 for (String index : request.indices()) {
@@ -147,7 +147,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                         // a change, update it...
                         if (entries.size() != warmers.entries().size()) {
                             warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
-                            IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
+                            IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
                             mdBuilder.put(indexBuilder);
                         }
                     }
@@ -178,7 +178,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                     }
                 }
 
-                return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
+                return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
 
             @Override

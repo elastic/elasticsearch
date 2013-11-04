@@ -300,10 +300,13 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     public void validate() throws RoutingValidationException {
     }
 
+    public Builder builder(String index) {
+        return new Builder(index);
+    }
+
     public static class Builder {
 
         private final String index;
-
         private final Map<Integer, IndexShardRoutingTable> shards = new HashMap<Integer, IndexShardRoutingTable>();
 
         public Builder(String index) {

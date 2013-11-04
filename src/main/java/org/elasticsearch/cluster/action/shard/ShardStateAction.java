@@ -48,7 +48,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
 
 /**
@@ -154,7 +153,7 @@ public class ShardStateAction extends AbstractComponent {
                 if (!routingResult.changed()) {
                     return currentState;
                 }
-                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                return ClusterState.builder(currentState).routingResult(routingResult).build();
             }
 
             @Override
@@ -247,7 +246,7 @@ public class ShardStateAction extends AbstractComponent {
                         if (!routingResult.changed()) {
                             return currentState;
                         }
-                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                        return ClusterState.builder(currentState).routingResult(routingResult).build();
                     }
 
                     @Override

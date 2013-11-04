@@ -69,6 +69,18 @@ _native_ Java scripts registered through plugins, however it will prevent
 users from running arbitrary scripts via the API.
 
 [float]
+=== Automatic Script Reloading
+
+added[0.90.6]
+
+The `config/scripts` directory is scanned periodically for changes.
+New and changed scripts are reloaded and deleted script are removed
+from preloaded scripts cache. The reload frequency can be specified
+using `watcher.interval` setting, which defaults to `60s`.
+To disable script reloading completely set `script.auto_reload_enabled`
+to `false`.
+
+[float]
 === Native (Java) Scripts
 
 Even though `mvel` is pretty fast, allow to register native Java based
@@ -171,6 +183,12 @@ The source field can also be accessed when executing a script. The
 source field is loaded per doc, parsed, and then provided to the script
 for evaluation. The `_source` forms the context under which the source
 field can be accessed, for example `_source.obj2.obj1.field3`.
+
+Accessing `_source` is much slower compared to using `_doc`
+but the data is not loaded into memory. For a single field access `_fields` may be
+faster than using `_source` due to the extra overhead of potentially parsing large documents.
+However, `_source` may be faster if you access multiple fields or if the source has already been
+loaded for other purposes.
 
 [float]
 === mvel Built In Functions

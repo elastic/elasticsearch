@@ -42,9 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-
 /**
  *
  */
@@ -248,8 +245,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             .blocks(recoveredState.blocks())
                             .removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
 
-                    MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                            .metaData(recoveredState.metaData());
+                    MetaData.Builder metaDataBuilder = MetaData.builder(recoveredState.metaData());
 
                     if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
@@ -261,13 +257,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     }
 
                     // update the state to reflect the new metadata and routing
-                    ClusterState updatedState = newClusterStateBuilder().state(currentState)
+                    ClusterState updatedState = ClusterState.builder(currentState)
                             .blocks(blocks)
                             .metaData(metaDataBuilder)
                             .build();
 
                     // initialize all index routing tables as empty
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(updatedState.routingTable());
+                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable());
                     for (IndexMetaData indexMetaData : updatedState.metaData().indices().values()) {
                         routingTableBuilder.addAsRecovery(indexMetaData);
                     }
@@ -275,9 +271,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
 
-                    return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 
                 @Override

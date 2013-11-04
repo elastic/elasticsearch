@@ -66,7 +66,7 @@ public class RestTable {
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestRequest request, RestChannel channel) {
-        boolean verbose = request.paramAsBoolean("v", true);
+        boolean verbose = request.paramAsBoolean("v", false);
         int[] width = buildWidths(table, request, verbose);
         Set<String> displayHeaders = buildDisplayHeaders(table, request);
 

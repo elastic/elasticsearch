@@ -46,10 +46,6 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-
 /**
  *
  */
@@ -103,14 +99,14 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
 
                     boolean changed = false;
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    MetaData.Builder builder = MetaData.builder(currentState.metaData());
                     for (AliasAction aliasAction : request.actions) {
                         IndexMetaData indexMetaData = builder.get(aliasAction.index());
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(aliasAction.index()));
                         }
                         // TODO: not copy (putAll)
-                        IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
+                        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                         if (aliasAction.actionType() == AliasAction.Type.ADD) {
                             String filter = aliasAction.filter();
                             if (Strings.hasLength(filter)) {
@@ -169,7 +165,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
 
                     if (changed) {
-                        ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
+                        ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
                         // even though changes happened, they resulted in 0 actual changes to metadata
                         // i.e. remove and add the same alias to the same index
                         if (updatedState.metaData().aliases().equals(currentState.metaData().aliases())) {

@@ -22,7 +22,9 @@ package org.elasticsearch.cluster.structure;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -33,15 +35,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class RoutingIteratorTests extends ElasticsearchTestCase {
@@ -87,10 +83,10 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testIterator1() {
-        MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(2))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(2))
                 .build();
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test1"))
                 .build();
 
@@ -121,12 +117,12 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testIterator2() {
-        MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test1"))
                 .addAsNew(metaData.index("test2"))
                 .build();
@@ -224,12 +220,12 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
 
     @Test
     public void testRandomRouting() {
-        MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(newIndexMetaDataBuilder("test2").numberOfShards(1).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test1"))
                 .addAsNew(metaData.index("test2"))
                 .build();
@@ -258,29 +254,29 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id,zone")
                 .build());
 
-        MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1", ImmutableMap.of("rack_id", "rack_1", "zone", "zone1")))
                 .put(newNode("node2", ImmutableMap.of("rack_id", "rack_2", "zone", "zone2")))
                 .localNodeId("node1")
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         // after all are started, check routing iteration
         ShardIterator shardIterator = clusterState.routingTable().index("test").shard(0).preferAttributesActiveInitializingShardsIt(new String[]{"rack_id"}, clusterState.nodes());
@@ -307,29 +303,29 @@ public class RoutingIteratorTests extends ElasticsearchTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .build());
 
-        MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(5).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder()
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("node1"))
                 .put(newNode("node2"))
                 .localNodeId("node1")
         ).build();
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         PlainOperationRouting operationRouting = new PlainOperationRouting(ImmutableSettings.Builder.EMPTY_SETTINGS, new DjbHashFunction(), new AwarenessAllocationDecider());
 

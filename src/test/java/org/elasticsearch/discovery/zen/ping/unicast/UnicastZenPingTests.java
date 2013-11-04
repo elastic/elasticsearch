@@ -76,7 +76,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("UZP_A").build();
+                return DiscoveryNodes.builder().put(nodeA).localNodeId("UZP_A").build();
             }
 
             @Override
@@ -90,7 +90,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeB).localNodeId("UZP_B").build();
+                return DiscoveryNodes.builder().put(nodeB).localNodeId("UZP_B").build();
             }
 
             @Override

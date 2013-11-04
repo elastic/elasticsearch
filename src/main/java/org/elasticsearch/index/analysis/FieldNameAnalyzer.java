@@ -19,25 +19,25 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 /**
  *
  */
 public final class FieldNameAnalyzer extends AnalyzerWrapper {
 
-    private final ObjectObjectOpenHashMap<String, Analyzer> analyzers;
+    private final ImmutableOpenMap<String, Analyzer> analyzers;
 
     private final Analyzer defaultAnalyzer;
 
-    public FieldNameAnalyzer(ObjectObjectOpenHashMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+    public FieldNameAnalyzer(ImmutableOpenMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
         this.analyzers = analyzers;
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
-    public ObjectObjectOpenHashMap<String, Analyzer> analyzers() {
+    public ImmutableOpenMap<String, Analyzer> analyzers() {
         return analyzers;
     }
 

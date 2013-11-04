@@ -73,7 +73,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("A").build();
+                return DiscoveryNodes.builder().put(nodeA).localNodeId("A").build();
             }
 
             @Override
@@ -87,7 +87,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeB).localNodeId("B").build();
+                return DiscoveryNodes.builder().put(nodeB).localNodeId("B").build();
             }
 
             @Override
@@ -124,7 +124,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("A").build();
+                return DiscoveryNodes.builder().put(nodeA).localNodeId("A").build();
             }
 
             @Override

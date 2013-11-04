@@ -144,7 +144,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                         }
 
                         // now replace it on the metadata
-                        MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
+                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                         for (String index : concreteIndices) {
                             IndexMetaData indexMetaData = metaData.index(index);
@@ -174,11 +174,11 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                                 }
                                 warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
                             }
-                            IndexMetaData.Builder indexBuilder = IndexMetaData.newIndexMetaDataBuilder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
+                            IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData).putCustom(IndexWarmersMetaData.TYPE, warmers);
                             mdBuilder.put(indexBuilder);
                         }
 
-                        return ClusterState.builder().state(currentState).metaData(mdBuilder).build();
+                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
 
                     @Override

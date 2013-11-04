@@ -1,7 +1,9 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -9,15 +11,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
-import static org.elasticsearch.cluster.routing.RoutingBuilders.routingTable;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingAllocationTests.newNode;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -33,15 +29,15 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = routingTable()
+        RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = newClusterStateBuilder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
@@ -53,23 +49,23 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
 
 
         logger.info("Adding two nodes and performing rerouting");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start all the primary shards");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start all the replica shards");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -84,9 +80,9 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         logger.info("add another replica");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(2).build();
-        metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(2).build();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
+        routingTable = RoutingTable.builder(routingTable).updateNumberOfReplicas(2).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
         assertThat(clusterState.metaData().index("test").numberOfReplicas(), equalTo(2));
 
@@ -101,10 +97,10 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(UNASSIGNED));
 
         logger.info("Add another node and start the added replica");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -120,7 +116,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -136,9 +132,9 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         logger.info("now remove a replica");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = RoutingTable.builder().routingTable(routingTable).updateNumberOfReplicas(1).build();
-        metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(1).build();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).metaData(metaData).build();
+        routingTable = RoutingTable.builder(routingTable).updateNumberOfReplicas(1).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
         assertThat(clusterState.metaData().index("test").numberOfReplicas(), equalTo(1));
 
@@ -154,7 +150,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchTestCase {
         logger.info("do a reroute, should remain the same");
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(false));
     }

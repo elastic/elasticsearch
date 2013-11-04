@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -103,12 +104,12 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             SegmentInfos si = null;
             try {
                 si = Lucene.readSegmentInfos(indexShard.store().directory());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 String files = "_unknown_";
                 try {
                     files = Arrays.toString(indexShard.store().directory().listAll());
-                } catch (Exception e1) {
-                    // ignore
+                } catch (Throwable e1) {
+                    files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                 }
                 if (indexShouldExists && indexShard.store().indexStore().persistent()) {
                     throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
@@ -131,8 +132,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     writer.close();
                 }
             }
-        } catch (IOException e) {
-            throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
+        } catch (Throwable e) {
+            throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
         }
         recoveryStatus.index().updateVersion(version);
         recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());

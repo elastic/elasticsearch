@@ -33,9 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
-
 /**
  *
  */
@@ -80,7 +77,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) throws ElasticSearchException {
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
-        ClusterState.Builder builder = newClusterStateBuilder();
+        ClusterState.Builder builder = ClusterState.builder();
         builder.version(currentState.version());
         if (!request.filterNodes()) {
             builder.nodes(currentState.nodes());
@@ -93,9 +90,11 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
             builder.blocks(currentState.blocks());
         }
         if (!request.filterMetaData()) {
-            MetaData.Builder mdBuilder = newMetaDataBuilder();
+            MetaData.Builder mdBuilder;
             if (request.filteredIndices().length == 0 && request.filteredIndexTemplates().length == 0) {
-                mdBuilder.metaData(currentState.metaData());
+                mdBuilder = MetaData.builder(currentState.metaData());
+            } else {
+                mdBuilder = MetaData.builder();
             }
 
             if (request.filteredIndices().length > 0) {

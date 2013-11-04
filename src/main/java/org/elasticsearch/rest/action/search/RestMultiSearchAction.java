@@ -71,7 +71,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         try {
-            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), ignoreIndices, allowExplicitIndex);
+            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), ignoreIndices, allowExplicitIndex);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

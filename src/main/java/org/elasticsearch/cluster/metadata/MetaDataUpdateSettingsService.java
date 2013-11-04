@@ -43,8 +43,6 @@ import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.*;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-
 /**
  * Service responsible for submitting update index settings requests
  */
@@ -231,8 +229,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 String[] actualIndices = currentState.metaData().concreteIndices(request.indices());
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
-                MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
+                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
 
                 // allow to change any settings to a close index, and only allow dynamic settings to be changed
                 // on an open index
@@ -316,11 +314,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 }
 
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
                 RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
-                updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
+                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 return updatedState;
             }

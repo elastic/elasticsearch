@@ -33,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -147,7 +146,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                         // no state changed
                         return currentState;
                     }
-                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                    return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
 
                 @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.recovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
@@ -362,8 +363,10 @@ public class RecoveryWhileUnderLoadTests extends AbstractIntegrationTest {
         assertThat(failures, emptyIterable());
         stopLatch.await();
         logger.info("--> indexing threads stopped");
-
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().execute().actionGet().isTimedOut(), equalTo(false));
+        logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
+        allowNodes("test", 3);
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_replicas", 1)).get());
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("--> refreshing the index");
         refreshAndAssert();

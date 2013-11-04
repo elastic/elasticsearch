@@ -68,8 +68,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.node.DiscoveryNodes.newNodesBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -253,7 +251,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return latestNodes;
         }
         // have not decided yet, just send the local node
-        return newNodesBuilder().put(localNode).localNodeId(localNode.id()).build();
+        return DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id()).build();
     }
 
     @Override
@@ -317,7 +315,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // update the fact that we are the master...
                         latestDiscoNodes = builder.build();
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
-                        return newClusterStateBuilder().state(currentState).nodes(builder).blocks(clusterBlocks).build();
+                        return ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
                     }
 
                     @Override
@@ -372,18 +370,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.URGENT, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                            .putAll(currentState.nodes())
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
                             .remove(node.id());
                     latestDiscoNodes = builder.build();
-                    currentState = newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
+                    currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                     // check if we have enough master nodes, if not, we need to move into joining the cluster again
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
-                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build());
+                    return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
 
                 @Override
@@ -408,18 +405,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                        .putAll(currentState.nodes())
+                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
                         .remove(node.id());
                 latestDiscoNodes = builder.build();
-                currentState = newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
+                currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
-                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build());
+                return ClusterState.builder(currentState).routingResult(routingResult).build();
             }
 
             @Override
@@ -487,14 +483,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return currentState;
                 }
 
-                DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder()
-                        .putAll(currentState.nodes())
-                                // make sure the old master node, which has failed, is not part of the nodes we publish
+                DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes())
+                        // make sure the old master node, which has failed, is not part of the nodes we publish
                         .remove(masterNode.id())
                         .masterNodeId(null);
 
                 if (!electMaster.hasEnoughMasterNodes(nodesBuilder.build())) {
-                    return rejoin(ClusterState.builder().state(currentState).nodes(nodesBuilder).build(), "not enough master nodes after master left (reason = " + reason + ")");
+                    return rejoin(ClusterState.builder(currentState).nodes(nodesBuilder).build(), "not enough master nodes after master left (reason = " + reason + ")");
                 }
 
                 final DiscoveryNode electedMaster = electMaster.electMaster(nodesBuilder.build()); // elect master
@@ -504,18 +499,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     nodesFD.start();
                     nodesBuilder.masterNodeId(localNode.id());
                     latestDiscoNodes = nodesBuilder.build();
-                    return newClusterStateBuilder().state(currentState).nodes(latestDiscoNodes).build();
+                    return ClusterState.builder(currentState).nodes(latestDiscoNodes).build();
                 } else {
                     nodesFD.stop();
                     if (electedMaster != null) {
                         nodesBuilder.masterNodeId(electedMaster.id());
                         masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
                         latestDiscoNodes = nodesBuilder.build();
-                        return newClusterStateBuilder().state(currentState)
+                        return ClusterState.builder(currentState)
                                 .nodes(latestDiscoNodes)
                                 .build();
                     } else {
-                        return rejoin(newClusterStateBuilder().state(currentState).nodes(nodesBuilder.build()).build(), "master_left and no other node elected to become master");
+                        return rejoin(ClusterState.builder(currentState).nodes(nodesBuilder.build()).build(), "master_left and no other node elected to become master");
                     }
                 }
             }
@@ -591,7 +586,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             masterFD.restart(latestDiscoNodes.masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
                         }
 
-                        ClusterState.Builder builder = ClusterState.builder().state(newState);
+                        ClusterState.Builder builder = ClusterState.builder(newState);
                         // if the routing table did not change, use the original one
                         if (newState.routingTable().version() == currentState.routingTable().version()) {
                             builder.routingTable(currentState.routingTable());
@@ -601,7 +596,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             builder.metaData(currentState.metaData());
                         } else {
                             // if its not the same version, only copy over new indices or ones that changed the version
-                            MetaData.Builder metaDataBuilder = MetaData.builder().metaData(newState.metaData()).removeAllIndices();
+                            MetaData.Builder metaDataBuilder = MetaData.builder(newState.metaData()).removeAllIndices();
                             for (IndexMetaData indexMetaData : newState.metaData()) {
                                 IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
                                 if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {
@@ -657,9 +652,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // the node already exists in the cluster
                         logger.warn("received a join request for an existing node [{}]", node);
                         // still send a new cluster state, so it will be re published and possibly update the other node
-                        return ClusterState.builder().state(currentState).build();
+                        return ClusterState.builder(currentState).build();
                     }
-                    return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(node)).build();
+                    return ClusterState.builder(currentState).nodes(currentState.nodes().newNode(node)).build();
                 }
 
                 @Override
@@ -767,7 +762,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         asyncJoinCluster();
 
-        return newClusterStateBuilder().state(clusterState)
+        return ClusterState.builder(clusterState)
                 .blocks(clusterBlocks)
                 .nodes(latestDiscoNodes)
                 .routingTable(routingTable)

@@ -22,7 +22,9 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -48,16 +50,13 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numNodes=0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
 public class ClusterServiceTests extends AbstractIntegrationTest {
 
     @Test
     public void testTimeoutUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
-                .put("discovery.type", "zen")
-                .put("discovery.zen.minimum_master_nodes", 1)
-                .put("discovery.zen.ping_timeout", "200ms")
-                .put("discovery.initial_state_timeout", "500ms")
+                .put("discovery.type", "local")
                 .build();
         cluster().startNode(settings);
         ClusterService clusterService1 = cluster().getInstance(ClusterService.class);
@@ -110,12 +109,292 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testAckedUpdateTask() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+        cluster().startNode(settings);
+        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+
+        final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackTimeout = new AtomicBoolean(false);
+        final AtomicBoolean onFailure = new AtomicBoolean(false);
+        final AtomicBoolean executed = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch processedLatch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                allNodesAcked.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onAckTimeout() {
+                ackTimeout.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                processedLatch.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                executed.set(true);
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.error("failed to execute callback in test {}", t, source);
+                onFailure.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+
+        assertThat(allNodesAcked.get(), equalTo(true));
+        assertThat(ackTimeout.get(), equalTo(false));
+        assertThat(executed.get(), equalTo(true));
+        assertThat(onFailure.get(), equalTo(false));
+
+        assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testAckedUpdateTaskSameClusterState() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+        cluster().startNode(settings);
+        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+
+        final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackTimeout = new AtomicBoolean(false);
+        final AtomicBoolean onFailure = new AtomicBoolean(false);
+        final AtomicBoolean executed = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch processedLatch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return true;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                allNodesAcked.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onAckTimeout() {
+                ackTimeout.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                processedLatch.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                executed.set(true);
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.error("failed to execute callback in test {}", t, source);
+                onFailure.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+
+        assertThat(allNodesAcked.get(), equalTo(true));
+        assertThat(ackTimeout.get(), equalTo(false));
+        assertThat(executed.get(), equalTo(true));
+        assertThat(onFailure.get(), equalTo(false));
+
+        assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testAckedUpdateTaskNoAckExpected() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+        cluster().startNode(settings);
+        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+
+        final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackTimeout = new AtomicBoolean(false);
+        final AtomicBoolean onFailure = new AtomicBoolean(false);
+        final AtomicBoolean executed = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return false;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                allNodesAcked.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onAckTimeout() {
+                ackTimeout.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                executed.set(true);
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.error("failed to execute callback in test {}", t, source);
+                onFailure.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+
+        assertThat(allNodesAcked.get(), equalTo(true));
+        assertThat(ackTimeout.get(), equalTo(false));
+        assertThat(executed.get(), equalTo(true));
+        assertThat(onFailure.get(), equalTo(false));
+    }
+
+    @Test
+    public void testAckedUpdateTaskTimeoutZero() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+        cluster().startNode(settings);
+        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+
+        final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackTimeout = new AtomicBoolean(false);
+        final AtomicBoolean onFailure = new AtomicBoolean(false);
+        final AtomicBoolean executed = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch processedLatch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return false;
+            }
+
+            @Override
+            public void onAllNodesAcked(@Nullable Throwable t) {
+                allNodesAcked.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onAckTimeout() {
+                ackTimeout.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return TimeValue.timeValueSeconds(0);
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueSeconds(10);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                processedLatch.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                executed.set(true);
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.error("failed to execute callback in test {}", t, source);
+                onFailure.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+
+        assertThat(allNodesAcked.get(), equalTo(false));
+        assertThat(ackTimeout.get(), equalTo(true));
+        assertThat(executed.get(), equalTo(true));
+        assertThat(onFailure.get(), equalTo(false));
+
+        assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
     public void testPendingUpdateTask() throws Exception {
         Settings zenSettings = settingsBuilder()
                 .put("discovery.type", "zen").build();
         String node_0 = cluster().startNode(zenSettings);
         cluster().startNodeClient(zenSettings);
-        
+
 
         ClusterService clusterService = cluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
@@ -255,8 +534,8 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
         assertThat(testService1.master(), is(true));
 
         String node_1 = cluster().startNode(settings);
-        ClusterService clusterService2 =  cluster().getInstance(ClusterService.class, node_1);
-        MasterAwareService testService2 =  cluster().getInstance(MasterAwareService.class, node_1);
+        ClusterService clusterService2 = cluster().getInstance(ClusterService.class, node_1);
+        MasterAwareService testService2 = cluster().getInstance(MasterAwareService.class, node_1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -286,7 +565,7 @@ public class ClusterServiceTests extends AbstractIntegrationTest {
 
 
         String node_2 = cluster().startNode(settings);
-        clusterService1 =cluster().getInstance(ClusterService.class, node_2);
+        clusterService1 = cluster().getInstance(ClusterService.class, node_2);
         testService1 = cluster().getInstance(MasterAwareService.class, node_2);
 
         // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...

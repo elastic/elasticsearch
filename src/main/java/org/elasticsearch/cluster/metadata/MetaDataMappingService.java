@@ -54,9 +54,6 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.newIndexMetaDataBuilder;
-import static org.elasticsearch.cluster.metadata.MetaData.newMetaDataBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
@@ -142,7 +139,7 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         boolean dirty = false;
-        MetaData.Builder mdBuilder = newMetaDataBuilder().metaData(currentState.metaData());
+        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
         for (Map.Entry<String, List<MappingTask>> entry : tasksPerIndex.entrySet()) {
             String index = entry.getKey();
             List<MappingTask> tasks = entry.getValue();
@@ -179,7 +176,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 }
                             }
                         }
-                        IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(indexMetaData);
+                        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                         List<String> updatedTypes = Lists.newArrayList();
                         for (String type : refreshTask.types) {
                             if (processedRefreshes.contains(type)) {
@@ -238,7 +235,7 @@ public class MetaDataMappingService extends AbstractComponent {
                             logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
                         }
 
-                        mdBuilder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
+                        mdBuilder.put(IndexMetaData.builder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
                         dirty = true;
                     } else {
                         logger.warn("illegal state, got wrong mapping task type [{}]", task);
@@ -259,7 +256,7 @@ public class MetaDataMappingService extends AbstractComponent {
         if (!dirty) {
             return currentState;
         }
-        return newClusterStateBuilder().state(currentState).metaData(mdBuilder).build();
+        return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 
     /**
@@ -334,14 +331,14 @@ public class MetaDataMappingService extends AbstractComponent {
                     throw new IndexMissingException(new Index("_all"));
                 }
 
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 boolean changed = false;
                 String latestIndexWithout = null;
                 for (String indexName : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                     if (indexMetaData != null) {
                         if (indexMetaData.mappings().containsKey(request.type())) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).removeMapping(request.type()));
+                            builder.put(IndexMetaData.builder(indexMetaData).removeMapping(request.type()));
                             changed = true;
                         } else {
                             latestIndexWithout = indexMetaData.index();
@@ -355,7 +352,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                 logger.info("[{}] remove_mapping [{}]", request.indices(), request.type());
 
-                return ClusterState.builder().state(currentState).metaData(builder).build();
+                return ClusterState.builder(currentState).metaData(builder).build();
             }
 
             @Override
@@ -492,7 +489,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         return currentState;
                     }
 
-                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    MetaData.Builder builder = MetaData.builder(currentState.metaData());
                     for (String indexName : request.indices) {
                         IndexMetaData indexMetaData = currentState.metaData().index(indexName);
                         if (indexMetaData == null) {
@@ -500,11 +497,11 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                         MappingMetaData mappingMd = mappings.get(indexName);
                         if (mappingMd != null) {
-                            builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mappingMd));
+                            builder.put(IndexMetaData.builder(indexMetaData).putMapping(mappingMd));
                         }
                     }
 
-                    ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
+                    ClusterState updatedState = ClusterState.builder(currentState).metaData(builder).build();
 
                     int counter = 1; // we want to wait on the master node to apply it on its cluster state
                     // also wait for nodes that actually have the index created on them to apply the mappings internally

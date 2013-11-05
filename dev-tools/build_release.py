@@ -25,6 +25,7 @@ import argparse
 import hmac
 import urllib
 import fnmatch
+import socket
 from http.client import HTTPConnection
 
 """ 
@@ -51,12 +52,15 @@ Once it's done it will print all the remaining steps.
 LOG = '/tmp/release.log'
 
 def log(msg):
+  log_plain('\n%s' % msg)
+
+def log_plain(msg):
   f = open(LOG, mode='ab')
   f.write(msg.encode('utf-8'))
   f.close()
 
 def run(command, quiet=False):
-  log('\n\n%s: RUN: %s\n' % (datetime.datetime.now(), command))
+  log('%s: RUN: %s\n' % (datetime.datetime.now(), command))
   if os.system('%s >> %s 2>&1' % (command, LOG)):
     msg = '    FAILED: %s [see log %s]' % (command, LOG)
     if not quiet:
@@ -212,11 +216,15 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
   run_mvn('clean %s -DskipTests' %(target))
+  try:
+    run_mvn('-DskipTests rpm:rpm')
+  except RuntimeError as e:
+    log("Failed to build RPM - Exception: [%s]" % e.message)
 
 
 def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
-  conn = HTTPConnection(host, port, timeout);
   for _ in range(timeout):
+    conn = HTTPConnection(host, port, timeout);
     try:
       log('Waiting until node becomes available for 1 second')
       time.sleep(1)
@@ -225,9 +233,11 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
       res = conn.getresponse()
       if res.status == 200:
         return True
-    except Exception as e:
-      log("Failed while waiting for node - Exception: [%s]" % (e.message))
+    except socket.error as e:
+      log("Failed while waiting for node - Exception: [%s]" % e)
       #that is ok it might not be there yet
+    finally:
+      conn.close()
 
   return False
 
@@ -244,8 +254,19 @@ def find_release_version(src_branch):
         return match.group(1)
     raise RuntimeError('Could not find release version in branch %s' % src_branch)
 
-def get_artifacts(release, path='target/releases/'):
-  return [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+def get_artifacts(release):
+  common_artifacts = [os.path.join('target/releases/', 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+  rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release)
+  if os.path.isfile(rpm):
+    log('RPM [%s] contains: ' % rpm)
+    run('rpm -pqli %s' % rpm)
+    # this is an oddness of RPM that is attches -1 so we have to rename it
+    renamed_rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s.noarch.rpm' % release)
+    shutil.move(rpm, renamed_rpm)
+    common_artifacts.append(renamed_rpm)
+  else:
+    log('Could not find RPM artifact at %s - skipping' % rpm)
+  return common_artifacts
 
 # Generates sha1 checsums for all files
 # and returns the checksum files as well
@@ -272,6 +293,7 @@ def smoke_test_release(release, files):
     elif release_file.endswith('zip'):
       run('unzip %s -d %s' % (release_file, tmp_dir)) 
     else:
+      log('Skip SmokeTest for [%s]' % release_file)
       continue # nothing to do here 
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
@@ -433,7 +455,6 @@ if __name__ == '__main__':
       * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
          - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
       * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
-      * build and publish the RPMs
       * announce the release on the website / blog post
       * tweet about the release
     """

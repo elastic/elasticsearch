@@ -29,6 +29,7 @@ import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -88,6 +89,8 @@ public interface IndexShard extends IndexShardComponent {
     GetStats getStats();
 
     MergeStats mergeStats();
+
+    SegmentsStats segmentStats();
 
     RefreshStats refreshStats();
 

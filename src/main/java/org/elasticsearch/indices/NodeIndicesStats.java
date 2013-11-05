@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -115,6 +117,16 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Nullable
     public IdCacheStats getIdCache() {
         return stats.getIdCache();
+    }
+
+    @Nullable
+    public CompletionStats getCompletion() {
+        return stats.getCompletion();
+    }
+
+    @Nullable
+    public SegmentsStats getSegments() {
+        return stats.getSegments();
     }
 
     public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {

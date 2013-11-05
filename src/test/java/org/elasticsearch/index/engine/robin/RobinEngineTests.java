@@ -206,6 +206,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
     public void testSegments() throws Exception {
         List<Segment> segments = engine.segments();
         assertThat(segments.isEmpty(), equalTo(true));
+        assertThat(engine.segmentsStats().getCount(), equalTo(0l));
         final boolean defaultCompound = defaultSettings.getAsBoolean(RobinEngine.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
@@ -218,6 +219,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
+        assertThat(engine.segmentsStats().getCount(), equalTo(1l));
         assertThat(segments.get(0).isCommitted(), equalTo(false));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
@@ -228,6 +230,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
+        assertThat(engine.segmentsStats().getCount(), equalTo(1l));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
@@ -242,6 +245,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
+        assertThat(engine.segmentsStats().getCount(), equalTo(2l));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -262,6 +266,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
+        assertThat(engine.segmentsStats().getCount(), equalTo(2l));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -282,6 +287,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(3));
+        assertThat(engine.segmentsStats().getCount(), equalTo(3l));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));

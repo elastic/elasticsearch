@@ -20,8 +20,11 @@
 package org.elasticsearch.indices.stats;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.*;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=2)
+@ClusterScope(scope = Scope.SUITE, numNodes = 2)
 public class SimpleIndexStatsTests extends AbstractIntegrationTest {
 
     @Test
@@ -188,12 +191,31 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testSegmentsStasts() {
+        prepareCreate("test1", 2).setSettings("index.number_of_shards", 5, "index.number_of_replicas", 1).get();
+
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+
+        for (int i = 0; i < 20; i++) {
+            index("test1", "type1", Integer.toString(i), "field", "value");
+            index("test1", "type2", Integer.toString(i), "field", "value");
+            client().admin().indices().prepareFlush().get();
+        }
+        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+
+        assertThat(stats.getTotal().getSegments(), notNullValue());
+        assertThat(stats.getTotal().getSegments().getCount(), equalTo(10l));
+    }
+
+    @Test
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
         createIndex("test1");
         createIndex("test2");
 
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
@@ -297,7 +319,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion};
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -349,6 +371,9 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
             case Completion:
                 builder.setCompletion(set);
                 break;
+            case Segments:
+                builder.setSegments(set);
+                break;
             default:
                 assert false : "new flag? " + flag;
                 break;
@@ -385,6 +410,8 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
                 return response.getPercolate() != null;
             case Completion:
                 return response.getCompletion() != null;
+            case Segments:
+                return response.getSegments() != null;
             default:
                 assert false : "new flag? " + flag;
                 return false;

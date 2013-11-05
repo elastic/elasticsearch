@@ -80,10 +80,10 @@ public class ConcurrentPercolatorTests extends AbstractIntegrationTest {
                 .field("field2", "value")
                 .endObject()).execute().actionGet();
 
-        client().prepareIndex("index", "_percolator", "test1")
+        client().prepareIndex("index", PercolatorService.TYPE_NAME, "test1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("index", "_percolator", "test2")
+        client().prepareIndex("index", PercolatorService.TYPE_NAME, "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
 
@@ -190,19 +190,19 @@ public class ConcurrentPercolatorTests extends AbstractIntegrationTest {
                             IndexResponse response;
                             switch (x) {
                                 case 0:
-                                    response = client().prepareIndex("index", "_percolator", id)
+                                    response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(onlyField1)
                                             .execute().actionGet();
                                     type1.incrementAndGet();
                                     break;
                                 case 1:
-                                    response = client().prepareIndex("index", "_percolator", id)
+                                    response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(onlyField2)
                                             .execute().actionGet();
                                     type2.incrementAndGet();
                                     break;
                                 case 2:
-                                    response = client().prepareIndex("index", "_percolator", id)
+                                    response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(field1And2)
                                             .execute().actionGet();
                                     type3.incrementAndGet();
@@ -320,7 +320,8 @@ public class ConcurrentPercolatorTests extends AbstractIntegrationTest {
                     try {
                         XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
                                 .field("query", termQuery("field1", "value")).endObject();
-                        outer: while (run.get()) {
+                        outer:
+                        while (run.get()) {
                             semaphore.acquire();
                             try {
                                 if (!liveIds.isEmpty() && getRandom().nextInt(100) < 19) {
@@ -332,13 +333,13 @@ public class ConcurrentPercolatorTests extends AbstractIntegrationTest {
                                         id = Integer.toString(randomInt(idGen.get()));
                                     } while (!liveIds.remove(id));
 
-                                    DeleteResponse response = client().prepareDelete("index", "_percolator", id)
+                                    DeleteResponse response = client().prepareDelete("index", PercolatorService.TYPE_NAME, id)
                                             .execute().actionGet();
                                     assertThat(response.getId(), equalTo(id));
                                     assertThat("doc[" + id + "] should have been deleted, but isn't", response.isNotFound(), equalTo(false));
                                 } else {
                                     String id = Integer.toString(idGen.getAndIncrement());
-                                    IndexResponse response = client().prepareIndex("index", "_percolator", id)
+                                    IndexResponse response = client().prepareIndex("index", PercolatorService.TYPE_NAME, id)
                                             .setSource(doc)
                                             .execute().actionGet();
                                     liveIds.add(id);

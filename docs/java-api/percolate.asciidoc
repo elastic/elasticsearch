@@ -14,7 +14,7 @@ documentation before reading this guide.
 QueryBuilder qb = termQuery("content", "amazing");
 
 //Index the query = register it in the percolator
-client.prepareIndex("myIndexName", "_percolator", "myDesignatedQueryName")
+client.prepareIndex("myIndexName", ".percolator", "myDesignatedQueryName")
     .setSource(jsonBuilder()
         .startObject()
             .field("query", qb) // Register the query

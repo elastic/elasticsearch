@@ -173,7 +173,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
         } else {
             defaultPercolatorMappingSource = "{\n" +
-                    "    \"_default_\":{\n" +
+                    //"    \"" + PercolatorService.TYPE_NAME + "\":{\n" +
+                    "    \"" + "_default_" + "\":{\n" +
                     "        \"_id\" : {\"index\": \"not_analyzed\"}," +
                     "        \"properties\" : {\n" +
                     "            \"query\" : {\n" +
@@ -246,7 +247,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
-            if (mapper.type().charAt(0) == '_' && !PercolatorService.Constants.TYPE_NAME.equals(mapper.type())) {
+            if (mapper.type().charAt(0) == '_' && !PercolatorService.TYPE_NAME.equals(mapper.type())) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
             }
             if (mapper.type().contains("#")) {
@@ -363,8 +364,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
-        if (PercolatorService.Constants.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = defaultPercolatorMappingSource;
+        if (PercolatorService.TYPE_NAME.equals(mappingType)) {
+            defaultMappingSource = this.defaultPercolatorMappingSource;
         } else {
             defaultMappingSource = this.defaultMappingSource;
         }
@@ -407,10 +408,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     @Nullable
     public Filter searchFilter(String... types) {
-        boolean filterPercolateType = hasMapping(PercolatorService.Constants.TYPE_NAME);
+        boolean filterPercolateType = hasMapping(PercolatorService.TYPE_NAME);
         if (types != null && filterPercolateType) {
             for (String type : types) {
-                if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
+                if (PercolatorService.TYPE_NAME.equals(type)) {
                     filterPercolateType = false;
                     break;
                 }
@@ -418,7 +419,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
         Filter excludePercolatorType = null;
         if (filterPercolateType) {
-            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.Constants.TYPE_NAME).typeFilter());
+            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.TYPE_NAME).typeFilter());
         }
 
         if (types == null || types.length == 0) {

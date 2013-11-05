@@ -43,19 +43,19 @@ public class MultiPercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
 
@@ -91,7 +91,7 @@ public class MultiPercolatorTests extends AbstractIntegrationTest {
         assertThat(item.getResponse().getCount(), equalTo(2l));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
-        item =  response.getItems()[2];
+        item = response.getItems()[2];
         assertThat(item.errorMessage(), nullValue());
         assertNoFailures(item.response());
         assertThat(item.getResponse().getMatches(), arrayWithSize(4));
@@ -125,7 +125,7 @@ public class MultiPercolatorTests extends AbstractIntegrationTest {
         int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
-            client().prepareIndex("test", "_percolator", Integer.toString(i))
+            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
@@ -204,7 +204,7 @@ public class MultiPercolatorTests extends AbstractIntegrationTest {
         int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
-            client().prepareIndex("test", "_percolator", Integer.toString(i))
+            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
@@ -214,8 +214,8 @@ public class MultiPercolatorTests extends AbstractIntegrationTest {
         for (int i = 0; i < numPercolateRequest; i++) {
             builder.add(
                     client().preparePercolate()
-                    .setIndices("test").setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "a").endObject())));
+                            .setIndices("test").setDocumentType("type")
+                            .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "a").endObject())));
         }
 
         MultiPercolateResponse response = builder.execute().actionGet();
@@ -265,7 +265,7 @@ public class MultiPercolatorTests extends AbstractIntegrationTest {
         assertThat(response.items().length, equalTo(numPercolateRequest + 1));
         assertThat(response.items()[numPercolateRequest].isFailure(), equalTo(false));
         assertNoFailures(response.items()[numPercolateRequest].getResponse());
-        assertThat(response.items()[numPercolateRequest].getResponse().getCount(), equalTo((long ) numQueries));
+        assertThat(response.items()[numPercolateRequest].getResponse().getCount(), equalTo((long) numQueries));
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 

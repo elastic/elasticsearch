@@ -22,7 +22,7 @@ Adding a query to the percolator:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my-index/_percolator/1' -d '{
+curl -XPUT 'localhost:9200/my-index/.percolator/1' -d '{
     "query" : {
         "match" : {
             "message" : "bonsai tree"
@@ -69,7 +69,7 @@ The percolate api returns matches that refer to percolate queries that have matc
 === Indexing percolator queries
 
 Percolate queries are stored as documents in a specific format and in an arbitrary index under a reserved type with the
-name `_percolator`. The query itself is placed as is in a json objects under the top level field `query`.
+name `.percolator`. The query itself is placed as is in a json objects under the top level field `query`.
 
 [source,js]
 --------------------------------------------------
@@ -99,7 +99,7 @@ percolate documents by specific queries.
 
 On top of this also a mapping type can be associated with the this query. This allows to control how certain queries
 like range queries, shape filters and other query & filters that rely on mapping settings get constructed. This is
-important since the percolate queries are indexed into the `_percolator` type, and the queries / filters that rely on
+important since the percolate queries are indexed into the `.percolator` type, and the queries / filters that rely on
 mapping settings would yield unexpected behaviour. Note by default field names do get resolved in a smart manner,
 but in certain cases with multiple types this can lead to unexpected behaviour, so being explicit about it will help.
 
@@ -122,15 +122,15 @@ but in certain cases with multiple types this can lead to unexpected behaviour, 
 In the above example the range query gets really parsed into a Lucene numeric range query, based on the settings for
 the field `created_at` in the type `tweet`.
 
-Just as with any other type, the `_percolator` type has a mapping, which you can configure via the mappings apis.
+Just as with any other type, the `.percolator` type has a mapping, which you can configure via the mappings apis.
 The default percolate mapping doesn't index the query field and only stores it.
 
-Because `_percolate` is a type it also has a mapping. By default the following mapping is active:
+Because `.percolate` is a type it also has a mapping. By default the following mapping is active:
 
 [source,js]
 --------------------------------------------------
 {
-	"_percolator" : {
+	".percolator" : {
 		"properties" : {
 			"query" : {
 				"type" : "object",
@@ -148,7 +148,7 @@ the following delete requests needs to be executed:
 
 [source,js]
 --------------------------------------------------
-curl -XDELETE localhost:9200/my-index/_percolator/1
+curl -XDELETE localhost:9200/my-index/.percolator/1
 --------------------------------------------------
 
 [float]
@@ -157,7 +157,7 @@ curl -XDELETE localhost:9200/my-index/_percolator/1
 The percolate api executes in a distributed manner, meaning it executes on all shards an index points to.
 
 .Required options
-* `index` - The index that contains the `_percolator` type. This can also be an alias.
+* `index` - The index that contains the `.percolator` type. This can also be an alias.
 * `type` - The type of the document to be percolated. The mapping of that type is used to parse document.
 * `doc` - The actual document to percolate. Unlike the other two options this needs to be specified in the request body. Note this isn't required when percolating an existing document.
 
@@ -416,9 +416,9 @@ were specified. In case a percolate request failed, the item response is substit
 [float]
 === How it works under the hood
 
-When indexing a document that contains a query in an index and the `_percolator` type the query part of the documents gets
+When indexing a document that contains a query in an index and the `.percolator` type the query part of the documents gets
 parsed into a Lucene query and is kept in memory until that percolator document is removed or the index containing the
-`_percolator` type get removed. So all the active percolator queries are kept in memory.
+`.percolator` type get removed. So all the active percolator queries are kept in memory.
 
 At percolate time the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
 Lucene index. This in-memory index can just hold this one document and it is optimized for that. Then all the queries

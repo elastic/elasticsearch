@@ -1265,20 +1265,20 @@ public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject()).setRefresh(true)
                 .execute().actionGet();
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value"))).execute().actionGet();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value"))).execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")).scoreType("max"))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")).scoreType("max"))
                 .execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).execute().actionGet();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
                 .execute().actionGet();
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(0l));

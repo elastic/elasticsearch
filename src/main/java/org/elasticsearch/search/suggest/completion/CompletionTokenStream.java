@@ -36,7 +36,7 @@ import java.util.Set;
  */
 public final class CompletionTokenStream extends TokenStream {
 
-    private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);;
+    private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);
     private final PositionIncrementAttribute posAttr = addAttribute(PositionIncrementAttribute.class);
     private final ByteTermAttribute bytesAtt = addAttribute(ByteTermAttribute.class);
 
@@ -49,6 +49,7 @@ public final class CompletionTokenStream extends TokenStream {
     private final BytesRef scratch = new BytesRef();
 
     public CompletionTokenStream(TokenStream input, BytesRef payload, ToFiniteStrings toFiniteStrings) throws IOException {
+        bytesAtt.setBytesRef(scratch);
         this.input = input;
         this.payload = payload;
         this.toFiniteStrings = toFiniteStrings;
@@ -75,7 +76,6 @@ public final class CompletionTokenStream extends TokenStream {
              */
             posInc = 0;
             Util.toBytesRef(finiteStrings.next(), scratch); // now we have UTF-8
-            bytesAtt.setBytesRef(scratch);
             if (payload != null) {
                 payloadAttr.setPayload(this.payload);
             }

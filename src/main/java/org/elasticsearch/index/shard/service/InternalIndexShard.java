@@ -505,6 +505,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
+    public SegmentsStats segmentStats() {
+        return engine.segmentsStats();
+    }
+
+    @Override
     public WarmerStats warmerStats() {
         return shardWarmerService.stats();
     }

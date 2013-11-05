@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -95,6 +96,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Completion:
                     completion = new CompletionStats();
                     break;
+                case Segments:
+                    segments = new SegmentsStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -146,6 +150,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Completion:
                     completion = indexShard.completionStats(flags.completionDataFields());
                     break;
+                case Segments:
+                    segments = indexShard.segmentStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -190,6 +197,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public CompletionStats completion;
+
+    @Nullable
+    public SegmentsStats segments;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -298,6 +308,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             completion.add(stats.getCompletion());
         }
+        if (segments == null) {
+            if (stats.getSegments() != null) {
+                segments = new SegmentsStats();
+                segments.add(stats.getSegments());
+            }
+        } else {
+            segments.add(stats.getSegments());
+        }
     }
 
     @Nullable
@@ -365,6 +383,11 @@ public class CommonStats implements Streamable, ToXContent {
         return completion;
     }
 
+    @Nullable
+    public SegmentsStats getSegments() {
+        return segments;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -412,6 +435,11 @@ public class CommonStats implements Streamable, ToXContent {
         if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
             if (in.readBoolean()) {
                 completion = CompletionStats.readCompletionStats(in);
+            }
+        }
+        if (in.getVersion().after(Version.V_0_90_6)) {
+            if (in.readBoolean()) {
+                segments = SegmentsStats.readSegmentsStats(in);
             }
         }
     }
@@ -498,6 +526,14 @@ public class CommonStats implements Streamable, ToXContent {
                 completion.writeTo(out);
             }
         }
+        if (out.getVersion().after(Version.V_0_90_6)) {
+            if (segments == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                segments.writeTo(out);
+            }
+        }
     }
 
     // note, requires a wrapping object
@@ -541,6 +577,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (completion != null) {
             completion.toXContent(builder, params);
+        }
+        if (segments != null) {
+            segments.toXContent(builder, params);
         }
         return builder;
     }

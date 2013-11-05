@@ -180,6 +180,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             flags.set(CommonStatsFlags.Flag.FieldData);
             flags.fieldDataFields(request.request.fieldDataFields());
         }
+        if (request.request.segments()) {
+            flags.set(CommonStatsFlags.Flag.Segments);
+        }
         if (request.request.completion()) {
             flags.set(CommonStatsFlags.Flag.Completion);
             flags.completionDataFields(request.request.completionFields());

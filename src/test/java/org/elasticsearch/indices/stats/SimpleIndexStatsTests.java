@@ -20,8 +20,11 @@
 package org.elasticsearch.indices.stats;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.*;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=2)
+@ClusterScope(scope = Scope.SUITE, numNodes = 2)
 public class SimpleIndexStatsTests extends AbstractIntegrationTest {
 
     @Test
@@ -129,7 +132,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
         assertThat(stats.getTotal().getGet().getCount(), equalTo(2l));
         assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
         assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(1l));
-        
+
         // clear all
         stats = client().admin().indices().prepareStats()
                 .setDocs(false)
@@ -147,7 +150,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
         assertThat(stats.getTotal().getGet(), nullValue());
         assertThat(stats.getTotal().getSearch(), nullValue());
     }
-    
+
     @Test
     public void testMergeStats() {
         // rely on 1 replica for this tests
@@ -155,7 +158,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-        
+
         // clear all
         IndicesStatsResponse stats = client().admin().indices().prepareStats()
                 .setDocs(false)
@@ -172,7 +175,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
         assertThat(stats.getTotal().getIndexing(), nullValue());
         assertThat(stats.getTotal().getGet(), nullValue());
         assertThat(stats.getTotal().getSearch(), nullValue());
-        
+
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("test1", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             client().prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
@@ -186,14 +189,33 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
         assertThat(stats.getTotal().getMerge(), notNullValue());
         assertThat(stats.getTotal().getMerge().getTotal(), greaterThan(0l));
     }
-    
+
+    @Test
+    public void testSegmentsStasts() {
+        prepareCreate("test1", 2).setSettings("index.number_of_shards", 5, "index.number_of_replicas", 1).get();
+
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+
+        for (int i = 0; i < 20; i++) {
+            index("test1", "type1", Integer.toString(i), "field", "value");
+            index("test1", "type2", Integer.toString(i), "field", "value");
+            client().admin().indices().prepareFlush().get();
+        }
+        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+
+        assertThat(stats.getTotal().getSegments(), notNullValue());
+        assertThat(stats.getTotal().getSegments().getCount(), equalTo(10l));
+    }
+
     @Test
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
         createIndex("test1");
         createIndex("test2");
 
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
@@ -206,13 +228,13 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
         for (Flag flag : values) {
             set(flag, builder, false);
         }
-        
+
         IndicesStatsResponse stats = builder.execute().actionGet();
         for (Flag flag : values) {
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
-        
+
         for (Flag flag : values) {
             set(flag, builder, true);
         }
@@ -228,12 +250,12 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
                 flags.add(flag);
             }
         }
-        
-        
+
+
         for (Flag flag : values) {
             set(flag, builder, false); // clear all
         }
-        
+
         for (Flag flag : flags) { // set the flags
             set(flag, builder, true);
         }
@@ -242,14 +264,14 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(true));
             assertThat(isSet(flag, stats.getTotal()), equalTo(true));
         }
-        
+
         for (Flag flag : EnumSet.complementOf(flags)) { // check the complement
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
-        
+
     }
-    
+
     @Test
     public void testEncodeDecodeCommonStats() throws IOException {
         CommonStatsFlags flags = new CommonStatsFlags();
@@ -257,17 +279,17 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
         assertThat(flags.anySet(), equalTo(true));
 
         for (Flag flag : values) {
-            flags.set(flag, false);    
+            flags.set(flag, false);
         }
         assertThat(flags.anySet(), equalTo(false));
         for (Flag flag : values) {
-            flags.set(flag, true);    
+            flags.set(flag, true);
         }
         assertThat(flags.anySet(), equalTo(true));
         Random random = getRandom();
         flags.set(values[random.nextInt(values.length)], false);
         assertThat(flags.anySet(), equalTo(true));
-        
+
         {
             BytesStreamOutput out = new BytesStreamOutput();
             flags.writeTo(out);
@@ -278,7 +300,7 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }
         }
-        
+
         {
             for (Flag flag : values) {
                 flags.set(flag, random.nextBoolean());
@@ -293,97 +315,102 @@ public class SimpleIndexStatsTests extends AbstractIntegrationTest {
             }
         }
     }
-    
+
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion};
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
             assertThat("ordinal has changed - this breaks the wire protocol. Only append to new values", i, equalTo(flags[i].ordinal()));
         }
     }
-    
+
     private static void set(Flag flag, IndicesStatsRequestBuilder builder, boolean set) {
-        switch(flag) {
-        case Docs:
-            builder.setDocs(set);
-            break;
-        case FieldData:
-            builder.setFieldData(set);
-            break;
-        case FilterCache:
-            builder.setFilterCache(set);
-            break;
-        case Flush:
-            builder.setFlush(set);
-            break;
-        case Get:
-            builder.setGet(set);
-            break;
-        case IdCache:
-            builder.setIdCache(set);
-            break;
-        case Indexing:
-            builder.setIndexing(set);
-            break;
-        case Merge:
-            builder.setMerge(set);
-            break;
-        case Refresh:
-            builder.setRefresh(set);
-            break;
-        case Search:
-            builder.setSearch(set);
-            break;
-        case Store:
-            builder.setStore(set);
-            break;
-        case Warmer:
-            builder.setWarmer(set);
-            break;
-        case Completion:
-            builder.setCompletion(set);
-            break;
-        default:
-            assert false : "new flag? " + flag;
-            break;
+        switch (flag) {
+            case Docs:
+                builder.setDocs(set);
+                break;
+            case FieldData:
+                builder.setFieldData(set);
+                break;
+            case FilterCache:
+                builder.setFilterCache(set);
+                break;
+            case Flush:
+                builder.setFlush(set);
+                break;
+            case Get:
+                builder.setGet(set);
+                break;
+            case IdCache:
+                builder.setIdCache(set);
+                break;
+            case Indexing:
+                builder.setIndexing(set);
+                break;
+            case Merge:
+                builder.setMerge(set);
+                break;
+            case Refresh:
+                builder.setRefresh(set);
+                break;
+            case Search:
+                builder.setSearch(set);
+                break;
+            case Store:
+                builder.setStore(set);
+                break;
+            case Warmer:
+                builder.setWarmer(set);
+                break;
+            case Completion:
+                builder.setCompletion(set);
+                break;
+            case Segments:
+                builder.setSegments(set);
+                break;
+            default:
+                assert false : "new flag? " + flag;
+                break;
         }
     }
-    
+
     private static boolean isSet(Flag flag, CommonStats response) {
-        switch(flag) {
-        case Docs:
-            return response.getDocs() != null;
-        case FieldData:
-            return response.getFieldData() != null;
-        case FilterCache:
-            return response.getFilterCache() != null;
-        case Flush:
-            return response.getFlush() != null;
-        case Get:
-            return response.getGet() != null;
-        case IdCache:
-            return response.getIdCache() != null;
-        case Indexing:
-            return response.getIndexing() != null;
-        case Merge:
-            return response.getMerge() != null;
-        case Refresh:
-            return response.getRefresh() != null;
-        case Search:
-            return response.getSearch() != null;
-        case Store:
-            return response.getStore() != null;
-        case Warmer:
-            return response.getWarmer() != null;
-        case Completion:
-            return response.getCompletion() != null;
-        default:
-            assert false : "new flag? " + flag;
-            return false;
+        switch (flag) {
+            case Docs:
+                return response.getDocs() != null;
+            case FieldData:
+                return response.getFieldData() != null;
+            case FilterCache:
+                return response.getFilterCache() != null;
+            case Flush:
+                return response.getFlush() != null;
+            case Get:
+                return response.getGet() != null;
+            case IdCache:
+                return response.getIdCache() != null;
+            case Indexing:
+                return response.getIndexing() != null;
+            case Merge:
+                return response.getMerge() != null;
+            case Refresh:
+                return response.getRefresh() != null;
+            case Search:
+                return response.getSearch() != null;
+            case Store:
+                return response.getStore() != null;
+            case Warmer:
+                return response.getWarmer() != null;
+            case Completion:
+                return response.getCompletion() != null;
+            case Segments:
+                return response.getSegments() != null;
+            default:
+                assert false : "new flag? " + flag;
+                return false;
         }
     }
-    
+
 }

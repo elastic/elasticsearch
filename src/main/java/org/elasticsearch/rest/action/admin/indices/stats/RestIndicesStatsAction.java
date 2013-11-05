@@ -93,6 +93,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_stats/completion", new RestCompletionStatsHandler());
         controller.registerHandler(GET, "/_stats/completion/{fields}", new RestCompletionStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/completion/{fields}", new RestCompletionStatsHandler());
+        controller.registerHandler(GET, "/_stats/segments", new RestSegmentsStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/segments", new RestSegmentsStatsHandler());
     }
 
     @Override
@@ -117,7 +119,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         }
         /* We use "fields" as the default field list for stats that support field inclusion filters and further down
          * a more specific list of fields that overrides this list.*/
-        final String[] defaultIncludedFields = request.paramAsStringArray("fields", null); 
+        final String[] defaultIncludedFields = request.paramAsStringArray("fields", null);
         indicesStatsRequest.docs(request.paramAsBoolean("docs", indicesStatsRequest.docs()));
         indicesStatsRequest.store(request.paramAsBoolean("store", indicesStatsRequest.store()));
         indicesStatsRequest.indexing(request.paramAsBoolean("indexing", indicesStatsRequest.indexing()));
@@ -131,6 +133,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.idCache(request.paramAsBoolean("id_cache", indicesStatsRequest.idCache()));
         indicesStatsRequest.fieldData(request.paramAsBoolean("fielddata", indicesStatsRequest.fieldData()));
         indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", defaultIncludedFields));
+        indicesStatsRequest.segments(request.paramAsBoolean("segments", indicesStatsRequest.segments()));
         indicesStatsRequest.completion(request.paramAsBoolean("completion", indicesStatsRequest.completion()));
         indicesStatsRequest.completionFields(request.paramAsStringArray("completion_fields", defaultIncludedFields));
 
@@ -639,6 +642,43 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.clear().refresh(true);
             indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
             indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+                @Override
+                public void onResponse(IndicesStatsResponse response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Throwable e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestSegmentsStatsHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.listenerThreaded(false);
+            indicesStatsRequest.clear().segments(true);
+            indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override

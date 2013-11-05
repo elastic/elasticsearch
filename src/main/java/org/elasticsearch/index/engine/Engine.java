@@ -90,6 +90,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      */
     Searcher acquireSearcher(String source) throws EngineException;
 
+    /**
+     * Global stats on segments.
+     */
+    SegmentsStats segmentsStats();
+
+    /**
+     * The list of segments in the engine.
+     */
     List<Segment> segments();
 
     /**

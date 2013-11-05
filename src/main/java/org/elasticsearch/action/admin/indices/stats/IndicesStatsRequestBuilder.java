@@ -134,6 +134,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setSegments(boolean segments) {
+        request.segments(segments);
+        return this;
+    }
+
     public IndicesStatsRequestBuilder setCompletion(boolean completion) {
         request.completion(completion);
         return this;

@@ -57,7 +57,7 @@ public class PercolatorFacetsTests extends AbstractIntegrationTest {
             String value = values[i % numUniqueQueries];
             expectedCount[i % numUniqueQueries]++;
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", "_percolator", Integer.toString(i))
+            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject())
                     .execute().actionGet();
         }
@@ -92,9 +92,9 @@ public class PercolatorFacetsTests extends AbstractIntegrationTest {
 
             assertThat(response.getFacets().facets().size(), equalTo(1));
             assertThat(response.getFacets().facets().get(0).getName(), equalTo("a"));
-            assertThat(((TermsFacet)response.getFacets().facets().get(0)).getEntries().size(), equalTo(1));
-            assertThat(((TermsFacet)response.getFacets().facets().get(0)).getEntries().get(0).getCount(), equalTo(expectedCount[i % values.length]));
-            assertThat(((TermsFacet)response.getFacets().facets().get(0)).getEntries().get(0).getTerm().string(), equalTo("b"));
+            assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().size(), equalTo(1));
+            assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().get(0).getCount(), equalTo(expectedCount[i % values.length]));
+            assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().get(0).getTerm().string(), equalTo("b"));
         }
     }
 

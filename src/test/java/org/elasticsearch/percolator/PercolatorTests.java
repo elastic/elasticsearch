@@ -75,19 +75,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -177,7 +177,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(response.getMatches(), emptyArray());
 
         // add first query...
-        client().prepareIndex("test", "_percolator", "test1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "test1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
                 .execute().actionGet();
 
@@ -194,7 +194,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
 
         // add second query...
-        client().prepareIndex("test", "_percolator", "test2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
 
@@ -206,7 +206,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("test1", "test2"));
 
 
-        client().prepareDelete("test", "_percolator", "test2").execute().actionGet();
+        client().prepareDelete("test", PercolatorService.TYPE_NAME, "test2").execute().actionGet();
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc).execute().actionGet();
@@ -215,7 +215,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
 
         // add a range query (cached)
         // add a query
-        client().prepareIndex("test1", "_percolator")
+        client().prepareIndex("test1", PercolatorService.TYPE_NAME)
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("query",
                                 constantScoreQuery(FilterBuilders.rangeFilter("field2").from("value").includeLower(true))
@@ -239,7 +239,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
-            client().prepareIndex("test", "_percolator", Integer.toString(i))
+            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .setRouting(Integer.toString(i % 2))
                     .execute().actionGet();
@@ -276,7 +276,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> register a query");
-        client().prepareIndex("my-queries-index", "_percolator", "kuku")
+        client().prepareIndex("my-queries-index", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -290,7 +290,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> register a query");
-        client().prepareIndex("my-queries-index", "_percolator", "kuku")
+        client().prepareIndex("my-queries-index", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -321,7 +321,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject()
                         .field("source", "productizer")
                         .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.queryString("filingcategory:s")))
@@ -346,7 +346,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -355,7 +355,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
 
         refresh();
         CountResponse countResponse = client().prepareCount()
-                .setQuery(matchAllQuery()).setTypes("_percolator")
+                .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
         assertThat(countResponse.getCount(), equalTo(1l));
 
@@ -382,7 +382,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().admin().indices().prepareDelete("test").execute().actionGet();
         logger.info("--> make sure percolated queries for it have been deleted as well");
         countResponse = client().prepareCount()
-                .setQuery(matchAllQuery()).setTypes("_percolator")
+                .setQuery(matchAllQuery()).setTypes(PercolatorService.TYPE_NAME)
                 .execute().actionGet();
         assertThat(countResponse.getCount(), equalTo(0l));
     }
@@ -393,7 +393,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a query 1");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -402,7 +402,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
                 .execute().actionGet();
 
         logger.info("--> register a query 2");
-        client().prepareIndex("test", "_percolator", "bubu")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "bubu")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "green")
                         .field("query", termQuery("field1", "value2"))
@@ -432,7 +432,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a query 1");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
@@ -448,7 +448,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("kuku"));
 
         logger.info("--> register a query 2");
-        client().prepareIndex("test", "_percolator", "bubu")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "bubu")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "green")
                         .field("query", termQuery("field1", "value2"))
@@ -464,7 +464,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("bubu"));
 
         logger.info("--> register a query 3");
-        client().prepareIndex("test", "_percolator", "susu")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "susu")
                 .setSource(jsonBuilder().startObject()
                         .field("color", "red")
                         .field("query", termQuery("field1", "value2"))
@@ -483,7 +483,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("susu"));
 
         logger.info("--> deleting query 1");
-        client().prepareDelete("test", "_percolator", "kuku").setRefresh(true).execute().actionGet();
+        client().prepareDelete("test", PercolatorService.TYPE_NAME, "kuku").setRefresh(true).execute().actionGet();
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -507,7 +507,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "kuku")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
                 .setSource(jsonBuilder().startObject()
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
@@ -532,7 +532,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         ensureGreen();
 
         logger.info("--> register a query");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -620,19 +620,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -698,19 +698,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").setRouting("1").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -768,19 +768,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
 
         logger.info("--> registering queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -832,7 +832,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         logger.info("--> registering queries");
         for (int i = 1; i <= 10; i++) {
             String index = i % 2 == 0 ? "test1" : "test2";
-            client().prepareIndex(index, "_percolator", Integer.toString(i))
+            client().prepareIndex(index, PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
@@ -906,19 +906,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -978,19 +978,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().prepareIndex("test", "type", "4").setSource("field1", "d").execute().actionGet();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", "_percolator", "1")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "2")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "3")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", "_percolator", "4")
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -1044,10 +1044,10 @@ public class PercolatorTests extends AbstractIntegrationTest {
         int numLevels = randomIntBetween(1, 25);
         long numQueriesPerLevel = randomIntBetween(10, 250);
         long totalQueries = numLevels * numQueriesPerLevel;
-        logger.info("--> register " + totalQueries +" queries");
+        logger.info("--> register " + totalQueries + " queries");
         for (int level = 1; level <= numLevels; level++) {
             for (int query = 1; query <= numQueriesPerLevel; query++) {
-                client().prepareIndex("my-index", "_percolator", level + "-" + query)
+                client().prepareIndex("my-index", PercolatorService.TYPE_NAME, level + "-" + query)
                         .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", level).endObject())
                         .execute().actionGet();
             }
@@ -1145,10 +1145,10 @@ public class PercolatorTests extends AbstractIntegrationTest {
 
         Map<Integer, NavigableSet<Integer>> controlMap = new HashMap<Integer, NavigableSet<Integer>>();
         long numQueries = randomIntBetween(100, 250);
-        logger.info("--> register " + numQueries +" queries");
+        logger.info("--> register " + numQueries + " queries");
         for (int i = 0; i < numQueries; i++) {
             int value = randomInt(10);
-            client().prepareIndex("my-index", "_percolator", Integer.toString(i))
+            client().prepareIndex("my-index", PercolatorService.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", i).field("field1", value).endObject())
                     .execute().actionGet();
             if (!controlMap.containsKey(value)) {
@@ -1231,10 +1231,10 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().admin().indices().prepareCreate("my-index").execute().actionGet();
         ensureGreen();
 
-        client().prepareIndex("my-index", "_percolator", "1")
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
                 .execute().actionGet();
-        client().prepareIndex("my-index", "_percolator", "2")
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 2).endObject())
                 .execute().actionGet();
         refresh();
@@ -1288,7 +1288,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
                 .execute().actionGet();
         ensureGreen();
 
-        client().prepareIndex("my-index", "_percolator", "1")
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
                 .execute().actionGet();
 
@@ -1323,19 +1323,19 @@ public class PercolatorTests extends AbstractIntegrationTest {
         }
 
         logger.info("--> register a queries");
-        client.prepareIndex("test", "_percolator", "1")
+        client.prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "brown fox")).endObject())
                 .execute().actionGet();
-        client.prepareIndex("test", "_percolator", "2")
+        client.prepareIndex("test", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "lazy dog")).endObject())
                 .execute().actionGet();
-        client.prepareIndex("test", "_percolator", "3")
+        client.prepareIndex("test", PercolatorService.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "jumps")).endObject())
                 .execute().actionGet();
-        client.prepareIndex("test", "_percolator", "4")
+        client.prepareIndex("test", PercolatorService.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "dog")).endObject())
                 .execute().actionGet();
-        client.prepareIndex("test", "_percolator", "5")
+        client.prepareIndex("test", PercolatorService.TYPE_NAME, "5")
                 .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "fox")).endObject())
                 .execute().actionGet();
 
@@ -1469,10 +1469,10 @@ public class PercolatorTests extends AbstractIntegrationTest {
         client().admin().indices().prepareCreate("test2").execute().actionGet();
         ensureGreen();
 
-        client().prepareIndex("test1", "_percolator", "1")
+        client().prepareIndex("test1", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test2", "_percolator", "1")
+        client().prepareIndex("test2", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
 
@@ -1483,9 +1483,9 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertThat(response.getCount(), equalTo(2l));
 
         CountDownLatch test1Latch = createCountDownLatch("test1");
-        CountDownLatch test2Latch =createCountDownLatch("test2");
+        CountDownLatch test2Latch = createCountDownLatch("test2");
 
-        client().admin().indices().prepareDeleteMapping("test1").setType("_percolator").execute().actionGet();
+        client().admin().indices().prepareDeleteMapping("test1").setType(PercolatorService.TYPE_NAME).execute().actionGet();
         test1Latch.await();
 
         response = client().preparePercolate()
@@ -1495,7 +1495,7 @@ public class PercolatorTests extends AbstractIntegrationTest {
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(1l));
 
-        client().admin().indices().prepareDeleteMapping("test2").setType("_percolator").execute().actionGet();
+        client().admin().indices().prepareDeleteMapping("test2").setType(PercolatorService.TYPE_NAME).execute().actionGet();
         test2Latch.await();
 
         // Percolate api should return 0 matches, because all _percolate types have been removed.

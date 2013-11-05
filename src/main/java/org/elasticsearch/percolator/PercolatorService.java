@@ -73,10 +73,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.Count;
-import org.elasticsearch.percolator.QueryCollector.Match;
-import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
-import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
+import org.elasticsearch.percolator.QueryCollector.*;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facet;
@@ -100,6 +97,7 @@ import static org.elasticsearch.percolator.QueryCollector.*;
 public class PercolatorService extends AbstractComponent {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
+    public static final String TYPE_NAME = ".percolator";
 
     private final CloseableThreadLocal<MemoryIndex> cache;
     private final IndicesService indicesService;
@@ -239,7 +237,7 @@ public class PercolatorService extends AbstractComponent {
         // We switch types because this context needs to be in the context of the percolate queries in the shard and
         // not the in memory percolate doc
         String[] previousTypes = context.types();
-        context.types(new String[]{Constants.TYPE_NAME});
+        context.types(new String[]{TYPE_NAME});
         SearchContext.setCurrent(context);
         try {
             parser = XContentFactory.xContent(source).createParser(source);
@@ -746,7 +744,7 @@ public class PercolatorService extends AbstractComponent {
     };
 
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
-        Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(Constants.TYPE_NAME).typeFilter();
+        Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
         FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
@@ -804,12 +802,6 @@ public class PercolatorService extends AbstractComponent {
         public InternalFacets reducedFacets() {
             return reducedFacets;
         }
-    }
-
-    public static final class Constants {
-
-        public static final String TYPE_NAME = "_percolator";
-
     }
 
     private InternalFacets reduceFacets(List<PercolateShardResponse> shardResults) {

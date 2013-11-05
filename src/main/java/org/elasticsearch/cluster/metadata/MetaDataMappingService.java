@@ -444,7 +444,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
                         throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
                     }
-                    if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.Constants.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
+                    if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
                         throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
                     }
 

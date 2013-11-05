@@ -211,7 +211,8 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Docs("docs"),
         Warmer("warmer"),
         Percolate("percolate"),
-        Completion("completion");
+        Completion("completion"),
+        Segments("segments");
 
         private final String restName;
 

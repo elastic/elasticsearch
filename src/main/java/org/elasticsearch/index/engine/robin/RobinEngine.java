@@ -1119,6 +1119,24 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
+    public SegmentsStats segmentsStats() {
+        rwl.readLock().lock();
+        try {
+            ensureOpen();
+            Searcher searcher = acquireSearcher("segments_stats");
+            try {
+                SegmentsStats stats = new SegmentsStats();
+                stats.add(searcher.reader().leaves().size());
+                return stats;
+            } finally {
+                searcher.release();
+            }
+        } finally {
+            rwl.readLock().unlock();
+        }
+    }
+
+    @Override
     public List<Segment> segments() {
         rwl.readLock().lock();
         try {

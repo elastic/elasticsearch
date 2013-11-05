@@ -183,6 +183,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.percolate()) {
             flags.set(CommonStatsFlags.Flag.Percolate);
         }
+        if (request.request.segments()) {
+            flags.set(CommonStatsFlags.Flag.Segments);
+        }
         if (request.request.completion()) {
             flags.set(CommonStatsFlags.Flag.Completion);
             flags.completionDataFields(request.request.completionFields());

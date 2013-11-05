@@ -203,6 +203,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.Percolate);
     }
 
+    public IndicesStatsRequest segments(boolean segments) {
+        flags.set(Flag.Segments, segments);
+        return this;
+    }
+
+    public boolean segments() {
+        return flags.isSet(Flag.Segments);
+    }
+
     public IndicesStatsRequest fieldDataFields(String... fieldDataFields) {
         flags.fieldDataFields(fieldDataFields);
         return this;
@@ -221,7 +230,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.Completion);
     }
 
-    public IndicesStatsRequest completionFields(String ... completionDataFields) {
+    public IndicesStatsRequest completionFields(String... completionDataFields) {
         flags.completionDataFields(completionDataFields);
         return this;
     }

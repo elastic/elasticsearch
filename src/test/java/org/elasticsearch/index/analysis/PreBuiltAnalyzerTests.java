@@ -19,6 +19,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -32,10 +34,11 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -49,6 +52,43 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
 
         // special case, these two are the same instance
         assertThat(currentDefaultAnalyzer, is(currentStandardAnalyzer));
+    }
+
+    @Test
+    public void testThatDefaultAndStandardAnalyzerChangedIn10Beta1() throws IOException {
+        Analyzer currentStandardAnalyzer = PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_1_0_0_Beta1);
+        Analyzer currentDefaultAnalyzer = PreBuiltAnalyzers.DEFAULT.getAnalyzer(Version.V_1_0_0_Beta1);
+
+        // special case, these two are the same instance
+        assertThat(currentDefaultAnalyzer, is(currentStandardAnalyzer));
+        PreBuiltAnalyzers.DEFAULT.getAnalyzer(Version.V_1_0_0_Beta1);
+        final int n = atLeast(10);
+        Version version = Version.CURRENT;
+        for(int i = 0; i < n; i++) {
+            if (version.equals(Version.V_1_0_0_Beta1)) {
+                assertThat(currentDefaultAnalyzer, is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version)));
+            } else {
+                assertThat(currentDefaultAnalyzer, not(is(PreBuiltAnalyzers.DEFAULT.getAnalyzer(version))));
+            }
+            Analyzer analyzer = PreBuiltAnalyzers.DEFAULT.getAnalyzer(version);
+            TokenStream ts = analyzer.tokenStream("foo", "This is it Dude");
+            ts.reset();
+            CharTermAttribute charTermAttribute = ts.addAttribute(CharTermAttribute.class);
+            List<String> list = new ArrayList<String>();
+            while(ts.incrementToken()) {
+                list.add(charTermAttribute.toString());
+            }
+            if (version.onOrAfter(Version.V_1_0_0_Beta1)) {
+                assertThat(list.size(), is(4));
+                assertThat(list, contains("this", "is", "it", "dude"));
+
+            } else {
+                assertThat(list.size(), is(1));
+                assertThat(list, contains("dude"));
+            }
+            ts.close();
+            version = randomVersion();
+        }
     }
 
     @Test

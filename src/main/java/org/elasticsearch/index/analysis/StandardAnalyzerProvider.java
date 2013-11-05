@@ -22,6 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -35,11 +37,20 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final StandardAnalyzer standardAnalyzer;
+    private final Version esVersion;
 
     @Inject
     public StandardAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version);
+        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        final CharArraySet defaultStopwords;
+        if (esVersion.onOrAfter(Version.V_1_0_0_Beta1)) {
+            defaultStopwords = CharArraySet.EMPTY_SET;
+        } else {
+            defaultStopwords = StopAnalyzer.ENGLISH_STOP_WORDS_SET;
+        }
+
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         standardAnalyzer = new StandardAnalyzer(version, stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);

@@ -122,7 +122,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).execute().actionGet();
         assertHitCount(countResponse, 3l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("standard")).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).execute().actionGet();
         assertHitCount(countResponse, 3l);
         // standard drops "the" since its a stopword
 
@@ -480,8 +480,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
     }
 
     @Test
-    public void testMatchQueryZeroTermsQuery() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+    public void testMatchQueryZeroTermsQuery() throws IOException {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("analyzer", "classic").endObject()
+                        .startObject("field2").field("type", "string").field("analyzer", "classic").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -511,8 +516,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
     }
 
     @Test
-    public void testMultiMatchQueryZeroTermsQuery() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+    public void testMultiMatchQueryZeroTermsQuery() throws IOException {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("analyzer", "classic").endObject()
+                        .startObject("field2").field("type", "string").field("analyzer", "classic").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();

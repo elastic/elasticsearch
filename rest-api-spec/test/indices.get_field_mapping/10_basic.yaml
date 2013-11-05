@@ -2,7 +2,7 @@
 setup:
   - skip:
       version:  "0 - 0.90.5"
-      reason:   "get field mapping was added in 0.90.6"
+      reason:   "The API was added in 0.90.6"
 
   - do:
         indices.create:
@@ -16,6 +16,10 @@ setup:
 
 ---
 "Get field mapping with no index and type":
+  - skip:
+        version:  "0 - 0.90.5"
+        reason:   "The API was added in 0.90.6"
+
   - do:
       indices.get_field_mapping:
         field: text
@@ -24,6 +28,10 @@ setup:
 
 ---
 "Get field mapping by index only":
+  - skip:
+        version:  "0 - 0.90.5"
+        reason:   "The API was added in 0.90.6"
+
   - do:
       indices.get_field_mapping:
         index: test_index
@@ -33,6 +41,9 @@ setup:
 
 ---
 "Get field mapping by type & field":
+  - skip:
+      version:  "0 - 0.90.5"
+      reason:   "The API was added in 0.90.6"
 
   - do:
       indices.get_field_mapping:
@@ -44,6 +55,9 @@ setup:
 
 ---
 "Get field mapping by type & field, with another field that doesn't exist":
+  - skip:
+      version:  "0 - 0.90.5"
+      reason:   "The API was added in 0.90.6"
 
   - do:
       indices.get_field_mapping:
@@ -56,6 +70,9 @@ setup:
 
 ---
 "Get field mapping with include_defaults":
+  - skip:
+        version:  "0 - 0.90.5"
+        reason:   "The API was added in 0.90.6"
 
   - do:
       indices.get_field_mapping:

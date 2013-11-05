@@ -271,7 +271,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
 
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         // standard drops "the" since its a stopword
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
@@ -290,7 +290,7 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("standard")).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         // standard drops "the" since its a stopword
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
@@ -730,8 +730,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
     }
 
     @Test
-    public void testMatchQueryZeroTermsQuery() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+    public void testMatchQueryZeroTermsQuery() throws IOException {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("analyzer", "classic").endObject()
+                        .startObject("field2").field("type", "string").field("analyzer", "classic").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -761,9 +766,13 @@ public class SimpleQueryTests extends AbstractIntegrationTest {
     }
 
     @Test
-    public void testMultiMatchQueryZeroTermsQuery() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+    public void testMultiMatchQueryZeroTermsQuery() throws IOException {
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("analyzer", "classic").endObject()
+                        .startObject("field2").field("type", "string").field("analyzer", "classic").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 

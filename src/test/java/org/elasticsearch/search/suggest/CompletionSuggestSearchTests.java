@@ -334,7 +334,7 @@ public class CompletionSuggestSearchTests extends AbstractIntegrationTest {
     @Test
     public void testThatDisablingPositionIncrementsWorkForStopwords() throws Exception {
         // analyzer which removes stopwords... so may not be the simple one
-        createIndexAndMapping("standard", "standard", false, false, false);
+        createIndexAndMapping("classic", "classic", false, false, false);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)

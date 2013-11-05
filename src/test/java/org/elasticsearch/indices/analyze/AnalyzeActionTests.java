@@ -50,8 +50,20 @@ public class AnalyzeActionTests extends AbstractIntegrationTest {
 
         for (int i = 0; i < 10; i++) {
             AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
-            assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+            assertThat(analyzeResponse.getTokens().size(), equalTo(4));
             AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+            assertThat(token.getTerm(), equalTo("this"));
+            assertThat(token.getStartOffset(), equalTo(0));
+            assertThat(token.getEndOffset(), equalTo(4));
+            token = analyzeResponse.getTokens().get(1);
+            assertThat(token.getTerm(), equalTo("is"));
+            assertThat(token.getStartOffset(), equalTo(5));
+            assertThat(token.getEndOffset(), equalTo(7));
+            token = analyzeResponse.getTokens().get(2);
+            assertThat(token.getTerm(), equalTo("a"));
+            assertThat(token.getStartOffset(), equalTo(8));
+            assertThat(token.getEndOffset(), equalTo(9));
+            token = analyzeResponse.getTokens().get(3);
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));

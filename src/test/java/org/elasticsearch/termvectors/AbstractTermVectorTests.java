@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
@@ -291,7 +292,7 @@ public abstract class AbstractTermVectorTests extends AbstractIntegrationTest {
                 });
             }
         }
-        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(Version.CURRENT.luceneVersion), mapping);
+        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(Version.CURRENT.luceneVersion, CharArraySet.EMPTY_SET), mapping);
 
         Directory dir = new RAMDirectory();
         IndexWriterConfig conf = new IndexWriterConfig(Version.CURRENT.luceneVersion, wrapper);

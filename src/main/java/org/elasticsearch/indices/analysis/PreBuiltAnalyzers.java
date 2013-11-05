@@ -61,6 +61,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
@@ -73,9 +74,12 @@ import java.util.Map;
  */
 public enum PreBuiltAnalyzers {
 
-    STANDARD() {
+    STANDARD(CachingStrategy.ELASTICSEARCH) { // we don't do stopwords anymore from 1.0Beta on
         @Override
         protected Analyzer create(Version version) {
+            if (version.onOrAfter(Version.V_1_0_0_Beta1)) {
+                return new StandardAnalyzer(version.luceneVersion, CharArraySet.EMPTY_SET);
+            }
             return new StandardAnalyzer(version.luceneVersion);
         }
     },

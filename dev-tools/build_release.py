@@ -47,6 +47,11 @@ from http.client import HTTPConnection
 
 Once it's done it will print all the remaining steps.
 
+ Prerequisites:
+    - Python 3k for script execution
+    - Boto for S3 Upload ($ apt-get install python-boto)
+    - RPM for RPM building ($ apt-get install rpm)
+    - S3 keys exported via ENV Variables (AWS_ACCESS_KEY_ID,  AWS_SECRET_ACCESS_KEY)
 """
 
 LOG = '/tmp/release.log'
@@ -216,10 +221,19 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
   run_mvn('clean %s -DskipTests' %(target))
+  success = False
   try:
     run_mvn('-DskipTests rpm:rpm')
-  except RuntimeError as e:
-    log("Failed to build RPM - Exception: [%s]" % e.message)
+    success = True
+  finally:
+    if not success:
+      print("""
+  RPM Bulding failed make sure "rpm" tools are installed.
+  Use on of the following commands to install:
+    $ brew install rpm # on OSX
+    $ apt-get install rpm # on Ubuntu et.al
+  """)
+
 
 
 def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
@@ -256,6 +270,9 @@ def find_release_version(src_branch):
 
 def get_artifacts(release):
   common_artifacts = [os.path.join('target/releases/', 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+  for f in common_artifacts:
+    if not os.path.isfile(f):
+      raise RuntimeError('Could not find required artifact at %s' % f)
   rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release)
   if os.path.isfile(rpm):
     log('RPM [%s] contains: ' % rpm)
@@ -265,7 +282,7 @@ def get_artifacts(release):
     shutil.move(rpm, renamed_rpm)
     common_artifacts.append(renamed_rpm)
   else:
-    log('Could not find RPM artifact at %s - skipping' % rpm)
+    raise RuntimeError('Could not find required artifact at %s' % rpm)
   return common_artifacts
 
 # Generates sha1 checsums for all files
@@ -387,7 +404,6 @@ POM_FILE = 'pom.xml'
 print_sonartype_notice()
 
 if __name__ == '__main__':
-  release_version = "090.7"
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
   parser.add_argument('--branch', '-b', metavar='master', default=get_current_branch(),
                        help='The branch to release from. Defaults to the current branch.')

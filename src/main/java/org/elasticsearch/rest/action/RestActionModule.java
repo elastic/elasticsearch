@@ -202,5 +202,6 @@ public class RestActionModule extends AbstractModule {
         bind(org.elasticsearch.rest.action.cat.RestCountAction.class).asEagerSingleton();
         bind(RestRecoveryAction.class).asEagerSingleton();
         bind(RestHealthAction.class).asEagerSingleton();
+        bind(RestCatAction.class).asEagerSingleton();
     }
 }

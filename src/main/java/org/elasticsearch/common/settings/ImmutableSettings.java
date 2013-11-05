@@ -538,6 +538,18 @@ public class ImmutableSettings implements Settings {
          * put for each one.
          */
         public Builder put(Object... settings) {
+            if (settings.length == 1) {
+                // support cases where the actual type gets lost down the road...
+                if (settings[0] instanceof Map) {
+                    //noinspection unchecked
+                    return put((Map) settings[0]);
+                } else if (settings[0] instanceof Settings) {
+                    return put((Settings) settings[0]);
+                }
+            }
+            if ((settings.length % 2) != 0) {
+                throw new ElasticSearchIllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
+            }
             for (int i = 0; i < settings.length; i++) {
                 put(settings[i++].toString(), settings[i].toString());
             }

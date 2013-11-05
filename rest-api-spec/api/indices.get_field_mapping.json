@@ -16,13 +16,14 @@
         },
         "field": {
           "type" : "list",
-          "description" : "A comma-separated list of fields"
+          "description" : "A comma-separated list of fields",
+          "required" : true
         }
       },
       "params": {
         "include_defaults": {
           "type" : "boolean",
-          "description" : "specifies default mapping values should be returned"
+          "description" : "Whether the default mapping values should be returned as well"
         }
       }
     },

@@ -1,7 +1,7 @@
 ---
 "Realtime Refresh":
 
-  - do:
+ - do:
       indices.create:
         index:    test_1
         body:

@@ -1,9 +1,5 @@
 ---
 setup:
-  - skip:
-      version:  "0 - 0.90.5"
-      reason:   "The API was added in 0.90.6"
-
   - do:
         indices.create:
           index: test_index

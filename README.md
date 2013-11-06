@@ -3,7 +3,7 @@ Azure Cloud Plugin for ElasticSearch
 
 The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0.alpha1`.
 
 <table>
 	<thead>
@@ -15,12 +15,12 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 	</thead>
 	<tbody>
 		<tr>
-			<td>1.1.0-SNAPSHOT (master)</td>
+			<td>1.0.0-SNAPSHOT (master)</td>
 			<td>0.90.6</td>
 			<td></td>
 		</tr>
 		<tr>
-			<td>1.0.0</td>
+			<td>1.0.0.alpha1</td>
 			<td>0.90.6</td>
 			<td>2013-11-12</td>
 		</tr>
@@ -284,7 +284,7 @@ azure service cert create azure-elasticsearch-cluster azure-certificate.cer
 sudo service elasticsearch stop
 
 # Install the plugin
-sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0
+sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0.alpha1
 
 # Configure it
 sudo vi /etc/elasticsearch/elasticsearch.yml

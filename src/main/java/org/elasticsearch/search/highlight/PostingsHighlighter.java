@@ -109,7 +109,7 @@ public class PostingsHighlighter implements Highlighter {
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
             for (int i = 0; i < values; i++) {
-                Snippet[] fieldSnippets = highlighter.highlightDoc(highlighterContext.fieldName, mapperHighlighterEntry.filteredQueryTerms, context.searcher(), hitContext.docId(), numberOfFragments);
+                Snippet[] fieldSnippets = highlighter.highlightDoc(highlighterContext.fieldName, mapperHighlighterEntry.filteredQueryTerms, context.searcher(), hitContext.topLevelDocId(), numberOfFragments);
                 if (fieldSnippets != null) {
                     for (Snippet fieldSnippet : fieldSnippets) {
                         if (Strings.hasText(fieldSnippet.getText())) {

@@ -1016,7 +1016,50 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <ignore/>
+                                        <execute />
+                                    </action>
+                                </pluginExecution>
+                                <!-- forbidden-apis plugin -->
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>de.thetaphi</groupId>
+                                        <artifactId>forbiddenapis</artifactId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>testCheck</goal>
+                                            <goal>check</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <execute />
+                                    </action>
+                                </pluginExecution>
+                                <!-- exec-maven plugin -->
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <artifactId>exec-maven-plugin</artifactId>
+                                        <groupId>org.codehaus.mojo</groupId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>exec</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <execute />
+                                    </action>
+                                </pluginExecution>
+                                <!-- copy-dependency plugin -->
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>org.apache.maven.plugins</groupId>
+                                        <artifactId>maven-enforcer-plugin</artifactId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>enforce</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <execute />
                                     </action>
                                 </pluginExecution>
                             </pluginExecutions>

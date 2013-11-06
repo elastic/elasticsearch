@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -862,16 +863,12 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         int COUNT = between(20, 100);
-        logger.info("--> indexing docs");
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i).execute().actionGet();
-            if (i % 5 == 0) {
-                // flush so we get updated readers and segmented readers
-                client().admin().indices().prepareFlush().execute().actionGet();
-            }
+            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i);
         }
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        logger.info("--> indexing docs");
+        indexRandom(true, indexRequestBuilders);
 
         logger.info("--> searching explicitly on field1 and highlighting on it");
         SearchResponse searchResponse = client().prepareSearch()
@@ -2626,19 +2623,17 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         int COUNT = between(20, 100);
         Map<String, String> prefixes = new HashMap<String, String>(COUNT);
 
-        logger.info("--> indexing docs");
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
             //generating text with word to highlight in a different position
             //(https://github.com/elasticsearch/elasticsearch/issues/4103)
             String prefix = randomAsciiOfLengthBetween(5, 30);
             prefixes.put(String.valueOf(i), prefix);
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix
-                    + " test. Sentence two.").get();
-            if (frequently()) {
-                refresh();
-            }
+            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix
+                    + " test. Sentence two.");
         }
-        refresh();
+        logger.info("--> indexing docs");
+        indexRandom(true, indexRequestBuilders);
 
         logger.info("--> searching explicitly on field1 and highlighting on it");
         SearchResponse searchResponse = client().prepareSearch()

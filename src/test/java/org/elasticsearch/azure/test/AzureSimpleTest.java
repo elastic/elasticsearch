@@ -16,25 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.azure.test;
 
-package org.elasticsearch.cloud.azure;
+import org.junit.Test;
 
-import java.util.Set;
+public class AzureSimpleTest extends AzureAbstractTest {
 
-/**
- *
- */
-public interface AzureComputeService {
-
-    static public final class Fields {
-        public static final String SUBSCRIPTION_ID = "subscription_id";
-        public static final String SERVICE_NAME = "service_name";
-        public static final String KEYSTORE = "keystore";
-        public static final String PASSWORD = "password";
-        public static final String REFRESH = "refresh_interval";
-        public static final String PORT_NAME = "port_name";
-        public static final String HOST_TYPE = "host_type";
+    public AzureSimpleTest() {
+        super(AzureComputeServiceSimpleMock.class);
     }
 
-    public Set<Instance> instances();
+    @Test
+    public void one_node_should_run() {
+        // Then we start our node for tests
+        nodeBuilder();
+
+        // We expect having 2 nodes as part of the cluster, let's test that
+        checkNumberOfNodes(1);
+    }
 }

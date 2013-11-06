@@ -16,7 +16,7 @@ governing permissions and limitations under the License. -->
 	<appender name="console" class="org.apache.log4j.ConsoleAppender">
 		<param name="Target" value="System.out" />
 		<layout class="org.apache.log4j.PatternLayout">
-			<param name="ConversionPattern" value="%d %-5p - %m%n" />
+			<param name="ConversionPattern" value="%d %-5p %c{1} - %m%n" />
 		</layout>
 	</appender>
 
@@ -24,10 +24,10 @@ governing permissions and limitations under the License. -->
 		<level value="info" />
 	</logger>
 
-	<logger name="org.elasticsearch.cloud">
+	<logger name="org.elasticsearch.cloud.azure">
 		<level value="trace" />
 	</logger>
-    <logger name="org.elasticsearch.discovery">
+    <logger name="org.elasticsearch.discovery.azure">
         <level value="trace" />
     </logger>
 

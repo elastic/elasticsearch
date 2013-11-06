@@ -17,7 +17,7 @@ governing permissions and limitations under the License. -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-azure</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>Azure Cloud plugin for ElasticSearch</description>
     <inceptionYear>2013</inceptionYear>
@@ -42,8 +42,7 @@ governing permissions and limitations under the License. -->
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.3</elasticsearch.version>
-        <jclouds.version>1.5.7</jclouds.version>
+        <elasticsearch.version>0.90.6</elasticsearch.version>
     </properties>
 
     <dependencies>
@@ -51,17 +50,6 @@ governing permissions and limitations under the License. -->
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.jclouds</groupId>
-            <artifactId>jclouds-compute</artifactId>
-            <version>${jclouds.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jclouds.labs</groupId>
-            <artifactId>azure-management</artifactId>
-            <version>${jclouds.version}</version>
         </dependency>
 
         <dependency>

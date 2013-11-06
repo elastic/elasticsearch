@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HostedService xmlns="http://schemas.microsoft.com/windowsazure" xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+    <Url>https://management.core.windows.net/a836d210-c681-4916-ae7d-9ca5f1b4906f/services/hostedservices/azure-elasticsearch-cluster</Url>
+    <ServiceName>azure-elasticsearch-cluster</ServiceName>
+    <HostedServiceProperties>
+        <Description>Implicitly created hosted service</Description>
+        <Location>West Europe</Location>
+        <Label>YXp1cmUtZWxhc3RpY3NlYXJjaC1jbHVzdGVy</Label>
+        <Status>Created</Status>
+        <DateCreated>2013-09-23T12:45:45Z</DateCreated>
+        <DateLastModified>2013-09-23T13:42:46Z</DateLastModified>
+        <ExtendedProperties />
+    </HostedServiceProperties>
+    <Deployments>
+        <Deployment>
+            <Name>azure-elasticsearch-cluster</Name>
+            <DeploymentSlot>Production</DeploymentSlot>
+            <PrivateID>c6a690796e6b497a918487546193b94a</PrivateID>
+            <Status>Running</Status>
+            <Label>WVhwMWNtVXRaV3hoYzNScFkzTmxZWEpqYUMxamJIVnpkR1Z5</Label>
+            <Url>http://azure-elasticsearch-cluster.cloudapp.net/</Url>
+            <Configuration>PFNlcnZpY2VDb25maWd1cmF0aW9uIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zPSJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL1NlcnZpY2VIb3N0aW5nLzIwMDgvMTAvU2VydmljZUNvbmZpZ3VyYXRpb24iPg0KICA8Um9sZSBuYW1lPSJlcy13aW5kb3dzMjAwOCI+DQogICAgPEluc3RhbmNlcyBjb3VudD0iMSIgLz4NCiAgPC9Sb2xlPg0KICA8Um9sZSBuYW1lPSJteWVzbm9kZTEiPg0KICAgIDxJbnN0YW5jZXMgY291bnQ9IjEiIC8+DQogIDwvUm9sZT4NCjwvU2VydmljZUNvbmZpZ3VyYXRpb24+</Configuration>
+            <RoleInstanceList>
+                <RoleInstance>
+                    <RoleName>es-windows2008</RoleName>
+                    <InstanceName>es-windows2008</InstanceName>
+                    <InstanceStatus>ReadyRole</InstanceStatus>
+                    <InstanceUpgradeDomain>0</InstanceUpgradeDomain>
+                    <InstanceFaultDomain>0</InstanceFaultDomain>
+                    <InstanceSize>ExtraSmall</InstanceSize>
+                    <InstanceStateDetails />
+                    <IpAddress>10.53.250.55</IpAddress>
+                    <InstanceEndpoints>
+                        <InstanceEndpoint>
+                            <Name>PowerShell</Name>
+                            <Vip>137.116.213.150</Vip>
+                            <PublicPort>5986</PublicPort>
+                            <LocalPort>5986</LocalPort>
+                            <Protocol>tcp</Protocol>
+                        </InstanceEndpoint>
+                        <InstanceEndpoint>
+                            <Name>Remote Desktop</Name>
+                            <Vip>137.116.213.150</Vip>
+                            <PublicPort>53867</PublicPort>
+                            <LocalPort>3389</LocalPort>
+                            <Protocol>tcp</Protocol>
+                        </InstanceEndpoint>
+                    </InstanceEndpoints>
+                    <PowerState>Started</PowerState>
+                    <HostName>es-windows2008</HostName>
+                    <RemoteAccessCertificateThumbprint>E6798DEACEAD4752825A2ABFC0A9A367389ED802</RemoteAccessCertificateThumbprint>
+                </RoleInstance>
+                <RoleInstance>
+                    <RoleName>myesnode1</RoleName>
+                    <InstanceName>myesnode1</InstanceName>
+                    <InstanceStatus>ReadyRole</InstanceStatus>
+                    <InstanceUpgradeDomain>0</InstanceUpgradeDomain>
+                    <InstanceFaultDomain>0</InstanceFaultDomain>
+                    <InstanceSize>ExtraSmall</InstanceSize>
+                    <InstanceStateDetails />
+                    <IpAddress>10.53.218.75</IpAddress>
+                    <InstanceEndpoints>
+                        <InstanceEndpoint>
+                            <Name>ssh</Name>
+                            <Vip>137.116.213.150</Vip>
+                            <PublicPort>22</PublicPort>
+                            <LocalPort>22</LocalPort>
+                            <Protocol>tcp</Protocol>
+                        </InstanceEndpoint>
+                        <InstanceEndpoint>
+                            <Name>elasticsearch</Name>
+                            <Vip>137.116.213.150</Vip>
+                            <PublicPort>9300</PublicPort>
+                            <LocalPort>9300</LocalPort>
+                            <Protocol>tcp</Protocol>
+                        </InstanceEndpoint>
+                    </InstanceEndpoints>
+                    <PowerState>Started</PowerState>
+                    <HostName>myesnode1</HostName>
+                </RoleInstance>
+            </RoleInstanceList>
+            <UpgradeDomainCount>1</UpgradeDomainCount>
+            <RoleList>
+                <Role i:type="PersistentVMRole">
+                    <RoleName>es-windows2008</RoleName>
+                    <OsVersion />
+                    <RoleType>PersistentVMRole</RoleType>
+                    <ConfigurationSets>
+                        <ConfigurationSet i:type="NetworkConfigurationSet">
+                            <ConfigurationSetType>NetworkConfiguration</ConfigurationSetType>
+                            <InputEndpoints>
+                                <InputEndpoint>
+                                    <LocalPort>5986</LocalPort>
+                                    <Name>PowerShell</Name>
+                                    <Port>5986</Port>
+                                    <Protocol>tcp</Protocol>
+                                    <Vip>137.116.213.150</Vip>
+                                </InputEndpoint>
+                                <InputEndpoint>
+                                    <LocalPort>3389</LocalPort>
+                                    <Name>Remote Desktop</Name>
+                                    <Port>53867</Port>
+                                    <Protocol>tcp</Protocol>
+                                    <Vip>137.116.213.150</Vip>
+                                </InputEndpoint>
+                            </InputEndpoints>
+                            <SubnetNames />
+                        </ConfigurationSet>
+                    </ConfigurationSets>
+                    <DataVirtualHardDisks />
+                    <OSVirtualHardDisk>
+                        <HostCaching>ReadWrite</HostCaching>
+                        <DiskName>azure-elasticsearch-cluster-es-windows2008-0-201309231342520150</DiskName>
+                        <MediaLink>http://portalvhdsv5skghwlmf765.blob.core.windows.net/vhds/azure-elasticsearch-cluster-es-windows2008-2013-09-23.vhd</MediaLink>
+                        <SourceImageName>a699494373c04fc0bc8f2bb1389d6106__Win2K8R2SP1-Datacenter-201308.02-en.us-127GB.vhd</SourceImageName>
+                        <OS>Windows</OS>
+                    </OSVirtualHardDisk>
+                    <RoleSize>ExtraSmall</RoleSize>
+                </Role>
+                <Role i:type="PersistentVMRole">
+                    <RoleName>myesnode1</RoleName>
+                    <OsVersion />
+                    <RoleType>PersistentVMRole</RoleType>
+                    <ConfigurationSets>
+                        <ConfigurationSet i:type="NetworkConfigurationSet">
+                            <ConfigurationSetType>NetworkConfiguration</ConfigurationSetType>
+                            <InputEndpoints>
+                                <InputEndpoint>
+                                    <LocalPort>22</LocalPort>
+                                    <Name>ssh</Name>
+                                    <Port>22</Port>
+                                    <Protocol>tcp</Protocol>
+                                    <Vip>137.116.213.150</Vip>
+                                </InputEndpoint>
+                            </InputEndpoints>
+                            <SubnetNames />
+                        </ConfigurationSet>
+                    </ConfigurationSets>
+                    <DataVirtualHardDisks />
+                    <OSVirtualHardDisk>
+                        <HostCaching>ReadWrite</HostCaching>
+                        <DiskName>azure-elasticsearch-cluster-myesnode1-0-201309231246380270</DiskName>
+                        <MediaLink>http://azureelasticsearchcluste.blob.core.windows.net/vhd-store/myesnode1-0cc86cc84c0ed2e0.vhd</MediaLink>
+                        <SourceImageName>b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-13_10-amd64-server-20130808-alpha3-en-us-30GB</SourceImageName>
+                        <OS>Linux</OS>
+                    </OSVirtualHardDisk>
+                    <RoleSize>ExtraSmall</RoleSize>
+                </Role>
+            </RoleList>
+            <SdkVersion />
+            <Locked>false</Locked>
+            <RollbackAllowed>false</RollbackAllowed>
+            <CreatedTime>2013-09-23T12:46:27Z</CreatedTime>
+            <LastModifiedTime>2013-09-23T20:38:58Z</LastModifiedTime>
+            <ExtendedProperties />
+            <PersistentVMDowntime>
+                <StartTime>2013-08-27T08:00:00Z</StartTime>
+                <EndTime>2013-09-27T20:00:00Z</EndTime>
+                <Status>PersistentVMUpdateScheduled</Status>
+            </PersistentVMDowntime>
+            <VirtualIPs>
+                <VirtualIP>
+                    <Address>137.116.213.150</Address>
+                    <IsDnsProgrammed>true</IsDnsProgrammed>
+                    <Name>azure-elasticsearch-clusterContractContract</Name>
+                </VirtualIP>
+            </VirtualIPs>
+        </Deployment>
+    </Deployments>
+</HostedService>

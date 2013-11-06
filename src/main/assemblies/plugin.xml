@@ -25,14 +25,5 @@ governing permissions and limitations under the License. -->
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>
         </dependencySet>
-        <dependencySet>
-            <outputDirectory>/</outputDirectory>
-            <useProjectArtifact>true</useProjectArtifact>
-            <useTransitiveFiltering>true</useTransitiveFiltering>
-            <includes>
-                <include>org.jclouds:jclouds-compute</include>
-                <include>org.jclouds.labs:azure-management</include>
-            </includes>
-        </dependencySet>
     </dependencySets>
 </assembly>

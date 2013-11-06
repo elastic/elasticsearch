@@ -17,27 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.azure.test;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cloud.azure.AzureComputeService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  *
  */
-public class AzureModule extends AbstractModule {
-    private Settings settings;
+public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleComponent<AzureComputeServiceAbstractMock>
+    implements AzureComputeService {
 
-    @Inject
-    public AzureModule(Settings settings) {
-        this.settings = settings;
+    protected AzureComputeServiceAbstractMock(Settings settings) {
+        super(settings);
     }
 
     @Override
-    protected void configure() {
-        bind(AzureComputeService.class)
-                .to(settings.getAsClass("cloud.azure.api.impl", AzureComputeServiceImpl.class))
-                .asEagerSingleton();
+    protected void doStart() throws ElasticSearchException {
+        logger.debug("starting Azure Api Mock");
+    }
+
+    @Override
+    protected void doStop() throws ElasticSearchException {
+        logger.debug("stopping Azure Api Mock");
+    }
+
+    @Override
+    protected void doClose() throws ElasticSearchException {
     }
 }

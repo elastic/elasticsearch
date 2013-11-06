@@ -19,10 +19,8 @@
 
 package org.elasticsearch.plugin.cloud.azure;
 
-import org.elasticsearch.cloud.azure.AzureComputeService;
 import org.elasticsearch.cloud.azure.AzureModule;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -58,14 +56,4 @@ public class CloudAzurePlugin extends AbstractPlugin {
         }
         return modules;
     }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
-        Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
-        if (settings.getAsBoolean("cloud.enabled", true)) {
-            services.add(AzureComputeService.class);
-        }
-        return services;
-    }
-
 }

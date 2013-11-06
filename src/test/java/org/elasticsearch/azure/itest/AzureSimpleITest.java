@@ -16,25 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.azure.itest;
 
-package org.elasticsearch.cloud.azure;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.node.NodeBuilder;
+import org.junit.Ignore;
+import org.junit.Test;
 
-import java.util.Set;
+public class AzureSimpleITest {
 
-/**
- *
- */
-public interface AzureComputeService {
-
-    static public final class Fields {
-        public static final String SUBSCRIPTION_ID = "subscription_id";
-        public static final String SERVICE_NAME = "service_name";
-        public static final String KEYSTORE = "keystore";
-        public static final String PASSWORD = "password";
-        public static final String REFRESH = "refresh_interval";
-        public static final String PORT_NAME = "port_name";
-        public static final String HOST_TYPE = "host_type";
+    @Test @Ignore
+    public void one_node_should_run() {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                //.put("gateway.type", "local")
+                .put("path.data", "./target/es/data")
+                .put("path.logs", "./target/es/logs")
+                .put("path.work", "./target/es/work");
+        NodeBuilder.nodeBuilder().settings(builder).node();
     }
-
-    public Set<Instance> instances();
 }

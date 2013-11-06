@@ -10,6 +10,7 @@
 # governing permissions and limitations under the License.
 
   cluster.name: azure
+
 # Azure discovery allows to use Azure API in order to perform discovery.
 #
 # You have to install the cloud-azure plugin for enabling the Azure discovery.
@@ -21,9 +22,9 @@
 # for a step-by-step tutorial.
   cloud:
       azure:
-          private_key: ${project.build.testOutputDirectory}/azure.pk
-          certificate: ${project.build.testOutputDirectory}/azure.crt
+          keystore: FULLPATH-TO-YOUR-KEYSTORE
           password: YOUR-PASSWORD
           subscription_id: YOUR-AZURE-SUBSCRIPTION-ID
+          service_name: YOUR-AZURE-SERVICE-NAME
   discovery:
           type: azure

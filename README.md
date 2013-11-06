@@ -5,13 +5,27 @@ The Azure Cloud plugin allows to use Azure API for the unicast discovery mechani
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0`.
 
-    -----------------------------------------
-    | Azure Cloud Plugin | ElasticSearch    |
-    -----------------------------------------
-    | master             | 0.90 -> master   |
-    -----------------------------------------
-    | 1.0.0              | 0.20.6           |
-    -----------------------------------------
+<table>
+	<thead>
+		<tr>
+			<td>Azure Cloud Plugin</td>
+			<td>ElasticSearch</td>
+			<td>Release date</td>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td>1.1.0-SNAPSHOT (master)</td>
+			<td>0.90.6</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>1.0.0</td>
+			<td>0.90.6</td>
+			<td>2013-11-12</td>
+		</tr>
+	</tbody>
+</table>
 
 
 Azure Virtual Machine Discovery
@@ -23,10 +37,10 @@ multicast environments). Here is a simple sample configuration:
 ```
     cloud:
         azure:
-            private_key: /path/to/private.key
-            certificate: /path/to/azure.certficate
-            password: your_password_for_pk
+            keystore: /path/to/keystore
+            password: your_password_for_keystore
             subscription_id: your_azure_subscription_id
+            service_name: your_azure_cloud_service_name
     discovery:
             type: azure
 ```
@@ -124,6 +138,7 @@ Let's say we are going to deploy an Ubuntu image on an extra small instance in W
 * VM Size: `extrasmall`
 * Location: `West Europe`
 * Login: `elasticsearch`
+* Password: `password1234!!`
 
 Using command line:
 
@@ -135,7 +150,7 @@ azure vm create azure-elasticsearch-cluster \
                 --vm-size extrasmall \
                 --ssh 22 \
                 --ssh-cert /tmp/azure-certificate.pem \
-                elasticsearch password
+                elasticsearch password1234!!
 ```
 
 You should see something like:
@@ -183,15 +198,17 @@ ssh azure-elasticsearch-cluster.cloudapp.net
 Once connected, install Elasticsearch:
 
 ```sh
-# Install Latest JDK
+# Install Latest OpenJDK
+# If you would like to use Oracle JDK instead, read the following:
+# http://www.webupd8.org/2012/01/install-oracle-java-jdk-7-in-ubuntu-via.html
 sudo apt-get update
 sudo apt-get install openjdk-7-jre-headless
 
 # Download Elasticsearch
-curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-0.90.3.deb -o elasticsearch-0.90.3.deb
+curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-0.90.6.deb -o elasticsearch-0.90.6.deb
 
 # Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-0.90.3.deb
+sudo dpkg -i elasticsearch-0.90.6.deb
 ```
 
 Check that elasticsearch is running:
@@ -206,21 +223,19 @@ This command should give you a JSON result:
 {
   "ok" : true,
   "status" : 200,
-  "name" : "Mandarin",
+  "name" : "Grey, Dr. John",
   "version" : {
-    "number" : "0.90.3",
-    "build_hash" : "5c38d6076448b899d758f29443329571e2522410",
-    "build_timestamp" : "2013-08-06T13:18:31Z",
+    "number" : "0.90.6",
+    "build_hash" : "e2a24efdde0cb7cc1b2071ffbbd1fd874a6d8d6b",
+    "build_timestamp" : "2013-11-04T13:44:16Z",
     "build_snapshot" : false,
-    "lucene_version" : "4.4"
+    "lucene_version" : "4.5.1"
   },
   "tagline" : "You Know, for Search"
 }
 ```
 
 ### Install nodejs and Azure tools
-
-*TODO: check if there is a downloadable version of NodeJS*
 
 ```sh
 # Install node (aka download and compile source)
@@ -240,7 +255,7 @@ azure account import /tmp/azure.publishsettings
 rm /tmp/azure.publishsettings
 ```
 
-### Generate private keys for this instance
+### Generate a keystore
 
 ```sh
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure-private.key -out azure-certificate.pem
@@ -250,9 +265,13 @@ openssl x509 -outform der -in azure-certificate.pem -out azure-certificate.cer
 openssl pkcs8 -topk8 -nocrypt -in azure-private.key -inform PEM -out azure-pk.pem -outform PEM
 # Transform certificate to PEM format
 openssl x509 -inform der -in azure-certificate.cer -out azure-cert.pem
+cat azure-cert.pem azure-pk.pem > azure.pem.txt
+# You MUST enter a password!
+openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
 ```
 
-Upload the generated key to Azure platform
+Upload the generated key to Azure platform. **Important**: when prompted for a password,
+you need to enter a non empty one.
 
 ```sh
 azure service cert create azure-elasticsearch-cluster azure-certificate.cer
@@ -264,8 +283,8 @@ azure service cert create azure-elasticsearch-cluster azure-certificate.cer
 # Stop elasticsearch
 sudo service elasticsearch stop
 
-# Install the plugin (TODO : USE THE RIGHT VERSION NUMBER)
-sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/0.1.0-SNAPSHOT
+# Install the plugin
+sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-azure/1.0.0
 
 # Configure it
 sudo vi /etc/elasticsearch/elasticsearch.yml
@@ -277,9 +296,10 @@ And add the following lines:
 # If you don't remember your account id, you may get it with `azure account list`
     cloud:
         azure:
-            private_key: /home/elasticsearch/azure-pk.pem
-            certificate: /home/elasticsearch/azure-cert.pem
+            keystore: /home/elasticsearch/azurekeystore.pkcs12
+            password: your_password_for_keystore
             subscription_id: your_azure_subscription_id
+            service_name: your_azure_cloud_service_name
     discovery:
             type: azure
 ```
@@ -293,28 +313,63 @@ sudo service elasticsearch start
 If anything goes wrong, check your logs in `/var/log/elasticsearch`.
 
 
-TODO: Ask pierre for Azure commands
+Scaling Out!
+------------
 
-Cloning your existing machine:
-
-```sh
-azure ....
-```
-
-
-Add a new machine:
+You need first to create an image of your previous machine.
+Disconnect from your machine and run locally the following commands:
 
 ```sh
-azure vm create -c myescluster --vm-name myesnode2 b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-13_04-amd64-server-20130501-en-us-30GB -l "West Europe" --vm-size extrasmall --ssh 22 elasticsearch fantastic0!
+# Shutdown the instance
+azure vm shutdown myesnode1
+
+# Create an image from this instance (it could take some minutes)
+azure vm capture myesnode1 esnode-image --delete
+
+# Note that the previous instance has been deleted (mandatory)
+# So you need to create it again and BTW create other instances.
+
+azure vm create azure-elasticsearch-cluster \
+                esnode-image \
+                --vm-name myesnode1 \
+                --location "West Europe" \
+                --vm-size extrasmall \
+                --ssh 22 \
+                --ssh-cert /tmp/azure-certificate.pem \
+                elasticsearch password1234!!
 ```
 
-Add you certificate for this new instance.
+> **Note:** It could happen that azure changes the endpoint public IP address.
+> DNS propagation could take some minutes before you can connect again using
+> name. You can get from azure the IP address if needed, using:
+>
+> ```sh
+> # Look at Network `Endpoints 0 Vip`
+> azure vm show myesnode1
+> ```
+
+Let's start more instances!
 
 ```sh
-# Add certificate for this instance
-azure service cert create myescluster1 azure-certificate.cer
+for x in $(seq  2 10)
+	do
+		echo "Launching azure instance #$x..."
+		azure vm create azure-elasticsearch-cluster \
+		                esnode-image \
+		                --vm-name myesnode$x \
+		                --vm-size extrasmall \
+		                --ssh $((21 + $x)) \
+		                --ssh-cert /tmp/azure-certificate.pem \
+		                --connect \
+		                elasticsearch password1234!!
+	done
 ```
 
+If you want to remove your running instances:
+
+```
+azure vm delete myesnode1
+```
 
 License
 -------

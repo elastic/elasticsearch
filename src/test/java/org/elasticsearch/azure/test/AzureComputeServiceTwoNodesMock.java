@@ -17,27 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.azure.test;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.cloud.azure.Instance;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
- *
+ * Mock Azure API with two started nodes
  */
-public class AzureModule extends AbstractModule {
-    private Settings settings;
+public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstractMock {
 
     @Inject
-    public AzureModule(Settings settings) {
-        this.settings = settings;
+    protected AzureComputeServiceTwoNodesMock(Settings settings) {
+        super(settings);
+        logger.debug("starting Azure Mock");
     }
 
     @Override
-    protected void configure() {
-        bind(AzureComputeService.class)
-                .to(settings.getAsClass("cloud.azure.api.impl", AzureComputeServiceImpl.class))
-                .asEagerSingleton();
+    public Set<Instance> instances() {
+        Set<Instance> instances = new HashSet<Instance>();
+        Instance azureHost = new Instance();
+        azureHost.setPrivateIp("127.0.0.1");
+        instances.add(azureHost);
+        azureHost = new Instance();
+        azureHost.setPrivateIp("127.0.0.1");
+        instances.add(azureHost);
+        return instances;
     }
 }

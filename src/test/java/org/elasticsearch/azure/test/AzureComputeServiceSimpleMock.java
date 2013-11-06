@@ -17,24 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure;
+package org.elasticsearch.azure.test;
 
+import org.elasticsearch.cloud.azure.Instance;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.HashSet;
 import java.util.Set;
 
 /**
- *
+ * Mock Azure API with a single started node
  */
-public interface AzureComputeService {
+public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMock {
 
-    static public final class Fields {
-        public static final String SUBSCRIPTION_ID = "subscription_id";
-        public static final String SERVICE_NAME = "service_name";
-        public static final String KEYSTORE = "keystore";
-        public static final String PASSWORD = "password";
-        public static final String REFRESH = "refresh_interval";
-        public static final String PORT_NAME = "port_name";
-        public static final String HOST_TYPE = "host_type";
+    @Inject
+    protected AzureComputeServiceSimpleMock(Settings settings) {
+        super(settings);
+        logger.debug("starting Azure Mock");
     }
 
-    public Set<Instance> instances();
+    @Override
+    public Set<Instance> instances() {
+        Set<Instance> instances = new HashSet<Instance>();
+        Instance azureHost = new Instance();
+        azureHost.setPrivateIp("127.0.0.1");
+        instances.add(azureHost);
+
+        return instances;
+    }
 }

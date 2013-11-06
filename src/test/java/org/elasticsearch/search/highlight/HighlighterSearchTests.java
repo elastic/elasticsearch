@@ -47,6 +47,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -2623,9 +2624,19 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         ensureGreen();
 
         int COUNT = between(20, 100);
+        Map<String, String> prefixes = new HashMap<String, String>(COUNT);
+
         logger.info("--> indexing docs");
         for (int i = 0; i < COUNT; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence test " + i + ". Sentence two.").get();
+            //generating text with word to highlight in a different position
+            //(https://github.com/elasticsearch/elasticsearch/issues/4103)
+            String prefix = randomAsciiOfLengthBetween(5, 30);
+            prefixes.put(String.valueOf(i), prefix);
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "Sentence " + prefix
+                    + " test. Sentence two.").get();
+            if (frequently()) {
+                refresh();
+            }
         }
         refresh();
 
@@ -2638,7 +2649,8 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         assertHitCount(searchResponse, (long)COUNT);
         assertThat(searchResponse.getHits().hits().length, equalTo(COUNT));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.highlightFields().get("field1").fragments()[0].string(), equalTo("Sentence <em>test</em> " + hit.id() + "."));
+            String prefix = prefixes.get(hit.id());
+            assertThat(hit.highlightFields().get("field1").fragments()[0].string(), equalTo("Sentence " + prefix + " <em>test</em>."));
         }
 
         logger.info("--> searching explicitly on field1 and highlighting on it, with DFS");
@@ -2651,7 +2663,8 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
         assertHitCount(searchResponse, (long)COUNT);
         assertThat(searchResponse.getHits().hits().length, equalTo(COUNT));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.highlightFields().get("field1").fragments()[0].string(), equalTo("Sentence <em>test</em> " + hit.id() + "."));
+            String prefix = prefixes.get(hit.id());
+            assertThat(hit.highlightFields().get("field1").fragments()[0].string(), equalTo("Sentence " + prefix + " <em>test</em>."));
         }
     }
 }

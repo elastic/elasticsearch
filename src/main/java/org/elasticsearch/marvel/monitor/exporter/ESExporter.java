@@ -71,7 +71,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
 
         hosts = settings.getAsArray("hosts", new String[]{"localhost:9200"});
-        indexPrefix = settings.get("index.prefix", "es_monitor");
+        indexPrefix = settings.get("index.prefix", "marvel");
         String indexTimeFormat = settings.get("index.timeformat", "YYYY.MM.dd");
         indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat);
 

@@ -217,13 +217,18 @@ public class TestCluster implements Closeable, Iterable<Client> {
         if (nodes.size() <= num) {
             return;
         }
-        Collection<NodeAndClient> values = nodes.values();
-        Iterator<NodeAndClient> limit = Iterators.limit(values.iterator(), nodes.size() - num);
+        // prevent killing the master if possible
+        final Iterator<NodeAndClient> values = num == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(), Predicates.not(new MasterNodePredicate(getMasterName())));
+        final Iterator<NodeAndClient> limit = Iterators.limit(values, nodes.size() - num);
         logger.info("reducing cluster size from {} to {}", nodes.size() - num, num);
+        Set<NodeAndClient> nodesToRemove = new HashSet<NodeAndClient>();
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();
-            limit.remove();
+            nodesToRemove.add(next);
             next.close();
+        }
+        for (NodeAndClient toRemove : nodesToRemove) {
+            nodes.remove(toRemove.name);
         }
     }
 

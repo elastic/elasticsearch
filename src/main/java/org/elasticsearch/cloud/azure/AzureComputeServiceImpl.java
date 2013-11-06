@@ -121,8 +121,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
             return new HashSet<Instance>();
         } else {
             try {
-                String SERVICE_NAME = componentSettings.get(Fields.SERVICE_NAME, settings.get("cloud." + Fields.SERVICE_NAME));
-                InputStream stream = getXML("/services/hostedservices/" + SERVICE_NAME + "?embed-detail=true");
+                InputStream stream = getXML("/services/hostedservices/" + service_name + "?embed-detail=true");
                 Set<Instance> instances = buildInstancesFromXml(stream, port_name);
                 if (logger.isTraceEnabled()) logger.trace("get instances from azure: {}", instances);
 

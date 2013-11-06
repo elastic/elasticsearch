@@ -76,8 +76,22 @@ public class FastVectorHighlighter implements Highlighter {
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
 
         try {
+            FieldQuery fieldQuery;
+            if (field.requireFieldMatch()) {
+                if (cache.fieldMatchFieldQuery == null) {
+                    // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
+                    cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.highlightQuery, hitContext.topLevelReader(), true, field.requireFieldMatch());
+                }
+                fieldQuery = cache.fieldMatchFieldQuery;
+            } else {
+                if (cache.noFieldMatchFieldQuery == null) {
+                    // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
+                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.highlightQuery, hitContext.topLevelReader(), true, field.requireFieldMatch());
+                }
+                fieldQuery = cache.noFieldMatchFieldQuery;
+            }
+
             MapperHighlightEntry entry = cache.mappers.get(mapper);
-            FieldQuery fieldQuery = null;
             if (entry == null) {
                 FragListBuilder fragListBuilder;
                 BaseFragmentsBuilder fragmentsBuilder;
@@ -122,19 +136,6 @@ public class FastVectorHighlighter implements Highlighter {
                     cache.fvh = new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();
                 }
                 CustomFieldQuery.highlightFilters.set(field.highlightFilter());
-                if (field.requireFieldMatch()) {
-                    if (cache.fieldMatchFieldQuery == null) {
-                        // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                        cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.highlightQuery, hitContext.topLevelReader(), true, field.requireFieldMatch());
-                    }
-                    fieldQuery = cache.fieldMatchFieldQuery;
-                } else {
-                    if (cache.noFieldMatchFieldQuery == null) {
-                        // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                        cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.highlightQuery, hitContext.topLevelReader(), true, field.requireFieldMatch());
-                    }
-                    fieldQuery = cache.noFieldMatchFieldQuery;
-                }
                 cache.mappers.put(mapper, entry);
             }
 

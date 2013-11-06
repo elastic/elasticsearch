@@ -137,6 +137,7 @@ public class FetchPhase implements SearchPhase {
         }
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
+        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
 
@@ -190,10 +191,9 @@ public class FetchPhase implements SearchPhase {
                 }
             }
 
+            hitContext.reset(searchHit, subReaderContext, subDoc, context.searcher().getIndexReader(), docId, fieldsVisitor);
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
                 if (fetchSubPhase.hitExecutionNeeded(context)) {
-                    hitContext.reset(searchHit, subReaderContext, subDoc, context.searcher().getIndexReader(), docId, fieldsVisitor);
                     fetchSubPhase.hitExecute(context, hitContext);
                 }
             }

@@ -327,6 +327,9 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void close() throws IOException {
+        if (generator.isClosed()) {
+            return;
+        }
         if (writeLineFeedAtEnd) {
             flush();
             generator.writeRaw(LF);

@@ -1,9 +1,9 @@
-[[query-dsl-indices-query]]
-=== Indices Query
+[[query-dsl-indices-filter]]
+=== Indices Filter
 
-The `indices` query can be used when executed across multiple indices,
-allowing to have a query that executes only when executed on an index
-that matches a specific list of indices, and another query that executes
+The `indices` filter can be used when executed across multiple indices,
+allowing to have a filter that executes only when executed on an index
+that matches a specific list of indices, and another filter that executes
 when it is executed on an index that does not match the listed indices.
 
 [source,js]
@@ -11,10 +11,10 @@ when it is executed on an index that does not match the listed indices.
 {
     "indices" : {
         "indices" : ["index1", "index2"],
-        "query" : {
+        "filter" : {
             "term" : { "tag" : "wow" }
         },
-        "no_match_query" : {
+        "no_match_filter" : {
             "term" : { "tag" : "kow" }
         }
     }
@@ -23,15 +23,15 @@ when it is executed on an index that does not match the listed indices.
 
 You can use the `index` field to provide a single index.
 
-`no_match_query` can also have "string" value of `none` (to match no
+`no_match_filter` can also have "string" value of `none` (to match no
 documents), and `all` (to match all). Defaults to `all`.
 
-`query` is mandatory. You must provide the indices.
+`filter` is mandatory. You must provide the indices.
 It is forbidden to omit or to give `indices` or `index` multiple times,
 or to give both.
 
 Please note that the fields order is important: If the indices are
-provided before `query` or `no_match_query`, the query parsing is
+provided before `filter` or `no_match_filter`, the filter parsing is
 skipped altogether.
 For instance, this feature is useful to prevent a query that runs
 against multiple indices to fail because of a missing type.

@@ -70,9 +70,9 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(IndicesQueryParser.NAME);
+        builder.field("indices", indices);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
-        builder.field("indices", indices);
         if (noMatchQuery != null) {
             builder.field("no_match_query");
             noMatchQuery.toXContent(builder, params);

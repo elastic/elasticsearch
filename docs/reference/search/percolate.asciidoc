@@ -1,7 +1,7 @@
 [[search-percolate]]
 == Percolator
 
-coming[1.0.0.Beta1]
+added[1.0.0.Beta1]
 
 Traditionally you design documents based on your data and store them into an index and then define queries via the search api
 in order to retrieve these documents. The percolator works in the opposite direction, first you store queries into an

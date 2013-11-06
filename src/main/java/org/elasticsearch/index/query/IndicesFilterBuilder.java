@@ -70,9 +70,9 @@ public class IndicesFilterBuilder extends BaseFilterBuilder {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(IndicesFilterParser.NAME);
+        builder.field("indices", indices);
         builder.field("filter");
         filterBuilder.toXContent(builder, params);
-        builder.field("indices", indices);
         if (noMatchFilter != null) {
             builder.field("no_match_filter");
             noMatchFilter.toXContent(builder, params);

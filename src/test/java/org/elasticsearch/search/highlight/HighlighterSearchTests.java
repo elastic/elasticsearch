@@ -1550,6 +1550,47 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
     }
 
     @Test
+    public void testPlainHighlighterMultipleFields() {
+        createIndex("test");
+        ensureGreen();
+
+        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("field1", "fox"))
+                .addHighlightedField(new HighlightBuilder.Field("field1").preTags("<1>").postTags("</1>").requireFieldMatch(true))
+                .addHighlightedField(new HighlightBuilder.Field("field2").preTags("<2>").postTags("</2>").requireFieldMatch(false))
+                .get();
+        assertHitCount(response, 1l);
+        assertThat(response.getHits().hits()[0].highlightFields().get("field1").fragments().length, equalTo(1));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field1").fragments()[0].string(), equalTo("The <b>quick<b> brown <1>fox</1>"));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field2").fragments().length, equalTo(1));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field2").fragments()[0].string(), equalTo("The <b>slow<b> brown <2>fox</2>"));
+    }
+
+    @Test
+    public void testFastVectorHighlighterMultipleFields() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,term_vectors=with_positions_offsets", "field2", "type=string,term_vectors=with_positions_offsets"));
+        ensureGreen();
+
+        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("field1", "fox"))
+                .addHighlightedField(new HighlightBuilder.Field("field1").preTags("<1>").postTags("</1>").requireFieldMatch(true))
+                .addHighlightedField(new HighlightBuilder.Field("field2").preTags("<2>").postTags("</2>").requireFieldMatch(false))
+                .get();
+        assertHitCount(response, 1l);
+        assertThat(response.getHits().hits()[0].highlightFields().get("field1").fragments().length, equalTo(1));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field1").fragments()[0].string(), equalTo("The <b>quick<b> brown <1>fox</1>"));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field2").fragments().length, equalTo(1));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field2").fragments()[0].string(), equalTo("The <b>slow<b> brown <2>fox</2>"));
+    }
+
+    @Test
     public void testMissingStoredField() throws Exception {
         prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
@@ -2073,27 +2114,22 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
 
     @Test
     public void testPostingsHighlighterMultipleFields() throws Exception {
-        client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()).get();
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()).get());
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test1", "field2", "this is a test2", "field3", "this is a test3").setRefresh(true).get();
+        index("test", "type1", "1", "field1", "The <b>quick<b> brown fox. Second sentence.", "field2", "The <b>slow<b> brown fox. Second sentence.");
+        refresh();
 
-        logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource()
-                .query(boolQuery()
-                        .should(termQuery("field1", "test1"))
-                        .should(termQuery("field2", "test2"))
-                        .should(termQuery("field3", "test3")))
-                .highlight(highlight().preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false)
-                        .field("field1").field("field2").field(new HighlightBuilder.Field("field3").preTags("<x3>").postTags("</x3>")));
-
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
-        assertHitCount(searchResponse, 1l);
-
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test1</xxx>"));
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("this is a <xxx>test2</xxx>"));
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field3").fragments()[0].string(), equalTo("this is a <x3>test3</x3>"));
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("field1", "fox"))
+                .addHighlightedField(new HighlightBuilder.Field("field1").preTags("<1>").postTags("</1>").requireFieldMatch(true))
+                .addHighlightedField(new HighlightBuilder.Field("field2").preTags("<2>").postTags("</2>").requireFieldMatch(false))
+                .get();
+        assertHitCount(response, 1l);
+        assertThat(response.getHits().hits()[0].highlightFields().get("field1").fragments().length, equalTo(1));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field1").fragments()[0].string(), equalTo("The <b>quick<b> brown <1>fox</1>."));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field2").fragments().length, equalTo(1));
+        assertThat(response.getHits().hits()[0].highlightFields().get("field2").fragments()[0].string(), equalTo("The <b>slow<b> brown <2>fox</2>."));
     }
 
     @Test

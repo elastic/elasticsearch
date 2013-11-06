@@ -1422,7 +1422,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     }
                 }
             });
-            return new IndexWriter(store.directory(), config);
+            return new XIndexWriter(store.directory(), config);
         } catch (LockObtainFailedException ex) {
             boolean isLocked = IndexWriter.isLocked(store.directory());
             logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
@@ -1666,4 +1666,5 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             return ongoingRecoveries;
         }
     }
+
 }

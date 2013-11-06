@@ -22,7 +22,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 		<tr>
 			<td>1.0.0.alpha1</td>
 			<td>0.90.6</td>
-			<td>2013-11-12</td>
+			<td>2013-11-06</td>
 		</tr>
 	</tbody>
 </table>

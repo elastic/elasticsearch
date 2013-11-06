@@ -17,7 +17,7 @@ governing permissions and limitations under the License. -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-azure</artifactId>
-    <version>1.0.0.alpha1</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>Azure Cloud plugin for ElasticSearch</description>
     <inceptionYear>2013</inceptionYear>

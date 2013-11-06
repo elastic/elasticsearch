@@ -25,11 +25,16 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.UUID;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
 
@@ -74,5 +79,26 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
         assertThat(compounds, Matchers.equalTo(i));
         assertThat(total, Matchers.equalTo(t));
 
+    }
+    @Test
+    public void test4093() {
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+                .put("index.store.type", "memory")
+                .put("index.number_of_shards", "1")
+                .put("index.number_of_replicas", "0")
+                .put("gateway.type", "none")
+                .put("http.enabled", false)
+                .put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
+                .put("index.warmer.enabled", false)
+                .build()).get());
+        final int iters = between(500, 1000);
+        for (int i = 0; i < iters; i++) {
+            client().prepareIndex("test", "type1")
+                    .setSource("a", "" + i)
+                    .setRefresh(true)
+                    .execute()
+                    .actionGet();
+        }
+        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), iters);
     }
 }

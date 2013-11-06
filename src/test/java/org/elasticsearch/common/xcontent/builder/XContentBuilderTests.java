@@ -33,13 +33,31 @@ import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class XContentBuilderTests extends ElasticsearchTestCase {
+
+    @Test
+    public void testPrettyWithLfAtEnd() throws Exception {
+        FastCharArrayWriter writer = new FastCharArrayWriter();
+        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
+        generator.usePrettyPrint();
+        generator.usePrintLineFeedAtEnd();
+
+        generator.writeStartObject();
+        generator.writeStringField("test", "value");
+        generator.writeEndObject();
+        generator.flush();
+
+        generator.close();
+        // double close, and check there is no error...
+        generator.close();
+
+        assertThat(writer.unsafeCharArray()[writer.size() - 1], equalTo('\n'));
+    }
 
     @Test
     public void verifyReuseJsonGenerator() throws Exception {

@@ -17,6 +17,7 @@ package org.apache.lucene.store.bytebuffer;
  * limitations under the License.
  */
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.store.*;
 
 import java.io.FileNotFoundException;
@@ -47,6 +48,7 @@ public class ByteBufferDirectory extends Directory {
     private final boolean internalAllocator;
 
     final AtomicLong sizeInBytes = new AtomicLong();
+
 
     /**
      * Constructs a new directory using {@link PlainByteBufferAllocator}.
@@ -112,10 +114,28 @@ public class ByteBufferDirectory extends Directory {
         return file.getLength();
     }
 
+    private final static ImmutableSet<String> SMALL_FILES_SUFFIXES = ImmutableSet.of(
+            "del", // 1 bit per doc
+            "cfe", // compound file metadata
+            "si", // segment info
+            "fnm"  // field info (metadata like omit norms etc)
+    );
+
+    private static boolean isSmallFile(String fileName) {
+        if (fileName.startsWith("segments")) {
+            return true;
+        }
+        if (fileName.lastIndexOf('.') > 0) {
+            String suffix = fileName.substring(fileName.lastIndexOf('.') + 1);
+            return SMALL_FILES_SUFFIXES.contains(suffix);
+        }
+        return false;
+    }
+
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ByteBufferAllocator.Type allocatorType = ByteBufferAllocator.Type.LARGE;
-        if (name.contains("segments") || name.endsWith(".del")) {
+        if (isSmallFile(name)) {
             allocatorType = ByteBufferAllocator.Type.SMALL;
         }
         ByteBufferFileOutput file = new ByteBufferFileOutput(this, allocator.sizeInBytes(allocatorType));

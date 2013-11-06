@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.engine.robin;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
@@ -82,15 +86,22 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
     }
     @Test
     public void test4093() {
+        cluster().ensureAtMostNumNodes(1); // only one node Netty uses lots of native mem as well
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.store.type", "memory")
+                .put("cache.memory.large_cache_size", new ByteSizeValue(10, ByteSizeUnit.MB)) // no need to cache a lot
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "0")
                 .put("gateway.type", "none")
-                .put("http.enabled", false)
                 .put(RobinEngine.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put("index.warmer.enabled", false)
                 .build()).get());
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().setJvm(true).get();
+        NodeInfo[] nodes = nodeInfos.getNodes();
+        for (NodeInfo info : nodes) {
+            ByteSizeValue directMemoryMax = info.getJvm().getMem().getDirectMemoryMax();
+            logger.info(" JVM max direct memory for node [{}] is set to [{}]", info.getNode().getName(), directMemoryMax);
+        }
         final int iters = between(500, 1000);
         for (int i = 0; i < iters; i++) {
             client().prepareIndex("test", "type1")
@@ -99,6 +110,7 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
                     .execute()
                     .actionGet();
         }
+
         assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), iters);
     }
 }

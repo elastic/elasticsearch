@@ -29,7 +29,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.junit.listeners.LoggingListener;
+import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.engine.MockRobinEngine;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.BeforeClass;

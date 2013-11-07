@@ -30,7 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 

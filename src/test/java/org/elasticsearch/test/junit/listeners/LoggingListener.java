@@ -16,12 +16,12 @@
  * the License.
  */
 
-package org.elasticsearch.junit.listeners;
+package org.elasticsearch.test.junit.listeners;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
 import org.junit.runner.notification.RunListener;
 
@@ -30,7 +30,7 @@ import java.util.Map;
 
 /**
  * A {@link RunListener} that allows to change the log level for a specific test method.
- * When a test method is annotated with the {@link org.elasticsearch.junit.annotations.TestLogging} annotation, the level for the specified loggers
+ * When a test method is annotated with the {@link org.elasticsearch.test.junit.annotations.TestLogging} annotation, the level for the specified loggers
  * will be internally saved before the test method execution and overridden with the specified ones.
  * At the end of the test method execution the original loggers levels will be restored.
  *

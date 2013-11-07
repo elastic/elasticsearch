@@ -16,7 +16,7 @@
  * the License.
  */
 
-package org.elasticsearch.junit.annotations;
+package org.elasticsearch.test.junit.annotations;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

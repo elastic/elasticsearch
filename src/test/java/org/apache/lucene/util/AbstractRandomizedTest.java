@@ -32,7 +32,7 @@ import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;

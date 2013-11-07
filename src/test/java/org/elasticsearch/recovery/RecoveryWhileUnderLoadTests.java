@@ -22,7 +22,6 @@ package org.elasticsearch.recovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,7 +33,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 

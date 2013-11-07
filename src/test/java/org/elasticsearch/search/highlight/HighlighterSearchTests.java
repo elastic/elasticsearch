@@ -1301,55 +1301,57 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
     @Test
     public void testHighlightUsesHighlightQuery() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=string,store=yes,term_vector=with_positions_offsets"));
+                .addMapping("type1", "text", "type=string," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"));
         ensureGreen();
 
-        index("test", "type1", "1", "text", "some stuff stuff stuff stuff stuff to highlight against the stuff phrase");
+        index("test", "type1", "1", "text", "Testing the highlight query feature");
         refresh();
 
-        // Make sure the fvh doesn't highlight in the same way as we're going to do with a scoreQuery because
-        // that would invalidate the test results.
-        Matcher<String> highlightedMatcher = anyOf(
-                containsString("<em>stuff phrase</em>"),            //t FHV normally does this
-                containsString("<em>stuff</em> <em>phrase</em>"));  // Plain normally does this
-        HighlightBuilder.Field field = new HighlightBuilder.Field("text")
-                .fragmentSize(20)
-                .numOfFragments(1)
-                .highlighterType("fvh");
-        SearchRequestBuilder search = client().prepareSearch("test")
-                .setQuery(QueryBuilders.matchQuery("text", "stuff"))
-                .setHighlighterOrder("score")
+        HighlightBuilder.Field field = new HighlightBuilder.Field("text");
+
+        SearchRequestBuilder search = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("text", "testing"))
                 .addHighlightedField(field);
+        Matcher<String> searchQueryMatcher = equalTo("<em>Testing</em> the highlight query feature");
+
+        field.highlighterType("plain");
         SearchResponse response = search.get();
-        assertHighlight(response, 0, "text", 0, not(highlightedMatcher));
+        assertHighlight(response, 0, "text", 0, searchQueryMatcher);
+        field.highlighterType("fvh");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, searchQueryMatcher);
+        field.highlighterType("postings");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, searchQueryMatcher);
 
-        // And do the same for the plain highlighter
+
+        Matcher<String> hlQueryMatcher = equalTo("Testing the highlight <em>query</em> feature");
+        field.highlightQuery(matchQuery("text", "query"));
+
+        field.highlighterType("fvh");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, hlQueryMatcher);
+
         field.highlighterType("plain");
         response = search.get();
-        assertHighlight(response, 0, "text", 0, not(highlightedMatcher));
+        assertHighlight(response, 0, "text", 0, hlQueryMatcher);
 
-        // Make sure the fvh takes the highlightQuery into account
-        field.highlighterType("fvh").highlightQuery(matchPhraseQuery("text", "stuff phrase"));
+        field.highlighterType("postings");
         response = search.get();
-        assertHighlight(response, 0, "text", 0, highlightedMatcher);
+        assertHighlight(response, 0, "text", 0, hlQueryMatcher);
 
-        // And do the same for the plain highlighter
-        field.highlighterType("plain");
-        response = search.get();
-        assertHighlight(response, 0, "text", 0, highlightedMatcher);
-        // Note that the plain highlighter doesn't join the highlighted elements for us
-
-        // Make sure the fvh takes the highlightQuery into account when it is set on the highlight context instead of the field
-        search.setHighlighterQuery(matchPhraseQuery("text", "stuff phrase"));
+        // Make sure the the highlightQuery is taken into account when it is set on the highlight context instead of the field
+        search.setHighlighterQuery(matchQuery("text", "query"));
         field.highlighterType("fvh").highlightQuery(null);
         response = search.get();
-        assertHighlight(response, 0, "text", 0, highlightedMatcher);
+        assertHighlight(response, 0, "text", 0, hlQueryMatcher);
 
-        // And do the same for the plain highlighter
         field.highlighterType("plain");
         response = search.get();
-        assertHighlight(response, 0, "text", 0, highlightedMatcher);
-        // Note that the plain highlighter doesn't join the highlighted elements for us
+        assertHighlight(response, 0, "text", 0, hlQueryMatcher);
+
+        field.highlighterType("postings");
+        response = search.get();
+        assertHighlight(response, 0, "text", 0, hlQueryMatcher);
     }
 
     private static String randomStoreField() {

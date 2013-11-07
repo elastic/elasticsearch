@@ -68,7 +68,7 @@ public class PlainHighlighter implements Highlighter {
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
-            Query query = highlighterContext.highlightQuery;
+            Query query = highlighterContext.query.originalQuery();
             QueryScorer queryScorer = new CustomQueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;

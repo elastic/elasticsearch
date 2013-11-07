@@ -17,42 +17,47 @@
  * under the License.
  */
 
-package org.elasticsearch.test.store.mock;
+package org.elasticsearch.test.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.LockFactory;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.fs.FsDirectoryService;
+import org.elasticsearch.index.store.DirectoryService;
 
-import java.io.File;
 import java.io.IOException;
 
-public class MockFSDirectoryService extends FsDirectoryService {
+public class MockRamDirecorySerivce extends AbstractIndexShardComponent implements DirectoryService {
 
     private final MockDirectoryHelper helper;
-    private FsDirectoryService delegateService;
+    private final DirectoryService delegateService;
 
     @Inject
-    public MockFSDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
-        super(shardId, indexSettings, indexStore);
+    public MockRamDirecorySerivce(ShardId shardId, Settings indexSettings, ByteBufferCache byteBufferCache) {
+        super(shardId, indexSettings);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger);
-        delegateService = helper.randomDirectorService(indexStore);
+        delegateService = helper.randomRamDirecoryService(byteBufferCache);
     }
 
     @Override
     public Directory[] build() throws IOException {
         return helper.wrapAllInplace(delegateService.build());
     }
-    
+
     @Override
-    protected synchronized FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        throw new UnsupportedOperationException();
+    public long throttleTimeInNanos() {
+        return delegateService.throttleTimeInNanos();
     }
-    
-    
+
+    @Override
+    public void renameFile(Directory dir, String from, String to) throws IOException {
+        delegateService.renameFile(dir, from, to);
+    }
+
+    @Override
+    public void fullDelete(Directory dir) throws IOException {
+        delegateService.fullDelete(dir);
+    }
 }

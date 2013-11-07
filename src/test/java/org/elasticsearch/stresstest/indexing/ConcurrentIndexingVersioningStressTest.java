@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.indexing;
+package org.elasticsearch.stresstest.indexing;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.get.GetResponse;
@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
-import org.junit.Ignore;
 
 import java.util.concurrent.CountDownLatch;
 

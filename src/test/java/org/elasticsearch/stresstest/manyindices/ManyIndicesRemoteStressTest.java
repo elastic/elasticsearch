@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.manyindices;
+package org.elasticsearch.stresstest.manyindices;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;

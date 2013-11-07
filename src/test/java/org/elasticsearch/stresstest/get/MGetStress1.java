@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.get;
+package org.elasticsearch.stresstest.get;
 
 import com.google.common.collect.Sets;
 import jsr166y.ThreadLocalRandom;

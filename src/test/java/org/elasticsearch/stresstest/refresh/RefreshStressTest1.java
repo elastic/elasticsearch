@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.refresh;
+package org.elasticsearch.stresstest.refresh;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;

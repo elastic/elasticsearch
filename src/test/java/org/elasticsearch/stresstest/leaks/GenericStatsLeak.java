@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.leaks;
+package org.elasticsearch.stresstest.leaks;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.monitor.jvm.JvmService;

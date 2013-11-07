@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.search1;
+package org.elasticsearch.stresstest.search1;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.search.SearchRequestBuilder;

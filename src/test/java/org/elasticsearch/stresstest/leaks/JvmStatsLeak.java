@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.leaks;
+package org.elasticsearch.stresstest.leaks;
 
 import org.elasticsearch.monitor.jvm.JvmStats;
 

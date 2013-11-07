@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.store.mock.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 

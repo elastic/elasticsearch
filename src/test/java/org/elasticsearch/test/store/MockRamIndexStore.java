@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.store.mock;
+package org.elasticsearch.test.store;
 
 import org.elasticsearch.common.inject.Inject;
 

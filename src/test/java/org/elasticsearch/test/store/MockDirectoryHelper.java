@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.store.mock;
+package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.store.*;

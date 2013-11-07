@@ -1,4 +1,4 @@
-package org.elasticsearch.junit.listeners;
+package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;

@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import org.elasticsearch.test.AbstractIntegrationTest.Scope;

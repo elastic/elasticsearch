@@ -16,7 +16,7 @@
  * the License.
  */
 
-package org.elasticsearch.junit.annotations;
+package org.elasticsearch.test.junit.annotations;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 

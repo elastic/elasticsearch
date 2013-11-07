@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 

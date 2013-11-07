@@ -28,7 +28,6 @@ import org.junit.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 
 
 /**
@@ -55,7 +54,7 @@ public class SimpleDeleteMappingTests extends ElasticsearchIntegrationTest {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (int i = 0; i < 10 && !clusterState.metaData().index("test").mappings().containsKey("type1"); i++, Thread.sleep(100)) ;
 
-        assertThat(clusterState.metaData().index("test").mappings(), hasKey("type1"));
+        assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
 
         client().admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();
         Thread.sleep(500); // for now, we don't have ack logic, so just wait

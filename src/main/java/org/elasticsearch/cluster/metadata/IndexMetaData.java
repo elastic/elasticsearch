@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -27,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -164,13 +167,13 @@ public class IndexMetaData {
 
     private final State state;
 
-    private final Map<String, AliasMetaData> aliases;
+    private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
     private final Settings settings;
 
-    private final Map<String, MappingMetaData> mappings;
+    private final ImmutableOpenMap<String, MappingMetaData> mappings;
 
-    private final Map<String, Custom> customs;
+    private final ImmutableOpenMap<String, Custom> customs;
 
     private transient final int totalNumberOfShards;
 
@@ -178,7 +181,7 @@ public class IndexMetaData {
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
 
-    private IndexMetaData(String index, long version, State state, Settings settings, Map<String, MappingMetaData> mappings, Map<String, AliasMetaData> aliases, Map<String, Custom> customs) {
+    private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
@@ -287,19 +290,19 @@ public class IndexMetaData {
         return settings();
     }
 
-    public Map<String, AliasMetaData> aliases() {
+    public ImmutableOpenMap<String, AliasMetaData> aliases() {
         return this.aliases;
     }
 
-    public Map<String, AliasMetaData> getAliases() {
+    public ImmutableOpenMap<String, AliasMetaData> getAliases() {
         return aliases();
     }
 
-    public Map<String, MappingMetaData> mappings() {
+    public ImmutableOpenMap<String, MappingMetaData> mappings() {
         return mappings;
     }
 
-    public Map<String, MappingMetaData> getMappings() {
+    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
         return mappings();
     }
 
@@ -324,11 +327,11 @@ public class IndexMetaData {
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
-    public Map<String, Custom> customs() {
+    public ImmutableOpenMap<String, Custom> customs() {
         return this.customs;
     }
 
-    public Map<String, Custom> getCustoms() {
+    public ImmutableOpenMap<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -405,22 +408,25 @@ public class IndexMetaData {
         private State state = State.OPEN;
         private long version = 1;
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-        private MapBuilder<String, MappingMetaData> mappings = MapBuilder.newMapBuilder();
-        private MapBuilder<String, AliasMetaData> aliases = MapBuilder.newMapBuilder();
-        private MapBuilder<String, Custom> customs = MapBuilder.newMapBuilder();
+        private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
+        private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
+        private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         public Builder(String index) {
             this.index = index;
+            this.mappings = ImmutableOpenMap.builder();
+            this.aliases = ImmutableOpenMap.builder();
+            this.customs = ImmutableOpenMap.builder();
         }
 
         public Builder(IndexMetaData indexMetaData) {
-            this(indexMetaData.index());
-            settings(indexMetaData.settings());
-            mappings.putAll(indexMetaData.mappings);
-            aliases.putAll(indexMetaData.aliases);
-            customs.putAll(indexMetaData.customs);
+            this.index = indexMetaData.index();
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
+            this.settings = indexMetaData.settings();
+            this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
+            this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
+            this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
         }
 
         public String index() {
@@ -524,18 +530,18 @@ public class IndexMetaData {
         }
 
         public IndexMetaData build() {
-            MapBuilder<String, AliasMetaData> tmpAliases = aliases;
+            ImmutableOpenMap.Builder<String, AliasMetaData> tmpAliases = aliases;
             Settings tmpSettings = settings;
 
             // For backward compatibility
             String[] legacyAliases = settings.getAsArray("index.aliases");
             if (legacyAliases.length > 0) {
-                tmpAliases = MapBuilder.newMapBuilder();
+                tmpAliases = ImmutableOpenMap.builder();
                 for (String alias : legacyAliases) {
                     AliasMetaData aliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).build();
                     tmpAliases.put(alias, aliasMd);
                 }
-                tmpAliases.putAll(aliases.map());
+                tmpAliases.putAll(aliases);
                 // Remove index.aliases from settings once they are migrated to the new data structure
                 tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
             }
@@ -543,12 +549,12 @@ public class IndexMetaData {
             // update default mapping on the MappingMetaData
             if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                 MappingMetaData defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
-                for (MappingMetaData mappingMetaData : mappings.map().values()) {
-                    mappingMetaData.updateDefaultMapping(defaultMapping);
+                for (ObjectCursor<MappingMetaData> cursor : mappings.values()) {
+                    cursor.value.updateDefaultMapping(defaultMapping);
                 }
             }
 
-            return new IndexMetaData(index, version, state, tmpSettings, mappings.readOnlyMap(), tmpAliases.readOnlyMap(), customs.readOnlyMap());
+            return new IndexMetaData(index, version, state, tmpSettings, mappings.build(), tmpAliases.build(), customs.build());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -566,11 +572,11 @@ public class IndexMetaData {
             builder.endObject();
 
             builder.startArray("mappings");
-            for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
+            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
                 if (binary) {
-                    builder.value(entry.getValue().source().compressed());
+                    builder.value(cursor.value.source().compressed());
                 } else {
-                    byte[] data = entry.getValue().source().uncompressed();
+                    byte[] data = cursor.value.source().uncompressed();
                     XContentParser parser = XContentFactory.xContent(data).createParser(data);
                     Map<String, Object> mapping = parser.mapOrdered();
                     parser.close();
@@ -579,15 +585,15 @@ public class IndexMetaData {
             }
             builder.endArray();
 
-            for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
-                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
-                lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
+            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
+                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
 
             builder.startObject("aliases");
-            for (AliasMetaData alias : indexMetaData.aliases().values()) {
-                AliasMetaData.Builder.toXContent(alias, builder, params);
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
             builder.endObject();
 
@@ -688,17 +694,17 @@ public class IndexMetaData {
             out.writeByte(indexMetaData.state().id());
             writeSettingsToStream(indexMetaData.settings(), out);
             out.writeVInt(indexMetaData.mappings().size());
-            for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
-                MappingMetaData.writeTo(mappingMd, out);
+            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                MappingMetaData.writeTo(cursor.value, out);
             }
             out.writeVInt(indexMetaData.aliases().size());
-            for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
-                AliasMetaData.Builder.writeTo(aliasMd, out);
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(cursor.value, out);
             }
             out.writeVInt(indexMetaData.customs().size());
-            for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
-                out.writeString(entry.getKey());
-                lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
+                out.writeString(cursor.key);
+                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
             }
         }
     }

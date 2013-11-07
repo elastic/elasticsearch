@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -75,8 +76,8 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
                         builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.startObject("aliases");
-                        for (AliasMetaData alias : indexMetaData.aliases().values()) {
-                            AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                        for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                            AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
                         }
                         builder.endObject();
 

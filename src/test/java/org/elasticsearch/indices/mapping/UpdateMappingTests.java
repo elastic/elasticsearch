@@ -8,13 +8,13 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -330,9 +330,9 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
                             assertThat(response.isAcknowledged(), equalTo(true));
                             ClusterStateResponse clusterStateResponse = client2.admin().cluster().prepareState().setLocal(true).get();
-                            Map<String, MappingMetaData> mappings = clusterStateResponse.getState().metaData().index(indexName).getMappings();
+                            ImmutableOpenMap<String, MappingMetaData> mappings = clusterStateResponse.getState().metaData().index(indexName).getMappings();
                             assertThat("Failed to find " + typeName + " (cluster state version: " + clusterStateResponse.getState().version() + ")",
-                                    mappings.keySet(), Matchers.hasItem(typeName));
+                                    mappings.keys().contains(typeName), equalTo(true));
                         }
                     } catch (Throwable t) {
                         threadException[0] = t;

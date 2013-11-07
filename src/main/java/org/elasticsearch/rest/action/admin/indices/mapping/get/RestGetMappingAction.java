@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -88,7 +89,8 @@ public class RestGetMappingAction extends BaseRestHandler {
                     if (indices.length == 1 && types.size() == 1) {
                         boolean foundType = false;
                         IndexMetaData indexMetaData = metaData.iterator().next();
-                        for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+                        for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                            MappingMetaData mappingMd = cursor.value;
                             if (!types.isEmpty() && !types.contains(mappingMd.type())) {
                                 // filter this type out...
                                 continue;
@@ -106,7 +108,8 @@ public class RestGetMappingAction extends BaseRestHandler {
                         for (IndexMetaData indexMetaData : metaData) {
                             builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+                            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                                MappingMetaData mappingMd = cursor.value;
                                 if (!types.isEmpty() && !types.contains(mappingMd.type())) {
                                     // filter this type out...
                                     continue;

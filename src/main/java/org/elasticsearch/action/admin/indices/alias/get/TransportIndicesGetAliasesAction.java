@@ -24,13 +24,13 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  */
@@ -67,7 +67,7 @@ public class TransportIndicesGetAliasesAction extends TransportMasterNodeOperati
         request.indices(concreteIndices);
 
         @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type
-        Map<String, List<AliasMetaData>> result = (Map) state.metaData().findAliases(request.aliases(), request.indices());
+        ImmutableOpenMap<String, List<AliasMetaData>> result = (ImmutableOpenMap) state.metaData().findAliases(request.aliases(), request.indices());
         listener.onResponse(new IndicesGetAliasesResponse(result));
     }
 

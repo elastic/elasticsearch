@@ -17,7 +17,23 @@
                 
                 
             },
-            
+
+            "char_filter":{
+                "kuromoji_im_only_kanji":{
+                    "type":"kuromoji_iteration_mark",
+                    "normalize_kanji":true,
+                    "normalize_kana":false
+                },
+                "kuromoji_im_only_kana":{
+                    "type":"kuromoji_iteration_mark",
+                    "normalize_kanji":false,
+                    "normalize_kana":true
+                },
+                "kuromoji_im_default":{
+                    "type":"kuromoji_iteration_mark"
+                }
+            },
+
             "tokenizer" : {
                 "kuromoji" : {
                    "type":"kuromoji_tokenizer"

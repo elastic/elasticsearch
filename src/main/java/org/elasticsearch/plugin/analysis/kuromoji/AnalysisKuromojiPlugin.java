@@ -48,6 +48,7 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
     }
 
     public void onModule(AnalysisModule module) {
+        module.addCharFilter("kuromoji_iteration_mark", KuromojiIterationMarkCharFilterFactory.class);
         module.addAnalyzer("kuromoji", KuromojiAnalyzerProvider.class);
         module.addTokenizer("kuromoji_tokenizer", KuromojiTokenizerFactory.class);
         module.addTokenFilter("kuromoji_baseform", KuromojiBaseFormFilterFactory.class);

@@ -19,14 +19,17 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -82,13 +85,14 @@ public class ClusterChangedEvent {
      */
     public List<String> indicesCreated() {
         if (previousState == null) {
-            return Lists.newArrayList(state.metaData().indices().keySet());
+            return Arrays.asList(state.metaData().indices().keys().toArray(String.class));
         }
         if (!metaDataChanged()) {
             return ImmutableList.of();
         }
         List<String> created = null;
-        for (String index : state.metaData().indices().keySet()) {
+        for (ObjectCursor<String> cursor : state.metaData().indices().keys()) {
+            String index = cursor.value;
             if (!previousState.metaData().hasIndex(index)) {
                 if (created == null) {
                     created = Lists.newArrayList();
@@ -110,7 +114,8 @@ public class ClusterChangedEvent {
             return ImmutableList.of();
         }
         List<String> deleted = null;
-        for (String index : previousState.metaData().indices().keySet()) {
+        for (ObjectCursor<String> cursor : previousState.metaData().indices().keys()) {
+            String index = cursor.value;
             if (!state.metaData().hasIndex(index)) {
                 if (deleted == null) {
                     deleted = Lists.newArrayList();
@@ -165,12 +170,12 @@ public class ClusterChangedEvent {
 
     public boolean indicesStateChanged() {
         if (metaDataChanged()) {
-            Map<String,IndexMetaData> indices = state.metaData().indices();
-            Map<String,IndexMetaData> previousIndices = previousState.metaData().indices();
+            ImmutableOpenMap<String,IndexMetaData> indices = state.metaData().indices();
+            ImmutableOpenMap<String,IndexMetaData> previousIndices = previousState.metaData().indices();
 
-            for (Map.Entry<String, IndexMetaData> entry : indices.entrySet()) {
-                IndexMetaData indexMetaData = entry.getValue();
-                IndexMetaData previousIndexMetaData = previousIndices.get(entry.getKey());
+            for (ObjectObjectCursor<String, IndexMetaData> entry : indices) {
+                IndexMetaData indexMetaData = entry.value;
+                IndexMetaData previousIndexMetaData = previousIndices.get(entry.key);
                 if (previousIndexMetaData != null
                         && indexMetaData.state() != previousIndexMetaData.state()) {
                     return true;

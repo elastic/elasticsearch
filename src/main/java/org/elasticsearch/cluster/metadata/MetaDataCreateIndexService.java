@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -463,7 +464,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private List<IndexTemplateMetaData> findTemplates(Request request, ClusterState state) {
         List<IndexTemplateMetaData> templates = Lists.newArrayList();
-        for (IndexTemplateMetaData template : state.metaData().templates().values()) {
+        for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
+            IndexTemplateMetaData template = cursor.value;
             if (Regex.simpleMatch(template.template(), request.index)) {
                 templates.add(template);
             }

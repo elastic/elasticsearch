@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
@@ -72,7 +73,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = Sets.newHashSet();
-                for (String templateName : currentState.metaData().templates().keySet()) {
+                for (ObjectCursor<String> cursor : currentState.metaData().templates().keys()) {
+                    String templateName = cursor.value;
                     if (Regex.simpleMatch(request.name, templateName)) {
                         templateNames.add(templateName);
                     }

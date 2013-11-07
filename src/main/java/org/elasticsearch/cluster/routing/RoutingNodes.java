@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -133,7 +134,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public int requiredAverageNumberOfShardsPerNode() {
         int totalNumberOfShards = 0;
         // we need to recompute to take closed shards into account
-        for (IndexMetaData indexMetaData : metaData.indices().values()) {
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+            IndexMetaData indexMetaData = cursor.value;
             if (indexMetaData.state() == IndexMetaData.State.OPEN) {
                 totalNumberOfShards += indexMetaData.totalNumberOfShards();
             }

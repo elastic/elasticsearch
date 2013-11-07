@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -290,7 +291,8 @@ public class ClusterState implements ToXContent {
             builder.startObject("metadata");
 
             builder.startObject("templates");
-            for (IndexTemplateMetaData templateMetaData : metaData().templates().values()) {
+            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
+                IndexTemplateMetaData templateMetaData = cursor.value;
                 builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
 
                 builder.field("template", templateMetaData.template());

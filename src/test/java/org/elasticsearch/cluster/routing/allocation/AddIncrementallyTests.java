@@ -1,5 +1,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -276,8 +277,8 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         MetaData metaData = metaDataBuilder.build();
 
-        for (IndexMetaData index : metaData.indices().values()) {
-            routingTableBuilder.addAsNew(index);
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+            routingTableBuilder.addAsNew(cursor.value);
         }
 
         RoutingTable routingTable = routingTableBuilder.build();

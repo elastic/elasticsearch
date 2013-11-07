@@ -24,7 +24,7 @@ should be defined:
 [float]
 ==== store / index
 
-By default the `_timestamp` field has `store` set to `no` and `index`
+By default the `_timestamp` field has `store` set to `false` and `index`
 set to `not_analyzed`. It can be queried as a standard date field.
 
 [float]

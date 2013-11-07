@@ -20,39 +20,39 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
 --------------------------------------------------
 
 or adding by adding the requested fields in the request body (see
-example below). 
+example below).
 
 [float]
 === Return values
 
 Three types of values can be requested: _term information_, _term statistics_
-and _field statistics_. By default, all term information and field 
+and _field statistics_. By default, all term information and field
 statistics are returned for all fields but no term statistics.
 
 [float]
 ==== Term information
 
- * term frequency in the field (always returned) 
- * term positions (`positions` : true) 
- * start and end offsets (`offsets` : true) 
- * term payloads (`payloads` : true), as base64 encoded bytes 
+ * term frequency in the field (always returned)
+ * term positions (`positions` : true)
+ * start and end offsets (`offsets` : true)
+ * term payloads (`payloads` : true), as base64 encoded bytes
 
 If the requested information wasn't stored in the index, it will be
-omitted without further warning. See <<mapping-types,type mapping>> 
-for how to configure your index to store term vectors. 
+omitted without further warning. See <<mapping-types,type mapping>>
+for how to configure your index to store term vectors.
 
 [float]
 ==== Term statistics
 
 Setting `term_statistics` to `true` (default is `false`) will
-return 
+return
 
  * total term frequency (how often a term occurs in all documents) +
  * document frequency (the number of documents containing the current
-   term) 
+   term)
 
 By default these values are not returned since term statistics can
-have a serious performance impact. 
+have a serious performance impact.
 
 [float]
 ==== Field statistics
@@ -60,11 +60,11 @@ have a serious performance impact.
 Setting `field_statistics` to `false` (default is `true`) will
 omit :
 
- * document count (how many documents contain this field) 
+ * document count (how many documents contain this field)
  * sum of document frequencies (the sum of document frequencies for all
-   terms in this field) 
+   terms in this field)
  * sum of total term frequencies (the sum of total term frequencies of
-   each term in this field) 
+   each term in this field)
 
 [float]
 === Behaviour
@@ -73,10 +73,10 @@ The term and field statistics are not accurate. Deleted documents
 are not taken into account. The information is only retrieved for the
 shard the requested document resides in. The term and field statistics
 are therefore only useful as relative measures whereas the absolute
-numbers have no meaning in this context. 
+numbers have no meaning in this context.
 
 [float]
-=== Example 
+=== Example
 
 First, we create an index that stores term vectors, payloads etc. :
 
@@ -89,7 +89,7 @@ curl -s -XPUT 'http://localhost:9200/twitter/' -d '{
         "text": {
           "type": "string",
           "term_vector": "with_positions_offsets_payloads",
-          "store" : "yes",
+          "store" : true,
           "index_analyzer" : "fulltext_analyzer"
          },
          "fullname": {
@@ -129,7 +129,7 @@ curl -XPUT 'http://localhost:9200/twitter/tweet/1?pretty=true' -d '{
   "fullname" : "John Doe",
   "text" : "twitter test test test "
 }'
-    
+
 curl -XPUT 'http://localhost:9200/twitter/tweet/2?pretty=true' -d '{
   "fullname" : "Jane Doe",
   "text" : "Another twitter test ..."
@@ -141,7 +141,7 @@ The following request returns all information and statistics for field
 
 [source,js]
 --------------------------------------------------
-    
+
 curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
   "fields" : ["text"],
   "offsets" : true,
@@ -156,7 +156,7 @@ Response:
 
 [source,js]
 --------------------------------------------------
-    
+
 {
     "_id": "1",
     "_index": "twitter",

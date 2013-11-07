@@ -20,7 +20,7 @@ In order to also store it, use:
 --------------------------------------------------
 {
     "tweet" : {
-        "_size" : {"enabled" : true, "store" : "yes"}
+        "_size" : {"enabled" : true, "store" : true }
     }
 }
 --------------------------------------------------

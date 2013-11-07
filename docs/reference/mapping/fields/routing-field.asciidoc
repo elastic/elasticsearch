@@ -8,7 +8,7 @@ data and explicit routing control is required.
 ==== store / index
 
 The first thing the `_routing` mapping does is to store the routing
-value provided (`store` set to `yes`) and index it (`index` set to
+value provided (`store` set to `false`) and index it (`index` set to
 `not_analyzed`). The reason why the routing is stored by default is so
 reindexing data will be possible if the routing value is completely
 external and not part of the docs.

@@ -35,7 +35,6 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -86,10 +85,9 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
     }
     @Test
     public void test4093() {
-        cluster().ensureAtMostNumNodes(1); // only one node Netty uses lots of native mem as well
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.store.type", "memory")
-                .put("cache.memory.large_cache_size", new ByteSizeValue(10, ByteSizeUnit.MB)) // no need to cache a lot
+                .put("cache.memory.large_cache_size", new ByteSizeValue(1, ByteSizeUnit.MB)) // no need to cache a lot
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "0")
                 .put("gateway.type", "none")
@@ -100,17 +98,21 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
         NodeInfo[] nodes = nodeInfos.getNodes();
         for (NodeInfo info : nodes) {
             ByteSizeValue directMemoryMax = info.getJvm().getMem().getDirectMemoryMax();
-            logger.info(" JVM max direct memory for node [{}] is set to [{}]", info.getNode().getName(), directMemoryMax);
+            logger.debug("  --> JVM max direct memory for node [{}] is set to [{}]", info.getNode().getName(), directMemoryMax);
         }
-        final int iters = between(500, 1000);
-        for (int i = 0; i < iters; i++) {
+        final int numDocs = between(100, 500);
+        logger.debug("  --> Indexing [{}] documents", numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            if ((i+1) % 10 == 0) {
+                logger.debug("  --> Indexed [{}] documents", i+1);
+            }
             client().prepareIndex("test", "type1")
                     .setSource("a", "" + i)
                     .setRefresh(true)
                     .execute()
                     .actionGet();
         }
-
-        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), iters);
+        logger.debug("  --> Done indexing [{}] documents", numDocs);
+        assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs);
     }
 }

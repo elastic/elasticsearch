@@ -21,7 +21,6 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -108,11 +107,11 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     throw new ElasticSearchIllegalArgumentException("unknown highlighter type [" + field.highlighterType() + "] for the field [" + fieldName + "]");
                 }
 
-                Query highlightQuery = field.highlightQuery();
-                if (highlightQuery == null) {
-                    // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
-                    // let the highlighter handle MultiTerm ones
-                    highlightQuery = context.parsedQuery().query();
+                HighlighterContext.HighlightQuery highlightQuery;
+                if (field.highlightQuery() == null) {
+                    highlightQuery = new HighlighterContext.HighlightQuery(context.parsedQuery().query(), context.query(), context.queryRewritten());
+                } else {
+                    highlightQuery = new HighlighterContext.HighlightQuery(field.highlightQuery(), field.highlightQuery(), false);
                 }
                 HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext, highlightQuery);
                 HighlightField highlightField = highlighter.highlight(highlighterContext);

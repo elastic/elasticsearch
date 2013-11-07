@@ -2193,4 +2193,73 @@ public class HighlighterSearchTests extends AbstractIntegrationTest {
             assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>."));
         }
     }
+
+    @Test //https://github.com/elasticsearch/elasticsearch/issues/4116
+    public void testPostingsHighlighterCustomIndexName() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("type1", "field1", "type=string,index_options=offsets,index_name=my_field"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "First sentence. Second sentence.").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("field1", "first")).addHighlightedField("field1").get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("field1").get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("my_field").get();
+        assertHighlight(searchResponse, 0, "my_field", 0, 1, equalTo("<em>First</em> sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first"))
+                .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence."));
+    }
+
+    @Test
+    public void testFastVectorHighlighterCustomIndexName() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets,index_name=my_field"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "First sentence. Second sentence.").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("field1", "first")).addHighlightedField("field1").get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("field1").get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("my_field").get();
+        assertHighlight(searchResponse, 0, "my_field", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first"))
+                .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+    }
+
+    @Test
+    public void testPlainHighlighterCustomIndexName() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,index_name=my_field"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "First sentence. Second sentence.").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("field1", "first")).addHighlightedField("field1").get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("field1").get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("my_field").get();
+        assertHighlight(searchResponse, 0, "my_field", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+
+        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first"))
+                .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
+    }
 }

@@ -11,7 +11,7 @@
   - do:
       index:
         index: test_index
-        type: _percolator
+        type: .percolator
         id:   test_percolator
         body:
           query:

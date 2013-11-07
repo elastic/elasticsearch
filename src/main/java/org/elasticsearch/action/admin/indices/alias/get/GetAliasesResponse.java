@@ -19,24 +19,25 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  */
 public class GetAliasesResponse extends ActionResponse {
 
-    private Map<String, List<AliasMetaData>> aliases = new HashMap<String, List<AliasMetaData>>();
+    private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
 
-    public GetAliasesResponse(Map<String, List<AliasMetaData>> aliases) {
+    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
         this.aliases = aliases;
     }
 
@@ -44,7 +45,7 @@ public class GetAliasesResponse extends ActionResponse {
     }
 
 
-    public Map<String, List<AliasMetaData>> getAliases() {
+    public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
         return aliases;
     }
 
@@ -52,6 +53,7 @@ public class GetAliasesResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
@@ -59,18 +61,19 @@ public class GetAliasesResponse extends ActionResponse {
             for (int j = 0; j < valueSize; j++) {
                 value.add(AliasMetaData.Builder.readFrom(in));
             }
-            aliases.put(key, value);
+            aliasesBuilder.put(key, ImmutableList.copyOf(value));
         }
+        aliases = aliasesBuilder.build();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(aliases.size());
-        for (Map.Entry<String, List<AliasMetaData>> entry : aliases.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (AliasMetaData aliasMetaData : entry.getValue()) {
+        for (ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
+            out.writeString(entry.key);
+            out.writeVInt(entry.value.size());
+            for (AliasMetaData aliasMetaData : entry.value) {
                 AliasMetaData.Builder.writeTo(aliasMetaData, out);
             }
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -58,7 +59,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
 
     @Override
     protected void doMasterOperation(final GetWarmersRequest request, final ClusterState state, final ActionListener<GetWarmersResponse> listener) throws ElasticSearchException {
-        ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> result = state.metaData().findWarmers(
+        ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> result = state.metaData().findWarmers(
                 request.indices(), request.types(), request.warmers()
         );
         listener.onResponse(new GetWarmersResponse(result));

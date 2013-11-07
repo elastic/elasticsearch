@@ -40,7 +40,7 @@ public class SimpleGetMappingsTests extends ElasticsearchIntegrationTest {
     public void getMappingsWhereThereAreNone() {
         createIndex("index");
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
-        assertThat(response.mappings(), hasKey("index"));
+        assertThat(response.mappings().containsKey("index"), equalTo(true));
         assertThat(response.mappings().get("index").size(), equalTo(0));
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.river.routing;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchException;
@@ -123,8 +124,8 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
 
         IndexMetaData indexMetaData = newClusterState.metaData().index(riverIndexName);
         // go over and create new river routing (with no node) for new types (rivers names)
-        for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
-            String mappingType = mappingMd.type(); // mapping type is the name of the river
+        for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+            String mappingType = cursor.value.type(); // mapping type is the name of the river
             if (!currentState.routing().hasRiverByName(mappingType)) {
                 // no river, we need to add it to the routing with no node allocation
                 try {

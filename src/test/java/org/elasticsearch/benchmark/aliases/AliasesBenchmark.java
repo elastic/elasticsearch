@@ -22,6 +22,8 @@ package org.elasticsearch.benchmark.aliases;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
@@ -29,6 +31,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  */
@@ -66,7 +69,7 @@ public class AliasesBenchmark {
             System.out.println("Adding " + diff + " more aliases to get to the start amount of " + BASE_ALIAS_COUNT + " aliases");
             IndicesAliasesRequestBuilder builder = client.admin().indices().prepareAliases();
             for (int i = 1; i <= diff; i++) {
-                builder.addAlias(INDEX_NAME, "alias" + numberOfAliases + i);
+                builder.addAlias(INDEX_NAME, Strings.randomBase64UUID());
                 if (i % 1000 == 0) {
                     builder.execute().actionGet();
                     builder = client.admin().indices().prepareAliases();
@@ -78,9 +81,12 @@ public class AliasesBenchmark {
         } else if (numberOfAliases > BASE_ALIAS_COUNT) {
             IndicesAliasesRequestBuilder builder = client.admin().indices().prepareAliases();
             int diff = numberOfAliases - BASE_ALIAS_COUNT;
-            System.out.println("Removing " + diff + " aliases to get to the start amount of " + BASE_ALIAS_COUNT + "aliases");
+            System.out.println("Removing " + diff + " aliases to get to the start amount of " + BASE_ALIAS_COUNT + " aliases");
+            List<AliasMetaData> aliases= client.admin().indices().prepareGetAliases("*")
+                    .addIndices(INDEX_NAME)
+                    .execute().actionGet().getAliases().get(INDEX_NAME);
             for (int i = 0; i <= diff; i++) {
-                builder.removeAlias(INDEX_NAME, "alias" + (BASE_ALIAS_COUNT + i));
+                builder.removeAlias(INDEX_NAME, aliases.get(i).alias());
                 if (i % 1000 == 0) {
                     builder.execute().actionGet();
                     builder = client.admin().indices().prepareAliases();
@@ -105,7 +111,7 @@ public class AliasesBenchmark {
 
             long time = System.currentTimeMillis();
 //            String filter = termFilter("field" + i, "value" + i).toXContent(XContentFactory.jsonBuilder(), null).string();
-            client.admin().indices().prepareAliases().addAlias(INDEX_NAME, "alias" + i/*, filter*/)
+            client.admin().indices().prepareAliases().addAlias(INDEX_NAME, Strings.randomBase64UUID()/*, filter*/)
                     .execute().actionGet();
             totalTime += System.currentTimeMillis() - time;
         }
@@ -119,7 +125,7 @@ public class AliasesBenchmark {
     }
 
     private static int countAliases(Client client) {
-        GetAliasesResponse response = client.admin().indices().prepareGetAliases("a*")
+        GetAliasesResponse response = client.admin().indices().prepareGetAliases("*")
                 .addIndices(INDEX_NAME)
                 .execute().actionGet();
         if (response.getAliases().isEmpty()) {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
@@ -32,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -66,18 +66,20 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeOperati
 
     @Override
     protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) throws ElasticSearchException {
-        List<IndexTemplateMetaData> results = Lists.newArrayList();
+        List<IndexTemplateMetaData> results;
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results.addAll(state.metaData().templates().values());
+            results = Lists.newArrayList(state.metaData().templates().values().toArray(IndexTemplateMetaData.class));
+        } else {
+            results = Lists.newArrayList();
         }
 
         for (String name : request.names()) {
             if (Regex.isSimpleMatchPattern(name)) {
-                for (Map.Entry<String, IndexTemplateMetaData> entry : state.metaData().templates().entrySet()) {
-                    if (Regex.simpleMatch(name, entry.getKey())) {
-                        results.add(entry.getValue());
+                for (ObjectObjectCursor<String, IndexTemplateMetaData> entry : state.metaData().templates()) {
+                    if (Regex.simpleMatch(name, entry.key)) {
+                        results.add(entry.value);
                     }
                 }
             } else if (state.metaData().templates().containsKey(name)) {

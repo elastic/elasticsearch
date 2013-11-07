@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -150,8 +151,8 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
 
         MetaData metaData = metaDataBuilder.build();
 
-        for (IndexMetaData index : metaData.indices().values()) {
-            routingTableBuilder.addAsNew(index);
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+            routingTableBuilder.addAsNew(cursor.value);
         }
 
         RoutingTable routingTable = routingTableBuilder.build();
@@ -453,8 +454,8 @@ public class BalanceConfigurationTests extends ElasticsearchTestCase {
         IndexMetaData.Builder indexMeta = IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1);
         metaDataBuilder = metaDataBuilder.put(indexMeta);
         MetaData metaData = metaDataBuilder.build();
-        for (IndexMetaData index : metaData.indices().values()) {
-            routingTableBuilder.addAsNew(index);
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+            routingTableBuilder.addAsNew(cursor.value);
         }
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();

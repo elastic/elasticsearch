@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -141,7 +142,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
                                                 indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source().string(), false);
                                             }
-                                            for (MappingMetaData mappingMetaData : indexMetaData.mappings().values()) {
+                                            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                                                MappingMetaData mappingMetaData = cursor.value;
                                                 indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source().string(), false);
                                             }
                                         } catch (Exception e) {

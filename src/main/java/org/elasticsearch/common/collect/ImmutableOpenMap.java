@@ -146,6 +146,10 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return new Builder<KType, VType>();
     }
 
+    public static <KType, VType> Builder<KType, VType> builder(int size) {
+        return new Builder<KType, VType>(size);
+    }
+
     public static <KType, VType> Builder<KType, VType> builder(ImmutableOpenMap<KType, VType> map) {
         return new Builder<KType, VType>(map);
     }
@@ -157,6 +161,10 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         public Builder() {
             //noinspection unchecked
             this(EMPTY);
+        }
+
+        public Builder(int size) {
+            this.map = new ObjectObjectOpenHashMap<KType, VType>(size);
         }
 
         public Builder(ImmutableOpenMap<KType, VType> map) {
@@ -267,5 +275,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         public ObjectContainer<VType> values() {
             return map.values();
         }
+
+        @SuppressWarnings("unchecked")
+        public <K, V> Builder<K, V> cast() {
+            return (Builder) this;
+        }
+
     }
 }

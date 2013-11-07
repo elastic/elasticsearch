@@ -19,34 +19,34 @@
 
 package org.elasticsearch.action.admin.indices.warmer.get;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  */
 public class GetWarmersResponse extends ActionResponse {
 
-    private ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers = ImmutableMap.of();
+    private ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers = ImmutableOpenMap.of();
 
-    GetWarmersResponse(ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers) {
+    GetWarmersResponse(ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers) {
         this.warmers = warmers;
     }
 
     GetWarmersResponse() {
     }
 
-    public ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers() {
+    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers() {
         return warmers;
     }
 
-    public ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> getWarmers() {
+    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> getWarmers() {
         return warmers();
     }
 
@@ -54,7 +54,7 @@ public class GetWarmersResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> indexMapBuilder = ImmutableMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
@@ -75,10 +75,10 @@ public class GetWarmersResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(warmers.size());
-        for (Map.Entry<String, ImmutableList<IndexWarmersMetaData.Entry>> indexEntry : warmers.entrySet()) {
-            out.writeString(indexEntry.getKey());
-            out.writeVInt(indexEntry.getValue().size());
-            for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.getValue()) {
+        for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> indexEntry : warmers) {
+            out.writeString(indexEntry.key);
+            out.writeVInt(indexEntry.value.size());
+            for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
                 out.writeBytesReference(warmerEntry.source());

@@ -20,6 +20,8 @@
 package org.elasticsearch.indices.cluster;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
+import com.carrotsearch.hppc.ObjectContainer;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -353,7 +355,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
 
             // go over and add the relevant mappings (or update them)
-            for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
+            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                MappingMetaData mappingMd = cursor.value;
                 String mappingType = mappingMd.type();
                 CompressedString mappingSource = mappingMd.source();
                 if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
@@ -456,9 +459,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void processAliases(String index, Collection<AliasMetaData> aliases, IndexAliasesService indexAliasesService) {
+    private void processAliases(String index, ObjectContainer<AliasMetaData> aliases, IndexAliasesService indexAliasesService) {
         HashMap<String, IndexAlias> newAliases = newHashMap();
-        for (AliasMetaData aliasMd : aliases) {
+        for (ObjectCursor<AliasMetaData> cursor : aliases) {
+            AliasMetaData aliasMd = cursor.value;
             String alias = aliasMd.alias();
             CompressedString filter = aliasMd.filter();
             try {

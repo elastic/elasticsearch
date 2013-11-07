@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -264,8 +265,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
                     // initialize all index routing tables as empty
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable());
-                    for (IndexMetaData indexMetaData : updatedState.metaData().indices().values()) {
-                        routingTableBuilder.addAsRecovery(indexMetaData);
+                    for (ObjectCursor<IndexMetaData> cursor : updatedState.metaData().indices().values()) {
+                        routingTableBuilder.addAsRecovery(cursor.value);
                     }
                     // start with 0 based versions for routing table
                     routingTableBuilder.version(0);

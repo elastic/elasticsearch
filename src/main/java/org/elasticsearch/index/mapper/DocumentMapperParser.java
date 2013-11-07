@@ -134,8 +134,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public void putRootTypeParser(String type, Mapper.TypeParser typeParser) {
         synchronized (typeParsersMutex) {
-            rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>()
-                    .putAll(typeParsers)
+            rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>(rootTypeParsers)
                     .put(type, typeParser)
                     .immutableMap();
         }

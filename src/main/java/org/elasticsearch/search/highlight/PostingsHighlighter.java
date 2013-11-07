@@ -71,7 +71,7 @@ public class PostingsHighlighter implements Highlighter {
             //get the non rewritten query and rewrite it
             Query query;
             try {
-                query = rewrite(context, hitContext.topLevelReader());
+                query = rewrite(highlighterContext, hitContext.topLevelReader());
             } catch (IOException e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
@@ -146,11 +146,11 @@ public class PostingsHighlighter implements Highlighter {
         return null;
     }
 
-    private static Query rewrite(SearchContext searchContext, IndexReader reader) throws IOException {
+    private static Query rewrite(HighlighterContext highlighterContext, IndexReader reader) throws IOException {
         //rewrite is expensive: if the query was already rewritten we try not to rewrite
-        boolean mustRewrite = !searchContext.queryRewritten();
+        boolean mustRewrite = !highlighterContext.query.queryRewritten();
 
-        Query original = searchContext.parsedQuery().query();
+        Query original = highlighterContext.query.originalQuery();
 
         MultiTermQuery originalMultiTermQuery = null;
         MultiTermQuery.RewriteMethod originalRewriteMethod = null;
@@ -166,7 +166,7 @@ public class PostingsHighlighter implements Highlighter {
 
         if (!mustRewrite) {
             //return the rewritten query
-            return searchContext.query();
+            return highlighterContext.query.query();
         }
 
         Query query = original;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.fullrestart;
+package org.elasticsearch.stresstest.fullrestart;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;

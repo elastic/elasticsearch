@@ -1,4 +1,4 @@
-package org.elasticsearch.test.stress.search1;
+package org.elasticsearch.stresstest.search1;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import jsr166y.ThreadLocalRandom;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.search1;
+package org.elasticsearch.stresstest.search1;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;

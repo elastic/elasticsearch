@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.rollingrestart;
+package org.elasticsearch.stresstest.rollingrestart;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import jsr166y.ThreadLocalRandom;

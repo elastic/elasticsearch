@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.client;
+package org.elasticsearch.stresstest.client;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.transport.TransportClient;

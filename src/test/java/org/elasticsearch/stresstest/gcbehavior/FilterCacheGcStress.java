@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.gcbehavior;
+package org.elasticsearch.stresstest.gcbehavior;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;

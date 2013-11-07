@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.stress.indexing;
+package org.elasticsearch.stresstest.indexing;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.bulk.BulkItemResponse;

@@ -200,13 +200,25 @@ public class ElasticsearchAssertions {
         assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);
     }
 
+    public static void assertHighlight(SearchHit hit, String field, int fragment, Matcher<String> matcher) {
+        assertHighlight(hit, field, fragment, greaterThan(fragment), matcher);
+    }
+
+    public static void assertHighlight(SearchHit hit, String field, int fragment, int totalFragments, Matcher<String> matcher) {
+        assertHighlight(hit, field, fragment, equalTo(totalFragments), matcher);
+    }
+
     private static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
         assertNoFailures(resp);
         assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
-        assertThat(resp.getHits().hits()[hit].getHighlightFields(), hasKey(field));
-        assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, fragmentsMatcher);
-        assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(), matcher);
+        assertHighlight(resp.getHits().hits()[hit], field, fragment, fragmentsMatcher, matcher);
         assertVersionSerializable(resp);
+    }
+
+    private static void assertHighlight(SearchHit hit, String field, int fragment, Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
+        assertThat(hit.getHighlightFields(), hasKey(field));
+        assertThat(hit.getHighlightFields().get(field).fragments().length, fragmentsMatcher);
+        assertThat(hit.highlightFields().get(field).fragments()[fragment].string(), matcher);
     }
 
     public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {

@@ -381,7 +381,9 @@ don't fall between a `min` and `max` frequency range:
         analyzer:  "whitespace"
         fielddata: {
             filter: {
-                regex:                "^#.*",
+                regex: {
+                    "pattern":        "^#.*"
+                },
                 frequency: {
                     min:              0.001,
                     max:              0.1,

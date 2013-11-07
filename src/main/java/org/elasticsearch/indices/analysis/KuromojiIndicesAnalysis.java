@@ -26,10 +26,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.PreBuiltTokenFilterFactoryFactory;
-import org.elasticsearch.index.analysis.PreBuiltTokenizerFactoryFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.analysis.*;
 
 import java.io.Reader;
 
@@ -41,8 +38,23 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
     @Inject
     public KuromojiIndicesAnalysis(Settings settings,
-            IndicesAnalysisService indicesAnalysisService) {
+                                   IndicesAnalysisService indicesAnalysisService) {
         super(settings);
+
+        indicesAnalysisService.charFilterFactories().put("kuromoji_iteration_mark",
+                new PreBuiltCharFilterFactoryFactory(new CharFilterFactory() {
+                    @Override
+                    public String name() {
+                        return "kuromoji_iteration_mark";
+                    }
+
+                    @Override
+                    public Reader create(Reader reader) {
+                        return new JapaneseIterationMarkCharFilter(reader,
+                                JapaneseIterationMarkCharFilter.NORMALIZE_KANJI_DEFAULT,
+                                JapaneseIterationMarkCharFilter.NORMALIZE_KANA_DEFAULT);
+                    }
+                }));
 
         indicesAnalysisService.tokenizerFactories().put("kuromoji_tokenizer",
                 new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
@@ -83,7 +95,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
                     public TokenStream create(TokenStream tokenStream) {
                         return new JapanesePartOfSpeechStopFilter(Version.LUCENE_44,
                                 tokenStream, JapaneseAnalyzer
-                                        .getDefaultStopTags());
+                                .getDefaultStopTags());
                     }
                 }));
 

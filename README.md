@@ -25,6 +25,7 @@ The plugin includes these analyzer and tokenizer, tokenfilter.
 
 | name                    | type        |
 |-------------------------|-------------|
+| kuromoji_iteration_mark | charfilter  |
 | kuromoji                | analyzer    |
 | kuromoji_tokenizer      | tokenizer   |
 | kuromoji_baseform       | tokenfilter |
@@ -48,6 +49,18 @@ This analyzer is the following tokenizer and tokenfilter combination.
 * `stop` : Stop Filter (TokenFilter)
 * `kuromoji_stemmer` : Kuromiji Katakana Stemmer Filter(TokenFilter)
 * `lowercase` : LowerCase Filter (TokenFilter)
+
+## CharFilter : kuromoji_iteration_mark
+
+A charfilter of type `kuromoji_iteration_mark`.
+This charfilter is Normalizes Japanese horizontal iteration marks (odoriji) to their expanded form.
+
+The following ar setting that can be set for a `kuromoji_iteration_mark` charfilter type:
+
+| **Setting**     | **Description**                                              | **Default value** |
+|:----------------|:-------------------------------------------------------------|:------------------|
+| normalize_kanji | indicates whether kanji iteration marks should be normalized | `true`            |
+| normalize_kana  | indicates whether kanji iteration marks should be normalized | `true`            |
 
 ## Tokenizer : kuromoji_tokenizer
 

@@ -73,7 +73,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         hosts = settings.getAsArray("hosts", new String[]{"localhost:9200"});
         indexPrefix = settings.get("index.prefix", "marvel");
         String indexTimeFormat = settings.get("index.timeformat", "YYYY.MM.dd");
-        indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat);
+        indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat).withZoneUTC();
 
         timeout = (int) settings.getAsTime("timeout", new TimeValue(6000)).seconds();
 

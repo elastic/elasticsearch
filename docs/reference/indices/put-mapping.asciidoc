@@ -10,7 +10,7 @@ $ curl -XPUT 'http://localhost:9200/twitter/tweet/_mapping' -d '
 {
     "tweet" : {
         "properties" : {
-            "message" : {"type" : "string", "store" : "yes"}
+            "message" : {"type" : "string", "store" : true }
         }
     }
 }
@@ -53,7 +53,7 @@ $ curl -XPUT 'http://localhost:9200/kimchy,elasticsearch/tweet/_mapping' -d '
 {
     "tweet" : {
         "properties" : {
-            "message" : {"type" : "string", "store" : "yes"}
+            "message" : {"type" : "string", "store" : true }
         }
     }
 }

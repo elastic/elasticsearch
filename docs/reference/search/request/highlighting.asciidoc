@@ -24,7 +24,7 @@ search hit (there will be another element in each search hit, called
 fragments).
 
 In order to perform highlighting, the actual content of the field is
-required. If the field in question is stored (has `store` set to `yes`
+required. If the field in question is stored (has `store` set to `true`
 in the mapping) it will be used, otherwise, the actual `_source` will
 be loaded and the relevant field will be extracted from it.
 
@@ -66,7 +66,7 @@ a query match, effectively ignoring their positions.
 
 ==== Fast vector highlighter
 
-If `term_vector` information is provided by setting `term_vector` to 
+If `term_vector` information is provided by setting `term_vector` to
 `with_positions_offsets` in the mapping then the fast vector highlighter
 will be used instead of the plain highlighter.  The fast vector highlighter:
 

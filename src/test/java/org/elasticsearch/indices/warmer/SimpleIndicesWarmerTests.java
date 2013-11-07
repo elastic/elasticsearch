@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.warmer;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
@@ -32,8 +33,6 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
-
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -184,10 +183,10 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         GetWarmersResponse getWarmersResponse = client().admin().indices().prepareGetWarmers("test").get();
         assertThat(getWarmersResponse.warmers().size(), equalTo(1));
-        Map.Entry<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().entrySet().iterator().next();
-        assertThat(entry.getKey(), equalTo("test"));
-        assertThat(entry.getValue().size(), equalTo(1));
-        assertThat(entry.getValue().iterator().next().name(), equalTo("custom_warmer"));
+        ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
+        assertThat(entry.key, equalTo("test"));
+        assertThat(entry.value.size(), equalTo(1));
+        assertThat(entry.value.iterator().next().name(), equalTo("custom_warmer"));
 
         DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setName("custom_warmer").get();
         assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));

@@ -27,12 +27,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.Map;
 
 /**
  * Types exists transport action.
@@ -85,7 +84,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
                 return;
             }
 
-            Map<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
+            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
             if (mappings.isEmpty()) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;

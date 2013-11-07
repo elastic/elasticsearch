@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.local;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.FailedNodeException;
@@ -148,8 +149,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             } else if (nodeState.metaData().version() > electedGlobalState.version()) {
                 electedGlobalState = nodeState.metaData();
             }
-            for (IndexMetaData indexMetaData : nodeState.metaData().indices().values()) {
-                indices.addTo(indexMetaData.index(), 1);
+            for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
+                indices.addTo(cursor.value.index(), 1);
             }
         }
         if (found < requiredAllocation) {

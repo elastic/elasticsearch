@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,7 +58,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     @Override
     protected void doMasterOperation(final GetMappingsRequest request, final ClusterState state, final ActionListener<GetMappingsResponse> listener) throws ElasticSearchException {
         logger.trace("serving getMapping request based on version {}", state.version());
-        ImmutableMap<String, ImmutableMap<String, MappingMetaData>> result = state.metaData().findMappings(
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = state.metaData().findMappings(
                 request.indices(), request.types()
         );
         listener.onResponse(new GetMappingsResponse(result));

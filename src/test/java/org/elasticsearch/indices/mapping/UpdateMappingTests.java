@@ -8,6 +8,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -330,8 +331,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
                             assertThat(response.isAcknowledged(), equalTo(true));
                             GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                            Map<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
-                            assertThat(mappings.keySet(), Matchers.hasItem(typeName));
+                            ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
+                            assertThat(mappings.containsKey(typeName), equalTo(true));
                             assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
                         }
                     } catch (Throwable t) {

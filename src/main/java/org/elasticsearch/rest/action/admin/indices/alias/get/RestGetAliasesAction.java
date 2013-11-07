@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias.get;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -37,7 +38,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -81,10 +81,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     }
 
                     builder.startObject();
-                    for (Map.Entry<String, List<AliasMetaData>> entry : response.getAliases().entrySet()) {
-                        builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                    for (ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
+                        builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
                         builder.startObject(Fields.ALIASES);
-                        for (AliasMetaData alias : entry.getValue()) {
+                        for (AliasMetaData alias : entry.value) {
                             AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                         }
                         builder.endObject();

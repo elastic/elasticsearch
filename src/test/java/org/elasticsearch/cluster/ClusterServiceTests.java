@@ -33,9 +33,9 @@ import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
-public class ClusterServiceTests extends AbstractIntegrationTest {
+public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTimeoutUpdateTask() throws Exception {

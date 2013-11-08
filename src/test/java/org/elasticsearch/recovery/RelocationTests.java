@@ -35,9 +35,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class RelocationTests extends AbstractIntegrationTest {
+public class RelocationTests extends ElasticsearchIntegrationTest {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
 

@@ -43,7 +43,7 @@ import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -52,7 +52,7 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTermVectorTests extends AbstractIntegrationTest {
+public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTest {
 
     protected static class TestFieldSetting {
         final public String name;

@@ -27,9 +27,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class NoMasterNodeTests extends AbstractIntegrationTest {
+public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNoMasterActions() throws Exception {

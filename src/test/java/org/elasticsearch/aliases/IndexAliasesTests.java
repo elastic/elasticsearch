@@ -40,7 +40,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Set;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IndexAliasesTests extends AbstractIntegrationTest {
+public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testAliases() throws Exception {

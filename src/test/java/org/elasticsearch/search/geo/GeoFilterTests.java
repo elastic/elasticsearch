@@ -46,7 +46,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class GeoFilterTests extends AbstractIntegrationTest {
+public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
     private static boolean intersectSupport;
     private static boolean disjointSupport;

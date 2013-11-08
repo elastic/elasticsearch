@@ -39,7 +39,7 @@ import org.elasticsearch.search.facet.statistical.StatisticalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -52,7 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleNestedTests extends AbstractIntegrationTest {
+public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleNested() throws Exception {

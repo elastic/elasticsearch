@@ -39,18 +39,18 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.AbstractIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = SUITE)
-public class AckTests extends AbstractIntegrationTest {
+public class AckTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

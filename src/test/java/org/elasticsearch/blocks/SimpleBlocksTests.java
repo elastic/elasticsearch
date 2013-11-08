@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -37,7 +37,7 @@ import java.util.HashMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleBlocksTests extends AbstractIntegrationTest {
+public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void verifyIndexAndClusterReadOnly() throws Exception {

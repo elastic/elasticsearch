@@ -9,9 +9,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
 
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope=Scope.TEST, numNodes=2)
-public class SimpleThreadPoolTests extends AbstractIntegrationTest {
+public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

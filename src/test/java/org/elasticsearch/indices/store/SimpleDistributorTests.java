@@ -23,9 +23,9 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope=Scope.TEST, numNodes = 1)
-public class SimpleDistributorTests extends AbstractIntegrationTest {
+public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
 
     public final static String[] STORE_TYPES = {"fs", "simplefs", "niofs", "mmapfs"};
 

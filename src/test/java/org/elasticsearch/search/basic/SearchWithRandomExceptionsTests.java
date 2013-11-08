@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -41,7 +41,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
-public class SearchWithRandomExceptionsTests extends AbstractIntegrationTest {
+public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {

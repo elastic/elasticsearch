@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
-public class ConcurrentDynamicTemplateTests extends AbstractIntegrationTest {
+public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest {
 
     private final String mappingType = "test-mapping";
 

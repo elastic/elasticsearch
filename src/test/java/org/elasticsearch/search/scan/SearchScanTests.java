@@ -28,7 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Set;
@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchScanTests extends AbstractIntegrationTest {
+public class SearchScanTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow 

@@ -2,7 +2,7 @@ package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SimpleMultiSearchTests extends AbstractIntegrationTest {
+public class SimpleMultiSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMultiSearch() {

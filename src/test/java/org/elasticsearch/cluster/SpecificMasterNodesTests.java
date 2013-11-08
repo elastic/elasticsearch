@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
-public class SpecificMasterNodesTests extends AbstractIntegrationTest {
+public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
 
     protected final ImmutableSettings.Builder settingsBuilder() {
         return ImmutableSettings.builder().put("discovery.type", "zen");

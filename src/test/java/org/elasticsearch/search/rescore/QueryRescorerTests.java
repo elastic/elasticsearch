@@ -35,7 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class QueryRescorerTests extends AbstractIntegrationTest {
+public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRescorePhrase() throws Exception {

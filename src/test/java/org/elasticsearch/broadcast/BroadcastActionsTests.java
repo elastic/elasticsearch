@@ -27,7 +27,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class BroadcastActionsTests extends AbstractIntegrationTest {
+public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBroadcastOperations() throws IOException {

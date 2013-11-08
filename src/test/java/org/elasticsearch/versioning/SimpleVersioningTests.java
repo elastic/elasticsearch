@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleVersioningTests extends AbstractIntegrationTest {
+public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testExternalVersioningInitialDelete() throws Exception {

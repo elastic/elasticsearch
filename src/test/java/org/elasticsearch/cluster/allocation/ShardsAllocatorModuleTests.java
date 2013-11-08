@@ -25,15 +25,15 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class ShardsAllocatorModuleTests extends AbstractIntegrationTest {
+public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
 
 
     public void testLoadDefaultShardsAllocator() {

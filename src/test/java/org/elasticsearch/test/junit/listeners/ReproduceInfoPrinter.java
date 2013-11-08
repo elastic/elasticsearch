@@ -6,7 +6,7 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
@@ -45,8 +45,8 @@ public class ReproduceInfoPrinter extends RunListener {
         b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
         b.append("REPRODUCE WITH  : mvn test");
         ReproduceErrorMessageBuilder builder = new MavenMessageBuilder(b).appendAllOpts(failure.getDescription());
-        if (AbstractIntegrationTest.class.isAssignableFrom(failure.getDescription().getTestClass())) {
-            builder.appendOpt("tests.cluster_seed", SeedUtils.formatSeed(AbstractIntegrationTest.SHARED_CLUSTER_SEED));
+        if (ElasticsearchIntegrationTest.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+            builder.appendOpt("tests.cluster_seed", SeedUtils.formatSeed(ElasticsearchIntegrationTest.SHARED_CLUSTER_SEED));
         }
 
         b.append("\n");

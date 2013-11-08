@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleIndicesBoostSearchTests extends AbstractIntegrationTest {
+public class SimpleIndicesBoostSearchTests extends ElasticsearchIntegrationTest {
 
     private static final Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

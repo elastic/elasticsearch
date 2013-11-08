@@ -23,7 +23,7 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleGetFieldMappingsTests extends AbstractIntegrationTest {
+public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void getMappingsWhereThereAreNone() {

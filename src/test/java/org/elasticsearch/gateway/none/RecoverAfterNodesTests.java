@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.hasItem;
  *
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
-public class RecoverAfterNodesTests extends AbstractIntegrationTest {
+public class RecoverAfterNodesTests extends ElasticsearchIntegrationTest {
 
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(1);
 

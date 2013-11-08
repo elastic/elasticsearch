@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class CodecTests extends AbstractIntegrationTest {
+public class CodecTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testFieldsWithCustomPostingsFormat() throws Exception {

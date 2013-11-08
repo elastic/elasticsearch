@@ -24,13 +24,13 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TypesExistsTests extends AbstractIntegrationTest {
+public class TypesExistsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimple() throws Exception {

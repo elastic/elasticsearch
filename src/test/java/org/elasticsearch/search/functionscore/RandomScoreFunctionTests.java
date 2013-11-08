@@ -22,7 +22,7 @@ package org.elasticsearch.search.functionscore;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RandomScoreFunctionTests extends AbstractIntegrationTest {
+public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void consistentHitsWithSameSeed() throws Exception {

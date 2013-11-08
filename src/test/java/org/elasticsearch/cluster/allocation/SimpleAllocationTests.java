@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -30,7 +30,7 @@ import java.util.Map.Entry;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimpleAllocationTests extends AbstractIntegrationTest {
+public class SimpleAllocationTests extends ElasticsearchIntegrationTest {
     
     /**
      * Test for 

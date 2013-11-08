@@ -6,9 +6,9 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = Scope.TEST)
-public class TTLPercolatorTests extends AbstractIntegrationTest {
+public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
     private static final long PURGE_INTERVAL = 200;
 

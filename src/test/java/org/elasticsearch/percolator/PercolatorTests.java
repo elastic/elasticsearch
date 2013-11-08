@@ -46,7 +46,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.*;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class PercolatorTests extends AbstractIntegrationTest {
+public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimple1() throws Exception {

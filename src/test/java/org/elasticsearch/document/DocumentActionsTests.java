@@ -36,7 +36,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class DocumentActionsTests extends AbstractIntegrationTest {
+public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
     protected void createIndex() {
         wipeIndex(getConcreteIndexName());

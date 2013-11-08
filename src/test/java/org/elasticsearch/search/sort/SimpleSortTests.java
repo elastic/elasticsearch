@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleSortTests extends AbstractIntegrationTest {
+public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings getSettings() {

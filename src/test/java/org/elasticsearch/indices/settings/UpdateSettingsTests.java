@@ -25,14 +25,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class UpdateSettingsTests extends AbstractIntegrationTest {
+public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOpenCloseUpdateSettings() throws Exception {

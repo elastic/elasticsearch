@@ -33,6 +33,29 @@ indexed lat lon only make sense when there is a single geo point value
 for the field, and not multi values.
 
 [float]
+==== Geohashes
+
+Geohashes are a form of lat/lon encoding which divides the earth up into
+a grid. Each cell in this grid is represented by a geohash string. Each
+cell in turn can be further subdivided into smaller cells which are
+represented by a longer string. So the longer the geohash, the smaller
+(and thus more accurate) the cell is.
+
+Because geohashes are just strings, they can be stored in an inverted
+index like any other string, which makes querying them very efficient.
+
+If you enable the `geohash` option, a `geohash` ``sub-field'' will be
+indexed as, eg `pin.geohash`. The length of the geohash is controlled by
+the `geohash_precision` parameter, which can either be set to an absolute
+length (eg `12`, the default) or to a distance (eg `1km`).
+
+More usefully, set the `geohash_prefix` option to `true` to not only index
+the geohash value, but all the enclosing cells as well.  For instance, a
+geohash of `u30` will be indexed as `[u,u3,u30]`. This option can be used
+by the <<query-dsl-geohash-cell-filter>> to find geopoints within a
+particular cell very efficiently.
+
+[float]
 ==== Input Structure
 
 The above mapping defines a `geo_point`, which accepts different
@@ -106,7 +129,14 @@ Defaults to `false`.
 |`geohash` |Set to `true` to also index the `.geohash` as a field.
 Defaults to `false`.
 
-|`geohash_precision` |Sets the geohash precision, defaults to 12.
+|`geohash_precision` |Sets the geohash precision. It can be set to an
+absolute geohash length or a distance value (eg 1km, 1m, 1ml) defining
+the size of the smallest cell. Defaults to an absolute length of 12.
+
+|`geohash_prefix` |If this option is set to `true`, not only the geohash
+but also all its parent cells (true prefixes) will be indexed as well. The
+number of terms that will be indexed depends on the `geohash_precision`.
+Defaults to `false`. *Note*: This option implicitly enables `geohash`.
 
 |`validate` |Set to `true` to reject geo points with invalid latitude or
 longitude (default is `false`) *Note*: Validation only works when

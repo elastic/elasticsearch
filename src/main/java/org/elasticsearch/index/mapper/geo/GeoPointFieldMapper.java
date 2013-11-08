@@ -214,6 +214,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                     builder.geohashPrefix(XContentMapValues.nodeBooleanValue(fieldNode));
                     if (XContentMapValues.nodeBooleanValue(fieldNode)) {
                         // automatically set geohash to true as well...
+                        // TODO: Should we do this in the builder
                         builder.enableGeoHash(true);
                     }
                 } else if (fieldName.equals("precision_step")) {
@@ -275,7 +276,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         this.name = name;
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
-        this.enableGeoHash = enableGeoHash;
+        this.enableGeoHash = enableGeoHash || enableGeohashPrefix; // implicitly enable geohashes if geohash_prefix is set
         this.enableGeohashPrefix = enableGeohashPrefix;
         this.precisionStep = precisionStep;
         this.precision = precision;

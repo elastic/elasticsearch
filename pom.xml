@@ -984,13 +984,13 @@
                         <goals>
                             <goal>test-jar</goal>
                         </goals>
+                        <configuration>
+                            <includes>
+                                <include>org/elasticsearch/test/**/*</include>
+                            </includes>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <includes>
-                        <include>org/elasticsearch/test/**/*</include>
-                    </includes>
-                </configuration>
             </plugin>
         </plugins>
         <pluginManagement>

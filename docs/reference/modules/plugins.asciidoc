@@ -233,7 +233,7 @@ plugin --remove head --silent
 * https://github.com/spinscale/elasticsearch-graphite-plugin[ElasticSearch Graphite Plugin] (by Alexander Reelsen)
 * https://github.com/mattweber/elasticsearch-mocksolrplugin[ElasticSearch Mock Solr Plugin] (by Matt Weber)
 * https://github.com/viniciusccarvalho/elasticsearch-newrelic[ElasticSearch New Relic Plugin] (by Vinicius Carvalho)
-* https://github.com/swoop-inc/elasticsearch.github.com[ElasticSearch Statsd Plugin] (by Swoop Inc.)
+* https://github.com/swoop-inc/elasticsearch-statsd-plugin[ElasticSearch Statsd Plugin] (by Swoop Inc.)
 * https://github.com/endgameinc/elasticsearch-term-plugin[Terms Component Plugin] (by Endgame Inc.)
 * http://tlrx.github.com/elasticsearch-view-plugin[ElasticSearch View Plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)

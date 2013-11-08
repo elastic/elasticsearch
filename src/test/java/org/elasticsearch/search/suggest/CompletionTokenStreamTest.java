@@ -25,10 +25,7 @@ import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.SynonymMap.Builder;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.analysis.tokenattributes.*;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
@@ -41,6 +38,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase {
 
@@ -115,6 +114,31 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
         assertEquals(count, maxPos);
 
     }
+
+    @Test
+    public void testSuggestTokenFilterProperlyDelegateInputStream() throws Exception {
+        TokenStream tokenStream = new MockTokenizer(new StringReader("mykeyword"), MockTokenizer.WHITESPACE, true);
+        BytesRef payload = new BytesRef("Surface keyword|friggin payload|10");
+        TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenStream, payload, new CompletionTokenStream.ToFiniteStrings() {
+            @Override
+            public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
+                return suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+            }
+        }));
+        TermToBytesRefAttribute termAtt = suggestTokenStream.getAttribute(TermToBytesRefAttribute.class);
+        BytesRef ref = termAtt.getBytesRef();
+        assertNotNull(ref);
+        suggestTokenStream.reset();
+
+        while (suggestTokenStream.incrementToken()) {
+            termAtt.fillBytesRef();
+            assertThat(ref.utf8ToString(), equalTo("mykeyword"));
+        }
+        suggestTokenStream.end();
+        suggestTokenStream.close();
+    }
+
+
     
     @Test(expected = IllegalArgumentException.class)
     public void testInValidNumberOfExpansions() throws IOException {

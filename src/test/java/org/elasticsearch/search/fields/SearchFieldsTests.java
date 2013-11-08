@@ -29,7 +29,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SearchFieldsTests extends AbstractIntegrationTest {
+public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings getSettings() {

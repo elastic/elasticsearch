@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class SimpleVersioningTests extends AbstractIntegrationTest {
+public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
 
     @Test

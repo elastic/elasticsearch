@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleIndexTemplateTests extends AbstractIntegrationTest {
+public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
 
     @Test

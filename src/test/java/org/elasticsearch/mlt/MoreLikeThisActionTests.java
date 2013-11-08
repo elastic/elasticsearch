@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class MoreLikeThisActionTests extends AbstractIntegrationTest {
+public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleMoreLikeThis() throws Exception {

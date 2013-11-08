@@ -38,9 +38,9 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class IndexGatewayTests extends AbstractIntegrationTest {
+public class IndexGatewayTests extends ElasticsearchIntegrationTest {
 
     private String storeType;
     private final SetOnce<Settings> settings = new SetOnce<Settings>();

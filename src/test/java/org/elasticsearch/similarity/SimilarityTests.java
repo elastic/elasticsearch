@@ -21,7 +21,7 @@ package org.elasticsearch.similarity;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -29,7 +29,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityTests  extends AbstractIntegrationTest {
+public class SimilarityTests  extends ElasticsearchIntegrationTest {
     
 
     @Test

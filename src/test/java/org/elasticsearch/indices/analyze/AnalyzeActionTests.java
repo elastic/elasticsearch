@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class AnalyzeActionTests extends AbstractIntegrationTest {
+public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void simpleAnalyzerTests() throws Exception {

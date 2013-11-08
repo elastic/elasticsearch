@@ -30,9 +30,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numNodes = 2)
-public class SimpleIndexStatsTests extends AbstractIntegrationTest {
+public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleStats() throws Exception {

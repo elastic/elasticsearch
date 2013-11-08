@@ -30,9 +30,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ClusterScope(numNodes=0, scope=Scope.TEST)
-public class LocalGatewayIndicesWarmerTests extends AbstractIntegrationTest {
+public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndicesWarmerTests.class);
 

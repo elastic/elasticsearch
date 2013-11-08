@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * This test basically verifies that search with a single shard active (cause we indexed to it) and other
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
-public class SearchWhileCreatingIndexTests extends AbstractIntegrationTest {
+public class SearchWhileCreatingIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow

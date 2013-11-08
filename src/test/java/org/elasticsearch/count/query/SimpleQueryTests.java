@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleQueryTests extends AbstractIntegrationTest {
+public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void passQueryAsStringTest() throws Exception {

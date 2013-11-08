@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Set;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SearchStatsTests extends AbstractIntegrationTest {
+public class SearchStatsTests extends ElasticsearchIntegrationTest {
     
     @Override
     public Settings getSettings() {

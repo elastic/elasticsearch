@@ -26,7 +26,7 @@ import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeIntegrationTests extends AbstractIntegrationTest {
+public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexPointsFilterRectangle() throws Exception {

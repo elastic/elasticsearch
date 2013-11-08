@@ -11,7 +11,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.CyclicBarrier;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class BulkTests extends AbstractIntegrationTest {
+public class BulkTests extends ElasticsearchIntegrationTest {
 
 
     @Test

@@ -23,7 +23,7 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ExplainActionTests extends AbstractIntegrationTest {
+public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
 
     @Test

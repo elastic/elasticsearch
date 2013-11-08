@@ -24,8 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -36,7 +36,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-public class SimpleSearchTests extends AbstractIntegrationTest {
+public class SimpleSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSearchNullIndex() {

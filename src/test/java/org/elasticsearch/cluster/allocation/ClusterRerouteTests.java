@@ -33,9 +33,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
-public class ClusterRerouteTests extends AbstractIntegrationTest {
+public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
 

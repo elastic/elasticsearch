@@ -23,9 +23,9 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ClusterScope(scope=Scope.SUITE, numNodes=2)
-public class ClusterSearchShardsTests extends AbstractIntegrationTest {
+public class ClusterSearchShardsTests extends ElasticsearchIntegrationTest {
     
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

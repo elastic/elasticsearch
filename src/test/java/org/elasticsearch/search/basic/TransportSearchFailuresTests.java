@@ -31,7 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class TransportSearchFailuresTests extends AbstractIntegrationTest {
+public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFailedSearchWithWrongQuery() throws Exception {

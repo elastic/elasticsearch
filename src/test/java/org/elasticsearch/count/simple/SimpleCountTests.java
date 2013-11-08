@@ -4,7 +4,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -15,7 +15,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-public class SimpleCountTests extends AbstractIntegrationTest {
+public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCountRandomPreference() throws InterruptedException, ExecutionException {

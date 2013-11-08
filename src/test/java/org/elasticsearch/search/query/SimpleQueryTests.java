@@ -36,7 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleQueryTests extends AbstractIntegrationTest {
+public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {

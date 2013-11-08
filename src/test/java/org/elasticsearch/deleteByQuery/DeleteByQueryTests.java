@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,7 +33,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DeleteByQueryTests extends AbstractIntegrationTest {
+public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteAllNoIndices() {

@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.hasItem;
 /**
  *
  */
-public class SimplePercolatorTests extends AbstractIntegrationTest {
+public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void percolateOnRecreatedIndex() throws Exception {

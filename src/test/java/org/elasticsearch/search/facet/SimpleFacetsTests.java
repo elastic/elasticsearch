@@ -43,7 +43,7 @@ import org.elasticsearch.search.facet.terms.TermsFacet.Entry;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleFacetsTests extends AbstractIntegrationTest {
+public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     private int numRuns = -1;
     @Override

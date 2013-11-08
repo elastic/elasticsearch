@@ -10,7 +10,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.*;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ExtendedFacetsTests extends AbstractIntegrationTest {
+public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings getSettings() {

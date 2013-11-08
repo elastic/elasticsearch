@@ -35,9 +35,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.junit.Test;
 
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(numNodes = 0, scope = Scope.TEST)
-public class SimpleRecoveryLocalGatewayTests extends AbstractIntegrationTest {
+public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
 
     private ImmutableSettings.Builder settingsBuilder() {

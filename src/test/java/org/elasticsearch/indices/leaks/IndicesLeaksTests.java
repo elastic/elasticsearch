@@ -27,9 +27,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.lang.ref.WeakReference;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 @ClusterScope(scope=Scope.TEST, numNodes=1)
-public class IndicesLeaksTests extends AbstractIntegrationTest {
+public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})

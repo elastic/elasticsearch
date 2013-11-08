@@ -24,12 +24,12 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-public class IgnoreIndicesTests extends AbstractIntegrationTest {
+public class IgnoreIndicesTests extends ElasticsearchIntegrationTest {
 
 
     @Test

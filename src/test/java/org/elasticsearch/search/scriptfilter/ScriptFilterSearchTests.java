@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class ScriptFilterSearchTests extends AbstractIntegrationTest {
+public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
     private final static Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

@@ -24,7 +24,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,8 +32,8 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numNodes = 1)
-public class CustomHighlighterSearchTests extends AbstractIntegrationTest {
+public class CustomHighlighterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

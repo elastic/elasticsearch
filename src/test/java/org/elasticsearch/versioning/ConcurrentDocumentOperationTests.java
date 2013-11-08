@@ -2,7 +2,7 @@ package org.elasticsearch.versioning;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class ConcurrentDocumentOperationTests extends AbstractIntegrationTest {
+public class ConcurrentDocumentOperationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void concurrentOperationOnSameDocTest() throws Exception {

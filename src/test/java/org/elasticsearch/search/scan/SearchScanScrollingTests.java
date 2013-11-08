@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.Set;
 
@@ -34,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SearchScanScrollingTests extends AbstractIntegrationTest {
+public class SearchScanScrollingTests extends ElasticsearchIntegrationTest {
 
     public void testRandomized() throws Exception {
         testScroll(between(1, 4), atLeast(100), between(1, 300), getRandom().nextBoolean(), getRandom().nextBoolean());

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.AbstractIntegrationTest;
@@ -26,18 +27,19 @@ import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import org.elasticsearch.test.AbstractIntegrationTest.Scope;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numNodes=0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
 public class SpecificMasterNodesTests extends AbstractIntegrationTest {
 
     protected final ImmutableSettings.Builder settingsBuilder() {
         return ImmutableSettings.builder().put("discovery.type", "zen");
     }
+
     @Test
     public void simpleOnlyMasterNodeElection() {
         logger.info("--> start data node / non master node");
@@ -94,5 +96,30 @@ public class SpecificMasterNodesTests extends AbstractIntegrationTest {
         cluster().stopCurrentMasterNode();
         assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
         assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
+    }
+
+    /**
+     * Tests that putting custom default mapping and then putting a type mapping will have the default mapping merged
+     * to the type mapping.
+     */
+    @Test
+    public void testCustomDefaultMapping() throws Exception {
+        logger.info("--> start master node / non data");
+        cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+
+        logger.info("--> start data node / non master node");
+        cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false));
+
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings("number_of_shards", 1).get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("_timestamp", "enabled=true"));
+
+        MappingMetaData defaultMapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("_default_");
+        assertThat(defaultMapping.getSourceAsMap().get("_timestamp"), notNullValue());
+
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("_timestamp", "enabled=true"));
+
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("foo", "enabled=true"));
+        MappingMetaData type1Mapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type1");
+        assertThat(type1Mapping.getSourceAsMap().get("_timestamp"), notNullValue());
     }
 }

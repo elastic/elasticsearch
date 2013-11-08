@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
@@ -115,9 +116,15 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 if (indexService == null) {
                                     indexService = indicesService.indexService(indexMetaData.index());
                                     if (indexService == null) {
-                                        // temporarily create the index so we have can parse the filter
+                                        // temporarily create the index and add mappings so we have can parse the filter
                                         try {
                                             indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), clusterService.localNode().id());
+                                            if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.mappings().get(MapperService.DEFAULT_MAPPING).source().string(), false);
+                                            }
+                                            for (MappingMetaData mappingMetaData : indexMetaData.mappings().values()) {
+                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source().string(), false);
+                                            }
                                         } catch (Exception e) {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.index());
                                             continue;

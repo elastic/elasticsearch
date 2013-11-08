@@ -125,10 +125,9 @@ if NOT "%ES_HEAP_SIZE%" == "" set ES_MAX_MEM=%ES_HEAP_SIZE%
 call:convertxm %ES_MIN_MEM% JVM_XMS
 call:convertxm %ES_MAX_MEM% JVM_XMX
 
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
-
-rem JAVA_OPTS might be empty so remove the spaces that might trip commons daemon
-set JAVA_OPTS=%JAVA_OPTS: =%
+rem java_opts might be empty - init to avoid tripping commons daemon (if the command starts with ;)
+if not "%JAVA_OPTS%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
+if "%JAVA_OPTS%" == "" set JAVA_OPTS=-XX:+UseParNewGC
 
 if NOT "%ES_HEAP_NEWSIZE%" == "" set JAVA_OPTS=%JAVA_OPTS% -Xmn%ES_HEAP_NEWSIZE%
 
@@ -174,10 +173,8 @@ set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%C
 
 set JVM_OPTS=%JAVA_OPTS: =;%
 
-if not "%ES_JAVA_OPTS%" == "" (
-set JVM_ES_JAVA_OPTS=%ES_JAVA_OPTS: =#%
-set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
-)
+if not "%ES_JAVA_OPTS%" == "" set JVM_ES_JAVA_OPTS=%ES_JAVA_OPTS: =#%
+if not "%ES_JAVA_OPTS%" == "" set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0

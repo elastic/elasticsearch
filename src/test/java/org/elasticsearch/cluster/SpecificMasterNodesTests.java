@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
 import org.elasticsearch.test.AbstractIntegrationTest.Scope;
@@ -121,5 +122,17 @@ public class SpecificMasterNodesTests extends AbstractIntegrationTest {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("foo", "enabled=true"));
         MappingMetaData type1Mapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type1");
         assertThat(type1Mapping.getSourceAsMap().get("_timestamp"), notNullValue());
+    }
+
+    @Test
+    public void testAliasFilterValidation() throws Exception {
+        logger.info("--> start master node / non data");
+        cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+
+        logger.info("--> start data node / non master node");
+        cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false));
+
+        assertAcked(prepareCreate("test").addMapping("type1", "{\"type1\" : {\"properties\" : {\"table_a\" : { \"type\" : \"nested\", \"properties\" : {\"field_a\" : { \"type\" : \"string\" },\"field_b\" :{ \"type\" : \"string\" }}}}}}"));
+        client().admin().indices().prepareAliases().addAlias("test", "a_test", FilterBuilders.nestedFilter("table_a", FilterBuilders.termFilter("table_a.field_b", "y"))).get();
     }
 }

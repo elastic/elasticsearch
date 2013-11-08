@@ -105,7 +105,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @Ignore
 @IntegrationTests
-public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
+public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
     
     public static final String INDEX_SEED_SETTING = "index.tests.seed";
     
@@ -630,7 +630,7 @@ public abstract class AbstractIntegrationTest extends ElasticsearchTestCase {
     }
     
     private ClusterScope getAnnotation(Class<?> clazz) {
-        if (clazz == Object.class || clazz == AbstractIntegrationTest.class) {
+        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return null;
         }
         ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);

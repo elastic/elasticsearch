@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleRecoveryTests extends AbstractIntegrationTest {
+public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings getSettings() {

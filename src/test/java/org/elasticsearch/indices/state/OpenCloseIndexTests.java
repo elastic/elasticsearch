@@ -30,14 +30,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class OpenCloseIndexTests extends AbstractIntegrationTest {
+public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleCloseOpen() {

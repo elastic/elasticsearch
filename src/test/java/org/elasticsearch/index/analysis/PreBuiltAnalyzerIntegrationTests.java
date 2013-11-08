@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class PreBuiltAnalyzerIntegrationTests extends AbstractIntegrationTest {
+public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {

@@ -24,10 +24,10 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  *
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
-public class FullRollingRestartTests extends AbstractIntegrationTest {
+public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
         ClusterHealthResponse clusterHealth = requestBuilder.get();

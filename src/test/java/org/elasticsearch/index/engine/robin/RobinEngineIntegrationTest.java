@@ -30,7 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ import java.util.Collection;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
+public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSetIndexCompoundOnFlush() {

@@ -24,7 +24,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class PercolatorFacetsTests extends AbstractIntegrationTest {
+public class PercolatorFacetsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFacets() throws Exception {

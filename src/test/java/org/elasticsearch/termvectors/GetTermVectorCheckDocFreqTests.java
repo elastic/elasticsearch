@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -40,7 +40,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetTermVectorCheckDocFreqTests extends AbstractIntegrationTest {
+public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest {
 
     
 

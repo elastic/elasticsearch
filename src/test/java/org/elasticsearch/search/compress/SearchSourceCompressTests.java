@@ -27,7 +27,7 @@ import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SearchSourceCompressTests  extends AbstractIntegrationTest {
+public class SearchSourceCompressTests  extends ElasticsearchIntegrationTest {
     
     @Test
     public void testSourceCompressionLZF() throws IOException {

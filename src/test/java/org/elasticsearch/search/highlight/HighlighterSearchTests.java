@@ -36,7 +36,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matcher;
 import org.junit.Test;
 
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class HighlighterSearchTests extends AbstractIntegrationTest {
+public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     
     @Test
     // see #3486

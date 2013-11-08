@@ -22,9 +22,9 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.AbstractIntegrationTest.Scope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
-public class UpdateSettingsValidationTests extends AbstractIntegrationTest {
+public class UpdateSettingsValidationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUpdateSettingsValidation() throws Exception {

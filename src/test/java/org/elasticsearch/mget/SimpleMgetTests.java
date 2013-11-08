@@ -24,7 +24,7 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleMgetTests extends AbstractIntegrationTest {
+public class SimpleMgetTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {

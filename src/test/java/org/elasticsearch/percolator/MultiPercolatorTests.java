@@ -23,7 +23,7 @@ import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class MultiPercolatorTests extends AbstractIntegrationTest {
+public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasics() throws Exception {

@@ -39,7 +39,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleChildQuerySearchTests extends AbstractIntegrationTest {
+public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiLevelChild() throws Exception {

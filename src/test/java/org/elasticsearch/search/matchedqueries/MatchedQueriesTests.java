@@ -21,7 +21,7 @@ package org.elasticsearch.search.matchedqueries;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.AbstractIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasItemInArray;
 /**
  *
  */
-public class MatchedQueriesTests extends AbstractIntegrationTest {
+public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMatchedQueryFromFilteredQuery() throws Exception {

@@ -78,6 +78,28 @@ fields within a document indexed treated as boolean fields.
 All REST APIs support providing numbered parameters as `string` on top
 of supporting the native JSON number types.
 
+[[distance-units]]
+[float]
+=== Distance Units
+
+Wherever distances need to be specified, such as the `distance` parameter in
+the <<query-dsl-geo-distance-filter>>) or the `precision` parameter in the
+<<query-dsl-geohash-cell-filter>>, the default unit if none is specified is
+the meter. Distances can be specified in other units, such as `"1km"` or
+`"2mi"` (2 miles).
+
+The full list of units is listed below:
+
+[horizontal]
+Mile::          `mi` or `miles`
+Yard::          `yd` or `yards`
+Inch::          `in` or `inch`
+Kilometer::     `km` or `kilometers`
+Meter::         `m` or `meters`
+Centimeter::    `cm` or `centimeters`
+Millimeter::    `mm` or `millimeters`
+
+
 [float]
 === Result Casing
 

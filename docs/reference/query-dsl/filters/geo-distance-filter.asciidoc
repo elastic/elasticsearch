@@ -36,7 +36,7 @@ filter:
             }
         }
     }
-}    
+}
 --------------------------------------------------
 
 [float]
@@ -138,23 +138,27 @@ Format in `lat,lon`.
 
 The following are options allowed on the filter:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Option |Description
-|`distance` |The distance to include hits in the filter. The distance
-can be a numeric value, and then the `unit` (either `mi`, `miles`, `in`, `inch`, `yd`, `yards`, `km`, `kilometers`,
-`mm`, `millimeters`, `cm`, `centimeters`, `m` or `meters` can be set) controlling the unit.
-Or a single string with the unit as well.
+[horizontal]
 
-|`distance_type` |How to compute the distance. Can either be `arc`
-(better precision) or `plane` (faster). Defaults to `arc`.
+`distance`::
 
-|`optimize_bbox` |Will an optimization of using first a bounding box
-check will be used. Defaults to `memory` which will do in memory checks.
-Can also have values of `indexed` to use indexed value check (make sure
-the `geo_point` type index lat lon in this case), or `none` which
-disables bounding box optimization.
-|=======================================================================
+    The radius of the circle centred on the specified location. Points which
+    fall into this circle are considered to be matches. The `distance` can be
+    specified in various units. See <<distance-units>>.
+
+`distance_type`::
+
+    How to compute the distance. Can either be `arc` (better precision) or
+    `plane` (faster). Defaults to `arc`.
+
+`optimize_bbox`::
+
+    Whether to use the optimization of first running a bounding box check
+    before the distance check. Defaults to `memory` which will do in memory
+    checks. Can also have values of `indexed` to use indexed value check (make
+    sure the `geo_point` type index lat lon in this case), or `none` which
+    disables bounding box optimization.
+
 
 [float]
 ==== geo_point Type

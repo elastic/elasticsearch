@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,11 +50,11 @@ public class IndexTemplateMetaData {
     private final Settings settings;
 
     // the mapping source should always include the type as top level
-    private final ImmutableMap<String, CompressedString> mappings;
+    private final ImmutableOpenMap<String, CompressedString> mappings;
 
-    private final ImmutableMap<String, IndexMetaData.Custom> customs;
+    private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
 
-    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableMap<String, CompressedString> mappings, ImmutableMap<String, IndexMetaData.Custom> customs) {
+    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedString> mappings, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
         this.name = name;
         this.order = order;
         this.template = template;
@@ -94,19 +95,19 @@ public class IndexTemplateMetaData {
         return settings();
     }
 
-    public ImmutableMap<String, CompressedString> mappings() {
+    public ImmutableOpenMap<String, CompressedString> mappings() {
         return this.mappings;
     }
 
-    public ImmutableMap<String, CompressedString> getMappings() {
+    public ImmutableOpenMap<String, CompressedString> getMappings() {
         return this.mappings;
     }
 
-    public ImmutableMap<String, IndexMetaData.Custom> customs() {
+    public ImmutableOpenMap<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableMap<String, IndexMetaData.Custom> getCustoms() {
+    public ImmutableOpenMap<String, IndexMetaData.Custom> getCustoms() {
         return this.customs;
     }
 
@@ -154,12 +155,14 @@ public class IndexTemplateMetaData {
 
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
-        private MapBuilder<String, CompressedString> mappings = MapBuilder.newMapBuilder();
+        private ImmutableOpenMap.Builder<String, CompressedString> mappings;
 
-        private MapBuilder<String, IndexMetaData.Custom> customs = MapBuilder.newMapBuilder();
+        private ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
 
         public Builder(String name) {
             this.name = name;
+            mappings = ImmutableOpenMap.builder();
+            customs = ImmutableOpenMap.builder();
         }
 
         public Builder(IndexTemplateMetaData indexTemplateMetaData) {
@@ -167,8 +170,9 @@ public class IndexTemplateMetaData {
             order(indexTemplateMetaData.order());
             template(indexTemplateMetaData.template());
             settings(indexTemplateMetaData.settings());
-            mappings.putAll(indexTemplateMetaData.mappings());
-            customs.putAll(indexTemplateMetaData.customs());
+
+            mappings = ImmutableOpenMap.builder(indexTemplateMetaData.mappings());
+            customs = ImmutableOpenMap.builder(indexTemplateMetaData.customs());
         }
 
         public Builder order(int order) {
@@ -225,7 +229,7 @@ public class IndexTemplateMetaData {
         }
 
         public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, template, settings, mappings.immutableMap(), customs.immutableMap());
+            return new IndexTemplateMetaData(name, order, template, settings, mappings.build(), customs.build());
         }
 
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -242,22 +246,22 @@ public class IndexTemplateMetaData {
 
             if (params.paramAsBoolean("reduce_mappings", false)) {
                 builder.startObject("mappings");
-                for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
-                    byte[] mappingSource = entry.getValue().uncompressed();
+                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                    byte[] mappingSource = cursor.value.uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();
-                    if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                        mapping = (Map<String, Object>) mapping.get(cursor.key);
                     }
-                    builder.field(entry.getKey());
+                    builder.field(cursor.key);
                     builder.map(mapping);
                 }
                 builder.endObject();
             } else {
                 builder.startArray("mappings");
-                for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
-                    byte[] data = entry.getValue().uncompressed();
+                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                    byte[] data = cursor.value.uncompressed();
                     XContentParser parser = XContentFactory.xContent(data).createParser(data);
                     Map<String, Object> mapping = parser.mapOrderedAndClose();
                     builder.map(mapping);
@@ -265,9 +269,9 @@ public class IndexTemplateMetaData {
                 builder.endArray();
             }
 
-            for (Map.Entry<String, IndexMetaData.Custom> entry : indexTemplateMetaData.customs().entrySet()) {
-                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
-                IndexMetaData.lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
+            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
 
@@ -371,14 +375,14 @@ public class IndexTemplateMetaData {
             out.writeString(indexTemplateMetaData.template());
             ImmutableSettings.writeSettingsToStream(indexTemplateMetaData.settings(), out);
             out.writeVInt(indexTemplateMetaData.mappings().size());
-            for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
+            for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                out.writeString(cursor.key);
+                cursor.value.writeTo(out);
             }
             out.writeVInt(indexTemplateMetaData.customs().size());
-            for (Map.Entry<String, IndexMetaData.Custom> entry : indexTemplateMetaData.customs().entrySet()) {
-                out.writeString(entry.getKey());
-                IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+                out.writeString(cursor.key);
+                IndexMetaData.lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
             }
         }
     }

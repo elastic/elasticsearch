@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -211,17 +212,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
-                        for (Map.Entry<String, CompressedString> entry : template.mappings().entrySet()) {
-                            if (mappings.containsKey(entry.getKey())) {
-                                XContentHelper.mergeDefaults(mappings.get(entry.getKey()), parseMapping(entry.getValue().string()));
+                        for (ObjectObjectCursor<String, CompressedString> cursor : template.mappings()) {
+                            if (mappings.containsKey(cursor.key)) {
+                                XContentHelper.mergeDefaults(mappings.get(cursor.key), parseMapping(cursor.value.string()));
                             } else {
-                                mappings.put(entry.getKey(), parseMapping(entry.getValue().string()));
+                                mappings.put(cursor.key, parseMapping(cursor.value.string()));
                             }
                         }
                         // handle custom
-                        for (Map.Entry<String, Custom> customEntry : template.customs().entrySet()) {
-                            String type = customEntry.getKey();
-                            IndexMetaData.Custom custom = customEntry.getValue();
+                        for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
+                            String type = cursor.key;
+                            IndexMetaData.Custom custom = cursor.value;
                             IndexMetaData.Custom existing = customs.get(type);
                             if (existing == null) {
                                 customs.put(type, custom);

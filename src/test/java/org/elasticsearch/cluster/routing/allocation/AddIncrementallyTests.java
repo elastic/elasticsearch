@@ -326,8 +326,9 @@ public class AddIncrementallyTests extends ElasticsearchTestCase {
 
         IndexMetaData.Builder index = IndexMetaData.builder("test" + indexOrdinal).numberOfShards(numberOfShards).numberOfReplicas(
                 numberOfReplicas);
-        metaDataBuilder = metaDataBuilder.put(index);
-        routingTableBuilder.addAsNew(index.build());
+        IndexMetaData imd = index.build();
+        metaDataBuilder = metaDataBuilder.put(imd, true);
+        routingTableBuilder.addAsNew(imd);
 
         MetaData metaData = metaDataBuilder.build();
         RoutingTable routingTable = routingTableBuilder.build();

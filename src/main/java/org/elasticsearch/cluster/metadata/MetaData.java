@@ -23,7 +23,10 @@ import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -33,6 +36,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -177,7 +181,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
             IndexMetaData indexMetaData = cursor.value;
             String index = indexMetaData.index();
-            for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
+            for (ObjectCursor<AliasMetaData> aliasCursor : indexMetaData.aliases().values()) {
+                AliasMetaData aliasMd = aliasCursor.value;
                 @SuppressWarnings("unchecked")
                 ImmutableOpenMap.Builder<String, AliasMetaData> indexAliasMap = (ImmutableOpenMap.Builder<String, AliasMetaData>) tmpAliases.get(aliasMd.alias());
                 if (indexAliasMap == null) {
@@ -208,7 +213,8 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             indicesLst.add(indexMetaData.index());
 
-            for (String alias : indexMetaData.aliases().keySet()) {
+            for (ObjectCursor<String> cursor1 : indexMetaData.aliases().keys()) {
+                String alias = cursor1.value;
                 indicesLst = aliasAndIndexToIndexMap.get(alias);
                 if (indicesLst == null) {
                     indicesLst = new StringArray();
@@ -260,31 +266,30 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
      * @return the found index aliases grouped by index
      */
-    public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public Map<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableMap.of();
         }
 
-        ImmutableMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableMap.builder();
+        MapBuilder<String, ImmutableList<AliasMetaData>> mapBuilder = MapBuilder.newMapBuilder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            // TODO: When migrate IndexMetaData, make hppc based filtering with hppc's #forEach() method
-            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
-
-                public boolean apply(String alias) {
-                    // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
-                    return Regex.simpleMatch(aliases, alias);
+            List<AliasMetaData> filteredValues = Lists.newArrayList();
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
+                AliasMetaData value = cursor.value;
+                if (Regex.simpleMatch(aliases, value.alias())) {
+                    filteredValues.add(value);
                 }
+            }
 
-            }).values();
             if (!filteredValues.isEmpty()) {
                 mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
             }
         }
-        return mapBuilder.build();
+        return mapBuilder.readOnlyMap();
     }
 
     /**
@@ -305,14 +310,13 @@ public class MetaData implements Iterable<IndexMetaData> {
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            // TODO: When migrate IndexMetaData, make hppc based filtering with hppc's #forEach() method
-            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
-
-                public boolean apply(String alias) {
-                    return Regex.simpleMatch(aliases, alias);
+            List<AliasMetaData> filteredValues = Lists.newArrayList();
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
+                AliasMetaData value = cursor.value;
+                if (Regex.simpleMatch(aliases, value.alias())) {
+                    filteredValues.add(value);
                 }
-
-            }).values();
+            }
             if (!filteredValues.isEmpty()) {
                 return true;
             }
@@ -320,33 +324,30 @@ public class MetaData implements Iterable<IndexMetaData> {
         return false;
     }
 
-    public ImmutableMap<String, ImmutableMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
         assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
-            return ImmutableMap.of();
+            return ImmutableOpenMap.of();
         }
 
-        ImmutableMap.Builder<String, ImmutableMap<String, MappingMetaData>> indexMapBuilder = ImmutableMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectOpenHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            Map<String, MappingMetaData> filteredMappings;
+            ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings;
             if (types.length == 0) {
-                indexMapBuilder.put(index, ImmutableMap.copyOf(indexMetaData.getMappings())); // No types specified means get it all
+                indexMapBuilder.put(index, indexMetaData.getMappings()); // No types specified means get it all
 
             } else {
-                // TODO: When migrate IndexMetaData, make hppc based filtering with hppc's #forEach() method
-                filteredMappings = Maps.filterKeys(indexMetaData.getMappings(), new Predicate<String>() {
-
-                    @Override
-                    public boolean apply(String type) {
-                        return Regex.simpleMatch(types, type);
+                filteredMappings = ImmutableOpenMap.builder();
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                    if (Regex.simpleMatch(types, cursor.key)) {
+                        filteredMappings.put(cursor.key, cursor.value);
                     }
-
-                });
+                }
                 if (!filteredMappings.isEmpty()) {
-                    indexMapBuilder.put(index, ImmutableMap.copyOf(filteredMappings));
+                    indexMapBuilder.put(index, filteredMappings.build());
                 }
             }
         }
@@ -369,7 +370,6 @@ public class MetaData implements Iterable<IndexMetaData> {
                 continue;
             }
 
-            // TODO: When migrate IndexMetaData, make hppc based filtering with hppc's #forEach() method
             Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
 
                 @Override

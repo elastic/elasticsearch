@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -345,22 +346,22 @@ public class ClusterState implements ToXContent {
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (Map.Entry<String, MappingMetaData> entry : indexMetaData.mappings().entrySet()) {
-                    byte[] mappingSource = entry.getValue().source().uncompressed();
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                    byte[] mappingSource = cursor.value.source().uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();
-                    if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                        mapping = (Map<String, Object>) mapping.get(cursor.key);
                     }
-                    builder.field(entry.getKey());
+                    builder.field(cursor.key);
                     builder.map(mapping);
                 }
                 builder.endObject();
 
                 builder.startArray("aliases");
-                for (String alias : indexMetaData.aliases().keySet()) {
-                    builder.value(alias);
+                for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
+                    builder.value(cursor.value);
                 }
                 builder.endArray();
 

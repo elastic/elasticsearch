@@ -19,13 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,7 +37,6 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -69,7 +69,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
-                    ImmutableMap<String, ImmutableMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
+                    ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                     if (mappingsByIndex.isEmpty()) {
                         if (indices.length != 0 && types.length != 0) {
                             channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types[0])));
@@ -84,11 +84,11 @@ public class RestGetMappingAction extends BaseRestHandler {
                         return;
                     }
 
-                    for (Map.Entry<String, ImmutableMap<String, MappingMetaData>> indexEntry : mappingsByIndex.entrySet()) {
-                        builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
-                        for (Map.Entry<String, MappingMetaData> typeEntry : indexEntry.getValue().entrySet()) {
-                            builder.field(typeEntry.getKey());
-                            builder.map(typeEntry.getValue().sourceAsMap());
+                    for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
+                        builder.startObject(indexEntry.key, XContentBuilder.FieldCaseConversion.NONE);
+                        for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                            builder.field(typeEntry.key);
+                            builder.map(typeEntry.value.sourceAsMap());
                         }
                         builder.endObject();
                     }

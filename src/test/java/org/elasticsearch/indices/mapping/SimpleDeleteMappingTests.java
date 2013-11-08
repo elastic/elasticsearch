@@ -53,7 +53,7 @@ public class SimpleDeleteMappingTests extends ElasticsearchIntegrationTest {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (int i = 0; i < 10 && !clusterState.metaData().index("test").mappings().containsKey("type1"); i++, Thread.sleep(100)) ;
 
-        assertThat(clusterState.metaData().index("test").mappings(), hasKey("type1"));
+        assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").setTypes("type1").execute().actionGet();
         assertThat(mappingsResponse.getMappings().get("test").get("type1"), notNullValue());

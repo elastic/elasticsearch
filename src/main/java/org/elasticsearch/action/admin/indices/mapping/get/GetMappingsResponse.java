@@ -19,33 +19,33 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  */
 public class GetMappingsResponse extends ActionResponse {
 
-    private ImmutableMap<String, ImmutableMap<String, MappingMetaData>> mappings = ImmutableMap.of();
+    private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
 
-    GetMappingsResponse(ImmutableMap<String, ImmutableMap<String, MappingMetaData>> mappings) {
+    GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse() {
     }
 
-    public ImmutableMap<String, ImmutableMap<String, MappingMetaData>> mappings() {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
         return mappings;
     }
 
-    public ImmutableMap<String, ImmutableMap<String, MappingMetaData>> getMappings() {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
         return mappings();
     }
 
@@ -53,11 +53,11 @@ public class GetMappingsResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableMap.Builder<String, ImmutableMap<String, MappingMetaData>> indexMapBuilder = ImmutableMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            ImmutableMap.Builder<String, MappingMetaData> typeMapBuilder = ImmutableMap.builder();
+            ImmutableOpenMap.Builder<String, MappingMetaData> typeMapBuilder = ImmutableOpenMap.builder();
             for (int j = 0; j < valueSize; j++) {
                 typeMapBuilder.put(in.readString(), MappingMetaData.readFrom(in));
             }
@@ -70,12 +70,12 @@ public class GetMappingsResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(mappings.size());
-        for (Map.Entry<String, ImmutableMap<String, MappingMetaData>> indexEntry : mappings.entrySet()) {
-            out.writeString(indexEntry.getKey());
-            out.writeVInt(indexEntry.getValue().size());
-            for (Map.Entry<String, MappingMetaData> typeEntry : indexEntry.getValue().entrySet()) {
-                out.writeString(typeEntry.getKey());
-                MappingMetaData.writeTo(typeEntry.getValue(), out);
+        for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
+            out.writeString(indexEntry.key);
+            out.writeVInt(indexEntry.value.size());
+            for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                out.writeString(typeEntry.key);
+                MappingMetaData.writeTo(typeEntry.value, out);
             }
         }
     }

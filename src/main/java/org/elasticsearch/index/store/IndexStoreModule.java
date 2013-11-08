@@ -48,7 +48,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
     public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
         // Same logic as FSDirectory#open ...
-        if ((Constants.WINDOWS || Constants.SUN_OS)
+        if ((Constants.WINDOWS || Constants.SUN_OS || Constants.LINUX)
                 && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
             indexStoreModule = MmapFsIndexStoreModule.class;
         } else if (Constants.WINDOWS) {

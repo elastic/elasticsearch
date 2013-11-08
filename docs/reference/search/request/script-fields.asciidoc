@@ -46,15 +46,15 @@ type). Here is an example:
     }
 --------------------------------------------------
 
-Note the `_source` keyword here to navigate the json like model.
+Note the `_source` keyword here to navigate the json-like model.
 
-Its important to understand the difference between
+It's important to understand the difference between
 `doc['my_field'].value` and `_source.my_field`. The first, using the doc
 keyword, will cause the terms for that field to be loaded to memory
 (cached), which will result in faster execution, but more memory
 consumption. Also, the `doc[...]` notation only allows for simple valued
-fields (can't return a json object from it) and make sense only on non
-analyzed or single term based fields.
+fields (can't return a json object from it) and make sense only on
+non-analyzed or single term based fields.
 
 The `_source` on the other hand causes the source to be loaded, parsed,
 and then only the relevant part of the json is returned.

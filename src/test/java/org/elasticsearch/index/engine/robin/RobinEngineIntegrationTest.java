@@ -100,7 +100,7 @@ public class RobinEngineIntegrationTest extends AbstractIntegrationTest {
             ByteSizeValue directMemoryMax = info.getJvm().getMem().getDirectMemoryMax();
             logger.debug("  --> JVM max direct memory for node [{}] is set to [{}]", info.getNode().getName(), directMemoryMax);
         }
-        final int numDocs = between(100, 500);
+        final int numDocs = between(30, 100); // 30 docs are enough to fail without the fix for #4093
         logger.debug("  --> Indexing [{}] documents", numDocs);
         for (int i = 0; i < numDocs; i++) {
             if ((i+1) % 10 == 0) {

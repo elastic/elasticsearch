@@ -132,7 +132,7 @@ public class ChildrenConstantScoreQuery extends Query {
             if (applyAcceptedDocs) {
                 // In case filters are cached, we need to apply deletes, since filters from filter cache didn't apply deletes
                 this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
-                this.shortCircuitFilter = new ApplyAcceptedDocsFilter(shortCircuitFilter);
+                this.shortCircuitFilter = shortCircuitFilter != null ? new ApplyAcceptedDocsFilter(shortCircuitFilter) : null;
             } else {
                 this.parentFilter = parentFilter;
                 this.shortCircuitFilter = shortCircuitFilter;

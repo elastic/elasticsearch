@@ -48,6 +48,7 @@ import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -604,10 +605,22 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
-        if (state != IndexShardState.POST_RECOVERY && state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.CLOSED) {
+        if (state == IndexShardState.POST_RECOVERY || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
+            return engine.snapshot(snapshotHandler);
+        } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
-        return engine.snapshot(snapshotHandler);
+    }
+
+    @Override
+    public SnapshotIndexCommit snapshotIndex() throws EngineException {
+        IndexShardState state = this.state; // one time volatile read
+        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
+        if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
+            return engine.snapshotIndex();
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
     }
 
     @Override

@@ -1,0 +1,563 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.repositories.blobstore;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.snapshots.*;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static com.google.common.collect.Lists.newArrayList;
+
+/**
+ * BlobStore - based implementation of Snapshot Repository
+ * <p/>
+ * This repository works with any {@link BlobStore} implementation. The blobStore should be initialized in the derived
+ * class before {@link #doStart()} is called.
+ * <p/>
+ * <p/>
+ * BlobStoreRepository maintains the following structure in the blob store
+ * <pre>
+ * {@code
+ *   STORE_ROOT
+ *   |- index             - list of all snapshot name as JSON array
+ *   |- snapshot-20131010 - JSON serialized BlobStoreSnapshot for snapshot "20131010"
+ *   |- metadata-20131010 - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
+ *   |- snapshot-20131011 - JSON serialized BlobStoreSnapshot for snapshot "20131011"
+ *   |- metadata-20131011 - JSON serialized MetaData for snapshot "20131011"
+ *   .....
+ *   |- indices/ - data for all indices
+ *      |- foo/ - data for index "foo"
+ *      |  |- snapshot-20131010 - JSON Serialized IndexMetaData for index "foo"
+ *      |  |- 0/ - data for shard "0" of index "foo"
+ *      |  |  |- __1 \
+ *      |  |  |- __2 |
+ *      |  |  |- __3 |- files from different segments see snapshot-* for their mappings to real segment files
+ *      |  |  |- __4 |
+ *      |  |  |- __5 /
+ *      |  |  .....
+ *      |  |  |- snapshot-20131010 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"
+ *      |  |  |- snapshot-20131011 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
+ *      |  |
+ *      |  |- 1/ - data for shard "1" of index "foo"
+ *      |  |  |- __1
+ *      |  |  .....
+ *      |  |
+ *      |  |-2/
+ *      |  ......
+ *      |
+ *      |- bar/ - data for index bar
+ *      ......
+ * }
+ * </pre>
+ */
+public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Repository> implements Repository {
+
+    private BlobPath basePath;
+
+    private ImmutableBlobContainer snapshotsBlobContainer;
+
+    private final String repositoryName;
+
+    private static final String SNAPSHOT_PREFIX = "snapshot-";
+
+    private static final String SNAPSHOTS_FILE = "index";
+
+    private static final String METADATA_PREFIX = "metadata-";
+
+    private final BlobStoreIndexShardRepository indexShardRepository;
+
+    private final ToXContent.Params globalOnlyFormatParams;
+
+    /**
+     * Constructs new BlobStoreRepository
+     *
+     * @param repositoryName       repository name
+     * @param repositorySettings   repository settings
+     * @param indexShardRepository an instance of IndexShardRepository
+     */
+    protected BlobStoreRepository(String repositoryName, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) {
+        super(repositorySettings.globalSettings());
+        this.repositoryName = repositoryName;
+        this.indexShardRepository = (BlobStoreIndexShardRepository) indexShardRepository;
+        this.basePath = BlobPath.cleanPath();
+        Map<String, String> globalOnlyParams = Maps.newHashMap();
+        globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
+        globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doStart() throws ElasticSearchException {
+        this.snapshotsBlobContainer = blobStore().immutableBlobContainer(basePath);
+        indexShardRepository.initialize(blobStore(), basePath, chunkSize());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doStop() throws ElasticSearchException {
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doClose() throws ElasticSearchException {
+        try {
+            blobStore().close();
+        } catch (Throwable t) {
+            logger.warn("cannot close blob store", t);
+        }
+    }
+
+    /**
+     * Returns initialized and ready to use BlobStore
+     * <p/>
+     * This method is first called in the {@link #doStart()} method.
+     *
+     * @return blob store
+     */
+    abstract protected BlobStore blobStore();
+
+    /**
+     * Returns true if metadata and snapshot files should be compressed
+     *
+     * @return true if compression is needed
+     */
+    protected boolean isCompress() {
+        return false;
+    }
+
+    /**
+     * Returns data file chunk size.
+     * <p/>
+     * This method should return null if no chunking is needed.
+     *
+     * @return chunk size
+     */
+    protected ByteSizeValue chunkSize() {
+        return null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+        try {
+            BlobStoreSnapshot blobStoreSnapshot = BlobStoreSnapshot.builder()
+                    .name(snapshotId.getSnapshot())
+                    .indices(indices)
+                    .startTime(System.currentTimeMillis())
+                    .build();
+            BytesStreamOutput bStream = writeSnapshot(blobStoreSnapshot);
+            String snapshotBlobName = snapshotBlobName(snapshotId);
+            if (snapshotsBlobContainer.blobExists(snapshotBlobName)) {
+                // TODO: Can we make it atomic?
+                throw new InvalidSnapshotNameException(snapshotId, "snapshot with such name already exists");
+            }
+            snapshotsBlobContainer.writeBlob(snapshotBlobName, bStream.bytes().streamInput(), bStream.bytes().length());
+            // Write Global MetaData
+            // TODO: Check if metadata needs to be written
+            bStream = writeGlobalMetaData(metaData);
+            snapshotsBlobContainer.writeBlob(metaDataBlobName(snapshotId), bStream.bytes().streamInput(), bStream.bytes().length());
+            for (String index : indices) {
+                IndexMetaData indexMetaData = metaData.index(index);
+                BlobPath indexPath = basePath.add("indices").add(index);
+                ImmutableBlobContainer indexMetaDataBlobContainer = blobStore().immutableBlobContainer(indexPath);
+                bStream = new BytesStreamOutput();
+                StreamOutput stream = bStream;
+                if (isCompress()) {
+                    stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                }
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
+                builder.startObject();
+                IndexMetaData.Builder.toXContent(indexMetaData, builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                builder.close();
+                indexMetaDataBlobContainer.writeBlob(snapshotBlobName(snapshotId), bStream.bytes().streamInput(), bStream.bytes().length());
+            }
+        } catch (IOException ex) {
+            throw new SnapshotCreationException(snapshotId, ex);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void deleteSnapshot(SnapshotId snapshotId) {
+        Snapshot snapshot = readSnapshot(snapshotId);
+        MetaData metaData = readSnapshotMetaData(snapshotId, snapshot.indices());
+        try {
+            String blobName = snapshotBlobName(snapshotId);
+            // Delete snapshot file first so we wouldn't end up with partially deleted snapshot that looks OK
+            snapshotsBlobContainer.deleteBlob(blobName);
+            snapshotsBlobContainer.deleteBlob(metaDataBlobName(snapshotId));
+            // Now delete all indices
+            for (String index : snapshot.indices()) {
+                BlobPath indexPath = basePath.add("indices").add(index);
+                ImmutableBlobContainer indexMetaDataBlobContainer = blobStore().immutableBlobContainer(indexPath);
+                try {
+                    indexMetaDataBlobContainer.deleteBlob(blobName);
+                } catch (IOException ex) {
+                    throw new SnapshotException(snapshotId, "failed to delete metadata", ex);
+                }
+                IndexMetaData indexMetaData = metaData.index(index);
+                for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+                    indexShardRepository.delete(snapshotId, new ShardId(index, i));
+                }
+            }
+        } catch (IOException ex) {
+            throw new RepositoryException(this.repositoryName, "failed to update snapshot in repository", ex);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Snapshot finalizeSnapshot(SnapshotId snapshotId, String failure, int totalShards, ImmutableList<SnapshotShardFailure> shardFailures) {
+        BlobStoreSnapshot snapshot = readSnapshot(snapshotId);
+        if (snapshot == null) {
+            throw new SnapshotMissingException(snapshotId);
+        }
+        if (snapshot.state().completed()) {
+            throw new SnapshotException(snapshotId, "snapshot is already closed");
+        }
+        try {
+            String blobName = snapshotBlobName(snapshotId);
+            BlobStoreSnapshot.Builder updatedSnapshot = BlobStoreSnapshot.builder().snapshot(snapshot);
+            if (failure == null) {
+                updatedSnapshot.success();
+                updatedSnapshot.failures(totalShards, shardFailures);
+            } else {
+                updatedSnapshot.failed(failure);
+            }
+            updatedSnapshot.endTime(System.currentTimeMillis());
+            snapshot = updatedSnapshot.build();
+            BytesStreamOutput bStream = writeSnapshot(snapshot);
+            snapshotsBlobContainer.writeBlob(blobName, bStream.bytes().streamInput(), bStream.bytes().length());
+            ImmutableList<SnapshotId> snapshotIds = snapshots();
+            if (!snapshotIds.contains(snapshotId)) {
+                snapshotIds = ImmutableList.<SnapshotId>builder().addAll(snapshotIds).add(snapshotId).build();
+            }
+            writeSnapshotList(snapshotIds);
+            return snapshot;
+        } catch (IOException ex) {
+            throw new RepositoryException(this.repositoryName, "failed to update snapshot in repository", ex);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public ImmutableList<SnapshotId> snapshots() {
+        try {
+            List<SnapshotId> snapshots = newArrayList();
+            ImmutableMap<String, BlobMetaData> blobs;
+            try {
+                blobs = snapshotsBlobContainer.listBlobsByPrefix(SNAPSHOT_PREFIX);
+            } catch (UnsupportedOperationException ex) {
+                // Fall back in case listBlobsByPrefix isn't supported by the blob store
+                return readSnapshotList();
+            }
+            int prefixLength = SNAPSHOT_PREFIX.length();
+            for (BlobMetaData md : blobs.values()) {
+                String name = md.name().substring(prefixLength);
+                snapshots.add(new SnapshotId(repositoryName, name));
+            }
+            return ImmutableList.copyOf(snapshots);
+        } catch (IOException ex) {
+            throw new RepositoryException(repositoryName, "failed to list snapshots in repository", ex);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices) {
+        MetaData metaData;
+        try {
+            byte[] data = snapshotsBlobContainer.readBlobFully(metaDataBlobName(snapshotId));
+            metaData = readMetaData(data);
+        } catch (FileNotFoundException ex) {
+            throw new SnapshotMissingException(snapshotId, ex);
+        } catch (IOException ex) {
+            throw new SnapshotException(snapshotId, "failed to get snapshots", ex);
+        }
+        MetaData.Builder metaDataBuilder = MetaData.builder(metaData);
+        for (String index : indices) {
+            BlobPath indexPath = basePath.add("indices").add(index);
+            ImmutableBlobContainer indexMetaDataBlobContainer = blobStore().immutableBlobContainer(indexPath);
+            XContentParser parser = null;
+            try {
+                byte[] data = indexMetaDataBlobContainer.readBlobFully(snapshotBlobName(snapshotId));
+                parser = XContentHelper.createParser(data, 0, data.length);
+                XContentParser.Token token;
+                if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
+                    IndexMetaData indexMetaData = IndexMetaData.Builder.fromXContent(parser);
+                    if ((token = parser.nextToken()) == XContentParser.Token.END_OBJECT) {
+                        metaDataBuilder.put(indexMetaData, false);
+                        continue;
+                    }
+                }
+                throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+            } catch (IOException ex) {
+                throw new SnapshotException(snapshotId, "failed to read metadata", ex);
+            } finally {
+                if (parser != null) {
+                    parser.close();
+                }
+            }
+        }
+        return metaDataBuilder.build();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public BlobStoreSnapshot readSnapshot(SnapshotId snapshotId) {
+        try {
+            String blobName = snapshotBlobName(snapshotId);
+            byte[] data = snapshotsBlobContainer.readBlobFully(blobName);
+            return readSnapshot(data);
+        } catch (FileNotFoundException ex) {
+            throw new SnapshotMissingException(snapshotId, ex);
+        } catch (IOException ex) {
+            throw new SnapshotException(snapshotId, "failed to get snapshots", ex);
+        }
+    }
+
+    /**
+     * Parses JSON containing snapshot description
+     *
+     * @param data snapshot description in JSON format
+     * @return parsed snapshot description
+     * @throws IOException parse exceptions
+     */
+    private BlobStoreSnapshot readSnapshot(byte[] data) throws IOException {
+        XContentParser parser = null;
+        try {
+            parser = XContentHelper.createParser(data, 0, data.length);
+            XContentParser.Token token;
+            if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
+                if ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
+                    parser.nextToken();
+                    BlobStoreSnapshot snapshot = BlobStoreSnapshot.Builder.fromXContent(parser);
+                    if ((token = parser.nextToken()) == XContentParser.Token.END_OBJECT) {
+                        return snapshot;
+                    }
+                }
+            }
+            throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
+
+    /**
+     * Parses JSON containing cluster metadata
+     *
+     * @param data cluster metadata in JSON format
+     * @return parsed metadata
+     * @throws IOException parse exceptions
+     */
+    private MetaData readMetaData(byte[] data) throws IOException {
+        XContentParser parser = null;
+        try {
+            parser = XContentHelper.createParser(data, 0, data.length);
+            XContentParser.Token token;
+            if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
+                if ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
+                    parser.nextToken();
+                    MetaData metaData = MetaData.Builder.fromXContent(parser);
+                    if ((token = parser.nextToken()) == XContentParser.Token.END_OBJECT) {
+                        return metaData;
+                    }
+                }
+            }
+            throw new ElasticSearchParseException("unexpected token  [" + token + "]");
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+    }
+
+    /**
+     * Returns name of snapshot blob
+     *
+     * @param snapshotId snapshot id
+     * @return name of snapshot blob
+     */
+    private String snapshotBlobName(SnapshotId snapshotId) {
+        return SNAPSHOT_PREFIX + snapshotId.getSnapshot();
+    }
+
+    /**
+     * Returns name of metadata blob
+     *
+     * @param snapshotId snapshot id
+     * @return name of metadata blob
+     */
+    private String metaDataBlobName(SnapshotId snapshotId) {
+        return METADATA_PREFIX + snapshotId.getSnapshot();
+    }
+
+    /**
+     * Serializes BlobStoreSnapshot into JSON
+     *
+     * @param snapshot - snapshot description
+     * @return BytesStreamOutput representing JSON serialized BlobStoreSnapshot
+     * @throws IOException
+     */
+    private BytesStreamOutput writeSnapshot(BlobStoreSnapshot snapshot) throws IOException {
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        StreamOutput stream = bStream;
+        if (isCompress()) {
+            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+        }
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
+        builder.startObject();
+        BlobStoreSnapshot.Builder.toXContent(snapshot, builder, globalOnlyFormatParams);
+        builder.endObject();
+        builder.close();
+        return bStream;
+    }
+
+    /**
+     * Serializes global MetaData into JSON
+     *
+     * @param metaData - metaData
+     * @return BytesStreamOutput representing JSON serialized global MetaData
+     * @throws IOException
+     */
+    private BytesStreamOutput writeGlobalMetaData(MetaData metaData) throws IOException {
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        StreamOutput stream = bStream;
+        if (isCompress()) {
+            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+        }
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
+        builder.startObject();
+        MetaData.Builder.toXContent(metaData, builder, globalOnlyFormatParams);
+        builder.endObject();
+        builder.close();
+        return bStream;
+    }
+
+    /**
+     * Writes snapshot index file
+     * <p/>
+     * This file can be used by read-only repositories that are unable to list files in the repository
+     *
+     * @param snapshots list of snapshot ids
+     * @throws IOException I/O errors
+     */
+    protected void writeSnapshotList(ImmutableList<SnapshotId> snapshots) throws IOException {
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        StreamOutput stream = bStream;
+        if (isCompress()) {
+            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+        }
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
+        builder.startObject();
+        builder.startArray("snapshots");
+        for (SnapshotId snapshot : snapshots) {
+            builder.value(snapshot.getSnapshot());
+        }
+        builder.endArray();
+        builder.endObject();
+        builder.close();
+        snapshotsBlobContainer.writeBlob(SNAPSHOTS_FILE, bStream.bytes().streamInput(), bStream.bytes().length());
+    }
+
+    /**
+     * Reads snapshot index file
+     * <p/>
+     * This file can be used by read-only repositories that are unable to list files in the repository
+     *
+     * @return list of snapshots in the repository
+     * @throws IOException I/O errors
+     */
+    protected ImmutableList<SnapshotId> readSnapshotList() throws IOException {
+        byte[] data = snapshotsBlobContainer.readBlobFully(SNAPSHOTS_FILE);
+        ArrayList<SnapshotId> snapshots = new ArrayList<SnapshotId>();
+        XContentParser parser = null;
+        try {
+            parser = XContentHelper.createParser(data, 0, data.length);
+            if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    if ("snapshots".equals(currentFieldName)) {
+                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                snapshots.add(new SnapshotId(repositoryName, parser.text()));
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
+        return ImmutableList.copyOf(snapshots);
+    }
+
+}

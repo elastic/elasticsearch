@@ -106,6 +106,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private final XContentType format;
     private final ToXContent.Params formatParams;
+    private final ToXContent.Params globalOnlyFormatParams;
 
 
     private final AutoImportDangledState autoImportDangled;
@@ -129,8 +130,15 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             Map<String, String> params = Maps.newHashMap();
             params.put("binary", "true");
             formatParams = new ToXContent.MapParams(params);
+            Map<String, String> globalOnlyParams = Maps.newHashMap();
+            globalOnlyParams.put("binary", "true");
+            globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
+            globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
         } else {
             formatParams = ToXContent.EMPTY_PARAMS;
+            Map<String, String> globalOnlyParams = Maps.newHashMap();
+            globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
+            globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
         }
 
         this.autoImportDangled = AutoImportDangledState.fromString(settings.get("gateway.local.auto_import_dangled", AutoImportDangledState.YES.toString()));
@@ -386,16 +394,13 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private void writeGlobalState(String reason, MetaData metaData, @Nullable MetaData previousMetaData) throws Exception {
         logger.trace("[_global] writing state, reason [{}]", reason);
-        // create metadata to write with just the global state
-        MetaData globalMetaData = MetaData.builder(metaData).removeAllIndices().build();
 
         XContentBuilder builder = XContentFactory.contentBuilder(format);
         builder.startObject();
-        MetaData.Builder.toXContent(globalMetaData, builder, formatParams);
+        MetaData.Builder.toXContent(metaData, builder, globalOnlyFormatParams);
         builder.endObject();
         builder.flush();
-
-        String globalFileName = "global-" + globalMetaData.version();
+        String globalFileName = "global-" + metaData.version();
         Throwable lastFailure = null;
         boolean wroteAtLeastOnce = false;
         for (File dataLocation : nodeEnv.nodeDataLocations()) {

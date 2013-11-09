@@ -531,8 +531,8 @@ public class AllocationService extends AbstractComponent {
                             allocation.routingNodes().unassigned().addAll(shardsToMove);
                         }
 
-                        allocation.routingNodes().unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(),
-                                null, failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
+                        allocation.routingNodes().unassigned().add(new MutableShardRouting(failedShard.index(), failedShard.id(), null,
+                                null, failedShard.restoreSource(), failedShard.primary(), ShardRoutingState.UNASSIGNED, failedShard.version() + 1));
 
                         break;
                     }

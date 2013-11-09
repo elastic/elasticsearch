@@ -168,7 +168,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             }
 
             toRoutingNode.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
-                    toRoutingNode.nodeId(), shardRouting.currentNodeId(),
+                    toRoutingNode.nodeId(), shardRouting.currentNodeId(), shardRouting.restoreSource(),
                     shardRouting.primary(), ShardRoutingState.INITIALIZING, shardRouting.version() + 1));
 
             shardRouting.relocate(toRoutingNode.nodeId());

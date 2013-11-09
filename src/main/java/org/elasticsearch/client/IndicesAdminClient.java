@@ -478,7 +478,9 @@ public interface IndicesAdminClient {
      * @param request The gateway snapshot request
      * @return The result future
      * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
+     * @deprecated Use snapshot/restore API instead
      */
+    @Deprecated
     ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request);
 
     /**
@@ -487,12 +489,17 @@ public interface IndicesAdminClient {
      * @param request  The gateway snapshot request
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
+     * @deprecated Use snapshot/restore API instead
      */
+    @Deprecated
     void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
 
     /**
      * Explicitly perform gateway snapshot for one or more indices.
+     *
+     * @deprecated Use snapshot/restore API instead
      */
+    @Deprecated
     GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices);
 
     /**

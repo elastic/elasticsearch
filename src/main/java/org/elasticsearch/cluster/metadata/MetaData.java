@@ -68,11 +68,23 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             T fromXContent(XContentParser parser) throws IOException;
 
-            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params);
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+            /**
+             * Returns true if this custom metadata should be persisted as part of global cluster state
+             */
+            boolean isPersistent();
         }
     }
 
     public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+
+    static {
+        // register non plugin custom metadata
+        registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
+        registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
+        registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
+    }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -100,6 +112,8 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
     public static final MetaData EMPTY_META_DATA = builder().build();
+
+    public static final String GLOBAL_PERSISTENT_ONLY_PARAM = "global_persistent_only";
 
     private final long version;
 
@@ -771,6 +785,10 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.customs;
     }
 
+    public <T extends Custom> T custom(String type) {
+        return (T) customs.get(type);
+    }
+
     public int totalNumberOfShards() {
         return this.totalNumberOfShards;
     }
@@ -913,6 +931,21 @@ public class MetaData implements Iterable<IndexMetaData> {
         if (!metaData1.templates.equals(metaData2.templates())) {
             return false;
         }
+        // Check if any persistent metadata needs to be saved
+        int customCount1 = 0;
+        for (Map.Entry<String, Custom> entry : metaData1.customs.entrySet()) {
+            if (customFactories.get(entry.getKey()).isPersistent()) {
+                if (!entry.equals(metaData2.custom(entry.getKey()))) return false;
+                customCount1++;
+            }
+        }
+        int customCount2 = 0;
+        for (Map.Entry<String, Custom> entry : metaData2.customs.entrySet()) {
+            if (customFactories.get(entry.getKey()).isPersistent()) {
+                customCount2++;
+            }
+        }
+        if (customCount1 != customCount2) return false;
         return true;
     }
 
@@ -1075,6 +1108,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            boolean globalPersistentOnly = params.paramAsBoolean(GLOBAL_PERSISTENT_ONLY_PARAM, false);
             builder.startObject("meta-data");
 
             builder.field("version", metaData.version());
@@ -1087,13 +1121,21 @@ public class MetaData implements Iterable<IndexMetaData> {
                 builder.endObject();
             }
 
+            if (!globalPersistentOnly && !metaData.transientSettings().getAsMap().isEmpty()) {
+                builder.startObject("transient_settings");
+                for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+            }
+
             builder.startObject("templates");
             for (IndexTemplateMetaData template : metaData.templates().values()) {
                 IndexTemplateMetaData.Builder.toXContent(template, builder, params);
             }
             builder.endObject();
 
-            if (!metaData.indices().isEmpty()) {
+            if (!globalPersistentOnly && !metaData.indices().isEmpty()) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
@@ -1102,9 +1144,12 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
 
             for (Map.Entry<String, Custom> entry : metaData.customs().entrySet()) {
-                builder.startObject(entry.getKey());
-                lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
-                builder.endObject();
+                Custom.Factory factory = lookupFactorySafe(entry.getKey());
+                if (!globalPersistentOnly || factory.isPersistent()) {
+                    builder.startObject(entry.getKey());
+                    factory.toXContent(entry.getValue(), builder, params);
+                    builder.endObject();
+                }
             }
 
             builder.endObject();

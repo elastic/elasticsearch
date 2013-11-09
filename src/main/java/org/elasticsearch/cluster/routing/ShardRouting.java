@@ -117,6 +117,11 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     String relocatingNodeId();
 
     /**
+     * Snapshot id and repository where this shard is being restored from
+     */
+    RestoreSource restoreSource();
+
+    /**
      * Returns <code>true</code> iff this shard is a primary.
      */
     boolean primary();

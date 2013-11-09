@@ -59,8 +59,8 @@ The following sections lists all the different storage types supported.
 File system based storage is the default storage used. There are
 different implementations or storage types. The best one for the
 operating environment will be automatically chosen: `mmapfs` on
-Solaris/Windows 64bit, `simplefs` on Windows 32bit, and `niofs` for the
-rest.
+Solaris/Linux/Windows 64bit, `simplefs` on Windows 32bit, and
+`niofs` for the rest.
 
 The following are the different file system based storage types:
 

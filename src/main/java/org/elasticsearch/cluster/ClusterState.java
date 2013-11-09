@@ -366,6 +366,12 @@ public class ClusterState implements ToXContent {
             }
             builder.endObject();
 
+            for (Map.Entry<String, MetaData.Custom> entry : metaData.customs().entrySet()) {
+                builder.startObject(entry.getKey());
+                MetaData.lookupFactorySafe(entry.getKey()).toXContent(entry.getValue(), builder, params);
+                builder.endObject();
+            }
+
             builder.endObject();
         }
 

@@ -362,6 +362,37 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         }
 
         /**
+         * Initializes a new empty index, to be restored from a snapshot
+         */
+        public Builder initializeAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            return initializeAsRestore(indexMetaData, restoreSource, true);
+        }
+
+        /**
+         * Initializes an existing index, to be restored from a snapshot
+         */
+        public Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            return initializeAsRestore(indexMetaData, restoreSource, false);
+        }
+
+        /**
+         * Initializes an index, to be restored from snapshot
+         */
+        private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, boolean asNew) {
+            if (!shards.isEmpty()) {
+                throw new ElasticSearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+            }
+            for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);
+                for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
+                    indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId, null, null, i == 0 ? restoreSource : null, i == 0, ShardRoutingState.UNASSIGNED, 0));
+                }
+                shards.put(shardId, indexShardRoutingBuilder.build());
+            }
+            return this;
+        }
+
+        /**
          * Initializes a new empty index, with an option to control if its from an API or not.
          */
         private Builder initializeEmpty(IndexMetaData indexMetaData, boolean asNew) {

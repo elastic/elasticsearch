@@ -174,7 +174,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
                     if (allocateDecision.type() == Decision.Type.YES) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
-                                lowRoutingNode.nodeId(), startedShard.currentNodeId(),
+                                lowRoutingNode.nodeId(), startedShard.currentNodeId(), startedShard.restoreSource(),
                                 startedShard.primary(), INITIALIZING, startedShard.version() + 1));
 
                         startedShard.relocate(lowRoutingNode.nodeId());
@@ -211,7 +211,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
             Decision decision = allocation.deciders().canAllocate(shardRouting, nodeToCheck, allocation);
             if (decision.type() == Decision.Type.YES) {
                 nodeToCheck.add(new MutableShardRouting(shardRouting.index(), shardRouting.id(),
-                        nodeToCheck.nodeId(), shardRouting.currentNodeId(),
+                        nodeToCheck.nodeId(), shardRouting.currentNodeId(), shardRouting.restoreSource(),
                         shardRouting.primary(), INITIALIZING, shardRouting.version() + 1));
 
                 shardRouting.relocate(nodeToCheck.nodeId());

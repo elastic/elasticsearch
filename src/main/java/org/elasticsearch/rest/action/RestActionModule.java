@@ -28,10 +28,17 @@ import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction
 import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
 import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.put.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.reroute.RestClusterRerouteAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.shards.RestClusterSearchShardsAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.create.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.delete.RestDeleteSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.get.RestGetSnapshotsAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.restore.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestGetIndicesAliasesAction;
@@ -124,6 +131,13 @@ public class RestActionModule extends AbstractModule {
         bind(RestClusterRerouteAction.class).asEagerSingleton();
         bind(RestClusterSearchShardsAction.class).asEagerSingleton();
         bind(RestPendingClusterTasksAction.class).asEagerSingleton();
+        bind(RestPutRepositoryAction.class).asEagerSingleton();
+        bind(RestGetRepositoriesAction.class).asEagerSingleton();
+        bind(RestDeleteRepositoryAction.class).asEagerSingleton();
+        bind(RestGetSnapshotsAction.class).asEagerSingleton();
+        bind(RestCreateSnapshotAction.class).asEagerSingleton();
+        bind(RestRestoreSnapshotAction.class).asEagerSingleton();
+        bind(RestDeleteSnapshotAction.class).asEagerSingleton();
 
         bind(RestIndicesExistsAction.class).asEagerSingleton();
         bind(RestTypesExistsAction.class).asEagerSingleton();

@@ -1,0 +1,183 @@
+[[modules-snapshots]]
+== Snapshot And Restore
+
+The snapshot and restore module allows to create snapshots of individual indices or an entire cluster into a remote
+repository. At the time of the initial release only shared file system repository is supported.
+
+[float]
+=== Repositories
+
+Before any snapshot or restore operation can be performed a snapshot repository should be registered in
+Elasticsearch. The following command registers a shared file system repository with the name `my_backup` that
+will use location `/mount/backups/my_backup` to store snapshots.
+
+[source,js]
+-----------------------------------
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+    "type": "fs",
+    "settings": {
+        "location": "/mount/backups/my_backup",
+        "compress": true
+    }
+}'
+-----------------------------------
+
+Once repository is registered, its information can be obtained using the following command:
+
+[source,js]
+-----------------------------------
+$ curl -XGET 'http://localhost:9200/_snapshot/my_backup?pretty'
+-----------------------------------
+[source,js]
+-----------------------------------
+{
+  "my_backup" : {
+    "type" : "fs",
+    "settings" : {
+      "compress" : "false",
+      "location" : "/mount/backups/my_backup"
+    }
+  }
+}
+-----------------------------------
+
+If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
+all repositories currently registered in the cluster:
+
+[source,js]
+-----------------------------------
+$ curl -XGET 'http://localhost:9200/_snapshot'
+-----------------------------------
+
+or
+
+[source,js]
+-----------------------------------
+$ curl -XGET 'http://localhost:9200/_snapshot/all'
+-----------------------------------
+
+[float]
+===== Shared File System Repository
+
+The shared file system repository (`"type": "fs"`) is using shared file system to store snapshot. The path
+specified in the `location` parameter should point to the same location in the shared filesystem and be accessible
+on all data and master nodes. The following settings are supported:
+
+[horizontal]
+`location`:: Location of the snapshots. Mandatory.
+`compress`:: Turns on compression of the snapshot files. Defaults to `true`.
+`concurrent_streams`:: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`
+`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
+ using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+
+
+[float]
+=== Snapshot
+
+A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the
+cluster. A snapshot with the name `snapshot_1` in the repository `my_backup` can be created by executing the following
+command:
+
+[source,js]
+-----------------------------------
+$ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true"
+-----------------------------------
+
+The `wait_for_completion` parameter specifies whether or not the request should return immediately or wait for snapshot
+completion. By default snapshot of all open and started indices in the cluster is created. This behavior can be changed
+by specifying the list of indices in the body of the snapshot request.
+
+[source,js]
+-----------------------------------
+$ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1" -d '{
+    "indices": "index_1,index_2",
+    "ignore_indices": "missing",
+    "include_global_state": false
+}'
+-----------------------------------
+
+The list of indices that should be included into the snapshot can be specified using the `indices` parameter that
+supports <<search-multi-index-type,multi index syntax>>. The snapshot request also supports the
+`ignore_indices` option. Setting it to `missing` will cause indices that do not exists to be ignored during snapshot
+creation. By default, when `ignore_indices` option is not set and an index is missing the snapshot request will fail.
+By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
+the snapshot.
+
+The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
+the list of the index files that are already stored in the repository and copies only files that were created or
+changed since the last snapshot. That allows multiple snapshots to be preserved in the repository in a compact form.
+Snapshotting process is executed in non-blocking fashion. All indexing and searching operation can continue to be
+executed against the index that is being snapshotted. However, a snapshot represents the point-in-time view of the index
+at the moment when snapshot was created, so no records that were added to the index after snapshot process had started
+will be present in the snapshot.
+
+Besides creating a copy of each index the snapshot process can also store global cluster metadata, which includes persistent
+cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of
+the snapshot.
+
+Only one snapshot process can be executed in the cluster at any time. While snapshot of a particular shard is being
+created this shard cannot be moved to another node, which can interfere with rebalancing process and allocation
+filtering. Once snapshot of the shard is finished Elasticsearch will be able to move shard to another node according
+to the current allocation filtering settings and rebalancing algorithm.
+
+Once a snapshot is created information about this snapshot can be obtained using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1"
+-----------------------------------
+
+All snapshots currently stored in the repository can be listed using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/_all"
+-----------------------------------
+
+A snapshot can be deleted from the repository using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XDELETE "localhost:9200/_snapshot/my_backup/snapshot_1"
+-----------------------------------
+
+When a snapshot is deleted from a repository, Elasticsearch deletes all files that are associated with the deleted
+snapshot and not used by any other snapshots. If the deleted snapshot operation is executed while the snapshot is being
+created the snapshotting process will be aborted and all files created as part of the snapshotting process will be
+cleaned. Therefore, the delete snapshot operation can be used to cancel long running snapshot operations that were
+started by mistake.
+
+
+[float]
+=== Restore
+
+A snapshot can be restored using this following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore"
+-----------------------------------
+
+By default, all indices in the snapshot as well as cluster state are restored. It's possible to select indices that
+should be restored as well as prevent global cluster state from being restored by using `indices` and
+`include_global_state` options in the restore request body. The list of indices supports
+<<search-multi-index-type,multi index syntax>>. The `rename_pattern` and `rename_replacement` options can be also used to
+rename index on restore using regular expression that supports referencing the original text as explained
+http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
+
+[source,js]
+-----------------------------------
+$ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
+    "indices": "index_1,index_2",
+    "ignore_indices": "missing",
+    "include_global_state": false,
+    "rename_pattern": "index_(.)+",
+    "rename_replacement": "restored_index_$1"
+}'
+-----------------------------------
+
+The restore operation can be performed on a functioning cluster. However, an existing index can be only restored if it's
+closed. The restore operation automatically opens restored indices if they were closed and creates new indices if they
+didn't exist in the cluster. If cluster state is restored, the restored templates that don't currently exist in the
+cluster are added and existing templates with the same name are replaced by the restored templates. The restored
+persistent settings are added to the existing persistent settings.

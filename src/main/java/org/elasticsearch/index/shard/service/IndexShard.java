@@ -27,6 +27,7 @@ import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.id.ShardIdCache;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -145,6 +146,8 @@ public interface IndexShard extends IndexShardComponent {
     void optimize(Engine.Optimize optimize) throws ElasticSearchException;
 
     <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException;
+
+    SnapshotIndexCommit snapshotIndex() throws EngineException;
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 

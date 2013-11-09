@@ -29,6 +29,7 @@ import java.util.List;
 /**
  * This module configures several {@link AllocationDecider}s
  * that make configuration specific decisions if shards can be allocated on certain nodes.
+ *
  * @see Decision
  * @see AllocationDecider
  */
@@ -61,6 +62,7 @@ public class AllocationDecidersModule extends AbstractModule {
         allocationMultibinder.addBinding().to(AwarenessAllocationDecider.class);
         allocationMultibinder.addBinding().to(ShardsLimitAllocationDecider.class);
         allocationMultibinder.addBinding().to(DiskThresholdDecider.class);
+        allocationMultibinder.addBinding().to(SnapshotInProgressAllocationDecider.class);
         for (Class<? extends AllocationDecider> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);
         }

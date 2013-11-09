@@ -30,8 +30,9 @@ import java.util.List;
 /**
  * Response for the gateway snapshot action.
  *
- *
+ * @deprecated Use snapshot/restore API instead
  */
+@Deprecated
 public class GatewaySnapshotResponse extends BroadcastOperationResponse {
 
     GatewaySnapshotResponse() {

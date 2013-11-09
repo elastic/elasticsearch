@@ -23,7 +23,9 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * @deprecated Use snapshot/restore API instead
  */
+@Deprecated
 public class GatewaySnapshotAction extends IndicesAction<GatewaySnapshotRequest, GatewaySnapshotResponse, GatewaySnapshotRequestBuilder> {
 
     public static final GatewaySnapshotAction INSTANCE = new GatewaySnapshotAction();

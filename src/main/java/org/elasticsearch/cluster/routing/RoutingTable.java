@@ -382,6 +382,20 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return this;
         }
 
+        public Builder addAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                    .initializeAsRestore(indexMetaData, restoreSource);
+            add(indexRoutingBuilder);
+            return this;
+        }
+
+        public Builder addAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
+                    .initializeAsNewRestore(indexMetaData, restoreSource);
+            add(indexRoutingBuilder);
+            return this;
+        }
+
         public Builder add(IndexRoutingTable indexRoutingTable) {
             indexRoutingTable.validate();
             indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);

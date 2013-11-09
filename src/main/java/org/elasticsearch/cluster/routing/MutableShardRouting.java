@@ -42,12 +42,17 @@ public class MutableShardRouting extends ImmutableShardRouting {
 
     public MutableShardRouting(String index, int shardId, String currentNodeId,
                                String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        super(index, shardId, currentNodeId, relocatingNodeId, primary, state, version);
+        super(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version);
+    }
+
+    public MutableShardRouting(String index, int shardId, String currentNodeId,
+                               String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
+        super(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version);
     }
 
     /**
      * Assign this shard to a node.
-     * 
+     *
      * @param nodeId id of the node to assign this shard to
      */
     public void assignToNode(String nodeId) {
@@ -68,7 +73,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
 
     /**
      * Relocate the shard to another node.
-     * 
+     *
      * @param relocatingNodeId id of the node to relocate the shard
      */
     public void relocate(String relocatingNodeId) {
@@ -108,12 +113,13 @@ public class MutableShardRouting extends ImmutableShardRouting {
     /**
      * Set the shards state to <code>STARTED</code>. The shards state must be
      * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
-     * canceled. 
+     * canceled.
      */
     public void moveToStarted() {
         version++;
         assert state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING;
         relocatingNodeId = null;
+        restoreSource = null;
         state = ShardRoutingState.STARTED;
     }
 
@@ -138,6 +144,14 @@ public class MutableShardRouting extends ImmutableShardRouting {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         primary = false;
+    }
+
+    public void restoreFrom(RestoreSource restoreSource) {
+        version++;
+        if (!primary) {
+            throw new IllegalShardRoutingStateException(this, "Not primary, can't restore from snapshot to replica");
+        }
+        this.restoreSource = restoreSource;
     }
 }
 

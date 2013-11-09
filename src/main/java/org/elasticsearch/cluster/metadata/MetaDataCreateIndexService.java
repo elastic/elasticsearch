@@ -146,6 +146,30 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
+    public void validateIndexName(String index, ClusterState state) throws ElasticSearchException {
+        if (state.routingTable().hasIndex(index)) {
+            throw new IndexAlreadyExistsException(new Index(index));
+        }
+        if (state.metaData().hasIndex(index)) {
+            throw new IndexAlreadyExistsException(new Index(index));
+        }
+        if (!Strings.validFileName(index)) {
+            throw new InvalidIndexNameException(new Index(index), index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+        if (index.contains("#")) {
+            throw new InvalidIndexNameException(new Index(index), index, "must not contain '#'");
+        }
+        if (!index.equals(riverIndexName) && index.charAt(0) == '_') {
+            throw new InvalidIndexNameException(new Index(index), index, "must not start with '_'");
+        }
+        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
+            throw new InvalidIndexNameException(new Index(index), index, "must be lowercase");
+        }
+        if (state.metaData().aliases().containsKey(index)) {
+            throw new InvalidIndexNameException(new Index(index), index, "already exists as alias");
+        }
+    }
+
     private void createIndex(final Request request, final Listener userListener, Semaphore mdLock) {
         final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new TimeoutClusterStateUpdateTask() {
@@ -478,33 +502,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private void validate(Request request, ClusterState state) throws ElasticSearchException {
-        if (state.routingTable().hasIndex(request.index)) {
-            throw new IndexAlreadyExistsException(new Index(request.index));
-        }
-        if (state.metaData().hasIndex(request.index)) {
-            throw new IndexAlreadyExistsException(new Index(request.index));
-        }
-        if (request.index.contains(" ")) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain whitespace");
-        }
-        if (request.index.contains(",")) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain ',");
-        }
-        if (request.index.contains("#")) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain '#");
-        }
-        if (!request.index.equals(riverIndexName) && request.index.charAt(0) == '_') {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'");
-        }
-        if (!request.index.toLowerCase(Locale.ROOT).equals(request.index)) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must be lowercase");
-        }
-        if (!Strings.validFileName(request.index)) {
-            throw new InvalidIndexNameException(new Index(request.index), request.index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
-        }
-        if (state.metaData().aliases().containsKey(request.index)) {
-            throw new IndexAlreadyExistsException(new Index(request.index), "already exists as alias");
-        }
+        validateIndexName(request.index, state);
     }
 
     public static interface Listener {

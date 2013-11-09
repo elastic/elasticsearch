@@ -27,5 +27,7 @@ include::modules/thrift.asciidoc[]
 
 include::modules/transport.asciidoc[]
 
+include::modules/snapshots.asciidoc[]
+
 
 

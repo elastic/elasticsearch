@@ -34,8 +34,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -65,7 +64,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiLevelChild() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .execute().actionGet();
@@ -1955,6 +1953,24 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         if (holder.get() != null) {
             throw holder.get();
         }
+    }
+
+    private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
+        HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);
+        hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildFilterBuilder;
+    }
+
+    private static HasChildFilterBuilder hasChildFilter(String type, FilterBuilder filterBuilder) {
+        HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, filterBuilder);
+        hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildFilterBuilder;
+    }
+
+    private static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder queryBuilder) {
+        HasChildQueryBuilder hasChildQueryBuilder = QueryBuilders.hasChildQuery(type, queryBuilder);
+        hasChildQueryBuilder.setShortCircuitCutoff(randomInt(10));
+        return hasChildQueryBuilder;
     }
 
 }

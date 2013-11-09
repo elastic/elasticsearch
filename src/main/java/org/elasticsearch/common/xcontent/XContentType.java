@@ -67,7 +67,7 @@ public enum XContentType {
         }
     },
     /**
-     * The jackson based smile binary format. Fast and compact binary format.
+     * A YAML based content type.
      */
     YAML(2) {
         @Override

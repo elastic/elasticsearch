@@ -345,6 +345,54 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         assertThat(result.get(2), equalTo(true));
     }
 
+    @Test
+    // See issue: https://github.com/elasticsearch/elasticsearch/issues/4130
+    public void testOneFastMustNotOneFastShouldAndOneSlowShould() throws Exception {
+        XBooleanFilter booleanFilter = createBooleanFilter(
+                newFilterClause(4, 'v', MUST_NOT, false),
+                newFilterClause(4, 'z', SHOULD, false),
+                newFilterClause(4, 'x', SHOULD, true)
+        );
+
+        FixedBitSet result = new FixedBitSet(reader.maxDoc());
+        result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+        assertThat(result.cardinality(), equalTo(2));
+        assertThat(result.get(0), equalTo(false));
+        assertThat(result.get(1), equalTo(true));
+        assertThat(result.get(2), equalTo(true));
+    }
+
+    @Test
+    public void testOneFastShouldClauseAndOneSlowShouldClause() throws Exception {
+        XBooleanFilter booleanFilter = createBooleanFilter(
+                newFilterClause(4, 'z', SHOULD, false),
+                newFilterClause(4, 'x', SHOULD, true)
+        );
+
+        FixedBitSet result = new FixedBitSet(reader.maxDoc());
+        result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+        assertThat(result.cardinality(), equalTo(2));
+        assertThat(result.get(0), equalTo(false));
+        assertThat(result.get(1), equalTo(true));
+        assertThat(result.get(2), equalTo(true));
+    }
+
+    @Test
+    public void testOneMustClauseOneFastShouldClauseAndOneSlowShouldClause() throws Exception {
+        XBooleanFilter booleanFilter = createBooleanFilter(
+                newFilterClause(0, 'a', MUST, false),
+                newFilterClause(4, 'z', SHOULD, false),
+                newFilterClause(4, 'x', SHOULD, true)
+        );
+
+        FixedBitSet result = new FixedBitSet(reader.maxDoc());
+        result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+        assertThat(result.cardinality(), equalTo(2));
+        assertThat(result.get(0), equalTo(false));
+        assertThat(result.get(1), equalTo(true));
+        assertThat(result.get(2), equalTo(true));
+    }
+
     private static FilterClause newFilterClause(int field, char character, BooleanClause.Occur occur, boolean slowerBitsBackedFilter) {
         Filter filter;
         if (slowerBitsBackedFilter) {
@@ -365,7 +413,6 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/pull/4144/")
     public void testRandom() throws IOException {
         int iterations = atLeast(400); // don't worry that is fast!
         for (int iter = 0; iter < iterations; iter++) {

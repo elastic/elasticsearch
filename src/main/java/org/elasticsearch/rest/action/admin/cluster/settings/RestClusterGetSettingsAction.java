@@ -31,7 +31,6 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  */
@@ -57,15 +56,11 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                     builder.startObject();
 
                     builder.startObject("persistent");
-                    for (Map.Entry<String, String> entry : response.getState().metaData().persistentSettings().getAsMap().entrySet()) {
-                        builder.field(entry.getKey(), entry.getValue());
-                    }
+                    response.getState().metaData().persistentSettings().toXContent(builder, request);
                     builder.endObject();
 
                     builder.startObject("transient");
-                    for (Map.Entry<String, String> entry : response.getState().metaData().transientSettings().getAsMap().entrySet()) {
-                        builder.field(entry.getKey(), entry.getValue());
-                    }
+                    response.getState().metaData().transientSettings().toXContent(builder, request);
                     builder.endObject();
 
                     builder.endObject();

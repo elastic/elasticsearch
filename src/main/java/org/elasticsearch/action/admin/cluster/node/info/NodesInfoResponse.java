@@ -106,9 +106,7 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
             if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");
                 Settings settings = settingsFilter.filterSettings(nodeInfo.getSettings());
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
-                }
+                settings.toXContent(builder, params);
                 builder.endObject();
             }
 

@@ -70,15 +70,11 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {
                 builder.startObject("persistent");
-                for (Map.Entry<String, String> entry : response.getPersistentSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                response.getPersistentSettings().toXContent(builder, request);
                 builder.endObject();
 
                 builder.startObject("transient");
-                for (Map.Entry<String, String> entry : response.getTransientSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                response.getTransientSettings().toXContent(builder, request);
                 builder.endObject();
             }
 

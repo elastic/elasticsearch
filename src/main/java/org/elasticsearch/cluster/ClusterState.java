@@ -301,10 +301,7 @@ public class ClusterState implements ToXContent {
                 if (settingsFilter != null) {
                     settings = settingsFilter.filterSettings(settings);
                 }
-
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                settings.toXContent(builder, params);
                 builder.endObject();
 
                 builder.startObject("mappings");
@@ -337,9 +334,7 @@ public class ClusterState implements ToXContent {
                 if (settingsFilter != null) {
                     settings = settingsFilter.filterSettings(settings);
                 }
-                for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                settings.toXContent(builder, params);
                 builder.endObject();
 
                 builder.startObject("mappings");

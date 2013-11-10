@@ -625,7 +625,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // for master to confirm a shard started message (either master failover, or a cluster event before
                 // we managed to tell the master we started), mark us as started
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}][{}] master [{}] marked shard as initializing, but shard has state [{}], mark shard as started", indexShard.state());
+                    logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started",
+                            indexShard.shardId(), indexShard.state());
                 }
                 shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(),
                         "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started");

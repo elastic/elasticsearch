@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import com.google.common.collect.Iterators;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,6 +139,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         MemoryUsage memUsage = memoryMXBean.getHeapMemoryUsage();
         stats.mem.heapUsed = memUsage.getUsed() < 0 ? 0 : memUsage.getUsed();
         stats.mem.heapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
+        stats.mem.heapMax = memUsage.getMax() < 0 ? 0 : memUsage.getMax();
         memUsage = memoryMXBean.getNonHeapMemoryUsage();
         stats.mem.nonHeapUsed = memUsage.getUsed() < 0 ? 0 : memUsage.getUsed();
         stats.mem.nonHeapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
@@ -288,7 +290,11 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             builder.startObject(Fields.MEM);
 
             builder.byteSizeField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, mem.heapUsed);
+            if (mem.heapUsedPercent() >= 0) {
+                builder.field(Fields.HEAP_USED_PERCENT, mem.heapUsedPercent());
+            }
             builder.byteSizeField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, mem.heapCommitted);
+            builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
             builder.byteSizeField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, mem.nonHeapUsed);
             builder.byteSizeField(Fields.NON_HEAP_COMMITTED_IN_BYTES, Fields.NON_HEAP_COMMITTED, mem.nonHeapCommitted);
 
@@ -355,6 +361,9 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString MEM = new XContentBuilderString("mem");
         static final XContentBuilderString HEAP_USED = new XContentBuilderString("heap_used");
         static final XContentBuilderString HEAP_USED_IN_BYTES = new XContentBuilderString("heap_used_in_bytes");
+        static final XContentBuilderString HEAP_USED_PERCENT = new XContentBuilderString("heap_used_percent");
+        static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
+        static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
         static final XContentBuilderString HEAP_COMMITTED = new XContentBuilderString("heap_committed");
         static final XContentBuilderString HEAP_COMMITTED_IN_BYTES = new XContentBuilderString("heap_committed_in_bytes");
 
@@ -800,6 +809,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         long heapCommitted;
         long heapUsed;
+        long heapMax;
         long nonHeapCommitted;
         long nonHeapUsed;
 
@@ -826,6 +836,10 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
 
+            if (in.getVersion().onOrAfter(Version.V_0_90_7)) {
+                heapMax = in.readVLong();
+            }
+
             pools = new MemoryPool[in.readVInt()];
             for (int i = 0; i < pools.length; i++) {
                 pools[i] = MemoryPool.readMemoryPool(in);
@@ -838,6 +852,10 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             out.writeVLong(heapUsed);
             out.writeVLong(nonHeapCommitted);
             out.writeVLong(nonHeapUsed);
+
+            if (out.getVersion().onOrAfter(Version.V_0_90_7)) {
+                out.writeVLong(heapMax);
+            }
 
             out.writeVInt(pools.length);
             for (MemoryPool pool : pools) {
@@ -859,6 +877,37 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         public ByteSizeValue getHeapUsed() {
             return heapUsed();
+        }
+
+        /**
+         * returns the maximum heap size. 0 bytes signals unknown.
+         */
+        public ByteSizeValue heapMax() {
+            return new ByteSizeValue(heapMax);
+        }
+
+        /**
+         * returns the maximum heap size. 0 bytes signals unknown.
+         */
+        public ByteSizeValue getHeapMax() {
+            return heapMax();
+        }
+
+        /**
+         * returns the heap usage in percent. -1 signals unknown.
+         */
+        public short heapUsedPercent() {
+            if (heapMax == 0) {
+                return -1;
+            }
+            return (short) (heapUsed * 100 / heapMax);
+        }
+
+        /**
+         * returns the heap usage in percent. -1 signals unknown.
+         */
+        public short getHeapUsedPrecent() {
+            return heapUsedPercent();
         }
 
         public ByteSizeValue nonHeapCommitted() {

@@ -194,8 +194,13 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     lastTranslogLength = 0;
                     lastTotalTranslogOperations = recoveryStatus.translog().currentTranslogOperations();
 
-                    // start the shard if the gateway has not started it already
-                    if (indexShard.state() != IndexShardState.POST_RECOVERY) {
+                    // start the shard if the gateway has not started it already. Note that if the gateway
+                    // moved shard to POST_RECOVERY, it may have been started as well if:
+                    // 1) master sent a new cluster state indicating shard is initializing
+                    // 2) IndicesClusterStateService#applyInitializingShard will send a shard started event
+                    // 3) Master will mark shard as started and this will be processed locally.
+                    IndexShardState shardState = indexShard.state();
+                    if (shardState != IndexShardState.POST_RECOVERY && shardState != IndexShardState.STARTED) {
                         indexShard.postRecovery("post recovery from gateway");
                     }
                     // refresh the shard

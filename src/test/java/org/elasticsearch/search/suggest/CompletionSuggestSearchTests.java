@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -91,36 +90,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
-    }
-
-    @Test
-    public void testSuggestFieldWithPercolateApi() throws Exception {
-        createIndexAndMapping();
-        String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
-                {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
-                {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
-                {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
-        for (int i = 0; i < input.length; i++) {
-            client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(jsonBuilder()
-                            .startObject().startObject(FIELD)
-                            .startArray("input").value(input[i]).endArray()
-                            .endObject()
-                            .endObject()
-                    )
-                    .execute().actionGet();
-        }
-
-        client().prepareIndex(INDEX, PercolatorService.TYPE_NAME, "4")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-                .execute().actionGet();
-
-        refresh();
-
-        PercolateResponse response = client().preparePercolate().setIndices(INDEX).setDocumentType(TYPE)
-                .setGetRequest(Requests.getRequest(INDEX).type(TYPE).id("1"))
-                .execute().actionGet();
-        assertThat(response.getCount(), equalTo(1l));
     }
 
     @Test

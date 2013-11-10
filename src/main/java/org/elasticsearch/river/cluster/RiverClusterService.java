@@ -85,6 +85,13 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
         clusterStateListeners.remove(listener);
     }
 
+    /**
+     * The current state.
+     */
+    public ClusterState state() {
+        return clusterService.state();
+    }
+
     public void submitStateUpdateTask(final String source, final RiverClusterStateUpdateTask updateTask) {
         if (!lifecycle.started()) {
             return;

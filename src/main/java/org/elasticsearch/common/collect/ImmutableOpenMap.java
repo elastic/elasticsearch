@@ -191,6 +191,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         @Override
+        public VType getOrDefault(KType kType, VType vType) {
+            return map.getOrDefault(kType, vType);
+        }
+
+        @Override
         public int putAll(ObjectObjectAssociativeContainer<? extends KType, ? extends VType> container) {
             return map.putAll(container);
         }

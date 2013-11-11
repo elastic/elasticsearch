@@ -69,7 +69,7 @@ public class RestNodesAction extends BaseRestHandler {
                     @Override
                     public void onResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).fs(true);
+                        nodesStatsRequest.clear().jvm(true).os(true).fs(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
                             @Override
                             public void onResponse(NodesStatsResponse nodesStatsResponse) {
@@ -125,9 +125,9 @@ public class RestNodesAction extends BaseRestHandler {
         table.addCell("es");
         table.addCell("jdk");
         table.addCell("diskAvail", "text-align:right;");
-        table.addCell("heapUsed", "text-align:right;");
+        table.addCell("heapPercent", "text-align:right;");
         table.addCell("heapMax", "text-align:right;");
-        table.addCell("heapRatio", "text-align:right;");
+        table.addCell("ramPercent", "text-align:right;");
         table.addCell("ramMax", "text-align:right;");
 
         table.addCell("uptime", "text-align:right;");
@@ -170,10 +170,10 @@ public class RestNodesAction extends BaseRestHandler {
             table.addCell(info == null ? null : info.getVersion().number());
             table.addCell(info == null ? null : info.getJvm().version());
             table.addCell(availableDisk < 0 ? null : ByteSizeValue.parseBytesSizeValue(new Long(availableDisk).toString()));
-            table.addCell(heapUsed < 0 ? null : new ByteSizeValue(heapUsed));
+            table.addCell(heapRatio < 0 ? null : String.format(Locale.ROOT, "%.1f", heapRatio*100.0));
             table.addCell(heapMax < 0 ? null : new ByteSizeValue(heapMax));
-            table.addCell(heapRatio < 0 ? null : String.format(Locale.ROOT, "%.1f%%", heapRatio*100.0));
-            table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+            table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().mem().usedPercent());
+            table.addCell(info == null ? null : info.getOs() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
             table.addCell(stats == null ? null : stats.getJvm().uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : null);
             table.addCell(masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : null);

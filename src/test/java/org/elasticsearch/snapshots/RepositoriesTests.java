@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.repositories.RepositoryException;
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,11 +38,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class RepositoriesTests extends AbstractSnapshotTests {
-
-    @Before
-    public final void beforeSnapshots() {
-        wipeRepositories();
-    }
 
     @Test
     public void testRepositoryCreation() throws Exception {

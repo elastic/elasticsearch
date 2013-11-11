@@ -49,8 +49,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> start node");
         cluster().startNode(settingsBuilder().put("gateway.type", "local"));
         Client client = cluster().client();
-        wipeIndices();
-        wipeRepositories();
 
         // Add dummy persistent setting
         logger.info("--> set test persistent setting");
@@ -88,8 +86,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         nodes.add(cluster().startNode());
         nodes.add(cluster().startNode());
         Client client = cluster().client();
-        wipeIndices();
-        wipeRepositories();
 
         assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0).put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
         ensureGreen();

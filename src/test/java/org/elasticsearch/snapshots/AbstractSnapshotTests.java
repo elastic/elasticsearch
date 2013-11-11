@@ -26,6 +26,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.After;
 import org.junit.Ignore;
 
 import java.io.File;
@@ -37,6 +38,18 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @Ignore
 public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest {
+
+
+    @After
+    public final void wipeAfter() {
+        wipeRepositories();
+    }
+
+    @After
+    public final void wipeBefore() {
+        wipeRepositories();
+    }
+
     /**
      * Deletes repositories, supports wildcard notation.
      */

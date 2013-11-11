@@ -27,6 +27,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
@@ -45,7 +46,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
         wipeRepositories();
     }
 
-    @After
+    @Before
     public final void wipeBefore() {
         wipeRepositories();
     }

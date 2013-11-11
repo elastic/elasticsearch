@@ -269,7 +269,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
+    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void snapshotFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
 
@@ -322,7 +322,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
+    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void dataFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
@@ -367,7 +367,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
+    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void dataFileFailureDuringRestoreTest() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
@@ -415,7 +415,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     @TestLogging("snapshots:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
+    @LuceneTestCase.AwaitsFix(bugUrl = "imotov is working on the fix")
     public void deletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
@@ -507,6 +507,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     public void deleteSnapshotTest() throws Exception {
+        final int numberOfSnapshots = between(5, 15);
         Client client = client();
 
         File repo = newTempDir(LifecycleScope.SUITE);
@@ -520,9 +521,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         createIndex("test-idx");
         ensureGreen();
 
-        int[] numberOfFiles = new int[10];
-        logger.info("--> creating 10 snapshots data");
-        for (int i = 0; i < 10; i++) {
+        int[] numberOfFiles = new int[numberOfSnapshots];
+        logger.info("--> creating {} snapshots ", numberOfSnapshots);
+        for (int i = 0; i < numberOfSnapshots; i++) {
             for (int j = 0; j < 10; j++) {
                 index("test-idx", "doc", Integer.toString(i * 10 + j), "foo", "bar" + i * 10 + j);
             }
@@ -534,11 +535,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             // Store number of files after each snapshot
             numberOfFiles[i] = numberOfFiles(repo);
         }
-        assertThat(run(client.prepareCount("test-idx")).getCount(), equalTo(100L));
+        assertThat(run(client.prepareCount("test-idx")).getCount(), equalTo(10L * numberOfSnapshots));
         int numberOfFilesBeforeDeletion = numberOfFiles(repo);
 
         logger.info("--> delete all snapshots except the first one and last one");
-        for (int i = 1; i < 9; i++) {
+        for (int i = 1; i < numberOfSnapshots - 1; i++) {
             run(client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-" + i));
         }
 
@@ -550,17 +551,17 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         wipeIndex("test-idx");
 
         logger.info("--> restore index");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-9").setWaitForCompletion(true).execute().actionGet();
+        String lastSnapshot = "test-snap-" + (numberOfSnapshots - 1);
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", lastSnapshot).setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
-        assertThat(run(client.prepareCount("test-idx")).getCount(), equalTo(100L));
+        assertThat(run(client.prepareCount("test-idx")).getCount(), equalTo(10L * numberOfSnapshots));
 
         logger.info("--> delete the last snapshot");
-        run(client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-9"));
+        run(client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot));
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
         assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0]));
-
     }
 
     @Test
@@ -664,7 +665,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     @TestLogging("cluster.routing.allocation.decider:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
+//    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void moveShardWhileSnapshottingTest() throws Exception {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);

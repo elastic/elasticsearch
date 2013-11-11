@@ -84,21 +84,17 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
                 FileInputStream is = null;
                 try {
                     is = new FileInputStream(new File(path, blobName));
-                } catch (FileNotFoundException e) {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(e);
-                    return;
-                }
-                try {
                     int bytesRead;
                     while ((bytesRead = is.read(buffer)) != -1) {
                         listener.onPartial(buffer, 0, bytesRead);
                     }
-                    listener.onCompleted();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     IOUtils.closeWhileHandlingException(is);
                     listener.onFailure(e);
+                    return;
                 }
+                IOUtils.closeWhileHandlingException(is);
+                listener.onCompleted();
             }
         });
     }

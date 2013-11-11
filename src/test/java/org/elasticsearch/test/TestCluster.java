@@ -19,11 +19,9 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
@@ -31,8 +29,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,9 +40,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
@@ -67,9 +61,20 @@ import static com.google.common.collect.Maps.newTreeMap;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
-public class TestCluster implements Closeable, Iterable<Client> {
+/**
+ * TestCluster manages a set of JVM private nodes and allows convenient access to them.
+ * The cluster supports randomized configuration such that nodes started in the cluster will
+ * automatically load asserting services tracking resources like file handles or open searchers.
+ * <p>
+ * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random, double)} and
+ * {@link #afterTest()} to initialize and reset the cluster in order to be more reproducible. The term "more" relates
+ * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
+ * are involved reproducibility is very limited. This class should only be used through {@link ElasticsearchIntegrationTest}.
+ * </p>
+ */
+public final class TestCluster implements Iterable<Client> {
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    private final ESLogger logger = Loggers.getLogger(getClass());
 
     /* sorted map to make traverse order reproducible */
     private final TreeMap<String, NodeAndClient> nodes = newTreeMap();
@@ -98,11 +103,11 @@ public class TestCluster implements Closeable, Iterable<Client> {
 
     private final NodeSettingsSource nodeSettingsSource;
 
-    public TestCluster(long clusterSeed, String clusterName) {
+    TestCluster(long clusterSeed, String clusterName) {
         this(clusterSeed, -1, clusterName, NodeSettingsSource.EMPTY);
     }
 
-    public TestCluster(long clusterSeed, int numNodes, String clusterName, NodeSettingsSource nodeSettingsSource) {
+    TestCluster(long clusterSeed, int numNodes, String clusterName, NodeSettingsSource nodeSettingsSource) {
         this.clusterName = clusterName;
         Random random = new Random(clusterSeed);
         numSharedNodes = numNodes == -1 ? 2 + random.nextInt(4) : numNodes; // at least 2 nodes if randomized
@@ -155,7 +160,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return builder.build();
     }
 
-    public static String clusterName(String prefix, String childVMId, long clusterSeed) {
+    static String clusterName(String prefix, String childVMId, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
         builder.append('-').append(NetworkUtils.getLocalAddress().getHostName());
         builder.append("-CHILD_VM=[").append(childVMId).append(']');
@@ -203,24 +208,34 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return null;
     }
 
-    public synchronized void ensureAtLeastNumNodes(int num) {
+    /**
+     * Ensures that at least <code>n</code> nodes are present in the cluster.
+     * if more nodes than <code>n</code> are present this method will not
+     * stop any of the running nodes.
+     */
+    public synchronized void ensureAtLeastNumNodes(int n) {
         int size = nodes.size();
-        for (int i = size; i < num; i++) {
-            logger.info("increasing cluster size from {} to {}", size, num);
+        for (int i = size; i < n; i++) {
+            logger.info("increasing cluster size from {} to {}", size, n);
             NodeAndClient buildNode = buildNode();
             buildNode.node().start();
             publishNode(buildNode);
         }
     }
 
-    public synchronized void ensureAtMostNumNodes(int num) {
-        if (nodes.size() <= num) {
+    /**
+     * Ensures that at most <code>n</code> are up and running.
+     * If less nodes that <code>n</code> are running this method
+     * will not start any additional nodes.
+     */
+    public synchronized void ensureAtMostNumNodes(int n) {
+        if (nodes.size() <= n) {
             return;
         }
         // prevent killing the master if possible
-        final Iterator<NodeAndClient> values = num == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(), Predicates.not(new MasterNodePredicate(getMasterName())));
-        final Iterator<NodeAndClient> limit = Iterators.limit(values, nodes.size() - num);
-        logger.info("reducing cluster size from {} to {}", nodes.size() - num, num);
+        final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(), Predicates.not(new MasterNodePredicate(getMasterName())));
+        final Iterator<NodeAndClient> limit = Iterators.limit(values, nodes.size() - n);
+        logger.info("reducing cluster size from {} to {}", nodes.size() - n, n);
         Set<NodeAndClient> nodesToRemove = new HashSet<NodeAndClient>();
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();
@@ -260,12 +275,16 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return "node_" + id;
     }
 
-    public synchronized Client client() {
+    synchronized Client client() {
         ensureOpen();
         /* Randomly return a client to one of the nodes in the cluster */
         return getOrBuildRandomNode().client(random);
     }
 
+    /**
+     * Returns a node client to the current master node.
+     * Note: use this with care tests should not rely on a certain nodes client.
+     */
     public synchronized Client masterClient() {
         ensureOpen();
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()));
@@ -276,6 +295,9 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return null; // can't happen
     }
 
+    /**
+     * Returns a node client to random node but not the master. This method will fail if no non-master client is available.
+     */
     public synchronized Client nonMasterClient() {
         ensureOpen();
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
@@ -286,6 +308,9 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return null; // can't happen
     }
 
+    /**
+     * Returns a client to a node started with "node.client: true"
+     */
     public synchronized Client clientNodeClient() {
         ensureOpen();
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new ClientNodePredicate());
@@ -296,15 +321,23 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return getRandomNodeAndClient(new ClientNodePredicate()).client(random);
     }
 
-    public synchronized Client clientNodeClient(String nodeName) {
+    /**
+     * Returns a node client to a given node.
+     */
+    public synchronized Client client(String nodeName) {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = nodes.get(nodeName);
-        if (randomNodeAndClient != null) {
-            return randomNodeAndClient.client(random);
+        NodeAndClient nodeAndClient = nodes.get(nodeName);
+        if (nodeAndClient != null) {
+            return nodeAndClient.client(random);
         }
-        return null;
+        Assert.fail("No node found with name: [" + nodeName + "]");
+        return null; // can't happen
     }
 
+
+    /**
+     * Returns a "smart" node client to a random node in the cluster
+     */
     public synchronized Client smartClient() {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
         if (randomNodeAndClient != null) {
@@ -314,6 +347,11 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return null; // can't happen
     }
 
+    /**
+     * Returns a random node that applies to the given predicate.
+     * The predicate can filter nodes based on the nodes settings.
+     * If all nodes are filtered out this method will return <code>null</code>
+     */
     public synchronized Client client(final Predicate<Settings> filterPredicate) {
         ensureOpen();
         final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new Predicate<NodeAndClient>() {
@@ -328,23 +366,12 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return null;
     }
 
-    public void close() {
+    void close() {
         ensureOpen();
         if (this.open.compareAndSet(true, false)) {
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
         }
-    }
-
-    public synchronized ImmutableSet<ClusterBlock> waitForNoBlocks(TimeValue timeout, Node node) throws InterruptedException {
-        ensureOpen();
-        long start = System.currentTimeMillis();
-        ImmutableSet<ClusterBlock> blocks;
-        do {
-            blocks = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState().blocks()
-                    .global(ClusterBlockLevel.METADATA);
-        } while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
-        return blocks;
     }
 
     private final class NodeAndClient implements Closeable {
@@ -439,14 +466,14 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
-    public static class ClientFactory {
+    static class ClientFactory {
 
         public Client client(Node node, String clusterName, Random random) {
             return node.client();
         }
     }
 
-    public static class TransportClientFactory extends ClientFactory {
+    static class TransportClientFactory extends ClientFactory {
 
         private boolean sniff;
         public static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false);
@@ -467,7 +494,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
-    public class RandomClientFactory extends ClientFactory {
+    class RandomClientFactory extends ClientFactory {
 
         @Override
         public Client client(Node node, String clusterName, Random random) {
@@ -486,7 +513,10 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
-    public synchronized void beforeTest(Random random, double transportClientRatio) {
+    /**
+     * This method should be exectued before each test to reset the cluster to it's initial state.
+     */
+    synchronized void beforeTest(Random random, double transportClientRatio) {
         reset(random, true, transportClientRatio);
     }
 
@@ -521,7 +551,7 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
         if (!changed && sharedNodes.size() == nodes.size()) {
             logger.debug("Cluster is consistent - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
-            if (numNodes() > 0) {
+            if (size() > 0) {
                 client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
             }
             return; // we are consistent - return
@@ -541,14 +571,17 @@ public class TestCluster implements Closeable, Iterable<Client> {
             publishNode(nodeAndClient);
         }
         nextNodeId.set(sharedNodesSeeds.length);
-        assert numNodes() == sharedNodesSeeds.length;
-        if (numNodes() > 0) {
+        assert size() == sharedNodesSeeds.length;
+        if (size() > 0) {
             client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
         }
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
     }
 
-    public synchronized void afterTest() {
+    /**
+     * This method should be executed during tearDown
+     */
+    synchronized void afterTest() {
         wipeDataDirectories();
         resetClients(); /* reset all clients - each test gets it's own client based on the Random instance created above. */
 
@@ -572,10 +605,16 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
+    /**
+     * Returns a reference to a random nodes {@link ClusterService}
+     */
     public synchronized ClusterService clusterService() {
         return getInstance(ClusterService.class);
     }
 
+    /**
+     * Returns an Iterabel to all instances for the given class &gt;T&lt; across all nodes in the cluster.
+     */
     public synchronized <T> Iterable<T> getInstances(Class<T> clazz) {
         List<T> instances = new ArrayList<T>(nodes.size());
         for (NodeAndClient nodeAndClient : nodes.values()) {
@@ -584,6 +623,9 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return instances;
     }
 
+    /**
+     * Returns a reference to the given nodes instances of the given class &gt;T&lt;
+     */
     public synchronized <T> T getInstance(Class<T> clazz, final String node) {
         final Predicate<TestCluster.NodeAndClient> predicate;
         if (node != null) {
@@ -600,6 +642,9 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return getInstanceFromNode(clazz, randomNodeAndClient.node);
     }
 
+    /**
+     * Returns a reference to a random nodes instances of the given class &gt;T&lt;
+     */
     public synchronized <T> T getInstance(Class<T> clazz) {
         return getInstance(clazz, null);
     }
@@ -608,10 +653,16 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return node.injector().getInstance(clazz);
     }
 
-    public synchronized int numNodes() {
+    /**
+     * Returns the number of nodes in the cluster.
+     */
+    public synchronized int size() {
         return this.nodes.size();
     }
 
+    /**
+     * Stops a random node in the cluster.
+     */
     public synchronized void stopRandomNode() {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient();
@@ -622,6 +673,10 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
+    /**
+     * Stops a random node in the cluster that applies to the given filter or non if the non of the nodes applies to the
+     * filter.
+     */
     public synchronized void stopRandomNode(final Predicate<Settings> filter) {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new Predicate<TestCluster.NodeAndClient>() {
@@ -638,9 +693,12 @@ public class TestCluster implements Closeable, Iterable<Client> {
     }
 
 
+    /**
+     * Stops the current master node forcefully
+     */
     public synchronized void stopCurrentMasterNode() {
         ensureOpen();
-        assert numNodes() > 0;
+        assert size() > 0;
         String masterNodeName = getMasterName();
         assert nodes.containsKey(masterNodeName);
         logger.info("Closing master node [{}] ", masterNodeName);
@@ -648,6 +706,9 @@ public class TestCluster implements Closeable, Iterable<Client> {
         remove.close();
     }
 
+    /**
+     * Stops the any of the current nodes but not the master node.
+     */
     public void stopRandomNonMasterNode() {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
         if (nodeAndClient != null) {
@@ -656,11 +717,18 @@ public class TestCluster implements Closeable, Iterable<Client> {
             nodeAndClient.close();
         }
     }
+
+    /**
+     * Restarts a random node in the cluster
+     */
     public void restartRandomNode() throws Exception {
         restartRandomNode(EMPTY_CALLBACK);
-        
     }
 
+
+    /**
+     * Restarts a random node in the cluster and calls the callback during restart.
+     */
     public void restartRandomNode(RestartCallback callback) throws Exception {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient();
@@ -707,24 +775,38 @@ public class TestCluster implements Closeable, Iterable<Client> {
             }
         }
     }
-    public static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
+
+
+    private static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
         public Settings onNodeStopped(String node) {
             return null;
         }
     };
-    
+
+    /**
+     * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
+     */
     public void fullRestart() throws Exception {
         fullRestart(EMPTY_CALLBACK);
     }
-    
+
+    /**
+     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
+     */
     public void rollingRestart() throws Exception {
         rollingRestart(EMPTY_CALLBACK);
     }
-    
+
+    /**
+     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
+     */
     public void rollingRestart(RestartCallback function) throws Exception {
         restartAllNodes(true, function);
     }
-    
+
+    /**
+     * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
+     */
     public void fullRestart(RestartCallback function) throws Exception {
         restartAllNodes(false, function);
     }
@@ -740,12 +822,12 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
     }
 
-    public synchronized Set<String> allButN(int numNodes) {
-        return nRandomNodes(numNodes() - numNodes);
+    synchronized Set<String> allButN(int numNodes) {
+        return nRandomNodes(size() - numNodes);
     }
 
-    public synchronized Set<String> nRandomNodes(int numNodes) {
-        assert numNodes() >= numNodes;
+    private synchronized Set<String> nRandomNodes(int numNodes) {
+        assert size() >= numNodes;
         return Sets.newHashSet(Iterators.limit(this.nodes.keySet().iterator(), numNodes));
     }
 
@@ -754,6 +836,9 @@ public class TestCluster implements Closeable, Iterable<Client> {
         startNode(settingsBuilder().put(settings).put("node.client", true));
     }
 
+    /**
+     * Returns a set of nodes that have at least one shard of the given index.
+     */
     public synchronized Set<String> nodesInclude(String index) {
         if (clusterService().state().routingTable().hasIndex(index)) {
             List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
@@ -770,31 +855,23 @@ public class TestCluster implements Closeable, Iterable<Client> {
         return Collections.emptySet();
     }
 
-
-    public synchronized Set<String> nodeExclude(String index) {
-        final Set<String> nodesInclude = nodesInclude(index);
-        return Sets.newHashSet(Iterators.transform(Iterators.filter(nodes.values().iterator(), new Predicate<NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return !nodesInclude.contains(nodeAndClient.name);
-            }
-
-        }), new Function<NodeAndClient, String>() {
-            @Override
-            public String apply(NodeAndClient nodeAndClient) {
-                return nodeAndClient.name;
-            }
-        }));
-    }
-
+    /**
+     * Starts a node with default settings and returns it's name.
+     */
     public String startNode() {
         return startNode(ImmutableSettings.EMPTY);
     }
 
+    /**
+     * Starts a node with the given settings builder and returns it's name.
+     */
     public String startNode(Settings.Builder settings) {
         return startNode(settings.build());
     }
 
+    /**
+     * Starts a node with the given settings and returns it's name.
+     */
     public String startNode(Settings settings) {
         NodeAndClient buildNode = buildNode(settings);
         buildNode.node().start();
@@ -810,13 +887,6 @@ public class TestCluster implements Closeable, Iterable<Client> {
         }
         nodes.put(nodeAndClient.name, nodeAndClient);
 
-    }
-
-    public void resetAllGateways() throws Exception {
-        Collection<NodeAndClient> values = this.nodes.values();
-        for (NodeAndClient nodeAndClient : values) {
-            getInstanceFromNode(Gateway.class, ((InternalNode) nodeAndClient.node)).reset();
-        }
     }
 
     public void closeNonSharedNodes(boolean wipeData) {
@@ -868,11 +938,14 @@ public class TestCluster implements Closeable, Iterable<Client> {
 
         };
     }
-    
+
+    /**
+     * Returns a predicate that only accepts settings of nodes with one of the given names.
+     */
     public static Predicate<Settings> nameFilter(String... nodeName) {
         return new NodeNamePredicate(new HashSet<String>(Arrays.asList(nodeName)));
     }
-    
+
     private static final class NodeNamePredicate implements Predicate<Settings> {
         private final HashSet<String> nodeNames;
 
@@ -887,24 +960,45 @@ public class TestCluster implements Closeable, Iterable<Client> {
             		
         }
     }
-    
+
+
+    /**
+     * An abstract class that is called during {@link #rollingRestart(org.elasticsearch.test.TestCluster.RestartCallback)}
+     * and / or {@link #fullRestart(org.elasticsearch.test.TestCluster.RestartCallback)} to execute actions at certain
+     * stages of the restart.
+     */
     public static abstract class RestartCallback {
-        
+
+        /**
+         * Executed once the give node name has been stopped.
+         */
         public Settings onNodeStopped(String nodeName) throws Exception {
             return ImmutableSettings.EMPTY;
         }
-        
-        public void doAfterNodes(int numNodes, Client client) throws Exception {
+
+        /**
+         * Executed for each node before the <tt>n+1</tt> node is restarted. The given client is
+         * an active client to the node that will be restarted next.
+         */
+        public void doAfterNodes(int n, Client client) throws Exception {
         }
-        
+
+        /**
+         * If this returns <code>true</code> all data for the node with the given node name will be cleared including
+         * gateways and all index data. Returns <code>false</code> by default.
+         */
         public boolean clearData(String nodeName) {
             return false;
         }
-        
+
+
+        /**
+         * If this returns <code>false</code> the node with the given node name will not be restarted. It will be
+         * closed and removed from the cluster. Returns <code>true</code> by default.
+         */
         public boolean doRestart(String nodeName) {
             return true;
         }
-        
     }
 
 }

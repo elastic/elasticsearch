@@ -41,7 +41,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
             requestBuilder.add(getRequestForConfig(test).request());
         }
 
-        MultiTermVectorsItemResponse[] responseItems = run(requestBuilder).getResponses();
+        MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
 
         for (int i = 0; i < testConfigs.length; i++) {
             TestConfig test = testConfigs[i];

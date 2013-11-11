@@ -49,7 +49,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     public void restorePersistentSettingsTest() throws Exception {
         logger.info("--> start node");
         cluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        Client client = cluster().client();
+        Client client = client();
 
         // Add dummy persistent setting
         logger.info("--> set test persistent setting");
@@ -87,7 +87,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         ArrayList<String> nodes = newArrayList();
         nodes.add(cluster().startNode());
         nodes.add(cluster().startNode());
-        Client client = cluster().client();
+        Client client = client();
 
         assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0).put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
         ensureGreen();
@@ -97,22 +97,22 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(run(client.prepareCount("test-idx")).getCount(), equalTo(100L));
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         logger.info("--> create repository");
         logger.info("--> creating repository");
-        PutRepositoryResponse putRepositoryResponse = run(client.admin().cluster().preparePutRepository("test-repo")
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
                                 .put("location", newTempDir(LifecycleScope.TEST))
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_data_file_blocking_rate", 0.1)
                                 .put("wait_after_unblock", 200)
-                ));
+                ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
-        run(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx"));
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
         String blockedNode = waitForCompletionOrBlock(nodes, "test-repo", "test-snap", TimeValue.timeValueSeconds(60));
         if (blockedNode != null) {
@@ -126,7 +126,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             logger.info("--> done");
         } else {
             logger.info("--> done without blocks");
-            ImmutableList<SnapshotInfo> snapshotInfos = run(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")).getSnapshots();
+            ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfos.get(0).shardFailures().size(), equalTo(0));

@@ -284,7 +284,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        wipeIndex("test");
+        wipeIndices("test");
         prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
 
@@ -1508,7 +1508,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     private CountDownLatch createCountDownLatch(String index) {
-        final CountDownLatch latch = new CountDownLatch(cluster().numNodes());
+        final CountDownLatch latch = new CountDownLatch(cluster().size());
         Iterable<IndicesService> mapperServices = cluster().getInstances(IndicesService.class);
         for (IndicesService indicesService : mapperServices) {
             MapperService mapperService = indicesService.indexService(index).mapperService();

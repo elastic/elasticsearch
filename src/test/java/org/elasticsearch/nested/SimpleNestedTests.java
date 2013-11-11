@@ -96,12 +96,13 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();
-        GetResponse getResponse = run(client().prepareGet("test", "type1", "1"));
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
 
         // check the numDocs
-        IndicesStatusResponse statusResponse = run(admin().indices().prepareStatus());
+        IndicesStatusResponse statusResponse = admin().indices().prepareStatus().get();
+        assertNoFailures(statusResponse);
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
 
         // check that _all is working on nested docs
@@ -111,17 +112,17 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // search for something that matches the nested doc, and see that we don't find the nested doc
-        searchResponse = run(client().prepareSearch("test").setQuery(matchAllQuery()));
+        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = run(client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // now, do a nested query
-        searchResponse = run(client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))));
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = run(client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH));
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -143,7 +144,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();
-        statusResponse = run(client().admin().indices().prepareStatus());
+        statusResponse = client().admin().indices().prepareStatus().get();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",

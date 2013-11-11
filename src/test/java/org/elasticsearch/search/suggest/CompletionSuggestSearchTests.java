@@ -761,7 +761,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder createDefaultSettings() {
         int randomShardNumber = between(1, 5);
-        int randomReplicaNumber = between(0, cluster().numNodes() - 1);
+        int randomReplicaNumber = between(0, cluster().size() - 1);
         return settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, randomShardNumber).put(SETTING_NUMBER_OF_REPLICAS, randomReplicaNumber);
     }
 

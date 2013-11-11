@@ -285,7 +285,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
     @Test
     public void updateMappingConcurrently() throws Throwable {
         // Test that we can concurrently update different indexes and types.
-        int shardNo = Math.max(5, cluster().numNodes());
+        int shardNo = Math.max(5, cluster().size());
 
         prepareCreate("test1").setSettings("index.number_of_shards", shardNo).execute().actionGet();
         prepareCreate("test2").setSettings("index.number_of_shards", shardNo).execute().actionGet();

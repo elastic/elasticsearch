@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
@@ -72,7 +73,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
                 .endObject()
                 .endObject();
 
-            Settings versionSettings = randomSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
+            Settings versionSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
             client().admin().indices().prepareCreate(indexName).addMapping("type", mapping).setSettings(versionSettings).get();
         }
 

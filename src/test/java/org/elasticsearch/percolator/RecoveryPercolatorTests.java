@@ -60,7 +60,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testRestartNodePercolator1() throws Exception {
         Settings settings = settingsBuilder()
-                .put(super.getSettings())
+                .put(super.indexSettings())
                 .put("gateway.type", "local")
                 .build();
         cluster().startNode(settings);
@@ -106,7 +106,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testRestartNodePercolator2() throws Exception {
         Settings settings = settingsBuilder()
-                .put(super.getSettings())
+                .put(super.indexSettings())
                 .put("gateway.type", "local")
                 .build();
         cluster().startNode(settings);
@@ -183,7 +183,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         Settings settings = settingsBuilder()
-                .put(super.getSettings())
+                .put(super.indexSettings())
                 .put("gateway.type", "local")
                 .build();
         logger.info("--> Starting 2 nodes");

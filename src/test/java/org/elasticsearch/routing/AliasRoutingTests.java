@@ -44,7 +44,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
     public void testAliasCrudRouting() throws Exception {
         createIndex("test");
         ensureGreen();
-        IndicesAliasesResponse res = run(admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test", "alias0").routing("0")));
+        IndicesAliasesResponse res = admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test", "alias0").routing("0")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
@@ -125,11 +125,11 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
     public void testAliasSearchRouting() throws Exception {
         createIndex("test");
         ensureGreen();
-        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
+        IndicesAliasesResponse res = admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test", "alias"))
                 .addAliasAction(newAddAliasAction("test", "alias0").routing("0"))
                 .addAliasAction(newAddAliasAction("test", "alias1").routing("1"))
-                .addAliasAction(newAddAliasAction("test", "alias01").searchRouting("0,1")));
+                .addAliasAction(newAddAliasAction("test", "alias01").searchRouting("0,1")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
@@ -222,13 +222,13 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         createIndex("test-a");
         createIndex("test-b");
         ensureGreen();
-        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
+        IndicesAliasesResponse res = admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test-a", "alias-a0").routing("0"))
                 .addAliasAction(newAddAliasAction("test-a", "alias-a1").routing("1"))
                 .addAliasAction(newAddAliasAction("test-b", "alias-b0").routing("0"))
                 .addAliasAction(newAddAliasAction("test-b", "alias-b1").routing("1"))
                 .addAliasAction(newAddAliasAction("test-a", "alias-ab").searchRouting("0"))
-                .addAliasAction(newAddAliasAction("test-b", "alias-ab").searchRouting("1")));
+                .addAliasAction(newAddAliasAction("test-b", "alias-ab").searchRouting("1")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
         ensureGreen(); // wait for events again to make sure we got the aliases on all nodes
         logger.info("--> indexing with id [1], and routing [0] using alias to test-a");
@@ -283,8 +283,8 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue2682() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
-        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("index", "index_1").routing("1")));
+        IndicesAliasesResponse res = admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("index", "index_1").routing("1")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
@@ -310,8 +310,8 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue3268() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
-        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("index", "index_1").routing("1")));
+        IndicesAliasesResponse res = admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("index", "index_1").routing("1")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
@@ -330,10 +330,10 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRequiredRoutingMappingWithAlias() throws Exception {
-        run(prepareCreate("test").addMapping(
+        prepareCreate("test").addMapping(
                 "type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true)
-                        .endObject().endObject().endObject()));
+                        .endObject().endObject().endObject()).get();
         ensureGreen();
         logger.info("--> indexing with id [1], and routing [0]");
         client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -377,8 +377,8 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
         logger.info("--> creating alias with routing [3]");
-        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("test", "alias").routing("3")));
+        IndicesAliasesResponse res = admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("test", "alias").routing("3")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing with id [0], and routing [3]");
@@ -393,8 +393,8 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> creating alias with routing [4]");
-        res = run(admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("test", "alias").routing("4")));
+        res = admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("test", "alias").routing("4")).get();
         assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> verifying search with wrong routing should not find");

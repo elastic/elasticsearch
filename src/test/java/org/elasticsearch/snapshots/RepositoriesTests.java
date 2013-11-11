@@ -44,14 +44,14 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = run(client.admin().cluster().preparePutRepository("test-repo-1")
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
-                ));
+                ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> check that repository is really there");
-        ClusterStateResponse clusterStateResponse = run(client.admin().cluster().prepareState().setFilterAll().setFilterMetaData(false));
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().setFilterAll().setFilterMetaData(false).get();
         MetaData metaData = clusterStateResponse.getState().getMetaData();
         RepositoriesMetaData repositoriesMetaData = metaData.custom(RepositoriesMetaData.TYPE);
         assertThat(repositoriesMetaData, notNullValue());
@@ -59,14 +59,14 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         assertThat(repositoriesMetaData.repository("test-repo-1").type(), equalTo("fs"));
 
         logger.info("-->  creating anoter repository");
-        putRepositoryResponse = run(client.admin().cluster().preparePutRepository("test-repo-2")
+        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
-                ));
+                ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> check that both repositories are in cluster state");
-        clusterStateResponse = run(client.admin().cluster().prepareState().setFilterAll().setFilterMetaData(false));
+        clusterStateResponse = client.admin().cluster().prepareState().setFilterAll().setFilterMetaData(false).get();
         metaData = clusterStateResponse.getState().getMetaData();
         repositoriesMetaData = metaData.custom(RepositoriesMetaData.TYPE);
         assertThat(repositoriesMetaData, notNullValue());
@@ -77,20 +77,20 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         assertThat(repositoriesMetaData.repository("test-repo-2").type(), equalTo("fs"));
 
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
-        GetRepositoriesResponse repositoriesResponse = run(client.admin().cluster().prepareGetRepositories());
+        GetRepositoriesResponse repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(2));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
 
         logger.info("--> delete repository test-repo-1");
-        run(client.admin().cluster().prepareDeleteRepository("test-repo-1"));
-        repositoriesResponse = run(client.admin().cluster().prepareGetRepositories());
+        client.admin().cluster().prepareDeleteRepository("test-repo-1").get();
+        repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(1));
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
 
         logger.info("--> delete repository test-repo-2");
-        run(client.admin().cluster().prepareDeleteRepository("test-repo-2"));
-        repositoriesResponse = run(client.admin().cluster().prepareGetRepositories());
+        client.admin().cluster().prepareDeleteRepository("test-repo-2").get();
+        repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
     }
 
@@ -109,7 +109,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
 
         logger.info("--> trying creating repository with incorrect settings");
         try {
-            run(client.admin().cluster().preparePutRepository("test-repo").setType("fs"));
+            client.admin().cluster().preparePutRepository("test-repo").setType("fs").get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
             // Expected
@@ -120,31 +120,31 @@ public class RepositoriesTests extends AbstractSnapshotTests {
     public void repositoryAckTimeoutTest() throws Exception {
 
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
-        PutRepositoryResponse putRepositoryResponse = run(client().admin().cluster().preparePutRepository("test-repo-1")
+        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(5, 100))
                 )
-                .setTimeout("0s"));
+                .setTimeout("0s").get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
-        putRepositoryResponse = run(client().admin().cluster().preparePutRepository("test-repo-2")
+        putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-2")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(5, 100))
-                ));
+                ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        DeleteRepositoryResponse deleteRepositoryResponse = run(client().admin().cluster().prepareDeleteRepository("test-repo-2")
-                .setTimeout("0s"));
+        DeleteRepositoryResponse deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-2")
+                .setTimeout("0s").get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  deleting repository test-repo-1 with standard timeout - should ack");
-        deleteRepositoryResponse = run(client().admin().cluster().prepareDeleteRepository("test-repo-1"));
+        deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-1").get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 

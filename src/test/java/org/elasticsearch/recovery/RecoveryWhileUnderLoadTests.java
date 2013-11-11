@@ -310,7 +310,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         cluster().ensureAtLeastNumNodes(3);
         logger.info("--> creating test index ...");
         int allowNodes = 2;
-        assertAcked(prepareCreate("test").setSettings(randomSettingsBuilder().put("number_of_shards", numShards).put("number_of_replicas", numReplicas).build()));
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_shards", numShards).put("number_of_replicas", numReplicas).build()));
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);

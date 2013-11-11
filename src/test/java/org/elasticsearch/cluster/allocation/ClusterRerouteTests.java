@@ -126,7 +126,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> starting 2 nodes");
         String node_1 = cluster().startNode(commonSettings);
         cluster().startNode(commonSettings);
-        assertThat(cluster().numNodes(), equalTo(2));
+        assertThat(cluster().size(), equalTo(2));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
@@ -170,7 +170,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         // wait a bit for the cluster to realize that the shard is not there...
         // TODO can we get around this? the cluster is RED, so what do we wait for?
         client().admin().cluster().prepareReroute().get();
-        assertThat(cluster().client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
         logger.info("--> explicitly allocate primary");
         state = client().admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))

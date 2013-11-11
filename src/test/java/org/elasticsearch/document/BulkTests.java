@@ -113,10 +113,10 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     public void testBulkVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
-        BulkResponse bulkResponse = run(client().prepareBulk()
+        BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field", "1"))
                 .add(client().prepareIndex("test", "type", "2").setCreate(true).setSource("field", "1"))
-                .add(client().prepareIndex("test", "type", "1").setSource("field", "2")));
+                .add(client().prepareIndex("test", "type", "1").setSource("field", "2")).get();
 
         assertTrue(((IndexResponse) bulkResponse.getItems()[0].getResponse()).isCreated());
         assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1l));
@@ -125,19 +125,19 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertFalse(((IndexResponse) bulkResponse.getItems()[2].getResponse()).isCreated());
         assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2l));
 
-        bulkResponse = run(client().prepareBulk()
+        bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate("test", "type", "1").setVersion(4l).setDoc("field", "2"))
                 .add(client().prepareUpdate("test", "type", "2").setDoc("field", "2"))
-                .add(client().prepareUpdate("test", "type", "1").setVersion(2l).setDoc("field", "3")));
+                .add(client().prepareUpdate("test", "type", "1").setVersion(2l).setDoc("field", "3")).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
 
-        bulkResponse = run(client().prepareBulk()
+        bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test", "type", "e1").setCreate(true).setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
                 .add(client().prepareIndex("test", "type", "e2").setCreate(true).setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareIndex("test", "type", "e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL)));
+                .add(client().prepareIndex("test", "type", "e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL)).get();
 
         assertTrue(((IndexResponse) bulkResponse.getItems()[0].getResponse()).isCreated());
         assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(10l));
@@ -146,10 +146,10 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertFalse(((IndexResponse) bulkResponse.getItems()[2].getResponse()).isCreated());
         assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(12l));
 
-        bulkResponse = run(client().prepareBulk()
+        bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate("test", "type", "e1").setVersion(4l).setDoc("field", "2").setVersion(10).setVersionType(VersionType.EXTERNAL))
                 .add(client().prepareUpdate("test", "type", "e2").setDoc("field", "2").setVersion(15).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareUpdate("test", "type", "e1").setVersion(2l).setDoc("field", "3").setVersion(15).setVersionType(VersionType.EXTERNAL)));
+                .add(client().prepareUpdate("test", "type", "e1").setVersion(2l).setDoc("field", "3").setVersion(15).setVersionType(VersionType.EXTERNAL)).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(15l));

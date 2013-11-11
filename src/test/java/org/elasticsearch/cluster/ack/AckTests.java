@@ -180,7 +180,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -220,7 +220,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -234,7 +234,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -270,7 +270,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -313,7 +313,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterUpdateSettingsAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -358,7 +358,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().numNodes()))
+                        .put("number_of_shards", atLeast(cluster().size()))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 

@@ -104,7 +104,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
     public String waitForCompletionOrBlock(Collection<String> nodes, String repository, String snapshot, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeout.millis()) {
-            ImmutableList<SnapshotInfo> snapshotInfos = run(client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot)).getSnapshots();
+            ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 return null;
@@ -124,7 +124,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
     public SnapshotInfo waitForCompletion(String repository, String snapshot, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeout.millis()) {
-            ImmutableList<SnapshotInfo> snapshotInfos = run(client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot)).getSnapshots();
+            ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 return snapshotInfos.get(0);

@@ -183,7 +183,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
     }
 
     protected void createIndexBasedOnFieldSettings(TestFieldSetting[] fieldSettings, int number_of_shards) throws IOException {
-        wipeIndex("test");
+        wipeIndices("test");
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("type1").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
@@ -196,7 +196,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
             settings.put("number_of_shards", number_of_shards);
         }
         mappingBuilder.endObject().endObject().endObject();
-        run(prepareCreate("test").addMapping("type1", mappingBuilder).setSettings(settings));
+        prepareCreate("test").addMapping("type1", mappingBuilder).setSettings(settings).get();
 
         ensureYellow();
     }

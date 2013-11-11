@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
     protected void createIndex() {
-        wipeIndex(getConcreteIndexName());
+        wipeIndices(getConcreteIndexName());
         createIndex(getConcreteIndexName());
     }
 

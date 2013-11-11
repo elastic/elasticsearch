@@ -225,39 +225,39 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         assertThrows(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(2).execute(),
                 VersionConflictEngineException.class);
 
-        run(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(1));
-        assertThat(run(client().prepareGet("test", "type", "1")).getVersion(), equalTo(2l));
+        client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(1).get();
+        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2l));
 
         // and again with a higher version..
-        run(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v3'").setVersion(2));
+        client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v3'").setVersion(2).get();
 
-        assertThat(run(client().prepareGet("test", "type", "1")).getVersion(), equalTo(3l));
+        assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3l));
 
         // after delete
-        run(client().prepareDelete("test", "type", "1"));
+        client().prepareDelete("test", "type", "1").get();
         assertThrows(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(3).execute(),
                 DocumentMissingException.class);
 
         // external versioning
-        run(client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL));
+        client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL).get();
         assertThrows(client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
                 VersionConflictEngineException.class);
 
-        run(client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(11).setVersionType(VersionType.EXTERNAL));
+        client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(11).setVersionType(VersionType.EXTERNAL).get();
 
-        assertThat(run(client().prepareGet("test", "type", "2")).getVersion(), equalTo(11l));
+        assertThat(client().prepareGet("test", "type", "2").get().getVersion(), equalTo(11l));
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 
         // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
-        run(client().prepareUpdate("test", "type", "3").setScript("ctx._source.text = 'v2'").setVersion(10).setUpsert("{ \"text\": \"v0\" }"));
+        client().prepareUpdate("test", "type", "3").setScript("ctx._source.text = 'v2'").setVersion(10).setUpsert("{ \"text\": \"v0\" }").get();
         GetResponse get = get("test", "type", "3");
         assertThat(get.getVersion(), equalTo(1l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
         // With external versions, it means - if object is there with version lower than X, update it or explode. If it is not there, insert with new version.
-        run(client().prepareUpdate("test", "type", "4").setScript("ctx._source.text = 'v2'").
-                setVersion(10).setVersionType(VersionType.EXTERNAL).setUpsert("{ \"text\": \"v0\" }"));
+        client().prepareUpdate("test", "type", "4").setScript("ctx._source.text = 'v2'").
+                setVersion(10).setVersionType(VersionType.EXTERNAL).setUpsert("{ \"text\": \"v0\" }").get();
         get = get("test", "type", "4");
         assertThat(get.getVersion(), equalTo(10l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));

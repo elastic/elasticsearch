@@ -372,7 +372,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                     continue;
                 }
 
-                TermVectorResponse response = run(request);
+                TermVectorResponse response = request.get();
                 Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
                 validateResponse(response, luceneTermVectors, test);
             } catch (Throwable t) {

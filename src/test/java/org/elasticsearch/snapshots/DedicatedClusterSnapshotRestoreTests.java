@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.Client;
@@ -80,6 +81,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void snapshotDuringNodeShutdownTest() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = newArrayList();

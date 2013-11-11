@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -268,6 +269,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void snapshotFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
 
@@ -320,6 +322,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void dataFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
@@ -364,6 +367,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void dataFileFailureDuringRestoreTest() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
@@ -411,6 +415,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     @TestLogging("snapshots:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void deletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
@@ -659,6 +664,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     @TestLogging("cluster.routing.allocation.decider:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void moveShardWhileSnapshottingTest() throws Exception {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);

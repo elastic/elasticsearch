@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings getSettings() {
+    public Settings indexSettings() {
         return recoverySettings();
     }
     

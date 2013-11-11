@@ -23,7 +23,7 @@ public class ConcurrentDocumentOperationTests extends ElasticsearchIntegrationTe
 
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", cluster().numNodes()-1))
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", cluster().size()-1))
                 .execute().actionGet();
 
         logger.info("execute concurrent updates on the same doc");
@@ -54,7 +54,7 @@ public class ConcurrentDocumentOperationTests extends ElasticsearchIntegrationTe
 
         logger.info("done indexing, check all have the same field value");
         Map masterSource = client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap();
-        for (int i = 0; i < (cluster().numNodes() * 5); i++) {
+        for (int i = 0; i < (cluster().size() * 5); i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
         }
     }

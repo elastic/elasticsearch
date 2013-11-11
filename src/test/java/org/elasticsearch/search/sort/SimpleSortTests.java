@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.*;
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -108,7 +108,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         int numberOfShards = between(1, 10);
         Random random = getRandom();
         prepareCreate("test")
-                .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
+                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type",
                         XContentFactory.jsonBuilder()
                                 .startObject()
@@ -233,7 +233,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testScoreSortDirection() throws Exception {
-        prepareCreate("test").setSettings(randomSettingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type", "1").setSource("field", 2).execute().actionGet();
@@ -265,7 +265,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testScoreSortDirection_withFunctionScore() throws Exception {
-        prepareCreate("test").setSettings(randomSettingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type", "1").setSource("field", 2).execute().actionGet();
@@ -335,7 +335,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         final int numberOfShards = between(1, 10);
         Random random = getRandom();
         prepareCreate("test")
-                .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
+                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("str_value").field("type", "string").endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
@@ -654,7 +654,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                 .startObject("svalue").field("type", "string").endObject()
                 .startObject("gvalue").field("type", "geo_point").endObject()
                 .endObject().endObject().endObject().string();
-        prepareCreate("test").setSettings(getSettings()).addMapping("type1", mapping).execute().actionGet();
+        prepareCreate("test").setSettings(indexSettings()).addMapping("type1", mapping).execute().actionGet();
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
@@ -744,7 +744,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("svalue").field("type", "string").endObject()
                 .endObject().endObject().endObject().string();
-        prepareCreate("test").setSettings(getSettings()).addMapping("type1", mapping).execute().actionGet();
+        prepareCreate("test").setSettings(indexSettings()).addMapping("type1", mapping).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1022,7 +1022,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSortMVField() throws Exception {
         prepareCreate("test")
-                .setSettings(randomSettingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("long_values").field("type", "long").endObject()
                         .startObject("int_values").field("type", "integer").endObject()
@@ -1340,7 +1340,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSortOnRareField() throws ElasticSearchException, IOException {
         prepareCreate("test")
-                .setSettings(randomSettingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("string_values").field("type", "string").field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())

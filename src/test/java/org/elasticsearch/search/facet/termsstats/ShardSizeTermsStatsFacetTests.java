@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.termsstats;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -51,7 +52,7 @@ public class ShardSizeTermsStatsFacetTests extends ElasticsearchIntegrationTest 
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return randomSettingsBuilder()
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
                 .put("cluster.routing.operation.hash.type", "djb")

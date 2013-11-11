@@ -987,6 +987,7 @@
                         <configuration>
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
+                                <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                             </includes>
                         </configuration>
                     </execution>

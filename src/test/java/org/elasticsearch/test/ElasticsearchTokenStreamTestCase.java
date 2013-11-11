@@ -31,6 +31,11 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
+
+/**
+ * Basic test case for token streams. the assertion methods in this class will
+ * run basic checks to enforce correct behavior of the token streams.
+ */
 public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 
 }

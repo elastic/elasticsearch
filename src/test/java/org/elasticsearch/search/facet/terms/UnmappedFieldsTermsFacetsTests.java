@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.terms;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -41,8 +42,8 @@ import static org.hamcrest.Matchers.is;
 public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_shards", numberOfShards())
                 .put("index.number_of_replicas", 0)
                 .build();
@@ -157,7 +158,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
     @Test
     public void testPartiallyUnmappedField() throws ElasticSearchException, IOException {
         client().admin().indices().prepareCreate("mapped_idx")
-                .setSettings(getSettings())
+                .setSettings(indexSettings())
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("partially_mapped_byte").field("type", "byte").endObject()
                         .startObject("partially_mapped_short").field("type", "short").endObject()
@@ -285,7 +286,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
     @Test
     public void testMappedYetMissingField() throws IOException {
         client().admin().indices().prepareCreate("idx")
-                .setSettings(getSettings())
+                .setSettings(indexSettings())
                 .addMapping("type", jsonBuilder().startObject()
                         .field("type").startObject()
                         .field("properties").startObject()

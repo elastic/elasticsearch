@@ -208,6 +208,8 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
     }
 
+
+    @Test
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())

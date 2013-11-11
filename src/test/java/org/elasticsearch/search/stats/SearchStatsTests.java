@@ -24,6 +24,11 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -31,6 +36,7 @@ import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -41,8 +47,8 @@ import static org.hamcrest.Matchers.*;
 public class SearchStatsTests extends ElasticsearchIntegrationTest {
     
     @Override
-    public Settings getSettings() {
-        return randomSettingsBuilder()
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
                 .put("index.number_of_replicas", 0)
                 .build();
     }
@@ -103,6 +109,21 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
      
     }
 
+    private Set<String> nodeIdsWithIndex(String... indices) {
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        Set<String> nodes = new HashSet<String>();
+        for (ShardIterator shardIterator : allAssignedShardsGrouped) {
+            for (ShardRouting routing : shardIterator.asUnordered()) {
+                if (routing.active()) {
+                    nodes.add(routing.currentNodeId());
+                }
+
+            }
+        }
+        return nodes;
+    }
+
     @Test
     public void testOpenContexts() {
         createIndex("test1");
@@ -127,5 +148,11 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
 
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+    }
+
+    protected int numAssignedShards(String... indices) {
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        return allAssignedShardsGrouped.size();
     }
 }

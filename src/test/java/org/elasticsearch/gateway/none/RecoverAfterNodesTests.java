@@ -56,7 +56,7 @@ public class RecoverAfterNodesTests extends ElasticsearchIntegrationTest {
 
     public Client startNode(Settings.Builder settings) {
         String name = cluster().startNode(settings);
-        return cluster().clientNodeClient(name);
+        return cluster().client(name);
     }
 
     @Test

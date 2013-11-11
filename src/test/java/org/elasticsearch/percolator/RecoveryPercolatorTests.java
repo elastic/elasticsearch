@@ -55,7 +55,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
 
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-
         logger.info("--> register a query");
         client().prepareIndex("_percolator", "test", "kuku")
                 .setSource(jsonBuilder().startObject()
@@ -90,10 +89,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @AwaitsFix(bugUrl="investigate why this test fails so often")
     @Slow
     public void testRestartNodePercolator2() throws Exception {
-
         logger.info("--> starting 1 nodes");
         cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-
         client().admin().indices().prepareCreate("test")
         .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 

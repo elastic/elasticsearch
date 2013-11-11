@@ -62,7 +62,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
-        run(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)));
+        prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
         client().prepareIndex("test", "type1", "3").setSource("field1", "value3").execute().actionGet();

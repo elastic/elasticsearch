@@ -19,18 +19,13 @@ package org.elasticsearch.client.transport;
  */
 
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.AbstractIntegrationTest;
-import org.elasticsearch.test.AbstractIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-@ClusterScope(scope = AbstractIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 1.0)
-public class TransportClientTests extends AbstractIntegrationTest {
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 1.0)
+public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPickingUpChangesInDiscoveryNode() {

@@ -363,7 +363,11 @@ public class TransportClientNodesService extends AbstractComponent {
                     if (!ignoreClusterName && !clusterName.equals(nodeInfo.getClusterName())) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
                     } else if (nodeInfo.getNodes().length != 0) {
-                        newNodes.add(nodeInfo.getNodes()[0].getNode());
+                        // use discovered information but do keep the original transport address, so people can control which address
+                        // is exactly used.
+
+                        DiscoveryNode nodeWithInfo = nodeInfo.getNodes()[0].getNode();
+                        newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), listedNode.address(), nodeWithInfo.attributes(), nodeWithInfo.version()));
                     } else {
                         // although we asked for one node, our target may not have completed initialization yet and doesn't have
                         // cluster nodes

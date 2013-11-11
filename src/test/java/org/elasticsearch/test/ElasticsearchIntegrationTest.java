@@ -164,7 +164,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     @After
-    public void after() throws IOException {
+    public final void after() throws IOException {
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
             Scope currentClusterScope = getCurrentClusterScope();

@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -41,7 +40,6 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
@@ -53,10 +51,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
-    @Before
-    public final void beforeSnapshots() {
-        wipeRepositories();
-    }
 
     @Override
     public Settings getSettings() {

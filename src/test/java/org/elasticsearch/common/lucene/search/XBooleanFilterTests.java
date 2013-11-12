@@ -7,20 +7,18 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.FieldCacheTermsFilter;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.apache.lucene.search.BooleanClause.Occur.*;
@@ -28,10 +26,11 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class XBooleanFilterTests extends ElasticsearchTestCase {
+public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     private Directory directory;
     private AtomicReader reader;
+    private static final char[] distinctValues = new char[] {'a', 'b', 'c', 'd', 'v','z','y'};
 
     @Before
     public void setup() throws Exception {
@@ -50,7 +49,7 @@ public class XBooleanFilterTests extends ElasticsearchTestCase {
             }
             documents.add(document);
         }
-        directory = new RAMDirectory();
+        directory = newDirectory();
         IndexWriter w = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer()));
         w.addDocuments(documents);
         w.close();
@@ -59,9 +58,10 @@ public class XBooleanFilterTests extends ElasticsearchTestCase {
 
     @After
     public void tearDown() throws Exception {
-        super.tearDown();
         reader.close();
         directory.close();
+        super.tearDown();
+
     }
 
     @Test
@@ -348,7 +348,7 @@ public class XBooleanFilterTests extends ElasticsearchTestCase {
     private static FilterClause newFilterClause(int field, char character, BooleanClause.Occur occur, boolean slowerBitsBackedFilter) {
         Filter filter;
         if (slowerBitsBackedFilter) {
-            filter = new FieldCacheTermsFilter(String.valueOf(field), String.valueOf(character));
+            filter = new PrettyPrintFieldCacheTermsFilter(String.valueOf(field), String.valueOf(character));
         } else {
             Term term = new Term(String.valueOf(field), String.valueOf(character));
             filter = new TermFilter(term);
@@ -364,4 +364,106 @@ public class XBooleanFilterTests extends ElasticsearchTestCase {
         return booleanFilter;
     }
 
+    @Test
+    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/pull/4144/")
+    public void testRandom() throws IOException {
+        int iterations = atLeast(400); // don't worry that is fast!
+        for (int iter = 0; iter < iterations; iter++) {
+            int numClauses = 1 + random().nextInt(10);
+            FilterClause[] clauses = new FilterClause[numClauses];
+            BooleanQuery topLevel = new BooleanQuery();
+            BooleanQuery orQuery = new BooleanQuery();
+            boolean hasMust = false;
+            boolean hasShould = false;
+            boolean hasMustNot = false;
+            for(int i = 0; i < numClauses; i++) {
+                int field = random().nextInt(5);
+                char value = distinctValues[random().nextInt(distinctValues.length)];
+                switch(random().nextInt(10)) {
+                    case 9:
+                    case 8:
+                    case 7:
+                    case 6:
+                    case 5:
+                        hasMust = true;
+                        clauses[i] = newFilterClause(field, value, MUST, random().nextBoolean());
+                        topLevel.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), MUST));
+                        break;
+                    case 4:
+                    case 3:
+                    case 2:
+                    case 1:
+                        hasShould = true;
+                        clauses[i] = newFilterClause(field, value, SHOULD, random().nextBoolean());
+                        orQuery.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), SHOULD));
+                        break;
+                    case 0:
+                        hasMustNot = true;
+                        clauses[i] = newFilterClause(field, value, MUST_NOT, random().nextBoolean());
+                        topLevel.add(new BooleanClause(new TermQuery(new Term(String.valueOf(field), String.valueOf(value))), MUST_NOT));
+                        break;
+
+                }
+            }
+            if (orQuery.getClauses().length > 0) {
+                topLevel.add(new BooleanClause(orQuery, MUST));
+            }
+            if (hasMustNot && !hasMust && !hasShould) {  // pure negative
+                topLevel.add(new BooleanClause(new MatchAllDocsQuery(), MUST));
+            }
+            XBooleanFilter booleanFilter = createBooleanFilter(clauses);
+
+            FixedBitSet leftResult = new FixedBitSet(reader.maxDoc());
+            FixedBitSet rightResult = new FixedBitSet(reader.maxDoc());
+            DocIdSet left = booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+            DocIdSet right = new QueryWrapperFilter(topLevel).getDocIdSet(reader.getContext(), reader.getLiveDocs());
+            if (left == null || right == null) {
+                if (left == null && right != null) {
+                    assertThat(errorMsg(clauses, topLevel), (right.iterator() == null ? DocIdSetIterator.NO_MORE_DOCS : right.iterator().nextDoc()), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+                }
+                if (left != null && right == null) {
+                    assertThat(errorMsg(clauses, topLevel), (left.iterator() == null ? DocIdSetIterator.NO_MORE_DOCS : left.iterator().nextDoc()), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+                }
+            } else {
+                DocIdSetIterator leftIter = left.iterator();
+                DocIdSetIterator rightIter = right.iterator();
+                if (leftIter != null) {
+                    leftResult.or(leftIter);
+                }
+
+                if (rightIter != null) {
+                    rightResult.or(rightIter);
+                }
+
+                assertThat(leftResult.cardinality(), equalTo(leftResult.cardinality()));
+                for (int i = 0; i < reader.maxDoc(); i++) {
+                    assertThat(errorMsg(clauses, topLevel) + " -- failed at index " + i, leftResult.get(i), equalTo(rightResult.get(i)));
+                }
+            }
+        }
+    }
+
+    private String errorMsg(FilterClause[] clauses, BooleanQuery query) {
+        return query.toString() + " vs. " + Arrays.toString(clauses);
+    }
+
+
+    public static final class PrettyPrintFieldCacheTermsFilter extends FieldCacheTermsFilter {
+
+        private final String value;
+        private final String field;
+
+        public PrettyPrintFieldCacheTermsFilter(String field, String value) {
+            super(field, value);
+            this.field = field;
+            this.value = value;
+        }
+
+        @Override
+        public String toString() {
+            return "SLOW(" + field + ":" + value + ")";
+        }
+    }
+
 }
+

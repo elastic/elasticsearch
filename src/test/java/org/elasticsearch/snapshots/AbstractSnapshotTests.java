@@ -31,7 +31,6 @@ import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
-import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -101,24 +100,17 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
         });
     }
 
-    public String waitForCompletionOrBlock(Collection<String> nodes, String repository, String snapshot, TimeValue timeout) throws InterruptedException {
+    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
+        RepositoriesService repositoriesService = cluster().getInstance(RepositoriesService.class, node);
+        MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
         while (System.currentTimeMillis() - start < timeout.millis()) {
-            ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
-            assertThat(snapshotInfos.size(), equalTo(1));
-            if (snapshotInfos.get(0).state().completed()) {
-                return null;
-            }
-            for (String node : nodes) {
-                RepositoriesService repositoriesService = cluster().getInstance(RepositoriesService.class, node);
-                if (((MockRepository) repositoriesService.repository(repository)).blocked()) {
-                    return node;
-                }
+            if (mockRepository.blocked()) {
+                return;
             }
             Thread.sleep(100);
         }
         fail("Timeout!!!");
-        return null;
     }
 
     public SnapshotInfo waitForCompletion(String repository, String snapshot, TimeValue timeout) throws InterruptedException {
@@ -135,9 +127,16 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
         return null;
     }
 
-    public static void unblock(String repository) {
-        for (RepositoriesService repositoriesService : cluster().getInstances(RepositoriesService.class)) {
-            ((MockRepository) repositoriesService.repository(repository)).unblock();
+    public static String blockNodeWithIndex(String index) {
+        for(String node : cluster().nodesInclude("test-idx")) {
+            ((MockRepository)cluster().getInstance(RepositoriesService.class, node).repository("test-repo")).blockOnDataFiles(true);
+            return node;
         }
+        fail("No nodes for the index " + index + " found");
+        return null;
+    }
+
+    public static void unblockNode(String node) {
+        ((MockRepository)cluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
     }
 }

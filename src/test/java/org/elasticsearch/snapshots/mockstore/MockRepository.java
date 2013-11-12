@@ -46,10 +46,6 @@ public class MockRepository extends FsRepository {
 
     private final AtomicLong failureCounter = new AtomicLong();
 
-    private volatile boolean blockable = true;
-
-    private volatile boolean blocked = false;
-
     public void resetFailureCount() {
         failureCounter.set(0);
     }
@@ -62,23 +58,25 @@ public class MockRepository extends FsRepository {
 
     private final double randomDataFileIOExceptionRate;
 
-    private final double randomControlBlockingRate;
-
-    private final double randomDataFileBlockingRate;
-
     private final long waitAfterUnblock;
 
     private final MockBlobStore mockBlobStore;
 
     private final String randomPrefix;
 
+    private volatile boolean blockOnControlFiles;
+
+    private volatile boolean blockOnDataFiles;
+
+    private volatile boolean blocked = false;
+
     @Inject
     public MockRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name, repositorySettings, indexShardRepository);
         randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
-        randomControlBlockingRate = repositorySettings.settings().getAsDouble("random_control_blocking_rate", 0.0);
-        randomDataFileBlockingRate = repositorySettings.settings().getAsDouble("random_data_file_blocking_rate", 0.0);
+        blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
+        blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
         randomPrefix = repositorySettings.settings().get("random");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix " + randomPrefix);
@@ -108,6 +106,14 @@ public class MockRepository extends FsRepository {
         mockBlobStore.unblockExecution();
     }
 
+    public void blockOnDataFiles(boolean blocked) {
+        blockOnDataFiles = blocked;
+    }
+
+    public void blockOnControlFiles(boolean blocked) {
+        blockOnControlFiles = blocked;
+    }
+
     public class MockBlobStore extends BlobStoreWrapper {
         ConcurrentMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<String, AtomicLong>();
 
@@ -133,8 +139,10 @@ public class MockRepository extends FsRepository {
 
         public synchronized void unblockExecution() {
             if (blocked) {
-                blockable = false;
                 blocked = false;
+                // Clean blocking flags, so we wouldn't try to block again
+                blockOnDataFiles = false;
+                blockOnControlFiles = false;
                 this.notifyAll();
             }
         }
@@ -146,12 +154,13 @@ public class MockRepository extends FsRepository {
         private synchronized boolean blockExecution() {
             boolean wasBlocked = false;
             try {
-                while (blockable) {
+                while (blockOnDataFiles || blockOnControlFiles) {
                     blocked = true;
                     this.wait();
                     wasBlocked = true;
                 }
             } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
             }
             return wasBlocked;
         }
@@ -190,7 +199,7 @@ public class MockRepository extends FsRepository {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         addFailure();
                         throw new IOException("Random IOException");
-                    } else if (shouldFail(blobName, randomDataFileBlockingRate)) {
+                    } else if (blockOnDataFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
                         if (blockExecution() && waitAfterUnblock > 0) {
                             try {
@@ -207,7 +216,7 @@ public class MockRepository extends FsRepository {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         addFailure();
                         throw new IOException("Random IOException");
-                    } else if (shouldFail(blobName, randomControlBlockingRate)) {
+                    } else if (blockOnControlFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
                         if (blockExecution() && waitAfterUnblock > 0) {
                             try {

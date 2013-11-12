@@ -20,7 +20,6 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -106,31 +105,27 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                         ImmutableSettings.settingsBuilder()
                                 .put("location", newTempDir(LifecycleScope.TEST))
                                 .put("random", randomAsciiOfLength(10))
-                                .put("random_data_file_blocking_rate", 0.1)
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
+        // Pick one node and block it
+        String blockedNode = blockNodeWithIndex("test-idx");
+
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
-        String blockedNode = waitForCompletionOrBlock(nodes, "test-repo", "test-snap", TimeValue.timeValueSeconds(60));
-        if (blockedNode != null) {
-            logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
-            unblock("test-repo");
-            logger.info("--> stopping node", blockedNode);
-            stopNode(blockedNode);
-            logger.info("--> waiting for completion");
-            SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
-            logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
-            logger.info("--> done");
-        } else {
-            logger.info("--> done without blocks");
-            ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots();
-            assertThat(snapshotInfos.size(), equalTo(1));
-            assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
-            assertThat(snapshotInfos.get(0).shardFailures().size(), equalTo(0));
+        logger.info("--> waiting for block to kick in");
+        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
-        }
+        logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
+        unblockNode(blockedNode);
+
+        logger.info("--> stopping node", blockedNode);
+        stopNode(blockedNode);
+        logger.info("--> waiting for completion");
+        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
+        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
+        logger.info("--> done");
     }
 }

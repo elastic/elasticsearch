@@ -406,7 +406,12 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
     static boolean iteratorMatch(DocIdSetIterator docIdSetIterator, int target) throws IOException {
         assert docIdSetIterator != null;
-        return docIdSetIterator.docID() == target || docIdSetIterator.advance(target) == target;
+        int current = docIdSetIterator.docID();
+        if (current == DocIdSetIterator.NO_MORE_DOCS || target < current) {
+            return false;
+        } else {
+            return current == target || docIdSetIterator.advance(target) == target;
+        }
     }
 
 }

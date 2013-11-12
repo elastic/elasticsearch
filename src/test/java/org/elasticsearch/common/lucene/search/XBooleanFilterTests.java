@@ -413,7 +413,6 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/pull/4144/")
     public void testRandom() throws IOException {
         int iterations = atLeast(400); // don't worry that is fast!
         for (int iter = 0; iter < iterations; iter++) {

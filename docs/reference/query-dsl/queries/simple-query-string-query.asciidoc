@@ -1,0 +1,78 @@
+[[query-dsl-simple-query-string-query]]
+=== Simple Query String Query
+
+A query that uses the SimpleQueryParser to parse its context. Unlike the
+regular `query_string` query, the `simple_query_string` query will never
+throw an exception, and discards invalid parts of the query. Here is
+an example:
+
+[source,js]
+--------------------------------------------------
+{
+    "simple_query_string" : {
+        "query": "\"fried eggs\" +(eggplant | potato) -frittata",
+        "analyzer": "snowball",
+        "fields": ["body^5","_all"],
+        "default_operator": "and"
+    }
+}
+--------------------------------------------------
+
+The `simple_query_string` top level parameters include:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+|`query` |The actual query to be parsed. See below for syntax.
+
+|`fields` |The fields to perform the parsed query against. Defaults to the
+`index.query.default_field` index settings, which in turn defaults to `_all`.
+
+|`default_operator` |The default operator used if no explicit operator
+is specified. For example, with a default operator of `OR`, the query
+`capital of Hungary` is translated to `capital OR of OR Hungary`, and
+with default operator of `AND`, the same query is translated to
+`capital AND of AND Hungary`. The default value is `OR`.
+
+|`analyzer` |The analyzer used to analyze each term of the query when
+creating composite queries.
+|=======================================================================
+
+[float]
+==== Simple Query String Syntax
+The `simple_query_string` supports the following special characters:
+
+* `+` signifies AND operation
+* `|` signifies OR operation
+* `-` negates a single token
+* `"` wraps a number of tokens to signify a phrase for searching
+* `*` at the end of a term signifies a prefix query
+* `(` and `)` signify precedence
+
+In order to search for any of these special characters, they will need to
+be escaped with `\`.
+
+[float]
+==== Default Field
+When not explicitly specifying the field to search on in the query
+string syntax, the `index.query.default_field` will be used to derive
+which field to search on. It defaults to `_all` field.
+
+So, if `_all` field is disabled, it might make sense to change it to set
+a different default field.
+
+[float]
+==== Multi Field
+The fields parameter can also include pattern based field names,
+allowing to automatically expand to the relevant fields (dynamically
+introduced fields included). For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "simple_query_string" : {
+        "fields" : ["content", "name.*^5"],
+        "query" : "foo bar baz"
+    }
+}
+--------------------------------------------------

@@ -665,7 +665,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
     @TestLogging("cluster.routing.allocation.decider:TRACE")
-//    @LuceneTestCase.AwaitsFix(bugUrl="imotov is working on the fix")
     public void moveShardWhileSnapshottingTest() throws Exception {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
@@ -675,7 +674,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                         ImmutableSettings.settingsBuilder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
-                                .put("random_data_file_blocking_rate", 0.1)
                                 .put("wait_after_unblock", 200)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -690,23 +688,28 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         refresh();
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
+        // Pick one node and block it
+        String blockedNode = blockNodeWithIndex("test-idx");
+
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
-        String blockedNode = waitForCompletionOrBlock(cluster().nodesInclude("test-idx"), "test-repo", "test-snap", TimeValue.timeValueSeconds(60));
-        if (blockedNode != null) {
-            logger.info("--> move shards away from the node");
-            ImmutableSettings.Builder excludeSettings = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", blockedNode);
-            client().admin().indices().prepareUpdateSettings("test-idx").setSettings(excludeSettings).get();
-            logger.info("--> execution was blocked on node [{}], moving shards away from this node", blockedNode);
-            unblock("test-repo");
-            logger.info("--> waiting for completion");
-            SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
-            logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
-            logger.info("--> done");
-        } else {
-            logger.info("--> done without blocks");
-        }
+
+        logger.info("--> waiting for block to kick in");
+        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+
+        logger.info("--> execution was blocked on node [{}], moving shards away from this node", blockedNode);
+        ImmutableSettings.Builder excludeSettings = ImmutableSettings.builder().put("index.routing.allocation.exclude._name", blockedNode);
+        client().admin().indices().prepareUpdateSettings("test-idx").setSettings(excludeSettings).get();
+
+        logger.info("--> unblocking blocked node");
+        unblockNode(blockedNode);
+        logger.info("--> waiting for completion");
+        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
+        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
+        logger.info("--> done");
+
         ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots();
+
         assertThat(snapshotInfos.size(), equalTo(1));
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).shardFailures().size(), equalTo(0));

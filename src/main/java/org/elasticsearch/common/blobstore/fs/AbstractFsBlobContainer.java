@@ -88,13 +88,17 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
                     while ((bytesRead = is.read(buffer)) != -1) {
                         listener.onPartial(buffer, 0, bytesRead);
                     }
-                } catch (Throwable e) {
+                } catch (Throwable t) {
                     IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(e);
+                    listener.onFailure(t);
                     return;
                 }
-                IOUtils.closeWhileHandlingException(is);
-                listener.onCompleted();
+                try {
+                    IOUtils.closeWhileHandlingException(is);
+                    listener.onCompleted();
+                } catch (Throwable t) {
+                    listener.onFailure(t);
+                }
             }
         });
     }

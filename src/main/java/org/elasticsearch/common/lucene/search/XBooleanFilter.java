@@ -127,24 +127,17 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             if (clause.clause.getOccur() == Occur.SHOULD) {
                 if (hasMustClauses || hasMustNotClauses) {
                     fastOrClauses.add(clause);
-                } else {
-                    if (res == null) {
-                        DocIdSetIterator it = clause.docIdSet.iterator();
-                        if (it == null) {
-                            continue;
-                        }
+                } else if (res == null) {
+                    DocIdSetIterator it = clause.docIdSet.iterator();
+                    if (it != null) {
                         hasNonEmptyShouldClause = true;
                         res = new FixedBitSet(reader.maxDoc());
                         res.or(it);
-                    } else {
-                        DocIdSetIterator it = clause.docIdSet.iterator();
-                        if (it == null) {
-                            continue;
-                        }
+                    }
+                } else {
+                    DocIdSetIterator it = clause.docIdSet.iterator();
+                    if (it != null) {
                         hasNonEmptyShouldClause = true;
-                        if (res == null) {
-                            res = new FixedBitSet(reader.maxDoc());
-                        }
                         res.or(it);
                     }
                 }
@@ -187,7 +180,8 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         if (!hasBits) {
             if (!fastOrClauses.isEmpty()) {
                 DocIdSetIterator it = res.iterator();
-                res: for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
+                at_least_one_should_clause_iter:
+                for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
                     for (ResultClause fastOrClause : fastOrClauses) {
                         DocIdSetIterator clauseIterator = fastOrClause.iterator();
                         if (clauseIterator == null) {
@@ -195,7 +189,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                         }
                         if (iteratorMatch(clauseIterator, setDoc)) {
                             hasNonEmptyShouldClause = true;
-                            continue res;
+                            continue at_least_one_should_clause_iter;
                         }
                     }
                     res.clear(setDoc);
@@ -284,7 +278,8 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         // any should filter. TODO: Add an option to have disable minimum_should_match=1 behaviour
         if (!slowOrClauses.isEmpty() || !fastOrClauses.isEmpty()) {
             DocIdSetIterator it = res.iterator();
-            res: for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
+            at_least_one_should_clause_iter:
+            for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
                 for (ResultClause fastOrClause : fastOrClauses) {
                     DocIdSetIterator clauseIterator = fastOrClause.iterator();
                     if (it == null) {
@@ -292,13 +287,13 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                     }
                     if (iteratorMatch(clauseIterator, setDoc)) {
                         hasNonEmptyShouldClause = true;
-                        continue res;
+                        continue at_least_one_should_clause_iter;
                     }
                 }
                 for (ResultClause slowOrClause : slowOrClauses) {
                     if (slowOrClause.bits.get(setDoc)) {
                         hasNonEmptyShouldClause = true;
-                        continue res;
+                        continue at_least_one_should_clause_iter;
                     }
                 }
                 res.clear(setDoc);
@@ -410,7 +405,11 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         if (current == DocIdSetIterator.NO_MORE_DOCS || target < current) {
             return false;
         } else {
-            return current == target || docIdSetIterator.advance(target) == target;
+            if (current == target) {
+                return true;
+            } else {
+                return docIdSetIterator.advance(target) == target;
+            }
         }
     }
 

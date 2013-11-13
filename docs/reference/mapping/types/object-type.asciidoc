@@ -134,7 +134,7 @@ example, if we added age and its value is a number, then it can't be
 treated as a string.
 
 The `dynamic` parameter can also be set to `strict`, meaning that not
-only new fields will not be introduced into the mapping, parsing
+only new fields will not be introduced into the mapping, also parsing
 (indexing) docs with such new fields will fail.
 
 [float]

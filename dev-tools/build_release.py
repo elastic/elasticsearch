@@ -54,7 +54,7 @@ Once it's done it will print all the remaining steps.
     - S3 keys exported via ENV Variables (AWS_ACCESS_KEY_ID,  AWS_SECRET_ACCESS_KEY)
 """
 
-LOG = '/tmp/release.log'
+LOG = '/tmp/elasticsearch_release.log'
 
 def log(msg):
   log_plain('\n%s' % msg)

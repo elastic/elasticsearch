@@ -69,7 +69,7 @@ specific `index_analyzer` and `search_analyzer`) to be set.
 
 For any field to allow
 <<search-request-highlighting,highlighting>> it has
-to be either stored or part of the `_source` field. By default `_all`
+to be either stored or part of the `_source` field. By default the `_all`
 field does not qualify for either, so highlighting for it does not yield
 any data.
 

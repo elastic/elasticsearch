@@ -86,7 +86,7 @@ The following table lists all the attributes that can be used with the
 |`index_name` |The name of the field that will be stored in the index.
 Defaults to the property/field name.
 
-|`store` |Set to `true` to store actual field in the index, `false` to not
+|`store` |Set to `true` to store the actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
 

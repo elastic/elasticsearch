@@ -81,6 +81,8 @@ include::request/from-size.asciidoc[]
 
 include::request/sort.asciidoc[]
 
+include::request/source-filtering.asciidoc[]
+
 include::request/fields.asciidoc[]
 
 include::request/script-fields.asciidoc[]

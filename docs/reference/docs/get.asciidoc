@@ -65,22 +65,55 @@ are stored.
 The get API allows for `_type` to be optional. Set it to `_all` in order
 to fetch the first document matching the id across all types.
 
+
+[float]
+[[get-source-filtering]]
+=== Source filtering
+
+added[1.0.0.Beta1]
+
+By default, the get operation returns the contents of the `_source` field unless
+you have used the `fields` parameter or if the `_source` field is disabled. 
+You can turn off `_source` retrieval by using the `_source` parameter:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=false'
+--------------------------------------------------
+
+If you only need one or two fields from the complete `_source`, you can use the `_source_include`
+& `_source_exclude` parameters to include or filter out that parts you need. This can be especially helpful
+with large documents where partial retrieval can save on network overhead. Both parameters take a comma separated list
+of fields or wildcard expressions. Example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1?_source_include=*.id&_source_exclude=entities'
+--------------------------------------------------
+
+If only want to specify includes, you can use a shorter notation:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=*.id,retweeted'
+--------------------------------------------------
+
+
 [float]
 [[get-fields]]
 === Fields
 
-The get operation allows specifying a set of fields that will be
-returned (by default, the `_source` field) by passing the `fields`
-parameter. For example:
+The get operation allows specifying a set of stored fields that will be
+returned by passing the `fields` parameter. For example:
 
 [source,js]
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/twitter/tweet/1?fields=title,content'
 --------------------------------------------------
 
-The returned fields will either be loaded if they are stored, or fetched
-from the `_source` (parsed and extracted). It also supports sub objects
-extraction from _source, like `obj1.obj2`.
+For backward compatibility, if the requested fields are not stored, they will be fetched
+from the `_source` (parsed and extracted). This functionality has been replaced by the
+<<get-source-filtering,source filtering>> parameter.
 
 [float]
 [[_source]]
@@ -95,8 +128,15 @@ without any additional content around it. For example:
 curl -XGET 'http://localhost:9200/twitter/tweet/1/_source'
 --------------------------------------------------
 
-Note, there is also a HEAD variant for the _source endpoint. Curl
-example:
+You can also use the same source filtering parameters to control which parts of the `_source` will be returned:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
+--------------------------------------------------
+
+Note, there is also a HEAD variant for the _source endpoint to efficiently test for document existence.
+Curl example:
 
 [source,js]
 --------------------------------------------------

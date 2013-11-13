@@ -62,9 +62,14 @@ This will yield the same result as the previous request.
 === All parameters:
 
 [horizontal]
+`_source`::
+
+    added[1.0.0.Beta1] Set to `true` to retrieve the `_source` of the document explained. You can also
+    retrieve part of the document by using `_source_include` & `_source_exclude` (see <<get-source-filtering,Get API>> for more details)
+
 `fields`::
-    Allows to control which fields to return as part of the
-    document explained (support `_source` for the full document).
+    Allows to control which stored fields to return as part of the
+    document explained.
 
 `routing`::
     Controls the routing in the case the routing was used

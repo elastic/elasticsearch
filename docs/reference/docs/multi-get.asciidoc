@@ -71,10 +71,54 @@ curl 'localhost:9200/test/type/_mget' -d '{
 --------------------------------------------------
 
 [float]
+[[mget-source-filtering]]
+=== Source filtering
+
+added[1.0.0.Beta1]
+
+By default, the `_source` field will be returned for every document (if stored).
+Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
+the `_source` (or not at all) by using the `_source` parameter. You can also use
+the url parameters `_source`,`_source_include` & `_source_exclude` to specify defaults,
+which will be used when there are no per-document instructions.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/_mget' -d '{
+    "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "1",
+            "_source" : false
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "2",
+            "_source" : ["field3", "field4"]
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "3",
+            "_source" : {
+                "include": ["user"],
+                "_exclude": ["user.location"]
+            }
+        }
+    ]
+}'
+--------------------------------------------------
+
+
+[float]
 [[mget-fields]]
 === Fields
 
-Specific fields can be specified to be retrieved per document to get.
+Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-fields,fields>> parameter of the Get API.
 For example:
 
 [source,js]

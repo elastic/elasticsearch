@@ -65,11 +65,41 @@ are stored.
 The get API allows for `_type` to be optional. Set it to `_all` in order
 to fetch the first document matching the id across all types.
 
+
+[float]
+[[get-source-filtering]]
+=== Source filtering
+
+By default, the get operation returns the contents of the `_source` field (if stored) unless,
+you have used the `fields` parameter. You can turn off `_source` retrieval by using the `_source` parameter:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=false'
+--------------------------------------------------
+
+If you only need one or two fields from the complete `_source`, you can use the `_source_include`
+& `_source_exclude` parameters to include or filter out that parts you need. This can be especially helpful
+with large documents. Both parameters take a comma separated list of fields or wildcard expressions. Example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1?_source_include=*.id&_source_exclude=entities'
+--------------------------------------------------
+
+If only want to specify includes, you can use a shorter notation:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=*.id,retweeted'
+--------------------------------------------------
+
+
 [float]
 [[get-fields]]
 === Fields
 
-The get operation allows specifying a set of fields that will be
+The get operation allows specifying a set of stored fields that will be
 returned (by default, the `_source` field) by passing the `fields`
 parameter. For example:
 

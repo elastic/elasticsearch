@@ -116,7 +116,7 @@ this into a tree_levels setting of 26.
 
 Elasticsearch uses the paths in the prefix tree as terms in the index
 and in queries. The higher the levels is (and thus the precision), the
-more terms are generated. Both calculating the terms, keeping them in
+more terms are generated. Each, calculating the terms, keeping them in
 memory, and storing them has a price of course. Especially with higher
 tree levels, indices can become extremely large even with a modest
 amount of data. Additionally, the size of the features also matters.

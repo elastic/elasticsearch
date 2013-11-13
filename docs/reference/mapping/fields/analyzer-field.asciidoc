@@ -20,7 +20,7 @@ Here is a simple mapping:
 --------------------------------------------------
 
 The above will use the value of the `my_field` to lookup an analyzer
-registered under it. For example, indexing a the following doc:
+registered under it. For example, indexing the following doc:
 
 [source,js]
 --------------------------------------------------

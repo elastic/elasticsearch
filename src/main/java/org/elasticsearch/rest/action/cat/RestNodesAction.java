@@ -74,7 +74,7 @@ public class RestNodesAction extends BaseRestHandler {
                             @Override
                             public void onResponse(NodesStatsResponse nodesStatsResponse) {
                                 try {
-                                    channel.sendResponse(RestTable.buildResponse(buildTable(clusterStateResponse, nodesInfoResponse, nodesStatsResponse), request, channel));
+                                    channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), request, channel));
                                 } catch (Throwable e) {
                                     onFailure(e);
                                 }
@@ -112,7 +112,9 @@ public class RestNodesAction extends BaseRestHandler {
         });
     }
 
-    private Table buildTable(ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
+    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
+        boolean fullId = req.paramAsBoolean("full_id", false);
+
         String masterId = state.getState().nodes().masterNodeId();
 
         Table table = new Table();
@@ -163,7 +165,7 @@ public class RestNodesAction extends BaseRestHandler {
 
             table.startRow();
 
-            table.addCell(node.id().substring(0, 4));
+            table.addCell(fullId ? node.id() : node.id().substring(0, 4));
             table.addCell(info == null ? null : info.getProcess().id());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getAddress().getHostAddress());
             table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());

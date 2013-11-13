@@ -1,8 +1,8 @@
 [[search-request-fields]]
 === Fields
 
-Allows to selectively load specific fields for each document represented
-by a search hit. Defaults to load the internal `_source` field.
+Allows to selectively load specific stored fields for each document represented
+by a search hit.
 
 [source,js]
 --------------------------------------------------
@@ -13,10 +13,6 @@ by a search hit. Defaults to load the internal `_source` field.
     }
 }
 --------------------------------------------------
-
-The fields will automatically load stored fields (`store` mapping set to
-`true`), or, if not stored, will load the `_source` and extract it from
-it (allowing to return nested document object).
 
 `*` can be used to load all stored fields from the document.
 
@@ -33,12 +29,20 @@ returned, for example:
 }
 --------------------------------------------------
 
+
+For backwards compatibility, if the fields parameter specifies fields which are not stored (`store` mapping set to
+`false`), it will load the `_source` and extract it from it. This functionality has been replaced by the
+<<search-request-source-filtering,source filtering>> parameter.
+
 Script fields can also be automatically detected and used as fields, so
 things like `_source.obj1.obj2` can be used, though not recommended, as
 `obj1.obj2` will work as well.
 
 [[partial]]
 ==== Partial
+
+deprecated[1.0.0Beta1,Replaced by <<search-request-source-filtering>>]
+
 
 When loading data from `_source`, partial fields can be used to use
 wildcards to control what part of the `_source` will be loaded based on

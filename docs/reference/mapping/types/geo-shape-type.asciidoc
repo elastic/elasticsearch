@@ -174,7 +174,7 @@ for upper left and lower right points of the shape:
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
-points in each list must be the same (the polygon must be closed).
+points in each (outer) list must be the same (the polygon must be closed).
 
 [source,js]
 --------------------------------------------------

@@ -88,8 +88,8 @@ configured it may return some false positives or false negatives for
 certain queries. To mitigate this, it is important to select an
 appropriate value for the tree_levels parameter and to adjust
 expectations accordingly. For example, a point may be near the border of
-a particular grid cell. And may not match a query that only matches the
-cell right next to it even though the shape is very close to the point.
+a particular grid cell and may hence not match a query that only matches the
+cell right next to it -- even though the shape is very close to the point.
 
 [float]
 ===== Example

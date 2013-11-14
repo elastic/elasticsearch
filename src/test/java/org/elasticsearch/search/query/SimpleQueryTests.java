@@ -1906,24 +1906,24 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
                         .noMatchQuery(matchQuery("text", "value2"))).get();
         assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
 
         //default no match query is match_all
         response = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")).get();
         assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
 
         response = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
                         .noMatchQuery("all")).get();
         assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
 
         response = client().prepareSearch("index1", "index2", "index3")
                 .setQuery(indicesQuery(matchQuery("text", "value1"), "index1")
@@ -1946,24 +1946,24 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter(termFilter("text", "value2"))).get();
         assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
 
         //default no match filter is "all"
         response = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")).get();
         assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
 
         response = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
                         .noMatchFilter("all")).get();
         assertHitCount(response, 3l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
-        assertThat(response.getHits().getAt(2).getId(), either(equalTo("1")).or(equalTo("2")).or(equalTo("3")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
+        assertThat(response.getHits().getAt(2).getId(), anyOf(equalTo("1"), equalTo("2"), equalTo("3")));
 
         response = client().prepareSearch("index1", "index2", "index3")
                 .setFilter(indicesFilter(termFilter("text", "value1"), "index1")
@@ -2003,8 +2003,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2")), "related")
                         .noMatchQuery(matchQuery("text", "value1"))).get();
         assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
     }
 
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
@@ -2037,7 +2037,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .setFilter(indicesFilter(hasChildFilter("child", termFilter("text", "value2")), "related")
                         .noMatchFilter(termFilter("text", "value1"))).get();
         assertHitCount(response, 2l);
-        assertThat(response.getHits().getAt(0).getId(), either(equalTo("1")).or(equalTo("2")));
-        assertThat(response.getHits().getAt(1).getId(), either(equalTo("1")).or(equalTo("2")));
+        assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
     }
 }

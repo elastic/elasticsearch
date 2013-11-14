@@ -449,7 +449,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
                         mdBuilder.putCustom(SnapshotMetaData.TYPE, snapshots);
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
-                    return null;
+                    return currentState;
                 }
 
                 @Override

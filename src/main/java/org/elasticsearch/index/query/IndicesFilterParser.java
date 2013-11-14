@@ -60,6 +60,7 @@ public class IndicesFilterParser implements FilterParser {
         boolean filterFound = false;
         boolean indicesFound = false;
         boolean currentIndexMatchesIndices = false;
+        String filterName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -116,6 +117,8 @@ public class IndicesFilterParser implements FilterParser {
                     } else if ("none".equals(type)) {
                         noMatchFilter = Queries.MATCH_NO_FILTER;
                     }
+                } else if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[indices] filter does not support [" + currentFieldName + "]");
                 }
@@ -128,10 +131,18 @@ public class IndicesFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' or 'index' element");
         }
 
+        Filter chosenFilter;
         if (currentIndexMatchesIndices) {
-            return filter;
+            chosenFilter = filter;
+        } else {
+            chosenFilter = noMatchFilter;
         }
-        return noMatchFilter;
+
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, chosenFilter);
+        }
+
+        return chosenFilter;
     }
 
     protected boolean matchesIndices(String currentIndex, String... indices) {

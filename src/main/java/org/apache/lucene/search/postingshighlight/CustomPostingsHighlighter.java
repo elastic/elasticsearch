@@ -135,7 +135,7 @@ public final class CustomPostingsHighlighter extends XPostingsHighlighter {
     }
 
     @Override
-    protected XPassageFormatter getFormatter(String field) {
+    protected PassageFormatter getFormatter(String field) {
         return passageFormatter;
     }
 

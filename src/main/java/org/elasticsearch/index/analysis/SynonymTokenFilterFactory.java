@@ -96,10 +96,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             if ("wordnet".equalsIgnoreCase(settings.get("format"))) {
                 parser = new WordnetSynonymParser(true, expand, analyzer);
-                ((WordnetSynonymParser) parser).add(rulesReader);
+                ((WordnetSynonymParser) parser).parse(rulesReader);
             } else {
                 parser = new SolrSynonymParser(true, expand, analyzer);
-                ((SolrSynonymParser) parser).add(rulesReader);
+                ((SolrSynonymParser) parser).parse(rulesReader);
             }
 
             synonymMap = parser.build();

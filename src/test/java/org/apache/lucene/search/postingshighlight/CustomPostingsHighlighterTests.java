@@ -324,7 +324,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
             }
 
             @Override
-            protected XPassageFormatter getFormatter(String field) {
+            protected PassageFormatter getFormatter(String field) {
                 return new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder());
             }
         };

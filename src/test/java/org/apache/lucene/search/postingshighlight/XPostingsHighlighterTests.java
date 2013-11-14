@@ -453,7 +453,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         final CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder());
         highlighter = new XPostingsHighlighter() {
             @Override
-            protected XPassageFormatter getFormatter(String field) {
+            protected PassageFormatter getFormatter(String field) {
                 return passageFormatter;
             }
         };
@@ -1663,9 +1663,9 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         IndexSearcher searcher = newSearcher(ir);
         XPostingsHighlighter highlighter = new XPostingsHighlighter() {
             @Override
-            protected XPassageFormatter getFormatter(String field) {
-                return new XPassageFormatter() {
-                    XPassageFormatter defaultFormatter = new XDefaultPassageFormatter();
+            protected PassageFormatter getFormatter(String field) {
+                return new PassageFormatter() {
+                    PassageFormatter defaultFormatter = new DefaultPassageFormatter();
 
                     @Override
                     public String[] format(Passage passages[], String content) {

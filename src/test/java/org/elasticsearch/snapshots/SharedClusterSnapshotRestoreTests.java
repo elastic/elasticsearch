@@ -72,7 +72,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(5, 100))
+                        .put("chunk_size", randomIntBetween(100, 1000))
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -514,7 +514,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository at " + repo.getAbsolutePath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", repo).put("compress", false).put("chunk_size", atLeast(5))
+                        .put("location", repo)
+                        .put("compress", false)
+                        .put("chunk_size", randomIntBetween(100, 1000))
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -741,7 +743,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(5, 100))
+                        .put("chunk_size", randomIntBetween(100, 1000))
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

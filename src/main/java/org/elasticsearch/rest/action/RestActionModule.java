@@ -217,5 +217,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestRecoveryAction.class).asEagerSingleton();
         bind(RestHealthAction.class).asEagerSingleton();
         bind(RestCatAction.class).asEagerSingleton();
+        bind(RestHelpAction.class).asEagerSingleton();
     }
 }

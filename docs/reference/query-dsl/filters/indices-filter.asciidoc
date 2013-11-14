@@ -26,13 +26,13 @@ You can use the `index` field to provide a single index.
 `no_match_filter` can also have "string" value of `none` (to match no
 documents), and `all` (to match all). Defaults to `all`.
 
-`filter` is mandatory. You must provide the indices.
-It is forbidden to omit or to give `indices` or `index` multiple times,
-or to give both.
+`filter` is mandatory, as well as `indices` (or `index`).
 
-Please note that the fields order is important: If the indices are
-provided before `filter` or `no_match_filter`, the filter parsing is
-skipped altogether.
-For instance, this feature is useful to prevent a query that runs
-against multiple indices to fail because of a missing type.
-See `has_child`, `has_parent`, `top_children` and `nested`.
+coming[0.90.8]
+[TIP]
+===================================================================
+The fields order is important: if the `indices` are provided before `filter`
+or `no_match_filter`, the related filters get parsed only against the indices
+that they are going to be executed on. This is useful to avoid parsing filters
+when it is not necessary and prevent potential mapping errors.
+===================================================================

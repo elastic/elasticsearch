@@ -102,7 +102,7 @@ public class MapperQueryParser extends QueryParser {
         }
 
         this.forcedAnalyzer = settings.forcedAnalyzer() != null;
-        this.analyzer = forcedAnalyzer ? settings.forcedAnalyzer() : settings.defaultAnalyzer();
+        this.setAnalyzer(forcedAnalyzer ? settings.forcedAnalyzer() : settings.defaultAnalyzer());
         if (settings.forcedQuoteAnalyzer() != null) {
             this.forcedQuoteAnalyzer = true;
             this.quoteAnalyzer = settings.forcedQuoteAnalyzer();
@@ -216,11 +216,11 @@ public class MapperQueryParser extends QueryParser {
             }
         }
         currentMapper = null;
-        Analyzer oldAnalyzer = analyzer;
+        Analyzer oldAnalyzer = getAnalyzer();
         try {
             MapperService.SmartNameFieldMappers fieldMappers = null;
             if (quoted) {
-                analyzer = quoteAnalyzer;
+                setAnalyzer(quoteAnalyzer);
                 if (quoteFieldSuffix != null) {
                     fieldMappers = parseContext.smartFieldMappers(field + quoteFieldSuffix);
                 }
@@ -231,11 +231,11 @@ public class MapperQueryParser extends QueryParser {
             if (fieldMappers != null) {
                 if (quoted) {
                     if (!forcedQuoteAnalyzer) {
-                        analyzer = fieldMappers.searchQuoteAnalyzer();
+                        setAnalyzer(fieldMappers.searchQuoteAnalyzer());
                     }
                 } else {
                     if (!forcedAnalyzer) {
-                        analyzer = fieldMappers.searchAnalyzer();
+                        setAnalyzer(fieldMappers.searchAnalyzer());
                     }
                 }
                 currentMapper = fieldMappers.fieldMappers().mapper();
@@ -269,7 +269,7 @@ public class MapperQueryParser extends QueryParser {
             }
             return super.getFieldQuery(field, queryText, quoted);
         } finally {
-            analyzer = oldAnalyzer;
+            setAnalyzer(oldAnalyzer);
         }
     }
 
@@ -502,12 +502,12 @@ public class MapperQueryParser extends QueryParser {
 
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         currentMapper = null;
-        Analyzer oldAnalyzer = analyzer;
+        Analyzer oldAnalyzer = getAnalyzer();
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
                 if (!forcedAnalyzer) {
-                    analyzer = fieldMappers.searchAnalyzer();
+                    setAnalyzer(fieldMappers.searchAnalyzer());
                 }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
@@ -537,7 +537,7 @@ public class MapperQueryParser extends QueryParser {
             }
             throw e;
         } finally {
-            analyzer = oldAnalyzer;
+            setAnalyzer(oldAnalyzer);
         }
     }
 
@@ -655,12 +655,12 @@ public class MapperQueryParser extends QueryParser {
     private Query getWildcardQuerySingle(String field, String termStr) throws ParseException {
         String indexedNameField = field;
         currentMapper = null;
-        Analyzer oldAnalyzer = analyzer;
+        Analyzer oldAnalyzer = getAnalyzer();
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
                 if (!forcedAnalyzer) {
-                    analyzer = fieldMappers.searchAnalyzer();
+                    setAnalyzer(fieldMappers.searchAnalyzer());
                 }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
@@ -675,7 +675,7 @@ public class MapperQueryParser extends QueryParser {
             }
             throw e;
         } finally {
-            analyzer = oldAnalyzer;
+            setAnalyzer(oldAnalyzer);
         }
     }
 
@@ -790,12 +790,12 @@ public class MapperQueryParser extends QueryParser {
 
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
         currentMapper = null;
-        Analyzer oldAnalyzer = analyzer;
+        Analyzer oldAnalyzer = getAnalyzer();
         try {
             MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
             if (fieldMappers != null) {
                 if (!forcedAnalyzer) {
-                    analyzer = fieldMappers.searchAnalyzer();
+                    setAnalyzer(fieldMappers.searchAnalyzer());
                 }
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
@@ -825,7 +825,7 @@ public class MapperQueryParser extends QueryParser {
             }
             throw e;
         } finally {
-            analyzer = oldAnalyzer;
+            setAnalyzer(oldAnalyzer);
         }
     }
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.merge;
 
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SegmentInfoPerCommit;
+import org.apache.lucene.index.SegmentCommitInfo;
 
 import java.util.List;
 
@@ -30,7 +30,7 @@ import java.util.List;
 public class OnGoingMerge {
 
     private final String id;
-    private final List<SegmentInfoPerCommit> mergedSegments;
+    private final List<SegmentCommitInfo> mergedSegments;
 
     public OnGoingMerge(MergePolicy.OneMerge merge) {
         this.id = Integer.toString(System.identityHashCode(merge));
@@ -47,7 +47,7 @@ public class OnGoingMerge {
     /**
      * The list of segments that are being merged.
      */
-    public List<SegmentInfoPerCommit> getMergedSegments() {
+    public List<SegmentCommitInfo> getMergedSegments() {
         return mergedSegments;
     }
 }

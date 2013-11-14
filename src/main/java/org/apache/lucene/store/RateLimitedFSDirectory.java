@@ -37,7 +37,6 @@ public final class RateLimitedFSDirectory extends FilterDirectory {
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        ensureOpen();
         final IndexOutput output = in.createOutput(name, context);
 
         StoreRateLimiting rateLimiting = rateLimitingProvider.rateLimiting();
@@ -60,7 +59,6 @@ public final class RateLimitedFSDirectory extends FilterDirectory {
 
     @Override
     public void close() throws IOException {
-        isOpen = false;
         in.close();
     }
 

@@ -100,7 +100,7 @@ public final class XFilteredQuery extends Query {
         if (queryRewritten instanceof MatchAllDocsQuery || Queries.isConstantMatchAllQuery(queryRewritten)) {
             // Special case: If the query is a MatchAllDocsQuery, we only
             // return a CSQ(filter).
-            final Query rewritten = new XLuceneConstantScoreQuery(delegate.getFilter());
+            final Query rewritten = new ConstantScoreQuery(delegate.getFilter());
             // Combine boost of MatchAllDocsQuery and the wrapped rewritten query:
             rewritten.setBoost(delegate.getBoost() * queryRewritten.getBoost());
             return rewritten;

@@ -71,7 +71,7 @@ public class XPostingsHighlighter {
 
     /** Set the first time {@link #getFormatter} is called,
      *  and then reused. */
-    private XPassageFormatter defaultFormatter;
+    private PassageFormatter defaultFormatter;
 
     /** Set the first time {@link #getScorer} is called,
      *  and then reused. */
@@ -110,9 +110,9 @@ public class XPostingsHighlighter {
      *  formatting passages into highlighted snippets.  This
      *  returns a new {@code PassageFormatter} by default;
      *  subclasses can override to customize. */
-    protected XPassageFormatter getFormatter(String field) {
+    protected PassageFormatter getFormatter(String field) {
         if (defaultFormatter == null) {
-            defaultFormatter = new XDefaultPassageFormatter();
+            defaultFormatter = new DefaultPassageFormatter();
         }
         return defaultFormatter;
     }
@@ -395,7 +395,7 @@ public class XPostingsHighlighter {
         TermsEnum termsEnum = null;
         int lastLeaf = -1;
 
-        XPassageFormatter fieldFormatter = getFormatter(field);
+        PassageFormatter fieldFormatter = getFormatter(field);
         if (fieldFormatter == null) {
             throw new NullPointerException("PassageFormatter cannot be null");
         }

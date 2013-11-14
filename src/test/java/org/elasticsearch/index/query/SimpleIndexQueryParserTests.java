@@ -317,8 +317,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/starColonStar.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XLuceneConstantScoreQuery.class));
-        XLuceneConstantScoreQuery constantScoreQuery = (XLuceneConstantScoreQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
         Filter internalFilter = constantScoreQuery.getFilter();
         assertThat(internalFilter, instanceOf(MatchAllDocsFilter.class));
     }

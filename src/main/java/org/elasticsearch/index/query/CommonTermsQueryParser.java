@@ -207,15 +207,19 @@ public class CommonTermsQueryParser implements QueryParser {
 
         // Logic similar to QueryParser#getFieldQuery
         TokenStream source = analyzer.tokenStream(field, queryString.toString());
-        source.reset();
-        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
         int count = 0;
-        while (source.incrementToken()) {
-            BytesRef ref = new BytesRef(termAtt.length() * 4); // oversize for
-                                                               // UTF-8
-            UnicodeUtil.UTF16toUTF8(termAtt.buffer(), 0, termAtt.length(), ref);
-            query.add(new Term(field, ref));
-            count++;
+        try {
+            source.reset();
+            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+            while (source.incrementToken()) {
+                BytesRef ref = new BytesRef(termAtt.length() * 4); // oversize for
+                                                                   // UTF-8
+                UnicodeUtil.UTF16toUTF8(termAtt.buffer(), 0, termAtt.length(), ref);
+                query.add(new Term(field, ref));
+                count++;
+            }
+        } finally {
+            source.close();
         }
 
         if (count == 0) {

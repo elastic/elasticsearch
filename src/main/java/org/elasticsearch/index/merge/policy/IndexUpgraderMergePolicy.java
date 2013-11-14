@@ -143,7 +143,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
 
     static class IndexUpgraderOneMerge extends OneMerge {
 
-        public IndexUpgraderOneMerge(List<SegmentInfoPerCommit> segments) {
+        public IndexUpgraderOneMerge(List<SegmentCommitInfo> segments) {
             super(segments);
         }
 
@@ -192,7 +192,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
 
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
-        int maxSegmentCount, Map<SegmentInfoPerCommit,Boolean> segmentsToMerge)
+        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge)
         throws IOException {
       return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge));
     }
@@ -215,7 +215,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
 
     @Override
     public boolean useCompoundFile(SegmentInfos segments,
-        SegmentInfoPerCommit newSegment) throws IOException {
+                                   SegmentCommitInfo newSegment) throws IOException {
       return delegate.useCompoundFile(segments, newSegment);
     }
 

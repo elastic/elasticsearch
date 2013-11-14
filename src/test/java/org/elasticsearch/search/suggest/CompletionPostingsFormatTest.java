@@ -25,8 +25,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.apache.lucene.search.spell.TermFreqIterator;
-import org.apache.lucene.search.spell.TermFreqPayloadIterator;
+import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
@@ -120,7 +119,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
            
         }
         docs.close();
-        final TermFreqIterator primaryIter = new TermFreqIterator() {
+        final InputIterator primaryIter = new InputIterator() {
             int index = 0;
             long currentWeight = -1;
 
@@ -143,10 +142,20 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 return currentWeight;
             }
 
+            @Override
+            public BytesRef payload() {
+                return null;
+            }
+
+            @Override
+            public boolean hasPayloads() {
+                return false;
+            }
+
         };
-        TermFreqIterator iter;
+        InputIterator iter;
         if (usePayloads) {
-            iter = new TermFreqPayloadIterator() {
+            iter = new InputIterator() {
                 @Override
                 public long weight() {
                     return primaryIter.weight();
@@ -165,6 +174,11 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 @Override
                 public BytesRef payload() {
                     return new BytesRef(Long.toString(weight()));
+                }
+
+                @Override
+                public boolean hasPayloads() {
+                    return true;
                 }
             };
         } else {

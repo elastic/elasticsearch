@@ -189,24 +189,17 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
 
     }
-
-    public static final class BloomFilteredTerms extends Terms {
-        private Terms delegateTerms;
+    
+    public static final class BloomFilteredTerms extends FilterAtomicReader.FilterTerms {
         private BloomFilter filter;
 
         public BloomFilteredTerms(Terms terms, BloomFilter filter) {
-            this.delegateTerms = terms;
+            super(terms);
             this.filter = filter;
         }
 
         public BloomFilter getFilter() {
             return filter;
-        }
-
-        @Override
-        public TermsEnum intersect(CompiledAutomaton compiled,
-                                   final BytesRef startTerm) throws IOException {
-            return delegateTerms.intersect(compiled, startTerm);
         }
 
         @Override
@@ -217,55 +210,15 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // to recycle its contained TermsEnum
                 BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
                 if (bfte.filter == filter) {
-                    bfte.reset(delegateTerms);
+                    bfte.reset(this.in);
                     return bfte;
                 }
                 reuse = bfte.reuse;
             }
             // We have been handed something we cannot reuse (either null, wrong
             // class or wrong filter) so allocate a new object
-            result = new BloomFilteredTermsEnum(delegateTerms, reuse, filter);
+            result = new BloomFilteredTermsEnum(this.in, reuse, filter);
             return result;
-        }
-
-        @Override
-        public Comparator<BytesRef> getComparator() {
-            return delegateTerms.getComparator();
-        }
-
-        @Override
-        public long size() throws IOException {
-            return delegateTerms.size();
-        }
-
-        @Override
-        public long getSumTotalTermFreq() throws IOException {
-            return delegateTerms.getSumTotalTermFreq();
-        }
-
-        @Override
-        public long getSumDocFreq() throws IOException {
-            return delegateTerms.getSumDocFreq();
-        }
-
-        @Override
-        public int getDocCount() throws IOException {
-            return delegateTerms.getDocCount();
-        }
-
-        @Override
-        public boolean hasOffsets() {
-            return delegateTerms.hasOffsets();
-        }
-
-        @Override
-        public boolean hasPositions() {
-            return delegateTerms.hasPositions();
-        }
-
-        @Override
-        public boolean hasPayloads() {
-            return delegateTerms.hasPayloads();
         }
     }
 

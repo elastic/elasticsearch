@@ -352,6 +352,11 @@ public final class TermVectorFields extends Fields {
             }
 
             @Override
+            public boolean hasFreqs() {
+                return true;
+            }
+
+            @Override
             public boolean hasOffsets() {
                 return hasOffsets;
             }

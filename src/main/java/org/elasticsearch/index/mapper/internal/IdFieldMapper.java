@@ -172,7 +172,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             return super.termQuery(value, context);
         }
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
-        return new XLuceneConstantScoreQuery(termFilter(value, context));
+        return new ConstantScoreQuery(termFilter(value, context));
     }
 
     @Override

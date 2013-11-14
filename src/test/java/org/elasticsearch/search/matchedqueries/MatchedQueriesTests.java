@@ -164,4 +164,43 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
             }
         }
     }
+
+    @Test
+    public void testIndicesFilterSupportsName() {
+        createIndex("test1", "test2");
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        client().prepareIndex("test2", "type1", "2").setSource("title", "title2").get();
+        client().prepareIndex("test2", "type1", "3").setSource("title", "title3").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(),
+                            orFilter(
+                                indicesFilter(termFilter("title", "title1").filterName("title1"), "test1")
+                                        .noMatchFilter(termFilter("title", "title2").filterName("title2")).filterName("indices_filter"),
+                                termFilter("title", "title3").filterName("title3")).filterName("or"))).get();
+        assertHitCount(searchResponse, 3l);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(3));
+                assertThat(hit.matchedQueries(), hasItemInArray("indices_filter"));
+                assertThat(hit.matchedQueries(), hasItemInArray("title1"));
+                assertThat(hit.matchedQueries(), hasItemInArray("or"));
+            } else if (hit.id().equals("2")) {
+                assertThat(hit.matchedQueries().length, equalTo(3));
+                assertThat(hit.matchedQueries(), hasItemInArray("indices_filter"));
+                assertThat(hit.matchedQueries(), hasItemInArray("title2"));
+                assertThat(hit.matchedQueries(), hasItemInArray("or"));
+            } else if (hit.id().equals("3")) {
+                assertThat(hit.matchedQueries().length, equalTo(2));
+                assertThat(hit.matchedQueries(), hasItemInArray("title3"));
+                assertThat(hit.matchedQueries(), hasItemInArray("or"));
+            } else {
+                fail("Unexpected document returned with id " + hit.id());
+            }
+        }
+    }
 }
